@@ -1,0 +1,128 @@
+-- RKJ One: Approvals resolver + payroll fix
+-- Migration 00018
+
+-- Fix payroll approval column name
+CREATE OR REPLACE FUNCTION approve_payroll_run(p_run_id UUID)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_user_id UUID;
+BEGIN
+  v_user_id := auth.uid();
+  IF auth.user_role() NOT IN ('SUPER_ADMIN', 'ADMIN', 'HR') THEN
+    RAISE EXCEPTION 'Insufficient permissions';
+  END IF;
+
+  UPDATE payroll_runs SET
+    status = 'APPROVED',
+    approved_by = v_user_id
+  WHERE id = p_run_id AND status = 'PENDING';
+
+  IF NOT FOUND THEN RAISE EXCEPTION 'Payroll run not found or already processed'; END IF;
+
+  UPDATE approval_requests SET
+    status = 'APPROVED',
+    approved_by = v_user_id,
+    resolved_at = now()
+  WHERE entity_type = 'PAYROLL' AND entity_id = p_run_id;
+
+  RETURN jsonb_build_object('run_id', p_run_id, 'status', 'APPROVED');
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION resolve_approval_request(
+  p_request_id UUID,
+  p_action TEXT,
+  p_reason TEXT DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_user_id UUID;
+  v_req RECORD;
+  v_result JSONB;
+BEGIN
+  v_user_id := auth.uid();
+  IF v_user_id IS NULL THEN RAISE EXCEPTION 'Not authenticated'; END IF;
+
+  SELECT * INTO v_req FROM approval_requests
+  WHERE id = p_request_id AND organization_id = auth.organization_id() AND status = 'PENDING';
+
+  IF NOT FOUND THEN RAISE EXCEPTION 'Approval request not found'; END IF;
+
+  IF NOT (
+    auth.is_admin()
+    OR auth.user_role() IN ('HR', 'FINANCE', 'OPERATION_MANAGER', 'CEO_FACTORY')
+    OR (v_req.branch_id IS NOT NULL AND auth.has_branch_access(v_req.branch_id))
+  ) THEN
+    RAISE EXCEPTION 'Insufficient permissions';
+  END IF;
+
+  IF upper(p_action) = 'APPROVE' THEN
+    CASE v_req.entity_type
+      WHEN 'SHIFT' THEN
+        v_result := approve_staff_shift(v_req.entity_id);
+      WHEN 'PAYROLL' THEN
+        v_result := approve_payroll_run(v_req.entity_id);
+      WHEN 'STOCK_ADJUSTMENT' THEN
+        v_result := approve_stock_adjustment(v_req.entity_id);
+      WHEN 'STOCK_WRITE_OFF' THEN
+        v_result := approve_stock_write_off(v_req.entity_id);
+      WHEN 'CASH_RECONCILIATION' THEN
+        v_result := approve_cash_reconciliation(v_req.entity_id);
+      ELSE
+        UPDATE approval_requests SET
+          status = 'APPROVED',
+          approved_by = v_user_id,
+          resolved_at = now()
+        WHERE id = p_request_id;
+        v_result := jsonb_build_object('request_id', p_request_id, 'status', 'APPROVED');
+    END CASE;
+  ELSIF upper(p_action) = 'REJECT' THEN
+    UPDATE approval_requests SET
+      status = 'REJECTED',
+      rejected_by = v_user_id,
+      rejection_reason = p_reason,
+      resolved_at = now()
+    WHERE id = p_request_id;
+
+    CASE v_req.entity_type
+      WHEN 'SHIFT' THEN
+        UPDATE staff_shifts SET status = 'REJECTED' WHERE id = v_req.entity_id;
+      WHEN 'PAYROLL' THEN
+        UPDATE payroll_runs SET status = 'REJECTED' WHERE id = v_req.entity_id;
+      WHEN 'STOCK_ADJUSTMENT' THEN
+        UPDATE stock_adjustments SET status = 'REJECTED' WHERE id = v_req.entity_id;
+      WHEN 'STOCK_WRITE_OFF' THEN
+        UPDATE stock_write_offs SET status = 'REJECTED' WHERE id = v_req.entity_id;
+      WHEN 'CASH_RECONCILIATION' THEN
+        UPDATE cash_reconciliations SET status = 'REJECTED' WHERE id = v_req.entity_id;
+      ELSE NULL;
+    END CASE;
+
+    v_result := jsonb_build_object('request_id', p_request_id, 'status', 'REJECTED');
+  ELSE
+    RAISE EXCEPTION 'Invalid action — use APPROVE or REJECT';
+  END IF;
+
+  RETURN v_result;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION resolve_approval_request TO authenticated;
+
+CREATE POLICY approvals_update ON approval_requests
+  FOR UPDATE USING (
+    organization_id = auth.organization_id()
+    AND (
+      auth.is_admin()
+      OR auth.user_role() IN ('HR', 'FINANCE', 'OPERATION_MANAGER', 'CEO_FACTORY')
+      OR (branch_id IS NOT NULL AND auth.has_branch_access(branch_id))
+    )
+  );

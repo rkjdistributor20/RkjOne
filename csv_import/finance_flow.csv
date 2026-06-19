@@ -1,0 +1,6 @@
+﻿FLOW_ID,Jenis,From,To,Collector,Status Flow,Nota
+CF001,QR,Customer,QR Company Account,System,Auto Recorded,QR company
+CF002,Cash,Staff Kiosk,Manager,Area Manager,Collected,Ada manager kutip
+CF003,Cash,Staff Kiosk,Third Party,Third Party,Collected,Ada third party kutip
+CF004,Cash,Manager/Third Party,Bank,Manager/Third Party,Banked In,Upload slip bank in
+CF005,Cash,Bank,HQ Finance,Finance,Verified,Finance verify

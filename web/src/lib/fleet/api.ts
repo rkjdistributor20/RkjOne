@@ -1,0 +1,74 @@
+import type {
+  CreateDeliveryPayload,
+  DeliveryOrder,
+  FleetDriver,
+  FleetStatusLog,
+  FleetVehicle,
+  PodPayload,
+} from './types';
+
+async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(url, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? 'Request failed');
+  return data;
+}
+
+export async function fetchFleetVehicles() {
+  return fetchJson<{ vehicles: FleetVehicle[] }>('/api/fleet/vehicles');
+}
+
+export async function fetchFleetDrivers() {
+  return fetchJson<{ drivers: FleetDriver[] }>('/api/fleet/drivers');
+}
+
+export async function fetchDeliveryOrders(status?: string) {
+  const params = status ? `?status=${status}` : '';
+  return fetchJson<{ orders: DeliveryOrder[] }>(`/api/fleet/orders${params}`);
+}
+
+export async function fetchDeliveryOrder(id: string) {
+  return fetchJson<{ order: DeliveryOrder }>(`/api/fleet/orders/${id}`);
+}
+
+export async function createDeliveryOrder(payload: CreateDeliveryPayload) {
+  return fetchJson<{ result: { order_id: string; order_number: string } }>(
+    '/api/fleet/orders',
+    { method: 'POST', body: JSON.stringify(payload) }
+  );
+}
+
+export async function dispatchLeg(legId: string) {
+  return fetchJson<{ result: unknown }>(`/api/fleet/legs/${legId}/dispatch`, {
+    method: 'POST',
+  });
+}
+
+export async function submitPod(legId: string, payload: PodPayload) {
+  return fetchJson<{ result: unknown }>(`/api/fleet/legs/${legId}/pod`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function fetchFleetStatus() {
+  return fetchJson<{ logs: FleetStatusLog[] }>('/api/fleet/status');
+}
+
+export async function logFleetStatus(payload: {
+  vehicle_id: string;
+  driver_id?: string;
+  status: string;
+  location_description?: string;
+  gps_latitude?: number;
+  gps_longitude?: number;
+  notes?: string;
+}) {
+  return fetchJson<{ result: unknown }>('/api/fleet/status', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}

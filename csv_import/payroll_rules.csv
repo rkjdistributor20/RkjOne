@@ -1,0 +1,10 @@
+﻿RULE_ID,Jenis Pekerja,Komponen,Kadar,Unit,Status,Nota
+PR001,Pekerja Asing,Kadar 8 Jam,55.0,Per Shift,Active,Bayar mingguan
+PR002,Pekerja Asing,Kadar 9 Jam,60.0,Per Shift,Active,Bayar mingguan
+PR003,Pekerja Asing,Kadar 12 Jam,75.0,Per Shift,Active,Bayar mingguan
+PR004,Pekerja Asing,Kadar 16 Jam,95.0,Per Shift,Active,Bayar mingguan
+PR005,Pekerja Asing,OT,5.0,Per Jam,Active,
+PR006,Pekerja Tempatan,Gaji Pokok,1750.0,Bulanan,Active,
+PR007,Pekerja Tempatan,Elaun Kehadiran,200.0,Bulanan,Active,
+PR008,Pekerja Tempatan,Bonus Tamat Kontrak,500.0,Sekali,Active,
+PR009,Pekerja Tempatan,EPF/SOCSO/EIS,,,Active,Disediakan

@@ -1,0 +1,6 @@
+﻿DRIVER_ID,Nama Driver,Role,Laluan Utama,Kenderaan Biasa,Boleh Terima Dari Driver Lain,Status,No Telefon,Nota
+D001,Samad,Driver,HQ → Driver Ahmad/Fazil/Ridhuan → Kiosk,Lori 5 Tan / Lori 3 Tan,Ya,Active,,Guna ikut jumlah stock
+D002,Anuar,Driver,HQ → Kiosk,Van / Lori 1 Tan,Tidak pasti,Active,,Guna ikut jumlah stock
+D003,Farid,Driver,HQ → Kiosk,,Tidak pasti,Active,,Kenderaan perlu diisi admin
+D004,Fazil,Driver,Terima dari Samad → Kiosk,,Ya,Active,,
+D005,Ridhuan,Driver,Terima dari Samad → Kiosk,,Ya,Active,,

@@ -1,0 +1,12 @@
+﻿SKU,Nama POS,Stock Item,Qty Per Sale,Unit,Min/Max,Auto Deduct,Nota
+RK-KB-3,Roti Kaya - 3 pcs Kaya Butter,Roti Planta,3,pcs,fixed,Yes,
+RK-KB-3,Roti Kaya - 3 pcs Kaya Butter,Kaya,12,gram,10-12g,Yes,HQ boleh ubah ke 10/11/12g
+RK-KB-3,Roti Kaya - 3 pcs Kaya Butter,Butter,12,gram,10-12g,Yes,HQ boleh ubah
+RK-KB-3,Roti Kaya - 3 pcs Kaya Butter,Plastic Medium,1,pcs,fixed,Yes,
+RKEL-K-3,Roti Kelapa - 3 pcs + Kaya,Roti Kelapa,3,pcs,fixed,Yes,
+RKEL-K-3,Roti Kelapa - 3 pcs + Kaya,Kaya,12,gram,10-12g,Yes,
+RKEL-K-3,Roti Kelapa - 3 pcs + Kaya,Plastic Medium,1,pcs,fixed,Yes,
+BENG-KB,Roti Benggali - Kaya Butter,Roti Benggali,1,pcs,fixed,Yes,
+BENG-KB,Roti Benggali - Kaya Butter,Kaya,45,gram,40-45g,Yes,HQ boleh ubah ke 40-45g
+BENG-KB,Roti Benggali - Kaya Butter,Butter,45,gram,40-45g,Yes,HQ boleh ubah
+BENG-KB,Roti Benggali - Kaya Butter,Plastic Big,1,pcs,assumption,Yes,Boleh ubah admin

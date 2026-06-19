@@ -1,0 +1,9 @@
+﻿Role,POS,Shift,Stock Kiosk,Stock HQ,Fleet,Payroll,Finance,Reports,User Management,Approval
+Super Admin,Full,Full,Full,Full,Full,Full,Full,Full,Full,Full
+HQ Admin,View,View,Full,Full,View,None,View,Full,Full,Full
+HR,None,View,None,None,None,Full,View Payroll,HR Reports,Staff Only,None
+Operation Manager,View,View,Full,View,Full,None,View,Operations,None,Full
+CEO Factory,None,None,None,Full Production,View,None,None,Production,None,None
+Area Manager,View Area,View Area,View Area,None,View Area,None,Cash View Area,Area Reports,None,Approve Area
+Driver,None,None,Transfer Only,None,Own Deliveries,None,None,Delivery Reports,None,POD
+Staff,Full Own,Full Own,Own Kiosk,None,None,None,Own Shift,Own Reports,None,Submit

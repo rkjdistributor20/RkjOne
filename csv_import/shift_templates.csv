@@ -1,0 +1,6 @@
+﻿TEMPLATE_ID,Nama Shift,Start Time,End Time,Default Hours,Status,Nota
+SH001,Shift Pagi,06:00,15:00,9,Active,Fleksibel
+SH002,Shift Petang,15:00,23:00,8,Active,Fleksibel
+SH003,Shift Siang 12 Jam,06:00,18:00,12,Active,
+SH004,Shift Malam 12 Jam,18:00,06:00,12,Active,Cross midnight
+SH005,Custom,,,,Active,Staff/Manager pilih masa sebenar

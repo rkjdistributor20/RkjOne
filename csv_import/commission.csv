@@ -1,0 +1,11 @@
+﻿Tier From RM,Tier To RM,Komisen RM,Formula,Status,Nota
+1000,1999,5,Setiap kenaikan RM1000 tambah RM5,Active,Boleh ubah admin
+2000,2999,10,Setiap kenaikan RM1000 tambah RM5,Active,Boleh ubah admin
+3000,3999,15,Setiap kenaikan RM1000 tambah RM5,Active,Boleh ubah admin
+4000,4999,20,Setiap kenaikan RM1000 tambah RM5,Active,Boleh ubah admin
+5000,5999,25,Setiap kenaikan RM1000 tambah RM5,Active,Boleh ubah admin
+6000,6999,30,Setiap kenaikan RM1000 tambah RM5,Active,Boleh ubah admin
+7000,7999,35,Setiap kenaikan RM1000 tambah RM5,Active,Boleh ubah admin
+8000,8999,40,Setiap kenaikan RM1000 tambah RM5,Active,Boleh ubah admin
+9000,9999,45,Setiap kenaikan RM1000 tambah RM5,Active,Boleh ubah admin
+10000,Unlimited,50,Teruskan formula / custom,Active,Boleh ubah admin

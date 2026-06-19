@@ -1,0 +1,1194 @@
+{
+  "version": "RKJ One v1.0",
+  "hq_users": [
+    [
+      "U001",
+      "Mat Isa",
+      "Super Admin",
+      "matisa@rkj.com",
+      "Sila tukar password",
+      "All",
+      "Active",
+      "Bos / owner"
+    ],
+    [
+      "U002",
+      "Norashikin",
+      "HQ Admin",
+      "",
+      "Sila isi",
+      "All",
+      "Active",
+      "Admin HQ"
+    ],
+    [
+      "U003",
+      "Mohd Ali",
+      "HR",
+      "",
+      "Sila isi",
+      "HR only",
+      "Active",
+      "HR"
+    ],
+    [
+      "U004",
+      "Ibrahim",
+      "Operation Manager",
+      "",
+      "Sila isi",
+      "All operations",
+      "Active",
+      "Operation Manager"
+    ],
+    [
+      "U005",
+      "Muhammad",
+      "CEO Factory",
+      "",
+      "Sila isi",
+      "Factory + Warehouse",
+      "Active",
+      "CEO Factory"
+    ],
+    [
+      "U006",
+      "Safuan",
+      "Area Manager",
+      "",
+      "Sila isi",
+      "Utara",
+      "Active",
+      "12 cawangan"
+    ],
+    [
+      "U007",
+      "Hakim",
+      "Area Manager",
+      "",
+      "Sila isi",
+      "Tengah",
+      "Active",
+      "10 cawangan"
+    ],
+    [
+      "U008",
+      "Yati",
+      "Area Manager",
+      "",
+      "Sila isi",
+      "Selatan",
+      "Active",
+      "14 cawangan"
+    ]
+  ],
+  "branches": [
+    [
+      "BR001",
+      "RNR Juru Arah Selatan",
+      "Utara",
+      "Safuan",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "BR002",
+      "RNR Gunung Semanggul Arah Selatan",
+      "Utara",
+      "Safuan",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "BR003",
+      "RNR Gunung Semanggul Arah Utara",
+      "Utara",
+      "Safuan",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "BR004",
+      "Hentian Sebelah Bukit Gantang Arah Utara",
+      "Utara",
+      "Safuan",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "BR005",
+      "RNR Sg Perak Arah Selatan",
+      "Utara",
+      "Safuan",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "BR006",
+      "RNR Sg Perak Arah Utara",
+      "Utara",
+      "Safuan",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "BR007",
+      "RNR Simpang Pulai Arah Selatan",
+      "Utara",
+      "Safuan",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "BR008",
+      "RNR Simpang Pulai Arah Utara",
+      "Utara",
+      "Safuan",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "BR009",
+      "Plaza Tol Simpang Pulai",
+      "Utara",
+      "Safuan",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "BR010",
+      "Plaza Tol WCE Taiping",
+      "Utara",
+      "Safuan",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "BR011",
+      "RNR Sg Nyiur Arah Utara",
+      "Utara",
+      "Safuan",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "BR012",
+      "Hentian Sebelah Bukit Gantang Arah Selatan",
+      "Utara",
+      "Safuan",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "BR013",
+      "RNR Tapah Selatan 1",
+      "Tengah",
+      "Hakim",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "BR014",
+      "RNR Tapah Selatan 2",
+      "Tengah",
+      "Hakim",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "BR015",
+      "RNR Tapah Utara",
+      "Tengah",
+      "Hakim",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "BR016",
+      "Plaza Tol Tapah",
+      "Tengah",
+      "Hakim",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "BR017",
+      "Hentian Sebelah Ladang Bikam Arah Utara",
+      "Tengah",
+      "Hakim",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "BR018",
+      "Hentian Sebelah Ladang Bikam Arah Selatan",
+      "Tengah",
+      "Hakim",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "BR019",
+      "Hentian Sebelah Behrang Arah Utara",
+      "Tengah",
+      "Hakim",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "BR020",
+      "Hentian Sebelah Behrang Arah Selatan",
+      "Tengah",
+      "Hakim",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "BR021",
+      "RNR Ulu Bernam Arah Selatan",
+      "Tengah",
+      "Hakim",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "BR022",
+      "Hentian Sebelah Tg Malim Arah Selatan",
+      "Tengah",
+      "Hakim",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "BR023",
+      "Hentian Sebelah Rawang Arah Selatan",
+      "Selatan",
+      "Yati",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "BR024",
+      "RNR Rawang Arah Utara",
+      "Selatan",
+      "Yati",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "BR025",
+      "Hentian Sebelah Sg Buluh Arah Selatan",
+      "Selatan",
+      "Yati",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "BR026",
+      "OBR Sg Buluh Arah Utara",
+      "Selatan",
+      "Yati",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "BR027",
+      "OBR Sg Buluh Arah Selatan",
+      "Selatan",
+      "Yati",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "BR028",
+      "Plaza Tol Sg Besi Arah Utara",
+      "Selatan",
+      "Yati",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "BR029",
+      "RNR Dengkil Arah Selatan",
+      "Selatan",
+      "Yati",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "BR030",
+      "RNR Dengkil Arah Utara",
+      "Selatan",
+      "Yati",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "BR031",
+      "RNR Seremban Arah Utara",
+      "Selatan",
+      "Yati",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "BR032",
+      "Hentian Sebelah Pedas Linggi Arah Selatan",
+      "Selatan",
+      "Yati",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "BR033",
+      "Hentian Sebelah Ayer Keroh Arah Selatan",
+      "Selatan",
+      "Yati",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "BR034",
+      "RNR Elmina Arah Barat",
+      "Selatan",
+      "Yati",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "BR035",
+      "RNR Gombak Arah Barat",
+      "Selatan",
+      "Yati",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ],
+    [
+      "BR036",
+      "RNR Genting Sempah",
+      "Selatan",
+      "Yati",
+      "Active",
+      "",
+      "",
+      "",
+      "",
+      ""
+    ]
+  ],
+  "drivers": [
+    [
+      "D001",
+      "Samad",
+      "Driver",
+      "HQ → Driver Ahmad/Fazil/Ridhuan → Kiosk",
+      "Lori 5 Tan / Lori 3 Tan",
+      "Ya",
+      "Active",
+      "",
+      "Guna ikut jumlah stock"
+    ],
+    [
+      "D002",
+      "Anuar",
+      "Driver",
+      "HQ → Kiosk",
+      "Van / Lori 1 Tan",
+      "Tidak pasti",
+      "Active",
+      "",
+      "Guna ikut jumlah stock"
+    ],
+    [
+      "D003",
+      "Farid",
+      "Driver",
+      "HQ → Kiosk",
+      "",
+      "Tidak pasti",
+      "Active",
+      "",
+      "Kenderaan perlu diisi admin"
+    ],
+    [
+      "D004",
+      "Fazil",
+      "Driver",
+      "Terima dari Samad → Kiosk",
+      "",
+      "Ya",
+      "Active",
+      "",
+      ""
+    ],
+    [
+      "D005",
+      "Ridhuan",
+      "Driver",
+      "Terima dari Samad → Kiosk",
+      "",
+      "Ya",
+      "Active",
+      "",
+      ""
+    ]
+  ],
+  "vehicles": [
+    [
+      "V001",
+      "",
+      "Lori 5 Tan",
+      "5 Tan",
+      "Samad",
+      "Active",
+      "No plat isi kemudian"
+    ],
+    [
+      "V002",
+      "",
+      "Lori 3 Tan",
+      "3 Tan",
+      "Samad",
+      "Active",
+      "No plat isi kemudian"
+    ],
+    [
+      "V003",
+      "",
+      "Lori 1 Tan",
+      "1 Tan",
+      "Anuar",
+      "Active",
+      "No plat isi kemudian"
+    ],
+    [
+      "V004",
+      "",
+      "Van",
+      "",
+      "Anuar",
+      "Active",
+      "No plat isi kemudian"
+    ],
+    [
+      "V005",
+      "",
+      "Lori/Van",
+      "",
+      "Farid",
+      "Active",
+      "Butiran isi kemudian"
+    ]
+  ],
+  "products": [
+    [
+      "RK-KB-3",
+      "Roti Kaya - 3 pcs Kaya Butter",
+      "Roti Kaya",
+      10.0,
+      "Set",
+      "Active",
+      "Banner menu"
+    ],
+    [
+      "RK-KB-1",
+      "Roti Kaya - 1 pc Kaya Butter",
+      "Roti Kaya",
+      3.5,
+      "Pcs",
+      "Active",
+      "Banner menu"
+    ],
+    [
+      "RK-KO-3",
+      "Roti Kaya - 3 pcs Kaya Only",
+      "Roti Kaya",
+      7.0,
+      "Set",
+      "Active",
+      "Banner menu"
+    ],
+    [
+      "RK-KO-1",
+      "Roti Kaya - 1 pc Kaya Only",
+      "Roti Kaya",
+      2.5,
+      "Pcs",
+      "Active",
+      "Banner menu"
+    ],
+    [
+      "RKEL-K-3",
+      "Roti Kelapa - 3 pcs + Kaya",
+      "Roti Kelapa",
+      10.0,
+      "Set",
+      "Active",
+      "Banner menu"
+    ],
+    [
+      "RKEL-K-1",
+      "Roti Kelapa - 1 pc + Kaya",
+      "Roti Kelapa",
+      3.5,
+      "Pcs",
+      "Active",
+      "Banner menu"
+    ],
+    [
+      "RKEL-3",
+      "Roti Kelapa - 3 pcs",
+      "Roti Kelapa",
+      7.0,
+      "Set",
+      "Active",
+      "Banner menu"
+    ],
+    [
+      "RKEL-1",
+      "Roti Kelapa - 1 pc",
+      "Roti Kelapa",
+      2.5,
+      "Pcs",
+      "Active",
+      "Banner menu"
+    ],
+    [
+      "RKAC-K-3",
+      "Roti Kacang - 3 pcs + Kaya",
+      "Roti Kacang",
+      11.0,
+      "Set",
+      "Active",
+      "Banner menu"
+    ],
+    [
+      "RKAC-K-1",
+      "Roti Kacang - 1 pc + Kaya",
+      "Roti Kacang",
+      4.0,
+      "Pcs",
+      "Active",
+      "Banner menu"
+    ],
+    [
+      "RKAC-3",
+      "Roti Kacang - 3 pcs",
+      "Roti Kacang",
+      8.0,
+      "Set",
+      "Active",
+      "Banner menu"
+    ],
+    [
+      "RKAC-1",
+      "Roti Kacang - 1 pc",
+      "Roti Kacang",
+      3.0,
+      "Pcs",
+      "Active",
+      "Banner menu"
+    ],
+    [
+      "BENG-KB",
+      "Roti Benggali - Kaya Butter",
+      "Benggali",
+      12.5,
+      "Pcs",
+      "Active",
+      "Banner menu"
+    ],
+    [
+      "BENG-KO",
+      "Roti Benggali - Kaya Only",
+      "Benggali",
+      9.0,
+      "Pcs",
+      "Active",
+      "Banner menu"
+    ],
+    [
+      "BENG-PL",
+      "Roti Benggali - Plain",
+      "Benggali",
+      7.0,
+      "Pcs",
+      "Active",
+      "Banner menu"
+    ],
+    [
+      "KAYA-CUP",
+      "Kaya In Cup",
+      "Benggali",
+      5.0,
+      "Cup",
+      "Active",
+      "Banner menu"
+    ]
+  ],
+  "stock_items": [
+    [
+      "ST-PLANTA",
+      "Roti Planta",
+      "Roti",
+      "Bag/Pcs",
+      "1 Bag = 20 pcs",
+      "",
+      "",
+      "Active",
+      "Diguna untuk menu Roti Kaya"
+    ],
+    [
+      "ST-KELAPA",
+      "Roti Kelapa",
+      "Roti",
+      "Bag/Pcs",
+      "1 Bag = 28 pcs",
+      "",
+      "",
+      "Active",
+      ""
+    ],
+    [
+      "ST-KACANG",
+      "Roti Kacang",
+      "Roti",
+      "Bag/Pcs",
+      "1 Bag = 24 pcs",
+      "",
+      "",
+      "Active",
+      ""
+    ],
+    [
+      "ST-BENGGALI",
+      "Roti Benggali",
+      "Roti",
+      "Bag/Pcs",
+      "1 Bag = 2 pcs",
+      "",
+      "",
+      "Active",
+      ""
+    ],
+    [
+      "ST-KAYA",
+      "Kaya",
+      "Bahan",
+      "Tong/Kg/Gram",
+      "1 Tong = 5kg = 5000g",
+      "",
+      "",
+      "Active",
+      ""
+    ],
+    [
+      "ST-BUTTER",
+      "Butter",
+      "Bahan",
+      "Tong/Kg/Gram",
+      "1 Tong = 4.8kg = 4800g",
+      "",
+      "",
+      "Active",
+      ""
+    ],
+    [
+      "ST-PLASTIC-S",
+      "Plastic Small",
+      "Packaging",
+      "Pack/Pcs",
+      "1 Pack = 100 pcs",
+      "",
+      "",
+      "Active",
+      ""
+    ],
+    [
+      "ST-PLASTIC-M",
+      "Plastic Medium",
+      "Packaging",
+      "Pack/Pcs",
+      "1 Pack = 100 pcs",
+      "",
+      "",
+      "Active",
+      ""
+    ],
+    [
+      "ST-PLASTIC-B",
+      "Plastic Big",
+      "Packaging",
+      "Pack/Pcs",
+      "1 Pack = 100 pcs",
+      "",
+      "",
+      "Active",
+      ""
+    ]
+  ],
+  "bom_formula": [
+    [
+      "RK-KB-3",
+      "Roti Kaya - 3 pcs Kaya Butter",
+      "Roti Planta",
+      3,
+      "pcs",
+      "fixed",
+      "Yes",
+      ""
+    ],
+    [
+      "RK-KB-3",
+      "Roti Kaya - 3 pcs Kaya Butter",
+      "Kaya",
+      12,
+      "gram",
+      "10-12g",
+      "Yes",
+      "HQ boleh ubah ke 10/11/12g"
+    ],
+    [
+      "RK-KB-3",
+      "Roti Kaya - 3 pcs Kaya Butter",
+      "Butter",
+      12,
+      "gram",
+      "10-12g",
+      "Yes",
+      "HQ boleh ubah"
+    ],
+    [
+      "RK-KB-3",
+      "Roti Kaya - 3 pcs Kaya Butter",
+      "Plastic Medium",
+      1,
+      "pcs",
+      "fixed",
+      "Yes",
+      ""
+    ],
+    [
+      "RKEL-K-3",
+      "Roti Kelapa - 3 pcs + Kaya",
+      "Roti Kelapa",
+      3,
+      "pcs",
+      "fixed",
+      "Yes",
+      ""
+    ],
+    [
+      "RKEL-K-3",
+      "Roti Kelapa - 3 pcs + Kaya",
+      "Kaya",
+      12,
+      "gram",
+      "10-12g",
+      "Yes",
+      ""
+    ],
+    [
+      "RKEL-K-3",
+      "Roti Kelapa - 3 pcs + Kaya",
+      "Plastic Medium",
+      1,
+      "pcs",
+      "fixed",
+      "Yes",
+      ""
+    ],
+    [
+      "BENG-KB",
+      "Roti Benggali - Kaya Butter",
+      "Roti Benggali",
+      1,
+      "pcs",
+      "fixed",
+      "Yes",
+      ""
+    ],
+    [
+      "BENG-KB",
+      "Roti Benggali - Kaya Butter",
+      "Kaya",
+      45,
+      "gram",
+      "40-45g",
+      "Yes",
+      "HQ boleh ubah ke 40-45g"
+    ],
+    [
+      "BENG-KB",
+      "Roti Benggali - Kaya Butter",
+      "Butter",
+      45,
+      "gram",
+      "40-45g",
+      "Yes",
+      "HQ boleh ubah"
+    ],
+    [
+      "BENG-KB",
+      "Roti Benggali - Kaya Butter",
+      "Plastic Big",
+      1,
+      "pcs",
+      "assumption",
+      "Yes",
+      "Boleh ubah admin"
+    ]
+  ],
+  "shift_templates": [
+    [
+      "SH001",
+      "Shift Pagi",
+      "06:00",
+      "15:00",
+      9,
+      "Active",
+      "Fleksibel"
+    ],
+    [
+      "SH002",
+      "Shift Petang",
+      "15:00",
+      "23:00",
+      8,
+      "Active",
+      "Fleksibel"
+    ],
+    [
+      "SH003",
+      "Shift Siang 12 Jam",
+      "06:00",
+      "18:00",
+      12,
+      "Active",
+      ""
+    ],
+    [
+      "SH004",
+      "Shift Malam 12 Jam",
+      "18:00",
+      "06:00",
+      12,
+      "Active",
+      "Cross midnight"
+    ],
+    [
+      "SH005",
+      "Custom",
+      "",
+      "",
+      "",
+      "Active",
+      "Staff/Manager pilih masa sebenar"
+    ]
+  ],
+  "payroll_rules": [
+    [
+      "PR001",
+      "Pekerja Asing",
+      "Kadar 8 Jam",
+      55.0,
+      "Per Shift",
+      "Active",
+      "Bayar mingguan"
+    ],
+    [
+      "PR002",
+      "Pekerja Asing",
+      "Kadar 9 Jam",
+      60.0,
+      "Per Shift",
+      "Active",
+      "Bayar mingguan"
+    ],
+    [
+      "PR003",
+      "Pekerja Asing",
+      "Kadar 12 Jam",
+      75.0,
+      "Per Shift",
+      "Active",
+      "Bayar mingguan"
+    ],
+    [
+      "PR004",
+      "Pekerja Asing",
+      "Kadar 16 Jam",
+      95.0,
+      "Per Shift",
+      "Active",
+      "Bayar mingguan"
+    ],
+    [
+      "PR005",
+      "Pekerja Asing",
+      "OT",
+      5.0,
+      "Per Jam",
+      "Active",
+      ""
+    ],
+    [
+      "PR006",
+      "Pekerja Tempatan",
+      "Gaji Pokok",
+      1750.0,
+      "Bulanan",
+      "Active",
+      ""
+    ],
+    [
+      "PR007",
+      "Pekerja Tempatan",
+      "Elaun Kehadiran",
+      200.0,
+      "Bulanan",
+      "Active",
+      ""
+    ],
+    [
+      "PR008",
+      "Pekerja Tempatan",
+      "Bonus Tamat Kontrak",
+      500.0,
+      "Sekali",
+      "Active",
+      ""
+    ],
+    [
+      "PR009",
+      "Pekerja Tempatan",
+      "EPF/SOCSO/EIS",
+      "",
+      "",
+      "Active",
+      "Disediakan"
+    ]
+  ],
+  "commission_rules": [
+    [
+      1000,
+      1999,
+      5,
+      "Setiap kenaikan RM1000 tambah RM5",
+      "Active",
+      "Boleh ubah admin"
+    ],
+    [
+      2000,
+      2999,
+      10,
+      "Setiap kenaikan RM1000 tambah RM5",
+      "Active",
+      "Boleh ubah admin"
+    ],
+    [
+      3000,
+      3999,
+      15,
+      "Setiap kenaikan RM1000 tambah RM5",
+      "Active",
+      "Boleh ubah admin"
+    ],
+    [
+      4000,
+      4999,
+      20,
+      "Setiap kenaikan RM1000 tambah RM5",
+      "Active",
+      "Boleh ubah admin"
+    ],
+    [
+      5000,
+      5999,
+      25,
+      "Setiap kenaikan RM1000 tambah RM5",
+      "Active",
+      "Boleh ubah admin"
+    ],
+    [
+      6000,
+      6999,
+      30,
+      "Setiap kenaikan RM1000 tambah RM5",
+      "Active",
+      "Boleh ubah admin"
+    ],
+    [
+      7000,
+      7999,
+      35,
+      "Setiap kenaikan RM1000 tambah RM5",
+      "Active",
+      "Boleh ubah admin"
+    ],
+    [
+      8000,
+      8999,
+      40,
+      "Setiap kenaikan RM1000 tambah RM5",
+      "Active",
+      "Boleh ubah admin"
+    ],
+    [
+      9000,
+      9999,
+      45,
+      "Setiap kenaikan RM1000 tambah RM5",
+      "Active",
+      "Boleh ubah admin"
+    ],
+    [
+      10000,
+      "Unlimited",
+      50,
+      "Teruskan formula / custom",
+      "Active",
+      "Boleh ubah admin"
+    ]
+  ]
+}

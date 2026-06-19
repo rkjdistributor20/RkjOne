@@ -1,0 +1,10 @@
+﻿ITEM_CODE,Nama Stok,Kategori,Unit Simpan,Conversion,Min Threshold,Critical Threshold,Status,Nota
+ST-PLANTA,Roti Planta,Roti,Bag/Pcs,1 Bag = 20 pcs,,,Active,Diguna untuk menu Roti Kaya
+ST-KELAPA,Roti Kelapa,Roti,Bag/Pcs,1 Bag = 28 pcs,,,Active,
+ST-KACANG,Roti Kacang,Roti,Bag/Pcs,1 Bag = 24 pcs,,,Active,
+ST-BENGGALI,Roti Benggali,Roti,Bag/Pcs,1 Bag = 2 pcs,,,Active,
+ST-KAYA,Kaya,Bahan,Tong/Kg/Gram,1 Tong = 5kg = 5000g,,,Active,
+ST-BUTTER,Butter,Bahan,Tong/Kg/Gram,1 Tong = 4.8kg = 4800g,,,Active,
+ST-PLASTIC-S,Plastic Small,Packaging,Pack/Pcs,1 Pack = 100 pcs,,,Active,
+ST-PLASTIC-M,Plastic Medium,Packaging,Pack/Pcs,1 Pack = 100 pcs,,,Active,
+ST-PLASTIC-B,Plastic Big,Packaging,Pack/Pcs,1 Pack = 100 pcs,,,Active,
