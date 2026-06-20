@@ -75,14 +75,25 @@ Extends `auth.users` with role, org, region/branch scope, employee link.
 
 ## Migration Order
 
-1. `00001_extensions_enums.sql`
-2. `00002_core_organization.sql`
-3. `00003_master_data.sql`
-4. `00004_inventory.sql`
-5. `00005_pos.sql`
-6. `00006_shifts_payroll_finance.sql`
-7. `00007_fleet_deliveries.sql`
-8. `00008_notifications_approvals.sql`
-9. `00009_rls_policies.sql`
-10. `00010_functions_triggers.sql`
-11. `00011_seed_data.sql`
+Apply **in numeric order** (`00001` → `00018`). See [supabase/README.md](../supabase/README.md) for full index.
+
+| # | File | Summary |
+|---|------|---------|
+| 1 | `00001_extensions_enums.sql` | Extensions + enums |
+| 2 | `00002_core_organization.sql` | Org, regions, branches, profiles, RBAC |
+| 3 | `00003_master_data.sql` | Products, stock, BOM, shift/payroll rules |
+| 4 | `00004_inventory.sql` | Inventory schema |
+| 5 | `00005_pos.sql` | POS schema |
+| 6 | `00006_shifts_payroll_finance.sql` | Shifts, payroll, finance schema |
+| 7 | `00007_fleet_deliveries.sql` | Fleet + delivery schema |
+| 8 | `00008_notifications_approvals.sql` | Notifications + approvals |
+| 9 | `00009_rls_policies.sql` | RLS policies |
+| 10 | `00010_functions_triggers.sql` | Functions, triggers, views |
+| 11 | `00011_seed_data.sql` | Production seed data |
+| 12 | `00012_pos_rpc.sql` | POS atomic RPCs |
+| 13 | `00013_inventory_rpc.sql` | Inventory RPCs |
+| 14 | `00014_shift_rpc.sql` | Shift RPCs |
+| 15 | `00015_fleet_warehouse_rpc.sql` | Fleet + warehouse RPCs |
+| 16 | `00016_payroll_rpc.sql` | Payroll RPCs |
+| 17 | `00017_finance_rpc.sql` | Finance RPCs |
+| 18 | `00018_approvals_rpc.sql` | Unified approval resolver |

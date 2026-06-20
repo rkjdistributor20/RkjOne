@@ -65,7 +65,7 @@ ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 -- HELPER FUNCTIONS FOR RLS
 -- ============================================================
 
-CREATE OR REPLACE FUNCTION auth.organization_id()
+CREATE OR REPLACE FUNCTION public.organization_id()
 RETURNS UUID
 LANGUAGE sql
 STABLE
@@ -75,7 +75,7 @@ AS $$
   SELECT organization_id FROM profiles WHERE id = auth.uid()
 $$;
 
-CREATE OR REPLACE FUNCTION auth.user_role()
+CREATE OR REPLACE FUNCTION public.user_role()
 RETURNS user_role
 LANGUAGE sql
 STABLE
@@ -85,7 +85,7 @@ AS $$
   SELECT role FROM profiles WHERE id = auth.uid()
 $$;
 
-CREATE OR REPLACE FUNCTION auth.user_region_id()
+CREATE OR REPLACE FUNCTION public.user_region_id()
 RETURNS UUID
 LANGUAGE sql
 STABLE
@@ -95,7 +95,7 @@ AS $$
   SELECT region_id FROM profiles WHERE id = auth.uid()
 $$;
 
-CREATE OR REPLACE FUNCTION auth.user_branch_id()
+CREATE OR REPLACE FUNCTION public.user_branch_id()
 RETURNS UUID
 LANGUAGE sql
 STABLE
@@ -105,7 +105,7 @@ AS $$
   SELECT branch_id FROM profiles WHERE id = auth.uid()
 $$;
 
-CREATE OR REPLACE FUNCTION auth.is_admin()
+CREATE OR REPLACE FUNCTION public.is_admin()
 RETURNS BOOLEAN
 LANGUAGE sql
 STABLE
@@ -119,7 +119,7 @@ AS $$
   )
 $$;
 
-CREATE OR REPLACE FUNCTION auth.has_branch_access(p_branch_id UUID)
+CREATE OR REPLACE FUNCTION public.has_branch_access(p_branch_id UUID)
 RETURNS BOOLEAN
 LANGUAGE sql
 STABLE
@@ -154,7 +154,7 @@ $$;
 CREATE POLICY profiles_select ON profiles
   FOR SELECT USING (
     id = auth.uid()
-    OR (organization_id = auth.organization_id() AND auth.is_admin())
+    OR (organization_id = public.organization_id() AND public.is_admin())
   );
 
 CREATE POLICY profiles_update_own ON profiles
@@ -163,7 +163,7 @@ CREATE POLICY profiles_update_own ON profiles
 
 CREATE POLICY profiles_admin_all ON profiles
   FOR ALL USING (
-    organization_id = auth.organization_id() AND auth.is_admin()
+    organization_id = public.organization_id() AND public.is_admin()
   );
 
 -- ============================================================
@@ -171,24 +171,24 @@ CREATE POLICY profiles_admin_all ON profiles
 -- ============================================================
 
 CREATE POLICY org_read_branches ON branches
-  FOR SELECT USING (organization_id = auth.organization_id());
+  FOR SELECT USING (organization_id = public.organization_id());
 
 CREATE POLICY org_read_products ON products
-  FOR SELECT USING (organization_id = auth.organization_id());
+  FOR SELECT USING (organization_id = public.organization_id());
 
 CREATE POLICY org_read_stock_items ON stock_items
-  FOR SELECT USING (organization_id = auth.organization_id());
+  FOR SELECT USING (organization_id = public.organization_id());
 
 CREATE POLICY org_admin_products ON products
   FOR ALL USING (
-    organization_id = auth.organization_id()
-    AND auth.user_role() IN ('SUPER_ADMIN', 'ADMIN')
+    organization_id = public.organization_id()
+    AND public.user_role() IN ('SUPER_ADMIN', 'ADMIN')
   );
 
 CREATE POLICY org_admin_stock_items ON stock_items
   FOR ALL USING (
-    organization_id = auth.organization_id()
-    AND auth.user_role() IN ('SUPER_ADMIN', 'ADMIN', 'CEO_FACTORY')
+    organization_id = public.organization_id()
+    AND public.user_role() IN ('SUPER_ADMIN', 'ADMIN', 'CEO_FACTORY')
   );
 
 -- ============================================================
@@ -197,14 +197,14 @@ CREATE POLICY org_admin_stock_items ON stock_items
 
 CREATE POLICY pos_shifts_branch ON pos_shifts
   FOR ALL USING (
-    organization_id = auth.organization_id()
-    AND auth.has_branch_access(branch_id)
+    organization_id = public.organization_id()
+    AND public.has_branch_access(branch_id)
   );
 
 CREATE POLICY pos_transactions_branch ON pos_transactions
   FOR ALL USING (
-    organization_id = auth.organization_id()
-    AND auth.has_branch_access(branch_id)
+    organization_id = public.organization_id()
+    AND public.has_branch_access(branch_id)
   );
 
 CREATE POLICY pos_tx_items_via_tx ON pos_transaction_items
@@ -212,8 +212,8 @@ CREATE POLICY pos_tx_items_via_tx ON pos_transaction_items
     EXISTS (
       SELECT 1 FROM pos_transactions t
       WHERE t.id = transaction_id
-      AND t.organization_id = auth.organization_id()
-      AND auth.has_branch_access(t.branch_id)
+      AND t.organization_id = public.organization_id()
+      AND public.has_branch_access(t.branch_id)
     )
   );
 
@@ -230,12 +230,12 @@ CREATE POLICY notifications_own ON notifications
 
 CREATE POLICY approvals_access ON approval_requests
   FOR SELECT USING (
-    organization_id = auth.organization_id()
+    organization_id = public.organization_id()
     AND (
-      auth.is_admin()
+      public.is_admin()
       OR requested_by = auth.uid()
       OR assigned_to = auth.uid()
-      OR (branch_id IS NOT NULL AND auth.has_branch_access(branch_id))
+      OR (branch_id IS NOT NULL AND public.has_branch_access(branch_id))
     )
   );
 
@@ -244,13 +244,13 @@ CREATE POLICY approvals_access ON approval_requests
 -- ============================================================
 
 CREATE POLICY inventory_org ON inventory_locations
-  FOR SELECT USING (organization_id = auth.organization_id());
+  FOR SELECT USING (organization_id = public.organization_id());
 
 CREATE POLICY inventory_balances_org ON inventory_balances
-  FOR SELECT USING (organization_id = auth.organization_id());
+  FOR SELECT USING (organization_id = public.organization_id());
 
 CREATE POLICY stock_movements_org ON stock_movements
-  FOR SELECT USING (organization_id = auth.organization_id());
+  FOR SELECT USING (organization_id = public.organization_id());
 
 -- ============================================================
 -- DELIVERY: drivers see own deliveries
@@ -262,11 +262,11 @@ CREATE POLICY delivery_legs_driver ON delivery_legs
       SELECT 1 FROM delivery_orders d
       JOIN drivers dr ON dr.id = delivery_legs.driver_id
       WHERE d.id = delivery_order_id
-      AND d.organization_id = auth.organization_id()
+      AND d.organization_id = public.organization_id()
       AND (
-        auth.is_admin()
+        public.is_admin()
         OR dr.profile_id = auth.uid()
-        OR auth.user_role() = 'OPERATION_MANAGER'
+        OR public.user_role() = 'OPERATION_MANAGER'
       )
     )
   );

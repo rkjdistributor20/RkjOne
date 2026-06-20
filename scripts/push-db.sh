@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# RKJ One — push all Supabase migrations (00001–00018)
+# RKJ One — push all Supabase migrations (00001–00030)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

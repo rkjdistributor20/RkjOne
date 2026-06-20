@@ -732,7 +732,7 @@
     [
       "BENG-KB",
       "Roti Benggali - Kaya Butter",
-      "Benggali",
+      "Roti Benggali",
       12.5,
       "Pcs",
       "Active",
@@ -741,7 +741,7 @@
     [
       "BENG-KO",
       "Roti Benggali - Kaya Only",
-      "Benggali",
+      "Roti Benggali",
       9.0,
       "Pcs",
       "Active",
@@ -750,7 +750,7 @@
     [
       "BENG-PL",
       "Roti Benggali - Plain",
-      "Benggali",
+      "Roti Benggali",
       7.0,
       "Pcs",
       "Active",
@@ -759,7 +759,7 @@
     [
       "KAYA-CUP",
       "Kaya In Cup",
-      "Benggali",
+      "Roti Benggali",
       5.0,
       "Cup",
       "Active",
@@ -769,14 +769,14 @@
   "stock_items": [
     [
       "ST-PLANTA",
-      "Roti Planta",
+      "Roti Kaya",
       "Roti",
       "Bag/Pcs",
       "1 Bag = 20 pcs",
       "",
       "",
       "Active",
-      "Diguna untuk menu Roti Kaya"
+      "Stok roti asas menu Roti Kaya (nama kilang: Planta)"
     ],
     [
       "ST-KELAPA",
@@ -787,7 +787,7 @@
       "",
       "",
       "Active",
-      ""
+      "Stok roti asas menu Roti Kelapa"
     ],
     [
       "ST-KACANG",
@@ -798,7 +798,7 @@
       "",
       "",
       "Active",
-      ""
+      "Stok roti asas menu Roti Kacang"
     ],
     [
       "ST-BENGGALI",
@@ -809,7 +809,7 @@
       "",
       "",
       "Active",
-      ""
+      "Stok roti asas menu Roti Benggali"
     ],
     [
       "ST-KAYA",
@@ -871,7 +871,7 @@
     [
       "RK-KB-3",
       "Roti Kaya - 3 pcs Kaya Butter",
-      "Roti Planta",
+      "Roti Kaya",
       3,
       "pcs",
       "fixed",
@@ -902,6 +902,106 @@
       "RK-KB-3",
       "Roti Kaya - 3 pcs Kaya Butter",
       "Plastic Medium",
+      1,
+      "pcs",
+      "fixed",
+      "Yes",
+      ""
+    ],
+    [
+      "RK-KB-1",
+      "Roti Kaya - 1 pc Kaya Butter",
+      "Roti Kaya",
+      1,
+      "pcs",
+      "fixed",
+      "Yes",
+      "Stok roti menu Roti Kaya"
+    ],
+    [
+      "RK-KB-1",
+      "Roti Kaya - 1 pc Kaya Butter",
+      "Kaya",
+      4,
+      "gram",
+      "4g",
+      "Yes",
+      ""
+    ],
+    [
+      "RK-KB-1",
+      "Roti Kaya - 1 pc Kaya Butter",
+      "Butter",
+      4,
+      "gram",
+      "4g",
+      "Yes",
+      ""
+    ],
+    [
+      "RK-KB-1",
+      "Roti Kaya - 1 pc Kaya Butter",
+      "Plastic Small",
+      1,
+      "pcs",
+      "fixed",
+      "Yes",
+      ""
+    ],
+    [
+      "RK-KO-3",
+      "Roti Kaya - 3 pcs Kaya Only",
+      "Roti Kaya",
+      3,
+      "pcs",
+      "fixed",
+      "Yes",
+      "Stok roti menu Roti Kaya"
+    ],
+    [
+      "RK-KO-3",
+      "Roti Kaya - 3 pcs Kaya Only",
+      "Kaya",
+      12,
+      "gram",
+      "10-12g",
+      "Yes",
+      ""
+    ],
+    [
+      "RK-KO-3",
+      "Roti Kaya - 3 pcs Kaya Only",
+      "Plastic Medium",
+      1,
+      "pcs",
+      "fixed",
+      "Yes",
+      ""
+    ],
+    [
+      "RK-KO-1",
+      "Roti Kaya - 1 pc Kaya Only",
+      "Roti Kaya",
+      1,
+      "pcs",
+      "fixed",
+      "Yes",
+      "Stok roti menu Roti Kaya"
+    ],
+    [
+      "RK-KO-1",
+      "Roti Kaya - 1 pc Kaya Only",
+      "Kaya",
+      4,
+      "gram",
+      "4g",
+      "Yes",
+      ""
+    ],
+    [
+      "RK-KO-1",
+      "Roti Kaya - 1 pc Kaya Only",
+      "Plastic Small",
       1,
       "pcs",
       "fixed",

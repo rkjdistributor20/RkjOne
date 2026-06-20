@@ -12,7 +12,7 @@ DECLARE
   v_user_id UUID;
 BEGIN
   v_user_id := auth.uid();
-  IF auth.user_role() NOT IN ('SUPER_ADMIN', 'ADMIN', 'HR') THEN
+  IF public.user_role() NOT IN ('SUPER_ADMIN', 'ADMIN', 'HR') THEN
     RAISE EXCEPTION 'Insufficient permissions';
   END IF;
 
@@ -52,14 +52,14 @@ BEGIN
   IF v_user_id IS NULL THEN RAISE EXCEPTION 'Not authenticated'; END IF;
 
   SELECT * INTO v_req FROM approval_requests
-  WHERE id = p_request_id AND organization_id = auth.organization_id() AND status = 'PENDING';
+  WHERE id = p_request_id AND organization_id = public.organization_id() AND status = 'PENDING';
 
   IF NOT FOUND THEN RAISE EXCEPTION 'Approval request not found'; END IF;
 
   IF NOT (
-    auth.is_admin()
-    OR auth.user_role() IN ('HR', 'FINANCE', 'OPERATION_MANAGER', 'CEO_FACTORY')
-    OR (v_req.branch_id IS NOT NULL AND auth.has_branch_access(v_req.branch_id))
+    public.is_admin()
+    OR public.user_role() IN ('HR', 'FINANCE', 'OPERATION_MANAGER', 'CEO_FACTORY')
+    OR (v_req.branch_id IS NOT NULL AND public.has_branch_access(v_req.branch_id))
   ) THEN
     RAISE EXCEPTION 'Insufficient permissions';
   END IF;
@@ -119,10 +119,10 @@ GRANT EXECUTE ON FUNCTION resolve_approval_request TO authenticated;
 
 CREATE POLICY approvals_update ON approval_requests
   FOR UPDATE USING (
-    organization_id = auth.organization_id()
+    organization_id = public.organization_id()
     AND (
-      auth.is_admin()
-      OR auth.user_role() IN ('HR', 'FINANCE', 'OPERATION_MANAGER', 'CEO_FACTORY')
-      OR (branch_id IS NOT NULL AND auth.has_branch_access(branch_id))
+      public.is_admin()
+      OR public.user_role() IN ('HR', 'FINANCE', 'OPERATION_MANAGER', 'CEO_FACTORY')
+      OR (branch_id IS NOT NULL AND public.has_branch_access(branch_id))
     )
   );

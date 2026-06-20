@@ -3,10 +3,10 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ROOT/web"
+cd "$ROOT"
 
 if [[ ! -f .env.local ]]; then
-  echo "Error: web/.env.local missing. Run ./scripts/setup-web.sh first."
+  echo "Error: .env.local missing. Run ./scripts/setup-web.sh first."
   exit 1
 fi
 

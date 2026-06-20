@@ -314,7 +314,7 @@ BEGIN
 
   IF NOT FOUND THEN RAISE EXCEPTION 'HQ warehouse location required'; END IF;
   v_org_id := v_loc.organization_id;
-  v_auto := auth.user_role() IN ('SUPER_ADMIN', 'ADMIN', 'CEO_FACTORY', 'OPERATION_MANAGER');
+  v_auto := public.user_role() IN ('SUPER_ADMIN', 'ADMIN', 'CEO_FACTORY', 'OPERATION_MANAGER');
   v_audit_number := generate_fleet_number('WA');
 
   INSERT INTO warehouse_audits (
@@ -370,7 +370,7 @@ DECLARE
   v_item RECORD;
 BEGIN
   v_user_id := auth.uid();
-  IF auth.user_role() NOT IN ('SUPER_ADMIN', 'ADMIN', 'CEO_FACTORY', 'OPERATION_MANAGER') THEN
+  IF public.user_role() NOT IN ('SUPER_ADMIN', 'ADMIN', 'CEO_FACTORY', 'OPERATION_MANAGER') THEN
     RAISE EXCEPTION 'Insufficient permissions';
   END IF;
 
@@ -404,27 +404,27 @@ GRANT EXECUTE ON FUNCTION approve_warehouse_audit TO authenticated;
 
 -- RLS policies
 CREATE POLICY delivery_orders_org ON delivery_orders
-  FOR ALL USING (organization_id = auth.organization_id());
+  FOR ALL USING (organization_id = public.organization_id());
 
 CREATE POLICY delivery_legs_org ON delivery_legs
   FOR ALL USING (
     EXISTS (
       SELECT 1 FROM delivery_orders d
-      WHERE d.id = delivery_order_id AND d.organization_id = auth.organization_id()
+      WHERE d.id = delivery_order_id AND d.organization_id = public.organization_id()
     )
   );
 
 CREATE POLICY pod_org ON proof_of_delivery
-  FOR ALL USING (organization_id = auth.organization_id());
+  FOR ALL USING (organization_id = public.organization_id());
 
 CREATE POLICY fleet_status_org ON fleet_status_log
-  FOR ALL USING (organization_id = auth.organization_id());
+  FOR ALL USING (organization_id = public.organization_id());
 
 CREATE POLICY warehouse_audits_org ON warehouse_audits
-  FOR ALL USING (organization_id = auth.organization_id());
+  FOR ALL USING (organization_id = public.organization_id());
 
 CREATE POLICY production_output_org ON production_output
-  FOR ALL USING (organization_id = auth.organization_id());
+  FOR ALL USING (organization_id = public.organization_id());
 
 ALTER TABLE proof_of_delivery ENABLE ROW LEVEL SECURITY;
 ALTER TABLE fleet_status_log ENABLE ROW LEVEL SECURITY;
@@ -436,7 +436,7 @@ CREATE POLICY warehouse_audit_items_via ON warehouse_audit_items
   FOR ALL USING (
     EXISTS (
       SELECT 1 FROM warehouse_audits wa
-      WHERE wa.id = audit_id AND wa.organization_id = auth.organization_id()
+      WHERE wa.id = audit_id AND wa.organization_id = public.organization_id()
     )
   );
 
@@ -447,7 +447,7 @@ CREATE POLICY delivery_leg_items_org ON delivery_leg_items
     EXISTS (
       SELECT 1 FROM delivery_legs dl
       JOIN delivery_orders d ON d.id = dl.delivery_order_id
-      WHERE dl.id = leg_id AND d.organization_id = auth.organization_id()
+      WHERE dl.id = leg_id AND d.organization_id = public.organization_id()
     )
   );
 
@@ -457,6 +457,6 @@ CREATE POLICY delivery_images_org ON delivery_images
   FOR ALL USING (
     EXISTS (
       SELECT 1 FROM proof_of_delivery pod
-      WHERE pod.id = proof_of_delivery_id AND pod.organization_id = auth.organization_id()
+      WHERE pod.id = proof_of_delivery_id AND pod.organization_id = public.organization_id()
     )
   );

@@ -124,10 +124,10 @@ CROSS JOIN (VALUES
   ('RKAC-K-1','Roti Kacang - 1 pc + Kaya','Roti Kacang',4.0,'Pcs',10),
   ('RKAC-3','Roti Kacang - 3 pcs','Roti Kacang',8.0,'Set',11),
   ('RKAC-1','Roti Kacang - 1 pc','Roti Kacang',3.0,'Pcs',12),
-  ('BENG-KB','Roti Benggali - Kaya Butter','Benggali',12.5,'Pcs',13),
-  ('BENG-KO','Roti Benggali - Kaya Only','Benggali',9.0,'Pcs',14),
-  ('BENG-PL','Roti Benggali - Plain','Benggali',7.0,'Pcs',15),
-  ('KAYA-CUP','Kaya In Cup','Benggali',5.0,'Cup',16)
+  ('BENG-KB','Roti Benggali - Kaya Butter','Roti Benggali',12.5,'Pcs',13),
+  ('BENG-KO','Roti Benggali - Kaya Only','Roti Benggali',9.0,'Pcs',14),
+  ('BENG-PL','Roti Benggali - Plain','Roti Benggali',7.0,'Pcs',15),
+  ('KAYA-CUP','Roti Benggali - Kaya In Cup','Roti Benggali',5.0,'Cup',16)
 ) AS v(sku, name, category, price, unit, ord)
 WHERE o.code = 'RKJ'
 ON CONFLICT (organization_id, sku) DO UPDATE SET price = EXCLUDED.price, name = EXCLUDED.name;
@@ -140,10 +140,10 @@ INSERT INTO stock_items (organization_id, item_code, name, category, base_unit, 
 SELECT o.id, v.code, v.name, v.category, v.base_unit::stock_unit, v.storage, v.conv, v.pack_qty, v.pack_unit::stock_unit, 'ACTIVE'::entity_status, v.notes
 FROM organizations o
 CROSS JOIN (VALUES
-  ('ST-PLANTA','Roti Planta','Roti','PCS','Bag/Pcs','1 Bag = 20 pcs',20,'BAG','Diguna untuk menu Roti Kaya'),
-  ('ST-KELAPA','Roti Kelapa','Roti','PCS','Bag/Pcs','1 Bag = 28 pcs',28,'BAG',NULL),
-  ('ST-KACANG','Roti Kacang','Roti','PCS','Bag/Pcs','1 Bag = 24 pcs',24,'BAG',NULL),
-  ('ST-BENGGALI','Roti Benggali','Roti','PCS','Bag/Pcs','1 Bag = 2 pcs',2,'BAG',NULL),
+  ('ST-PLANTA','Roti Kaya','Roti','PCS','Bag/Pcs','1 Bag = 20 pcs',20,'BAG','Stok roti asas menu Roti Kaya (nama kilang: Planta)'),
+  ('ST-KELAPA','Roti Kelapa','Roti','PCS','Bag/Pcs','1 Bag = 28 pcs',28,'BAG','Stok roti asas menu Roti Kelapa'),
+  ('ST-KACANG','Roti Kacang','Roti','PCS','Bag/Pcs','1 Bag = 24 pcs',24,'BAG','Stok roti asas menu Roti Kacang'),
+  ('ST-BENGGALI','Roti Benggali','Roti','PCS','Bag/Pcs','1 Bag = 2 pcs',2,'BAG','Stok roti asas menu Roti Benggali'),
   ('ST-KAYA','Kaya','Bahan','GRAM','Tong/Kg/Gram','1 Tong = 5kg = 5000g',5000,'TONG',NULL),
   ('ST-BUTTER','Butter','Bahan','GRAM','Tong/Kg/Gram','1 Tong = 4.8kg = 4800g',4800,'TONG',NULL),
   ('ST-PLASTIC-S','Plastic Small','Packaging','PCS','Pack/Pcs','1 Pack = 100 pcs',100,'PACK',NULL),
@@ -151,7 +151,11 @@ CROSS JOIN (VALUES
   ('ST-PLASTIC-B','Plastic Big','Packaging','PCS','Pack/Pcs','1 Pack = 100 pcs',100,'PACK',NULL)
 ) AS v(code, name, category, base_unit, storage, conv, pack_qty, pack_unit, notes)
 WHERE o.code = 'RKJ'
-ON CONFLICT (organization_id, item_code) DO UPDATE SET conversion_text = EXCLUDED.conversion_text;
+ON CONFLICT (organization_id, item_code) DO UPDATE SET
+  name = EXCLUDED.name,
+  category = EXCLUDED.category,
+  notes = EXCLUDED.notes,
+  conversion_text = EXCLUDED.conversion_text;
 
 -- ============================================================
 -- PRODUCT BOM
@@ -163,17 +167,50 @@ FROM organizations o
 JOIN products p ON p.organization_id = o.id
 JOIN stock_items si ON si.organization_id = o.id
 JOIN (VALUES
-  ('RK-KB-3','ST-PLANTA',3,'PCS',3,3,NULL),
+  ('RK-KB-3','ST-PLANTA',3,'PCS',3,3,'Stok roti menu Roti Kaya'),
   ('RK-KB-3','ST-KAYA',12,'GRAM',10,12,'HQ boleh ubah ke 10/11/12g'),
   ('RK-KB-3','ST-BUTTER',12,'GRAM',10,12,'HQ boleh ubah'),
   ('RK-KB-3','ST-PLASTIC-M',1,'PCS',1,1,NULL),
-  ('RKEL-K-3','ST-KELAPA',3,'PCS',3,3,NULL),
+  ('RK-KB-1','ST-PLANTA',1,'PCS',1,1,'Stok roti menu Roti Kaya'),
+  ('RK-KB-1','ST-KAYA',4,'GRAM',4,4,NULL),
+  ('RK-KB-1','ST-BUTTER',4,'GRAM',4,4,NULL),
+  ('RK-KB-1','ST-PLASTIC-S',1,'PCS',1,1,NULL),
+  ('RK-KO-3','ST-PLANTA',3,'PCS',3,3,'Stok roti menu Roti Kaya'),
+  ('RK-KO-3','ST-KAYA',12,'GRAM',10,12,NULL),
+  ('RK-KO-3','ST-PLASTIC-M',1,'PCS',1,1,NULL),
+  ('RK-KO-1','ST-PLANTA',1,'PCS',1,1,'Stok roti menu Roti Kaya'),
+  ('RK-KO-1','ST-KAYA',4,'GRAM',4,4,NULL),
+  ('RK-KO-1','ST-PLASTIC-S',1,'PCS',1,1,NULL),
+  ('RKEL-K-3','ST-KELAPA',3,'PCS',3,3,'Stok roti menu Roti Kelapa'),
   ('RKEL-K-3','ST-KAYA',12,'GRAM',10,12,NULL),
   ('RKEL-K-3','ST-PLASTIC-M',1,'PCS',1,1,NULL),
-  ('BENG-KB','ST-BENGGALI',1,'PCS',1,1,NULL),
+  ('RKEL-K-1','ST-KELAPA',1,'PCS',1,1,'Stok roti menu Roti Kelapa'),
+  ('RKEL-K-1','ST-KAYA',4,'GRAM',4,4,NULL),
+  ('RKEL-K-1','ST-PLASTIC-S',1,'PCS',1,1,NULL),
+  ('RKEL-3','ST-KELAPA',3,'PCS',3,3,'Stok roti menu Roti Kelapa'),
+  ('RKEL-3','ST-PLASTIC-M',1,'PCS',1,1,NULL),
+  ('RKEL-1','ST-KELAPA',1,'PCS',1,1,'Stok roti menu Roti Kelapa'),
+  ('RKEL-1','ST-PLASTIC-S',1,'PCS',1,1,NULL),
+  ('RKAC-K-3','ST-KACANG',3,'PCS',3,3,'Stok roti menu Roti Kacang'),
+  ('RKAC-K-3','ST-KAYA',12,'GRAM',10,12,NULL),
+  ('RKAC-K-3','ST-PLASTIC-M',1,'PCS',1,1,NULL),
+  ('RKAC-K-1','ST-KACANG',1,'PCS',1,1,'Stok roti menu Roti Kacang'),
+  ('RKAC-K-1','ST-KAYA',4,'GRAM',4,4,NULL),
+  ('RKAC-K-1','ST-PLASTIC-S',1,'PCS',1,1,NULL),
+  ('RKAC-3','ST-KACANG',3,'PCS',3,3,'Stok roti menu Roti Kacang'),
+  ('RKAC-3','ST-PLASTIC-M',1,'PCS',1,1,NULL),
+  ('RKAC-1','ST-KACANG',1,'PCS',1,1,'Stok roti menu Roti Kacang'),
+  ('RKAC-1','ST-PLASTIC-S',1,'PCS',1,1,NULL),
+  ('BENG-KB','ST-BENGGALI',1,'PCS',1,1,'Stok roti menu Roti Benggali'),
   ('BENG-KB','ST-KAYA',45,'GRAM',40,45,'HQ boleh ubah ke 40-45g'),
   ('BENG-KB','ST-BUTTER',45,'GRAM',40,45,'HQ boleh ubah'),
-  ('BENG-KB','ST-PLASTIC-B',1,'PCS',1,1,'Boleh ubah admin')
+  ('BENG-KB','ST-PLASTIC-B',1,'PCS',1,1,NULL),
+  ('BENG-KO','ST-BENGGALI',1,'PCS',1,1,'Stok roti menu Roti Benggali'),
+  ('BENG-KO','ST-KAYA',40,'GRAM',35,40,NULL),
+  ('BENG-KO','ST-PLASTIC-B',1,'PCS',1,1,NULL),
+  ('BENG-PL','ST-BENGGALI',1,'PCS',1,1,'Stok roti menu Roti Benggali'),
+  ('BENG-PL','ST-PLASTIC-B',1,'PCS',1,1,NULL),
+  ('KAYA-CUP','ST-KAYA',50,'GRAM',45,50,NULL)
 ) AS v(sku, item_code, qty, unit, min_q, max_q, notes)
   ON p.sku = v.sku AND si.item_code = v.item_code
 WHERE o.code = 'RKJ'

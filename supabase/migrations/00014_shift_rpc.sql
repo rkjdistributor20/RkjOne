@@ -23,7 +23,7 @@ DECLARE
   v_hours NUMERIC;
 BEGIN
   v_user_id := auth.uid();
-  IF NOT auth.has_branch_access(p_branch_id) THEN
+  IF NOT public.has_branch_access(p_branch_id) THEN
     RAISE EXCEPTION 'No branch access';
   END IF;
 
@@ -65,7 +65,7 @@ DECLARE
   v_user_id UUID;
 BEGIN
   v_user_id := auth.uid();
-  IF auth.user_role() NOT IN ('SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER', 'AREA_MANAGER') THEN
+  IF public.user_role() NOT IN ('SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER', 'AREA_MANAGER') THEN
     RAISE EXCEPTION 'Insufficient permissions';
   END IF;
 
@@ -166,21 +166,21 @@ GRANT EXECUTE ON FUNCTION clock_out_staff TO authenticated;
 -- Shift RLS
 CREATE POLICY staff_shifts_branch ON staff_shifts
   FOR ALL USING (
-    organization_id = auth.organization_id()
-    AND auth.has_branch_access(branch_id)
+    organization_id = public.organization_id()
+    AND public.has_branch_access(branch_id)
   );
 
 CREATE POLICY attendance_branch ON attendance_records
   FOR ALL USING (
-    organization_id = auth.organization_id()
-    AND auth.has_branch_access(branch_id)
+    organization_id = public.organization_id()
+    AND public.has_branch_access(branch_id)
   );
 
 CREATE POLICY shift_templates_org ON shift_templates
-  FOR SELECT USING (organization_id = auth.organization_id());
+  FOR SELECT USING (organization_id = public.organization_id());
 
 CREATE POLICY staff_org_read ON staff
-  FOR SELECT USING (organization_id = auth.organization_id());
+  FOR SELECT USING (organization_id = public.organization_id());
 
 ALTER TABLE staff_shifts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE attendance_records ENABLE ROW LEVEL SECURITY;

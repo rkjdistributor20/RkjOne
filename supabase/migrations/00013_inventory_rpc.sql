@@ -50,11 +50,11 @@ BEGIN
   IF NOT FOUND THEN RAISE EXCEPTION 'Location not found'; END IF;
   v_org_id := v_loc.organization_id;
 
-  IF v_loc.branch_id IS NOT NULL AND NOT auth.has_branch_access(v_loc.branch_id) THEN
+  IF v_loc.branch_id IS NOT NULL AND NOT public.has_branch_access(v_loc.branch_id) THEN
     RAISE EXCEPTION 'No branch access';
   END IF;
 
-  IF v_loc.branch_id IS NULL AND auth.user_role() NOT IN (
+  IF v_loc.branch_id IS NULL AND public.user_role() NOT IN (
     'SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER', 'CEO_FACTORY'
   ) THEN
     RAISE EXCEPTION 'Insufficient permissions for this location';
@@ -142,7 +142,7 @@ BEGIN
 
   v_org_id := v_from.organization_id;
 
-  IF v_from.branch_id IS NOT NULL AND NOT auth.has_branch_access(v_from.branch_id) THEN
+  IF v_from.branch_id IS NOT NULL AND NOT public.has_branch_access(v_from.branch_id) THEN
     RAISE EXCEPTION 'No access to source location';
   END IF;
 
@@ -217,7 +217,7 @@ BEGIN
     RAISE EXCEPTION 'Transfer cannot be dispatched';
   END IF;
 
-  IF v_transfer.from_branch IS NOT NULL AND NOT auth.has_branch_access(v_transfer.from_branch) THEN
+  IF v_transfer.from_branch IS NOT NULL AND NOT public.has_branch_access(v_transfer.from_branch) THEN
     RAISE EXCEPTION 'No branch access';
   END IF;
 
@@ -283,7 +283,7 @@ BEGIN
     RAISE EXCEPTION 'Transfer is not in transit';
   END IF;
 
-  IF v_transfer.to_branch IS NOT NULL AND NOT auth.has_branch_access(v_transfer.to_branch) THEN
+  IF v_transfer.to_branch IS NOT NULL AND NOT public.has_branch_access(v_transfer.to_branch) THEN
     RAISE EXCEPTION 'No branch access to destination';
   END IF;
 
@@ -347,11 +347,11 @@ BEGIN
   IF NOT FOUND THEN RAISE EXCEPTION 'Location not found'; END IF;
   v_org_id := v_loc.organization_id;
 
-  IF v_loc.branch_id IS NOT NULL AND NOT auth.has_branch_access(v_loc.branch_id) THEN
+  IF v_loc.branch_id IS NOT NULL AND NOT public.has_branch_access(v_loc.branch_id) THEN
     RAISE EXCEPTION 'No branch access';
   END IF;
 
-  v_auto_approve := auth.user_role() IN ('SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER');
+  v_auto_approve := public.user_role() IN ('SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER');
   v_adj_number := generate_inv_number('ADJ', v_org_id);
 
   INSERT INTO stock_adjustments (
@@ -420,7 +420,7 @@ DECLARE
   v_item RECORD;
 BEGIN
   v_user_id := auth.uid();
-  IF auth.user_role() NOT IN ('SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER', 'AREA_MANAGER') THEN
+  IF public.user_role() NOT IN ('SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER', 'AREA_MANAGER') THEN
     RAISE EXCEPTION 'Insufficient permissions';
   END IF;
 
@@ -479,11 +479,11 @@ BEGIN
   IF NOT FOUND THEN RAISE EXCEPTION 'Location not found'; END IF;
   v_org_id := v_loc.organization_id;
 
-  IF v_loc.branch_id IS NOT NULL AND NOT auth.has_branch_access(v_loc.branch_id) THEN
+  IF v_loc.branch_id IS NOT NULL AND NOT public.has_branch_access(v_loc.branch_id) THEN
     RAISE EXCEPTION 'No branch access';
   END IF;
 
-  v_auto_approve := auth.user_role() IN ('SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER');
+  v_auto_approve := public.user_role() IN ('SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER');
   v_count_number := generate_inv_number('CNT', v_org_id);
 
   INSERT INTO stock_counts (
@@ -599,11 +599,11 @@ BEGIN
   IF NOT FOUND THEN RAISE EXCEPTION 'Location not found'; END IF;
   v_org_id := v_loc.organization_id;
 
-  IF v_loc.branch_id IS NOT NULL AND NOT auth.has_branch_access(v_loc.branch_id) THEN
+  IF v_loc.branch_id IS NOT NULL AND NOT public.has_branch_access(v_loc.branch_id) THEN
     RAISE EXCEPTION 'No branch access';
   END IF;
 
-  v_auto_approve := auth.user_role() IN ('SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER');
+  v_auto_approve := public.user_role() IN ('SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER');
   v_wo_number := generate_inv_number('WO', v_org_id);
 
   INSERT INTO stock_write_offs (
@@ -713,33 +713,33 @@ GRANT EXECUTE ON FUNCTION approve_stock_write_off TO authenticated;
 
 -- Inventory RLS write policies
 CREATE POLICY inventory_balances_org_write ON inventory_balances
-  FOR ALL USING (organization_id = auth.organization_id());
+  FOR ALL USING (organization_id = public.organization_id());
 
 CREATE POLICY stock_movements_select ON stock_movements
-  FOR SELECT USING (organization_id = auth.organization_id());
+  FOR SELECT USING (organization_id = public.organization_id());
 
 CREATE POLICY stock_transfers_org ON stock_transfers
-  FOR ALL USING (organization_id = auth.organization_id());
+  FOR ALL USING (organization_id = public.organization_id());
 
 CREATE POLICY stock_transfer_items_via ON stock_transfer_items
   FOR ALL USING (
     EXISTS (
       SELECT 1 FROM stock_transfers t
-      WHERE t.id = transfer_id AND t.organization_id = auth.organization_id()
+      WHERE t.id = transfer_id AND t.organization_id = public.organization_id()
     )
   );
 
 CREATE POLICY stock_receives_org ON stock_receives
-  FOR ALL USING (organization_id = auth.organization_id());
+  FOR ALL USING (organization_id = public.organization_id());
 
 CREATE POLICY stock_adjustments_org ON stock_adjustments
-  FOR ALL USING (organization_id = auth.organization_id());
+  FOR ALL USING (organization_id = public.organization_id());
 
 CREATE POLICY stock_counts_org ON stock_counts
-  FOR ALL USING (organization_id = auth.organization_id());
+  FOR ALL USING (organization_id = public.organization_id());
 
 CREATE POLICY stock_write_offs_org ON stock_write_offs
-  FOR ALL USING (organization_id = auth.organization_id());
+  FOR ALL USING (organization_id = public.organization_id());
 
 ALTER TABLE stock_transfers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE stock_transfer_items ENABLE ROW LEVEL SECURITY;

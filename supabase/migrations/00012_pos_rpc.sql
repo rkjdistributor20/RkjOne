@@ -68,7 +68,7 @@ BEGIN
     RAISE EXCEPTION 'Not authenticated';
   END IF;
 
-  IF NOT auth.has_branch_access(p_branch_id) THEN
+  IF NOT public.has_branch_access(p_branch_id) THEN
     RAISE EXCEPTION 'No branch access';
   END IF;
 
@@ -259,7 +259,7 @@ BEGIN
   SELECT * INTO v_tx FROM pos_transactions WHERE id = p_transaction_id;
   IF NOT FOUND THEN RAISE EXCEPTION 'Transaction not found'; END IF;
   IF v_tx.status != 'COMPLETED' THEN RAISE EXCEPTION 'Only completed transactions can be voided'; END IF;
-  IF NOT auth.has_branch_access(v_tx.branch_id) THEN RAISE EXCEPTION 'No branch access'; END IF;
+  IF NOT public.has_branch_access(v_tx.branch_id) THEN RAISE EXCEPTION 'No branch access'; END IF;
 
   UPDATE pos_transactions SET
     status = 'VOIDED',
@@ -321,7 +321,7 @@ BEGIN
   SELECT * INTO v_tx FROM pos_transactions WHERE id = p_transaction_id;
   IF NOT FOUND THEN RAISE EXCEPTION 'Transaction not found'; END IF;
   IF v_tx.status != 'COMPLETED' THEN RAISE EXCEPTION 'Only completed transactions can be refunded'; END IF;
-  IF NOT auth.has_branch_access(v_tx.branch_id) THEN RAISE EXCEPTION 'No branch access'; END IF;
+  IF NOT public.has_branch_access(v_tx.branch_id) THEN RAISE EXCEPTION 'No branch access'; END IF;
 
   UPDATE pos_transactions SET
     status = 'REFUNDED',
@@ -382,7 +382,7 @@ BEGIN
 
   SELECT * INTO v_shift FROM pos_shifts WHERE id = p_shift_id AND status = 'OPEN';
   IF NOT FOUND THEN RAISE EXCEPTION 'Open shift not found'; END IF;
-  IF NOT auth.has_branch_access(v_shift.branch_id) THEN RAISE EXCEPTION 'No branch access'; END IF;
+  IF NOT public.has_branch_access(v_shift.branch_id) THEN RAISE EXCEPTION 'No branch access'; END IF;
 
   v_expected := v_shift.opening_cash + v_shift.total_cash;
   v_variance := p_closing_cash - v_expected;
@@ -437,7 +437,7 @@ DECLARE
 BEGIN
   v_user_id := auth.uid();
   IF v_user_id IS NULL THEN RAISE EXCEPTION 'Not authenticated'; END IF;
-  IF NOT auth.has_branch_access(p_branch_id) THEN RAISE EXCEPTION 'No branch access'; END IF;
+  IF NOT public.has_branch_access(p_branch_id) THEN RAISE EXCEPTION 'No branch access'; END IF;
 
   SELECT id INTO v_existing FROM pos_shifts
   WHERE branch_id = p_branch_id AND status = 'OPEN' LIMIT 1;
@@ -480,8 +480,8 @@ CREATE POLICY pos_payments_via_tx ON pos_payments
     EXISTS (
       SELECT 1 FROM pos_transactions t
       WHERE t.id = transaction_id
-      AND t.organization_id = auth.organization_id()
-      AND auth.has_branch_access(t.branch_id)
+      AND t.organization_id = public.organization_id()
+      AND public.has_branch_access(t.branch_id)
     )
   );
 
@@ -490,20 +490,20 @@ CREATE POLICY pos_receipts_via_tx ON pos_receipts
     EXISTS (
       SELECT 1 FROM pos_transactions t
       WHERE t.id = transaction_id
-      AND t.organization_id = auth.organization_id()
-      AND auth.has_branch_access(t.branch_id)
+      AND t.organization_id = public.organization_id()
+      AND public.has_branch_access(t.branch_id)
     )
   );
 
 CREATE POLICY pos_daily_summary_branch ON pos_daily_summaries
   FOR SELECT USING (
-    organization_id = auth.organization_id()
-    AND auth.has_branch_access(branch_id)
+    organization_id = public.organization_id()
+    AND public.has_branch_access(branch_id)
   );
 
 CREATE POLICY stock_movements_insert ON stock_movements
   FOR INSERT WITH CHECK (
-    organization_id = auth.organization_id()
+    organization_id = public.organization_id()
   );
 
 ALTER TABLE pos_payments ENABLE ROW LEVEL SECURITY;

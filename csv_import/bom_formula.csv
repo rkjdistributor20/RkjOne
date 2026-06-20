@@ -1,12 +1,45 @@
 ﻿SKU,Nama POS,Stock Item,Qty Per Sale,Unit,Min/Max,Auto Deduct,Nota
-RK-KB-3,Roti Kaya - 3 pcs Kaya Butter,Roti Planta,3,pcs,fixed,Yes,
+RK-KB-3,Roti Kaya - 3 pcs Kaya Butter,Roti Kaya,3,pcs,fixed,Yes,Stok roti menu Roti Kaya
 RK-KB-3,Roti Kaya - 3 pcs Kaya Butter,Kaya,12,gram,10-12g,Yes,HQ boleh ubah ke 10/11/12g
 RK-KB-3,Roti Kaya - 3 pcs Kaya Butter,Butter,12,gram,10-12g,Yes,HQ boleh ubah
 RK-KB-3,Roti Kaya - 3 pcs Kaya Butter,Plastic Medium,1,pcs,fixed,Yes,
-RKEL-K-3,Roti Kelapa - 3 pcs + Kaya,Roti Kelapa,3,pcs,fixed,Yes,
+RK-KB-1,Roti Kaya - 1 pc Kaya Butter,Roti Kaya,1,pcs,fixed,Yes,Stok roti menu Roti Kaya
+RK-KB-1,Roti Kaya - 1 pc Kaya Butter,Kaya,4,gram,4g,Yes,
+RK-KB-1,Roti Kaya - 1 pc Kaya Butter,Butter,4,gram,4g,Yes,
+RK-KB-1,Roti Kaya - 1 pc Kaya Butter,Plastic Small,1,pcs,fixed,Yes,
+RK-KO-3,Roti Kaya - 3 pcs Kaya Only,Roti Kaya,3,pcs,fixed,Yes,Stok roti menu Roti Kaya
+RK-KO-3,Roti Kaya - 3 pcs Kaya Only,Kaya,12,gram,10-12g,Yes,
+RK-KO-3,Roti Kaya - 3 pcs Kaya Only,Plastic Medium,1,pcs,fixed,Yes,
+RK-KO-1,Roti Kaya - 1 pc Kaya Only,Roti Kaya,1,pcs,fixed,Yes,Stok roti menu Roti Kaya
+RK-KO-1,Roti Kaya - 1 pc Kaya Only,Kaya,4,gram,4g,Yes,
+RK-KO-1,Roti Kaya - 1 pc Kaya Only,Plastic Small,1,pcs,fixed,Yes,
+RKEL-K-3,Roti Kelapa - 3 pcs + Kaya,Roti Kelapa,3,pcs,fixed,Yes,Stok roti menu Roti Kelapa
 RKEL-K-3,Roti Kelapa - 3 pcs + Kaya,Kaya,12,gram,10-12g,Yes,
 RKEL-K-3,Roti Kelapa - 3 pcs + Kaya,Plastic Medium,1,pcs,fixed,Yes,
-BENG-KB,Roti Benggali - Kaya Butter,Roti Benggali,1,pcs,fixed,Yes,
+RKEL-K-1,Roti Kelapa - 1 pc + Kaya,Roti Kelapa,1,pcs,fixed,Yes,Stok roti menu Roti Kelapa
+RKEL-K-1,Roti Kelapa - 1 pc + Kaya,Kaya,4,gram,4g,Yes,
+RKEL-K-1,Roti Kelapa - 1 pc + Kaya,Plastic Small,1,pcs,fixed,Yes,
+RKEL-3,Roti Kelapa - 3 pcs,Roti Kelapa,3,pcs,fixed,Yes,Stok roti menu Roti Kelapa
+RKEL-3,Roti Kelapa - 3 pcs,Plastic Medium,1,pcs,fixed,Yes,
+RKEL-1,Roti Kelapa - 1 pc,Roti Kelapa,1,pcs,fixed,Yes,Stok roti menu Roti Kelapa
+RKEL-1,Roti Kelapa - 1 pc,Plastic Small,1,pcs,fixed,Yes,
+RKAC-K-3,Roti Kacang - 3 pcs + Kaya,Roti Kacang,3,pcs,fixed,Yes,Stok roti menu Roti Kacang
+RKAC-K-3,Roti Kacang - 3 pcs + Kaya,Kaya,12,gram,10-12g,Yes,
+RKAC-K-3,Roti Kacang - 3 pcs + Kaya,Plastic Medium,1,pcs,fixed,Yes,
+RKAC-K-1,Roti Kacang - 1 pc + Kaya,Roti Kacang,1,pcs,fixed,Yes,Stok roti menu Roti Kacang
+RKAC-K-1,Roti Kacang - 1 pc + Kaya,Kaya,4,gram,4g,Yes,
+RKAC-K-1,Roti Kacang - 1 pc + Kaya,Plastic Small,1,pcs,fixed,Yes,
+RKAC-3,Roti Kacang - 3 pcs,Roti Kacang,3,pcs,fixed,Yes,Stok roti menu Roti Kacang
+RKAC-3,Roti Kacang - 3 pcs,Plastic Medium,1,pcs,fixed,Yes,
+RKAC-1,Roti Kacang - 1 pc,Roti Kacang,1,pcs,fixed,Yes,Stok roti menu Roti Kacang
+RKAC-1,Roti Kacang - 1 pc,Plastic Small,1,pcs,fixed,Yes,
+BENG-KB,Roti Benggali - Kaya Butter,Roti Benggali,1,pcs,fixed,Yes,Stok roti menu Roti Benggali
 BENG-KB,Roti Benggali - Kaya Butter,Kaya,45,gram,40-45g,Yes,HQ boleh ubah ke 40-45g
 BENG-KB,Roti Benggali - Kaya Butter,Butter,45,gram,40-45g,Yes,HQ boleh ubah
-BENG-KB,Roti Benggali - Kaya Butter,Plastic Big,1,pcs,assumption,Yes,Boleh ubah admin
+BENG-KB,Roti Benggali - Kaya Butter,Plastic Big,1,pcs,fixed,Yes,
+BENG-KO,Roti Benggali - Kaya Only,Roti Benggali,1,pcs,fixed,Yes,Stok roti menu Roti Benggali
+BENG-KO,Roti Benggali - Kaya Only,Kaya,40,gram,35-40g,Yes,
+BENG-KO,Roti Benggali - Kaya Only,Plastic Big,1,pcs,fixed,Yes,
+BENG-PL,Roti Benggali - Plain,Roti Benggali,1,pcs,fixed,Yes,Stok roti menu Roti Benggali
+BENG-PL,Roti Benggali - Plain,Plastic Big,1,pcs,fixed,Yes,
+KAYA-CUP,Roti Benggali - Kaya In Cup,Kaya,50,gram,45-50g,Yes,

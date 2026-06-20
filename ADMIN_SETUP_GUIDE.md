@@ -42,7 +42,17 @@ Programmer boleh import CSV dari folder `csv_import/` ke Supabase.
 Factory → HQ Warehouse → Driver / Driver Transfer → Kiosk → Customer
 
 ## 6. Go Live
-Pilot 14 hari:
+
+Pilot 14 hari — lihat **[docs/GO_LIVE_CHECKLIST.md](docs/GO_LIVE_CHECKLIST.md)** untuk langkah teknikal penuh.
+
+```bash
+npm run verify:go-live          # semak DB
+npm run bundle:migrations       # SQL manual jika db push gagal
+npm run seed:users              # cipta login
+.\scripts\go-live.ps1           # Windows — automasi penuh
+```
+
+Pilot 3 cawangan:
 - Gombak
 - Dengkil Utara
 - Simpang Pulai Utara

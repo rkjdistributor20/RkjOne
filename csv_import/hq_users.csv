@@ -1,9 +1,9 @@
 ﻿USER_ID,Nama,Role,Email Login,Default Password,Akses Cawangan,Status,Nota
-U001,Mat Isa,Super Admin,matisa@rkj.com,Sila tukar password,All,Active,Bos / owner
-U002,Norashikin,HQ Admin,,Sila isi,All,Active,Admin HQ
-U003,Mohd Ali,HR,,Sila isi,HR only,Active,HR
-U004,Ibrahim,Operation Manager,,Sila isi,All operations,Active,Operation Manager
-U005,Muhammad,CEO Factory,,Sila isi,Factory + Warehouse,Active,CEO Factory
-U006,Safuan,Area Manager,,Sila isi,Utara,Active,12 cawangan
-U007,Hakim,Area Manager,,Sila isi,Tengah,Active,10 cawangan
-U008,Yati,Area Manager,,Sila isi,Selatan,Active,14 cawangan
+U001,Mat Isa,Super Admin,matisa@rkj.com,RkjOne@2025,All,Active,Bos / owner
+U002,Norashikin,HQ Admin,norashikin@rkj.com,RkjOne@2025,All,Active,Admin HQ
+U003,Mohd Ali,HR,mohdali@rkj.com,RkjOne@2025,HR only,Active,HR
+U004,Ibrahim,Operation Manager,ibrahim@rkj.com,RkjOne@2025,All operations,Active,Operation Manager
+U005,Muhammad,CEO Factory,muhammad@rkj.com,RkjOne@2025,Factory + Warehouse,Active,CEO Factory
+U006,Safuan,Area Manager,safuan@rkj.com,RkjOne@2025,Utara,Active,12 cawangan
+U007,Hakim,Area Manager,hakim@rkj.com,RkjOne@2025,Tengah,Active,10 cawangan
+U008,Yati,Area Manager,yati@rkj.com,RkjOne@2025,Selatan,Active,14 cawangan

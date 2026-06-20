@@ -43,11 +43,11 @@ BEGIN
   v_user_id := auth.uid();
   IF v_user_id IS NULL THEN RAISE EXCEPTION 'Not authenticated'; END IF;
 
-  IF auth.user_role() NOT IN ('SUPER_ADMIN', 'ADMIN', 'HR') THEN
+  IF public.user_role() NOT IN ('SUPER_ADMIN', 'ADMIN', 'HR') THEN
     RAISE EXCEPTION 'Insufficient permissions';
   END IF;
 
-  v_org_id := auth.organization_id();
+  v_org_id := public.organization_id();
   IF v_org_id IS NULL THEN RAISE EXCEPTION 'Organization not found'; END IF;
 
   IF p_period_end < p_period_start THEN
@@ -202,7 +202,7 @@ DECLARE
   v_user_id UUID;
 BEGIN
   v_user_id := auth.uid();
-  IF auth.user_role() NOT IN ('SUPER_ADMIN', 'ADMIN', 'HR') THEN
+  IF public.user_role() NOT IN ('SUPER_ADMIN', 'ADMIN', 'HR') THEN
     RAISE EXCEPTION 'Insufficient permissions';
   END IF;
 
@@ -231,14 +231,14 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  IF auth.user_role() NOT IN ('SUPER_ADMIN', 'ADMIN', 'HR') THEN
+  IF public.user_role() NOT IN ('SUPER_ADMIN', 'ADMIN', 'HR') THEN
     RAISE EXCEPTION 'Insufficient permissions';
   END IF;
 
   UPDATE payroll_rules SET
     rate = COALESCE(p_rate, rate),
     notes = COALESCE(p_notes, notes)
-  WHERE id = p_rule_id AND organization_id = auth.organization_id();
+  WHERE id = p_rule_id AND organization_id = public.organization_id();
 
   IF NOT FOUND THEN RAISE EXCEPTION 'Rule not found'; END IF;
 
@@ -251,27 +251,27 @@ GRANT EXECUTE ON FUNCTION approve_payroll_run TO authenticated;
 GRANT EXECUTE ON FUNCTION update_payroll_rule TO authenticated;
 
 CREATE POLICY payroll_rules_org ON payroll_rules
-  FOR SELECT USING (organization_id = auth.organization_id());
+  FOR SELECT USING (organization_id = public.organization_id());
 
 CREATE POLICY payroll_rules_hr ON payroll_rules
   FOR UPDATE USING (
-    organization_id = auth.organization_id()
-    AND auth.user_role() IN ('SUPER_ADMIN', 'ADMIN', 'HR')
+    organization_id = public.organization_id()
+    AND public.user_role() IN ('SUPER_ADMIN', 'ADMIN', 'HR')
   );
 
 CREATE POLICY commission_tiers_org ON commission_tiers
-  FOR SELECT USING (organization_id = auth.organization_id());
+  FOR SELECT USING (organization_id = public.organization_id());
 
 CREATE POLICY commission_tiers_hr ON commission_tiers
   FOR UPDATE USING (
-    organization_id = auth.organization_id()
-    AND auth.user_role() IN ('SUPER_ADMIN', 'ADMIN', 'HR')
+    organization_id = public.organization_id()
+    AND public.user_role() IN ('SUPER_ADMIN', 'ADMIN', 'HR')
   );
 
 CREATE POLICY payroll_runs_org ON payroll_runs
   FOR ALL USING (
-    organization_id = auth.organization_id()
-    AND auth.user_role() IN ('SUPER_ADMIN', 'ADMIN', 'HR', 'FINANCE')
+    organization_id = public.organization_id()
+    AND public.user_role() IN ('SUPER_ADMIN', 'ADMIN', 'HR', 'FINANCE')
   );
 
 CREATE POLICY payroll_line_items_org ON payroll_line_items
@@ -279,7 +279,7 @@ CREATE POLICY payroll_line_items_org ON payroll_line_items
     EXISTS (
       SELECT 1 FROM payroll_runs r
       WHERE r.id = payroll_run_id
-      AND r.organization_id = auth.organization_id()
-      AND auth.user_role() IN ('SUPER_ADMIN', 'ADMIN', 'HR', 'FINANCE')
+      AND r.organization_id = public.organization_id()
+      AND public.user_role() IN ('SUPER_ADMIN', 'ADMIN', 'HR', 'FINANCE')
     )
   );

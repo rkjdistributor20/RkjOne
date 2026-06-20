@@ -23,12 +23,12 @@ BEGIN
   v_user_id := auth.uid();
   IF v_user_id IS NULL THEN RAISE EXCEPTION 'Not authenticated'; END IF;
 
-  IF auth.user_role() NOT IN ('SUPER_ADMIN', 'ADMIN', 'FINANCE', 'AREA_MANAGER', 'OPERATION_MANAGER') THEN
+  IF public.user_role() NOT IN ('SUPER_ADMIN', 'ADMIN', 'FINANCE', 'AREA_MANAGER', 'OPERATION_MANAGER') THEN
     RAISE EXCEPTION 'Insufficient permissions';
   END IF;
 
-  v_org_id := auth.organization_id();
-  IF p_branch_id IS NOT NULL AND NOT auth.has_branch_access(p_branch_id) THEN
+  v_org_id := public.organization_id();
+  IF p_branch_id IS NOT NULL AND NOT public.has_branch_access(p_branch_id) THEN
     RAISE EXCEPTION 'No branch access';
   END IF;
 
@@ -60,7 +60,7 @@ DECLARE
   v_user_id UUID;
 BEGIN
   v_user_id := auth.uid();
-  IF auth.user_role() NOT IN ('SUPER_ADMIN', 'ADMIN', 'FINANCE', 'AREA_MANAGER', 'OPERATION_MANAGER') THEN
+  IF public.user_role() NOT IN ('SUPER_ADMIN', 'ADMIN', 'FINANCE', 'AREA_MANAGER', 'OPERATION_MANAGER') THEN
     RAISE EXCEPTION 'Insufficient permissions';
   END IF;
 
@@ -70,7 +70,7 @@ BEGIN
     collected_at = now(),
     collector_name = COALESCE(p_collector_name, collector_name),
     third_party_name = COALESCE(p_third_party_name, third_party_name)
-  WHERE id = p_collection_id AND organization_id = auth.organization_id() AND status = 'PENDING';
+  WHERE id = p_collection_id AND organization_id = public.organization_id() AND status = 'PENDING';
 
   IF NOT FOUND THEN RAISE EXCEPTION 'Collection not found or already collected'; END IF;
 
@@ -99,11 +99,11 @@ DECLARE
   v_number TEXT;
 BEGIN
   v_user_id := auth.uid();
-  IF auth.user_role() NOT IN ('SUPER_ADMIN', 'ADMIN', 'FINANCE') THEN
+  IF public.user_role() NOT IN ('SUPER_ADMIN', 'ADMIN', 'FINANCE') THEN
     RAISE EXCEPTION 'Insufficient permissions';
   END IF;
 
-  v_org_id := auth.organization_id();
+  v_org_id := public.organization_id();
   v_number := generate_doc_number('BI', v_org_id);
 
   INSERT INTO bank_in_records (
@@ -142,9 +142,9 @@ DECLARE
   v_number TEXT;
 BEGIN
   v_user_id := auth.uid();
-  IF NOT auth.has_branch_access(p_branch_id) THEN RAISE EXCEPTION 'No branch access'; END IF;
+  IF NOT public.has_branch_access(p_branch_id) THEN RAISE EXCEPTION 'No branch access'; END IF;
 
-  v_org_id := auth.organization_id();
+  v_org_id := public.organization_id();
   v_number := generate_doc_number('CR', v_org_id);
 
   INSERT INTO cash_reconciliations (
@@ -169,7 +169,7 @@ DECLARE
   v_user_id UUID;
 BEGIN
   v_user_id := auth.uid();
-  IF auth.user_role() NOT IN ('SUPER_ADMIN', 'ADMIN', 'FINANCE') THEN
+  IF public.user_role() NOT IN ('SUPER_ADMIN', 'ADMIN', 'FINANCE') THEN
     RAISE EXCEPTION 'Insufficient permissions';
   END IF;
 
@@ -177,7 +177,7 @@ BEGIN
     status = 'APPROVED',
     approved_by = v_user_id
   WHERE id = p_reconciliation_id
-    AND organization_id = auth.organization_id()
+    AND organization_id = public.organization_id()
     AND status = 'PENDING';
 
   IF NOT FOUND THEN RAISE EXCEPTION 'Reconciliation not found'; END IF;
@@ -205,11 +205,11 @@ DECLARE
   v_id UUID;
 BEGIN
   v_user_id := auth.uid();
-  IF auth.user_role() NOT IN ('SUPER_ADMIN', 'ADMIN', 'FINANCE', 'OPERATION_MANAGER') THEN
+  IF public.user_role() NOT IN ('SUPER_ADMIN', 'ADMIN', 'FINANCE', 'OPERATION_MANAGER') THEN
     RAISE EXCEPTION 'Insufficient permissions';
   END IF;
 
-  v_org_id := auth.organization_id();
+  v_org_id := public.organization_id();
 
   SELECT
     COALESCE(SUM(total_qr), 0),
@@ -275,27 +275,27 @@ GRANT EXECUTE ON FUNCTION generate_daily_financial_report TO authenticated;
 
 CREATE POLICY finance_collections_org ON finance_collections
   FOR ALL USING (
-    organization_id = auth.organization_id()
+    organization_id = public.organization_id()
     AND (
-      auth.user_role() IN ('SUPER_ADMIN', 'ADMIN', 'FINANCE', 'OPERATION_MANAGER')
-      OR (branch_id IS NOT NULL AND auth.has_branch_access(branch_id))
+      public.user_role() IN ('SUPER_ADMIN', 'ADMIN', 'FINANCE', 'OPERATION_MANAGER')
+      OR (branch_id IS NOT NULL AND public.has_branch_access(branch_id))
     )
   );
 
 CREATE POLICY bank_in_records_org ON bank_in_records
   FOR ALL USING (
-    organization_id = auth.organization_id()
-    AND auth.user_role() IN ('SUPER_ADMIN', 'ADMIN', 'FINANCE', 'OPERATION_MANAGER')
+    organization_id = public.organization_id()
+    AND public.user_role() IN ('SUPER_ADMIN', 'ADMIN', 'FINANCE', 'OPERATION_MANAGER')
   );
 
 CREATE POLICY cash_reconciliations_branch ON cash_reconciliations
   FOR ALL USING (
-    organization_id = auth.organization_id()
-    AND auth.has_branch_access(branch_id)
+    organization_id = public.organization_id()
+    AND public.has_branch_access(branch_id)
   );
 
 CREATE POLICY daily_financial_reports_org ON daily_financial_reports
   FOR ALL USING (
-    organization_id = auth.organization_id()
-    AND auth.user_role() IN ('SUPER_ADMIN', 'ADMIN', 'FINANCE', 'OPERATION_MANAGER')
+    organization_id = public.organization_id()
+    AND public.user_role() IN ('SUPER_ADMIN', 'ADMIN', 'FINANCE', 'OPERATION_MANAGER')
   );

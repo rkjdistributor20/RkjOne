@@ -6,18 +6,21 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
-**/.env.local
 
-# Node / Next.js (web/)
+# Node / Next.js
+node_modules/
+.next/
+out/
+build/
+.vercel/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Legacy web/ folder (if remnants)
 web/node_modules/
 web/.next/
-web/out/
-web/build/
-web/.vercel/
-web/*.tsbuildinfo
-web/npm-debug.log*
-web/yarn-debug.log*
-web/yarn-error.log*
 
 # Supabase local
 supabase/.branches/
@@ -29,4 +32,4 @@ supabase/.temp/
 *.swp
 
 # Keep example env
-!web/.env.example
+!.env.example

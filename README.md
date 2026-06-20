@@ -15,23 +15,20 @@ Production-ready ERP system for **Roti Kaya Junus** (HQ: Teluk Intan, 36 kiosk b
 
 ```
 RKJ_ONE_Production_Pack/
+├── app/                     # Next.js App Router (pages + API routes)
+├── components/              # UI + module dashboards
+├── lib/                     # Supabase, auth, module APIs
+├── types/                   # Database & enum types
+├── stores/                  # Zustand stores
+├── public/                  # Static assets
 ├── supabase/
-│   ├── migrations/          # 18 SQL migrations (schema + seed + RPC)
-│   └── config.toml
-├── web/                     # Next.js application
-│   ├── src/
-│   │   ├── app/             # App Router pages
-│   │   ├── components/      # UI + layout
-│   │   ├── lib/             # Supabase, auth, permissions
-│   │   ├── stores/          # Zustand stores
-│   │   └── types/           # Database & enum types
-│   └── .env.example
+│   ├── migrations/          # 00001–00030 (schema + seed + RPC)
+│   ├── config.toml
+│   └── README.md
 ├── docs/
-│   ├── DATABASE_SCHEMA.md
-│   └── DEPLOYMENT.md
-├── csv_import/              # Master data CSVs
-├── master_data_seed.json
-└── supabase_seed.sql        # Legacy simplified seed (reference)
+├── scripts/                 # setup-web.sh, dev.sh, push-db.sh
+├── csv_import/
+└── master_data_seed.json
 ```
 
 ## Modules
@@ -72,7 +69,6 @@ See [docs/DATABASE_SCHEMA.md](./docs/DATABASE_SCHEMA.md) for full schema documen
 ### 2. Web App
 
 ```bash
-cd web
 cp .env.example .env.local
 # Add Supabase URL and keys
 npm install
@@ -87,7 +83,16 @@ npm run dev
 
 ## Deployment
 
-Full guide: [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md)
+Full guide: [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md)  
+**Go-live checklist (BM):** [docs/GO_LIVE_CHECKLIST.md](./docs/GO_LIVE_CHECKLIST.md)
+
+```bash
+# Semak kesediaan sistem
+npm run verify:go-live
+
+# Windows — setup penuh (db + seed + verify)
+.\scripts\go-live.ps1 -ProjectRef YOUR_PROJECT_REF
+```
 
 ## Master Data
 
