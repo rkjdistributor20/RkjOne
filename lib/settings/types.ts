@@ -60,3 +60,16 @@ export interface SettingsStockItem {
   status: string;
   category?: string | null;
 }
+
+export interface SettingsStockPlanning {
+  stock_coverage_days: number;
+  safety_buffer_pcs: number;
+  updated_at: string | null;
+}
+
+export interface SettingsUpcomingHoliday {
+  holiday_date: string;
+  name: string;
+  holiday_type: string;
+  demand_multiplier: number;
+}

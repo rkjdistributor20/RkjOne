@@ -4,6 +4,8 @@ import type {
   SettingsProduct,
   SettingsRegion,
   SettingsStockItem,
+  SettingsStockPlanning,
+  SettingsUpcomingHoliday,
   SettingsUser,
 } from './types';
 
@@ -41,6 +43,24 @@ export async function fetchSettingsRegions() {
 
 export async function fetchSettingsStockItems() {
   return fetchJson<{ items: SettingsStockItem[] }>('/api/settings/stock-items');
+}
+
+export async function fetchStockPlanningSettings() {
+  return fetchJson<{
+    settings: SettingsStockPlanning;
+    upcoming_holidays: SettingsUpcomingHoliday[];
+    can_edit: boolean;
+  }>('/api/settings/stock-planning');
+}
+
+export async function updateStockPlanningSettings(payload: {
+  stock_coverage_days?: number;
+  safety_buffer_pcs?: number;
+}) {
+  return fetchJson<{ settings: SettingsStockPlanning }>('/api/settings/stock-planning', {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function updateStockThresholds(

@@ -124,6 +124,16 @@ export interface Database {
         Insert: Omit<ApprovalRequest, 'id' | 'created_at' | 'updated_at'>;
         Update: Partial<ApprovalRequest>;
       };
+      org_stock_planning_settings: {
+        Row: OrgStockPlanningSettings;
+        Insert: Omit<OrgStockPlanningSettings, 'updated_at'> & { updated_at?: string };
+        Update: Partial<OrgStockPlanningSettings>;
+      };
+      malaysia_holidays: {
+        Row: MalaysiaHoliday;
+        Insert: Omit<MalaysiaHoliday, 'id'> & { id?: string };
+        Update: Partial<MalaysiaHoliday>;
+      };
     };
     Views: {
       dashboard_stats: {
@@ -509,6 +519,23 @@ export interface DashboardStats {
   critical_stock_count: number;
   low_stock_count: number;
   outstanding_cash: number;
+}
+
+export interface OrgStockPlanningSettings {
+  organization_id: string;
+  stock_coverage_days: number;
+  safety_buffer_pcs: number;
+  updated_at: string;
+}
+
+export interface MalaysiaHoliday {
+  id: string;
+  holiday_date: string;
+  name: string;
+  holiday_type: string;
+  region_code: string | null;
+  demand_multiplier: number;
+  notes: string | null;
 }
 
 export type Tables<T extends keyof Database['public']['Tables']> =

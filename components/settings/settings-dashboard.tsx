@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { Users, Package, Building2, SlidersHorizontal, Settings2 } from 'lucide-react';
+import { Users, Package, Building2, SlidersHorizontal, Settings2, CalendarDays } from 'lucide-react';
 import { BranchesSettingsPanel } from '@/components/settings/branches-settings-panel';
 import { ProductsSettingsPanel } from '@/components/settings/products-settings-panel';
 import { StockSettingsPanel } from '@/components/settings/stock-settings-panel';
+import { StockPlanningSettingsPanel } from '@/components/settings/stock-planning-settings-panel';
 import { StaffSettingsPanel } from '@/components/settings/staff-settings-panel';
 import { UsersSettingsPanel } from '@/components/settings/users-settings-panel';
 import {
@@ -17,6 +18,7 @@ import {
   fetchSettingsStockItems,
 } from '@/lib/settings/api';
 import { rolesCreatableBy } from '@/lib/settings/personnel-access';
+import { canViewStockPlanning, canEditStockPlanning } from '@/lib/settings/stock-planning-access';
 import type {
   SettingsBranchGroup,
   SettingsProduct,
@@ -51,9 +53,11 @@ export function SettingsDashboard() {
       ? 'branches'
       : tabParam === 'users'
         ? 'users'
-        : canManagePersonnel && !isAdmin
-          ? 'staff'
-          : 'products';
+        : tabParam === 'planning'
+          ? 'planning'
+          : canManagePersonnel && !isAdmin
+            ? 'staff'
+            : 'products';
   const [activeTab, setActiveTab] = useState(defaultTab);
 
   const [users, setUsers] = useState<SettingsUser[]>([]);
@@ -104,6 +108,8 @@ export function SettingsDashboard() {
 
   const canEditStock = isAdmin || role === 'CEO_FACTORY';
   const showCatalogTabs = isAdmin || role === 'OPERATION_MANAGER' || role === 'CEO_FACTORY';
+  const showPlanningTab = role ? canViewStockPlanning(role) : false;
+  const canEditPlanning = role ? canEditStockPlanning(role) : false;
 
   return (
     <ModuleLayout>
@@ -134,6 +140,11 @@ export function SettingsDashboard() {
                   <SlidersHorizontal className="h-4 w-4" /> Ambang Stok
                 </TabsTrigger>
               </>
+            )}
+            {showPlanningTab && (
+              <TabsTrigger value="planning" className={moduleTabsTriggerClass}>
+                <CalendarDays className="h-4 w-4" /> Ramalan Order
+              </TabsTrigger>
             )}
             {canViewStaff && (
               <TabsTrigger value="staff" className={moduleTabsTriggerClass}>
@@ -175,6 +186,12 @@ export function SettingsDashboard() {
                 />
               </TabsContent>
             </>
+          )}
+
+          {showPlanningTab && (
+            <TabsContent value="planning" className="mt-4">
+              <StockPlanningSettingsPanel canEdit={canEditPlanning} />
+            </TabsContent>
           )}
 
           {canViewStaff && (
