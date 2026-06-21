@@ -56,8 +56,11 @@ export function WarehouseDashboard() {
     try {
       const { dates } = await fetchProductionCalendar();
       setPublishedDates(dates);
-    } catch {
+    } catch (err) {
       setPublishedDates([]);
+      toast.error(
+        err instanceof Error ? err.message : 'Gagal memuatkan jadual production kilang'
+      );
     }
   }, []);
 

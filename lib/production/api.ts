@@ -19,9 +19,14 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
 
 export async function fetchProductionCalendar(from?: string, to?: string) {
   const params = new URLSearchParams();
-  if (from) params.set('from', from);
-  if (to) params.set('to', to);
-  else params.set('to', new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10));
+  params.set(
+    'from',
+    from ?? new Date(Date.now() - 86400000).toISOString().slice(0, 10)
+  );
+  params.set(
+    'to',
+    to ?? new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10)
+  );
   return fetchJson<{ dates: PublishedProductionDate[] }>(
     `/api/production/calendar?${params}`
   );
