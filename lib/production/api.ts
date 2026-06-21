@@ -21,6 +21,7 @@ export async function fetchProductionCalendar(from?: string, to?: string) {
   const params = new URLSearchParams();
   if (from) params.set('from', from);
   if (to) params.set('to', to);
+  else params.set('to', new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10));
   return fetchJson<{ dates: PublishedProductionDate[] }>(
     `/api/production/calendar?${params}`
   );
@@ -119,6 +120,22 @@ export async function adjustRouteStopItems(
     method: 'POST',
     body: JSON.stringify({ stop_id: stopId, adjustments, reason }),
   });
+}
+
+export async function finalizeHqFactoryOrder(orderId: string) {
+  return fetchJson<{ result: Record<string, unknown> }>(
+    `/api/production/orders/${orderId}/finalize`,
+    { method: 'POST' }
+  );
+}
+
+export async function fetchDriverWorkSchedule(from?: string, to?: string) {
+  const params = new URLSearchParams();
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  return fetchJson<{ schedule: import('./types').DriverWorkScheduleEntry[] }>(
+    `/api/production/driver-schedule?${params}`
+  );
 }
 
 export async function fetchDeliveryRoutePlans(orderId?: string) {

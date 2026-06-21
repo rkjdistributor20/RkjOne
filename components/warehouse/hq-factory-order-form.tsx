@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Send, FileText, Sparkles, Clock, AlertTriangle } from 'lucide-react';
 import type { StockItemOption } from '@/lib/inventory/types';
 import type { OrderSuggestion, PublishedProductionDate } from '@/lib/production/types';
+import { ORDER_PHASE_LABELS } from '@/lib/production/types';
 import { fetchOrderSuggestion } from '@/lib/production/api';
 import {
   HQ_FACTORY_ORDER_SECTIONS,
@@ -189,10 +190,11 @@ export function HqFactoryOrderForm({
             <FileText className="h-5 w-5" />
           </div>
           <div>
-            <p className="font-bold text-amber-950">Borang Order HQ → Kilang (Per Cawangan + Driver)</p>
+            <p className="font-bold text-amber-950">Order Ramalan HQ → Kilang (Per Cawangan + Driver)</p>
             <p className="mt-1 text-sm text-amber-900/80">
-              Isi keperluan setiap cawangan, <strong>pilih driver</strong> yang ditugaskan hantar.
-              Hantar sebelum jam 10 malam, 1 hari sebelum production.
+              Bila kilang terbit jadual awal, HQ boleh buat <strong>order ramalan</strong> serta susun
+              laluan driver — driver lihat jadual kerja lebih awal. Boleh ubah sehingga T-1 jam 10
+              malam, kemudian auto-muktamad ke kilang.
             </p>
           </div>
         </div>
@@ -203,6 +205,7 @@ export function HqFactoryOrderForm({
         <div className="flex flex-wrap gap-2">
           {publishedDates.map((d) => {
             const closed = d.window_open === false || d.orders_locked;
+            const hasPrediction = d.has_prediction || d.order_phase === 'PREDICTION';
             return (
               <button
                 key={d.production_date}
@@ -219,6 +222,26 @@ export function HqFactoryOrderForm({
                 )}
               >
                 <span className="font-semibold">{formatProductionDayLabel(d.production_date)}</span>
+                {hasPrediction && !closed && (
+                  <span
+                    className={cn(
+                      'mt-0.5 block text-xs font-medium',
+                      productionDate === d.production_date ? 'text-white/90' : 'text-violet-700'
+                    )}
+                  >
+                    ✓ Ramalan disimpan
+                  </span>
+                )}
+                {!hasPrediction && d.window_open && (d.days_until_cutoff ?? 0) > 1 && (
+                  <span
+                    className={cn(
+                      'mt-0.5 block text-xs',
+                      productionDate === d.production_date ? 'text-white/85' : 'text-emerald-700'
+                    )}
+                  >
+                    Buka untuk ramalan awal
+                  </span>
+                )}
                 {d.cutoff_at && (
                   <span
                     className={cn(
@@ -252,7 +275,8 @@ export function HqFactoryOrderForm({
           {windowOpen ? <Clock className="h-4 w-4 shrink-0" /> : <AlertTriangle className="h-4 w-4 shrink-0" />}
           {windowOpen ? (
             <span>
-              Tempoh order buka — tutup <strong>{formatOrderCutoff(cutoffAt)}</strong>
+              Fasa <strong>{ORDER_PHASE_LABELS.PREDICTION}</strong> — tutup{' '}
+              <strong>{formatOrderCutoff(cutoffAt)}</strong>
               {getOrderWindowCountdown(cutoffAt) && (
                 <span className="ml-1">({getOrderWindowCountdown(cutoffAt)})</span>
               )}
@@ -382,7 +406,7 @@ export function HqFactoryOrderForm({
             }
           >
             <Send className="h-5 w-5" />
-            {loading ? 'Menghantar…' : 'Submit Order ke Kilang'}
+            {loading ? 'Menghantar…' : 'Simpan Order Ramalan ke Kilang'}
           </Button>
         </>
       )}

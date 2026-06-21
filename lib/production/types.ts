@@ -6,6 +6,13 @@ export interface PublishedProductionDate {
   cutoff_at?: string;
   orders_locked?: boolean;
   window_open?: boolean;
+  order_id?: string | null;
+  order_number?: string | null;
+  order_phase?: 'PREDICTION' | 'FINAL' | null;
+  has_prediction?: boolean;
+  has_final_order?: boolean;
+  routes_planned?: boolean;
+  days_until_cutoff?: number;
 }
 
 export interface FactoryProductionWeek {
@@ -46,6 +53,7 @@ export interface HqFactoryOrder {
   order_number: string;
   production_date: string;
   status: 'SUBMITTED' | 'ACKNOWLEDGED' | 'FULFILLED' | 'CANCELLED';
+  order_phase?: 'PREDICTION' | 'FINAL';
   notes: string | null;
   created_at: string;
   acknowledged_at: string | null;
@@ -112,6 +120,7 @@ export interface FactoryOrderReport {
   order_number: string;
   production_date: string;
   status: string;
+  order_phase?: string;
   cutoff_at: string;
   totals: Array<{
     item_code: string;
@@ -176,3 +185,32 @@ export const HQ_FACTORY_ORDER_STATUS_LABELS: Record<string, string> = {
   FULFILLED: 'Selesai',
   CANCELLED: 'Dibatalkan',
 };
+
+export const ORDER_PHASE_LABELS: Record<string, string> = {
+  PREDICTION: 'Ramalan (boleh ubah)',
+  FINAL: 'Muktamad ke Kilang',
+};
+
+export interface DriverWorkScheduleEntry {
+  plan_id: string;
+  production_date: string;
+  route_name: string;
+  region_code: string | null;
+  route_pattern: string;
+  status: string;
+  order_phase: string;
+  order_number: string | null;
+  driver_id: string;
+  driver_name: string;
+  driver_code: string;
+  vehicle: string | null;
+  handoff_completed: boolean;
+  depends_on_ready: boolean;
+  stops: Array<{
+    sequence: number;
+    branch_code: string;
+    branch_name: string;
+    is_handoff: boolean;
+    item_count: number;
+  }>;
+}

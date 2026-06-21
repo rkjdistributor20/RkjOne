@@ -5,8 +5,10 @@ import { toast } from 'sonner';
 import { Inbox } from 'lucide-react';
 import { acknowledgeHqFactoryOrder, fetchHqFactoryOrders } from '@/lib/production/api';
 import type { HqFactoryOrder } from '@/lib/production/types';
+import { ORDER_PHASE_LABELS } from '@/lib/production/types';
 import { formatProductionDayLabel } from '@/lib/production/week-utils';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { FactoryOrderReportView } from '@/components/warehouse/factory-order-report-view';
 
 export function FactoryOrderInbox({ onOrdersChange }: { onOrdersChange?: () => void }) {
@@ -41,7 +43,9 @@ export function FactoryOrderInbox({ onOrdersChange }: { onOrdersChange?: () => v
     }
   }
 
-  const pending = orders.filter((o) => o.status === 'SUBMITTED');
+  const predictions = orders.filter((o) => o.order_phase === 'PREDICTION' && o.status === 'SUBMITTED');
+  const finals = orders.filter((o) => o.order_phase !== 'PREDICTION' || o.status !== 'SUBMITTED');
+  const pendingFinal = finals.filter((o) => o.status === 'SUBMITTED' && o.order_phase === 'FINAL');
 
   return (
     <div className="space-y-4">
@@ -51,29 +55,54 @@ export function FactoryOrderInbox({ onOrdersChange }: { onOrdersChange?: () => v
           Laporan Order dari HQ
         </p>
         <p className="mt-1">
-          Kilang terima <strong>jumlah production</strong> dan <strong>pecahan setiap cawangan</strong>{' '}
-          + laluan driver. Order HQ ditutup automatik T-1 jam 10 malam.
+          <strong>Ramalan</strong> = perancangan awal HQ (boleh berubah).{' '}
+          <strong>Muktamad</strong> = order sah untuk production — sahkan di bawah.
         </p>
       </div>
 
       {loading ? (
         <p className="text-sm text-muted-foreground">Memuatkan…</p>
-      ) : pending.length === 0 && orders.length === 0 ? (
+      ) : orders.length === 0 ? (
         <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
           Tiada laporan order HQ buat masa ini.
         </p>
       ) : (
         <>
-          {pending.length > 0 && (
+          {predictions.length > 0 && (
+            <div className="space-y-4">
+              <p className="text-sm font-medium text-violet-800">
+                {predictions.length} order ramalan (rujukan awal — belum perlu disahkan)
+              </p>
+              {predictions.map((order) => (
+                <div key={order.id}>
+                  <div className="mb-2 flex items-center gap-2">
+                    <Badge className="bg-violet-100 text-violet-900">
+                      {ORDER_PHASE_LABELS.PREDICTION}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">{order.order_number}</span>
+                  </div>
+                  <FactoryOrderReportView orderId={order.id} orderNumber={order.order_number} />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {pendingFinal.length > 0 && (
             <p className="text-sm font-medium text-amber-800">
-              {pending.length} order menunggu pengesahan kilang
+              {pendingFinal.length} order muktamad menunggu pengesahan kilang
             </p>
           )}
+
           <div className="space-y-6">
-            {orders.map((order) => (
+            {finals.map((order) => (
               <div key={order.id}>
+                {order.order_phase === 'FINAL' && (
+                  <Badge className="mb-2" variant="default">
+                    {ORDER_PHASE_LABELS.FINAL}
+                  </Badge>
+                )}
                 <FactoryOrderReportView orderId={order.id} orderNumber={order.order_number} />
-                {order.status === 'SUBMITTED' && (
+                {order.status === 'SUBMITTED' && order.order_phase === 'FINAL' && (
                   <Button
                     className="mt-3 w-full bg-emerald-600 hover:bg-emerald-700 sm:w-auto"
                     size="sm"

@@ -17,7 +17,7 @@ export async function GET(request: Request) {
     .from('hq_factory_orders' as 'products')
     .select(
       `
-      id, order_number, production_date, status, notes, created_at, acknowledged_at, routes_planned_at, created_by,
+      id, order_number, production_date, status, order_phase, notes, created_at, acknowledged_at, routes_planned_at, created_by,
       hq_factory_order_items(
         id, quantity, unit,
         stock_item:stock_items(item_code, name, category)

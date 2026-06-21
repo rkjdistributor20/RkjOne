@@ -1,7 +1,7 @@
 'use client';
 
 import type { HqFactoryOrder } from '@/lib/production/types';
-import { HQ_FACTORY_ORDER_STATUS_LABELS } from '@/lib/production/types';
+import { HQ_FACTORY_ORDER_STATUS_LABELS, ORDER_PHASE_LABELS } from '@/lib/production/types';
 import { HQ_FACTORY_ORDER_SECTIONS, formatHqOrderPreview, getHqOrderUnitLabel } from '@/lib/production/hq-order-format';
 import { formatProductionDayLabel } from '@/lib/production/week-utils';
 import { getStockByCode } from '@/lib/stock/catalog';
@@ -41,6 +41,18 @@ export function HqFactoryOrderCard({ order, className }: HqFactoryOrderCardProps
         <Badge variant={order.status === 'SUBMITTED' ? 'secondary' : 'outline'}>
           {HQ_FACTORY_ORDER_STATUS_LABELS[order.status] ?? order.status}
         </Badge>
+        {order.order_phase && (
+          <Badge
+            variant="outline"
+            className={
+              order.order_phase === 'PREDICTION'
+                ? 'border-violet-300 text-violet-800'
+                : 'border-emerald-300 text-emerald-800'
+            }
+          >
+            {ORDER_PHASE_LABELS[order.order_phase] ?? order.order_phase}
+          </Badge>
+        )}
       </div>
 
       <div className="divide-y">

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Truck, Plus, MapPin, Package } from 'lucide-react';
+import { Truck, Plus, MapPin, Package, CalendarDays } from 'lucide-react';
 import {
   fetchDeliveryOrders,
   fetchFleetDrivers,
@@ -26,6 +26,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CreateDeliveryDialog } from '@/components/fleet/create-delivery-dialog';
 import { PodDialog } from '@/components/fleet/pod-dialog';
+import { DriverWorkSchedulePanel } from '@/components/fleet/driver-work-schedule-panel';
 import {
   ModuleLayout,
   ModuleHeader,
@@ -141,6 +142,9 @@ export function FleetDashboard() {
             <TabsTrigger value="deliveries" className={moduleTabsTriggerClass}>
               <Package className="h-4 w-4" /> Penghantaran
             </TabsTrigger>
+            <TabsTrigger value="schedule" className={moduleTabsTriggerClass}>
+              <CalendarDays className="h-4 w-4" /> Jadual Kerja
+            </TabsTrigger>
             <TabsTrigger value="vehicles" className={moduleTabsTriggerClass}>
               <Truck className="h-4 w-4" /> Kenderaan
             </TabsTrigger>
@@ -246,6 +250,10 @@ export function FleetDashboard() {
                 </Card>
               ))
             )}
+          </TabsContent>
+
+          <TabsContent value="schedule" className="mt-2">
+            <DriverWorkSchedulePanel />
           </TabsContent>
 
           <TabsContent value="vehicles" className="mt-2">
