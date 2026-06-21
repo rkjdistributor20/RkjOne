@@ -17,19 +17,25 @@ export async function GET(request: Request) {
     .from('hq_delivery_route_plans' as 'products')
     .select(
       `
-      id, route_name, region_code, production_date, status,
-      driver:drivers(full_name),
+      id, route_name, region_code, production_date, status, route_pattern,
+      handoff_completed_at, depends_on_plan_id,
+      driver:drivers(id, full_name, driver_code),
       vehicle:vehicles(vehicle_code, vehicle_type),
       stops:hq_delivery_route_stops(
-        stop_sequence,
-        branch:branches(branch_code, branch_name)
+        id, stop_sequence, is_handoff, notes,
+        handoff_driver:drivers!hq_delivery_route_stops_handoff_driver_id_fkey(full_name),
+        branch:branches(branch_code, branch_name),
+        items:hq_delivery_route_stop_items(
+          id, stock_item_id, quantity, planned_quantity, adjusted_quantity, adjustment_reason,
+          stock_item:stock_items(item_code, name)
+        )
       )
     `
     )
     .eq('organization_id', profile.organization_id)
     .neq('status', 'CANCELLED')
     .order('production_date', { ascending: false })
-    .limit(20);
+    .limit(30);
 
   if (orderId) {
     query = query.eq('factory_order_id', orderId);
@@ -62,7 +68,7 @@ export async function POST(request: Request) {
   const { data, error } = await inventoryRpc(
     supabase,
     'create_delivery_routes_for_factory_order',
-    { p_order_id: body.order_id }
+    { p_order_id: body.order_id, p_replace: body.replace ?? false }
   );
 
   if (error) {

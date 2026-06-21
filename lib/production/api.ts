@@ -69,6 +69,7 @@ export async function createHqFactoryOrder(payload: {
     stock_item_id: string;
     quantity: number;
     unit?: string;
+    assigned_driver_id?: string;
   }>;
   notes?: string;
 }) {
@@ -85,10 +86,38 @@ export async function acknowledgeHqFactoryOrder(orderId: string) {
   );
 }
 
-export async function createDeliveryRoutesForOrder(orderId: string) {
+export async function createDeliveryRoutesForOrder(orderId: string, replace = false) {
   return fetchJson<{ result: Record<string, unknown> }>('/api/production/routes', {
     method: 'POST',
-    body: JSON.stringify({ order_id: orderId }),
+    body: JSON.stringify({ order_id: orderId, replace }),
+  });
+}
+
+export async function completeRouteHandoff(primaryPlanId: string) {
+  return fetchJson<{ result: Record<string, unknown> }>('/api/production/routes/handoff', {
+    method: 'POST',
+    body: JSON.stringify({ primary_plan_id: primaryPlanId }),
+  });
+}
+
+export async function updateDeliveryRoutePlan(
+  planId: string,
+  payload: { driver_id?: string; vehicle_id?: string; stop_order?: string[] }
+) {
+  return fetchJson<{ result: Record<string, unknown> }>(`/api/production/routes/${planId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function adjustRouteStopItems(
+  stopId: string,
+  adjustments: Array<{ stock_item_id: string; adjusted_quantity: number }>,
+  reason?: string
+) {
+  return fetchJson<{ result: Record<string, unknown> }>('/api/production/routes/adjust', {
+    method: 'POST',
+    body: JSON.stringify({ stop_id: stopId, adjustments, reason }),
   });
 }
 

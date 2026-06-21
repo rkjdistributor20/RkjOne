@@ -17,7 +17,6 @@ import {
 } from '@/lib/production/order-window';
 import { formatProductionDayLabel } from '@/lib/production/week-utils';
 import { getStockByCode, resolveRejectToBaseQuantity } from '@/lib/stock/catalog';
-import { ROTI_SHELF_LIFE_DAYS } from '@/lib/stock/expiry';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -28,6 +27,7 @@ import {
   HqBranchOrderMatrix,
   buildBranchItemsFromMatrix,
   type BranchQtyMap,
+  type BranchDriverMap,
 } from '@/components/warehouse/hq-branch-order-matrix';
 
 interface HqFactoryOrderFormProps {
@@ -41,6 +41,7 @@ interface HqFactoryOrderFormProps {
       stock_item_id: string;
       quantity: number;
       unit?: string;
+      assigned_driver_id?: string;
     }>;
     notes?: string;
   }) => Promise<{ order_id?: string } | void>;
@@ -53,6 +54,7 @@ export function HqFactoryOrderForm({
 }: HqFactoryOrderFormProps) {
   const [productionDate, setProductionDate] = useState('');
   const [branchQty, setBranchQty] = useState<BranchQtyMap>({});
+  const [branchDrivers, setBranchDrivers] = useState<BranchDriverMap>({});
   const [factoryQty, setFactoryQty] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
@@ -93,6 +95,7 @@ export function HqFactoryOrderForm({
     if (productionDate) {
       loadSuggestion(productionDate);
       setBranchQty({});
+      setBranchDrivers({});
       setFactoryQty({});
     }
   }, [productionDate, loadSuggestion]);
@@ -108,6 +111,12 @@ export function HqFactoryOrderForm({
     }
     setBranchQty(next);
 
+    const fd: BranchDriverMap = { ...branchDrivers };
+    for (const branch of suggestion.branches) {
+      if (branch.default_driver_id) fd[branch.branch_id] = branch.default_driver_id;
+    }
+    setBranchDrivers(fd);
+
     const fq: Record<string, string> = {};
     for (const item of suggestion.factory_items) {
       fq[item.item_code] = String(item.suggested_qty);
@@ -117,8 +126,8 @@ export function HqFactoryOrderForm({
 
   const branchItems = useMemo(() => {
     if (!suggestion) return [];
-    return buildBranchItemsFromMatrix(suggestion.branches, branchQty, stockIdByCode);
-  }, [suggestion, branchQty, stockIdByCode]);
+    return buildBranchItemsFromMatrix(suggestion.branches, branchQty, branchDrivers, stockIdByCode);
+  }, [suggestion, branchQty, branchDrivers, stockIdByCode]);
 
   const factoryItems = useMemo(() => {
     const items: Array<{ stock_item_id: string; quantity: number; unit?: string; code: string }> = [];
@@ -155,6 +164,7 @@ export function HqFactoryOrderForm({
         notes: notes.trim() || undefined,
       });
       setBranchQty({});
+      setBranchDrivers({});
       setFactoryQty({});
       setNotes('');
       loadSuggestion(productionDate);
@@ -179,11 +189,10 @@ export function HqFactoryOrderForm({
             <FileText className="h-5 w-5" />
           </div>
           <div>
-            <p className="font-bold text-amber-950">Borang Order HQ → Kilang (Per Cawangan)</p>
+            <p className="font-bold text-amber-950">Borang Order HQ → Kilang (Per Cawangan + Driver)</p>
             <p className="mt-1 text-sm text-amber-900/80">
-              Isi keperluan setiap cawangan (bag roti) + bahan/packaging kilang. Hantar{' '}
-              <strong>sebelum jam 10 malam, 1 hari sebelum production</strong>. Expiry roti = +{' '}
-              {ROTI_SHELF_LIFE_DAYS} hari.
+              Isi keperluan setiap cawangan, <strong>pilih driver</strong> yang ditugaskan hantar.
+              Hantar sebelum jam 10 malam, 1 hari sebelum production.
             </p>
           </div>
         </div>
@@ -286,7 +295,9 @@ export function HqFactoryOrderForm({
                 <HqBranchOrderMatrix
                   branches={suggestion?.branches ?? []}
                   quantities={branchQty}
+                  branchDrivers={branchDrivers}
                   onChange={setBranchQty}
+                  onDriverChange={setBranchDrivers}
                   disabled={!windowOpen}
                 />
               )}

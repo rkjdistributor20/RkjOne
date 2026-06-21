@@ -108,7 +108,7 @@ export function FactoryOrderReportView({ orderId, orderNumber }: FactoryOrderRep
           })}
         </TabsContent>
 
-        <TabsContent value="branches" className="mt-3 max-h-80 space-y-2 overflow-y-auto">
+        <TabsContent value="branches" className="mt-3 max-h-96 space-y-2 overflow-y-auto">
           {report.branches.map((branch) => (
             <div key={branch.branch_id} className="rounded-lg border p-3 text-sm">
               <div className="mb-1 flex items-center justify-between gap-2">
@@ -117,6 +117,9 @@ export function FactoryOrderReportView({ orderId, orderNumber }: FactoryOrderRep
                   {branch.branch_code}
                 </Badge>
               </div>
+              {'driver_name' in branch && branch.driver_name && (
+                <p className="mb-1 text-xs text-emerald-800">Driver: {branch.driver_name as string}</p>
+              )}
               <ul className="space-y-0.5 text-xs text-muted-foreground">
                 {branch.items.map((item) => (
                   <li key={item.item_code} className="flex justify-between">
@@ -140,9 +143,12 @@ export function FactoryOrderReportView({ orderId, orderNumber }: FactoryOrderRep
             report.routes.map((route) => (
               <div key={route.plan_id} className="rounded-lg border p-3 text-sm">
                 <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <Package className="h-4 w-4 text-emerald-600" />
                   <span className="font-medium">{route.route_name}</span>
                   <Badge variant="outline">{route.region_code}</Badge>
+                  {'route_pattern' in route && route.route_pattern && (
+                    <Badge variant="secondary">{route.route_pattern as string}</Badge>
+                  )}
+                  <Badge variant="outline">{route.status}</Badge>
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {route.driver ?? '—'} · {route.vehicle ?? '—'}
@@ -151,8 +157,16 @@ export function FactoryOrderReportView({ orderId, orderNumber }: FactoryOrderRep
                   {route.stops.map((stop) => (
                     <li key={stop.sequence}>
                       <span className="font-medium text-emerald-800">{stop.sequence}.</span>{' '}
-                      {stop.branch_name}{' '}
-                      <span className="text-muted-foreground">({stop.branch_code})</span>
+                      {stop.is_handoff ? (
+                        <span className="text-amber-800">
+                          Sambut Stok → {stop.handoff_driver ?? 'Relay'}
+                        </span>
+                      ) : (
+                        <>
+                          {stop.branch_name}{' '}
+                          <span className="text-muted-foreground">({stop.branch_code})</span>
+                        </>
+                      )}
                     </li>
                   ))}
                 </ol>

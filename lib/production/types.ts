@@ -72,6 +72,8 @@ export interface OrderSuggestionBranch {
   branch_name: string;
   region_code: string | null;
   location_id: string;
+  default_driver_id?: string | null;
+  default_driver_name?: string | null;
   items: OrderSuggestionBranchItem[];
 }
 
@@ -96,6 +98,7 @@ export interface FactoryOrderReportBranch {
   branch_code: string;
   branch_name: string;
   region_code: string;
+  driver_name?: string | null;
   items: Array<{
     item_code: string;
     name: string;
@@ -122,13 +125,17 @@ export interface FactoryOrderReport {
     plan_id: string;
     route_name: string;
     region_code: string;
+    route_pattern?: string;
+    status: string;
+    handoff_completed?: boolean;
     driver: string | null;
     vehicle: string | null;
-    status: string;
     stops: Array<{
       sequence: number;
       branch_code: string;
       branch_name: string;
+      is_handoff?: boolean;
+      handoff_driver?: string | null;
     }>;
   }>;
 }
@@ -138,12 +145,28 @@ export interface DeliveryRoutePlan {
   route_name: string;
   region_code: string | null;
   production_date: string;
+  route_pattern?: string;
   status: string;
-  driver?: { full_name: string } | null;
+  handoff_completed_at?: string | null;
+  depends_on_plan_id?: string | null;
+  driver?: { id?: string; full_name: string; driver_code?: string } | null;
   vehicle?: { vehicle_code: string; vehicle_type: string } | null;
   stops?: Array<{
+    id?: string;
     stop_sequence: number;
-    branch: { branch_code: string; branch_name: string };
+    is_handoff?: boolean;
+    notes?: string | null;
+    handoff_driver?: { full_name: string } | null;
+    branch: { branch_code: string; branch_name: string } | null;
+    items?: Array<{
+      id?: string;
+      stock_item_id?: string;
+      quantity: number;
+      planned_quantity?: number;
+      adjusted_quantity?: number | null;
+      adjustment_reason?: string | null;
+      stock_item?: { item_code: string; name: string };
+    }>;
   }>;
 }
 
