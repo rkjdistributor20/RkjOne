@@ -20,6 +20,7 @@ import type { InventoryLocation, StockItemOption } from '@/lib/inventory/types';
 import { HQ_FACTORY_ORDER_SECTIONS } from '@/lib/production/hq-order-format';
 import {
   buildManualDeliveryLegs,
+  createEmptyManualInstructions,
   MAX_MANUAL_DELIVERY_INSTRUCTIONS,
   validateManualInstructions,
   type ManualDeliveryInstruction,
@@ -73,20 +74,19 @@ interface CreateDeliveryDialogProps {
   onSuccess: () => void;
 }
 
-function newInstructionKey() {
-  return crypto.randomUUID();
-}
-
 function emptyInstruction(
   branches: InventoryLocation[],
   defaultItemId: string
 ): ManualDeliveryInstruction {
-  return {
-    key: newInstructionKey(),
-    destId: branches[0]?.id ?? '',
-    itemId: defaultItemId,
-    qty: '1',
-  };
+  return createEmptyManualInstructions(1, branches[0]?.id ?? '', defaultItemId)[0]!;
+}
+
+function createEmptyInstructions(
+  count: number,
+  branches: InventoryLocation[],
+  defaultItemId: string
+): ManualDeliveryInstruction[] {
+  return createEmptyManualInstructions(count, branches[0]?.id ?? '', defaultItemId);
 }
 
 export function CreateDeliveryDialog({
@@ -135,6 +135,12 @@ export function CreateDeliveryDialog({
   const [gpsLoading, setGpsLoading] = useState(false);
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [position, setPosition] = useState<{ lat: number; lng: number } | null>(null);
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+
+  const slotsLeft = MAX_MANUAL_DELIVERY_INSTRUCTIONS - instructions.length;
+  const allSelected =
+    instructions.length > 0 && selectedKeys.size === instructions.length;
+  const someSelected = selectedKeys.size > 0;
 
   const selectedDriver = drivers.find((d) => d.id === driverId);
   const selectedVehicle = vehicles.find((v) => v.id === vehicleId);
@@ -159,6 +165,7 @@ export function CreateDeliveryDialog({
     setInstructions([emptyInstruction(branches, defaultItemId)]);
     setAiSummary(null);
     setPosition(null);
+    setSelectedKeys(new Set());
   }, [open, branches, drivers, defaultItemId]);
 
   useEffect(() => {
@@ -213,12 +220,63 @@ export function CreateDeliveryDialog({
     setAiSummary(null);
   }
 
-  function addInstruction() {
-    if (instructions.length >= MAX_MANUAL_DELIVERY_INSTRUCTIONS) {
+  function addInstructionsBulk(count: number) {
+    const room = MAX_MANUAL_DELIVERY_INSTRUCTIONS - instructions.length;
+    const n = Math.min(count, room);
+    if (n <= 0) {
       toast.error(`Maksimum ${MAX_MANUAL_DELIVERY_INSTRUCTIONS} arahan dalam satu pesanan`);
       return;
     }
-    setInstructions((prev) => [...prev, emptyInstruction(branches, defaultItemId)]);
+    setInstructions((prev) => [
+      ...prev,
+      ...createEmptyInstructions(n, branches, defaultItemId),
+    ]);
+    setAiSummary(null);
+    if (n > 1) toast.success(`${n} baris arahan ditambah`);
+  }
+
+  function fillToMaxInstructions() {
+    addInstructionsBulk(slotsLeft);
+  }
+
+  function toggleSelectInstruction(key: string) {
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  function toggleSelectAllInstructions() {
+    if (allSelected) {
+      setSelectedKeys(new Set());
+    } else {
+      setSelectedKeys(new Set(instructions.map((r) => r.key)));
+    }
+  }
+
+  function removeSelectedInstructions() {
+    if (!someSelected) {
+      toast.error('Tandakan arahan untuk dipadam');
+      return;
+    }
+    if (instructions.length - selectedKeys.size < 1) {
+      toast.error('Sekurang-kurangnya satu arahan mesti kekal dalam pesanan');
+      return;
+    }
+    const removed = selectedKeys.size;
+    setInstructions((prev) => prev.filter((row) => !selectedKeys.has(row.key)));
+    setSelectedKeys(new Set());
+    setAiSummary(null);
+    toast.success(`${removed} arahan dipadam`);
+  }
+
+  function resetAllInstructions() {
+    setInstructions([emptyInstruction(branches, defaultItemId)]);
+    setSelectedKeys(new Set());
+    setAiSummary(null);
+    toast.success('Senarai arahan dikosongkan');
   }
 
   function removeInstruction(key: string) {
@@ -228,6 +286,12 @@ export function CreateDeliveryDialog({
         return prev;
       }
       return prev.filter((row) => row.key !== key);
+    });
+    setSelectedKeys((prev) => {
+      if (!prev.has(key)) return prev;
+      const next = new Set(prev);
+      next.delete(key);
+      return next;
     });
     setAiSummary(null);
   }
@@ -355,21 +419,21 @@ export function CreateDeliveryDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>Pesanan Penghantaran Manual</DialogTitle>
           <DialogDescription>
-            Kes khas: sehingga {MAX_MANUAL_DELIVERY_INSTRUCTIONS} arahan (hentian cawangan) dalam
-            satu pesanan. Aliran utama: Order HQ → Kilang → cross-dock → arahan driver (max 20
-            hentian/hari).
+            Tambah atau padam sehingga {MAX_MANUAL_DELIVERY_INSTRUCTIONS} arahan (hentian cawangan)
+            sekali gus dalam satu pesanan — pilih berbilang baris untuk padam pukal.
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50/60 px-3 py-2 text-xs text-blue-950">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <span>
-            Isi <strong>asal stok</strong> &amp; <strong>pemandu</strong>, kemudian tambah arahan
-            (cawangan + stok). Kenderaan auto dipadankan dengan pemandu.
+            Guna <strong>+1 / +5 / Isi {MAX_MANUAL_DELIVERY_INSTRUCTIONS}</strong> untuk tambah
+            banyak baris sekaligus. Tandakan checkbox → <strong>Padam dipilih</strong> untuk buang
+            berbilang arahan dalam satu pesanan.
           </span>
         </div>
 
@@ -498,15 +562,87 @@ export function CreateDeliveryDialog({
               <Label className="text-sm font-semibold">
                 3. Arahan penghantaran ({instructions.length}/{MAX_MANUAL_DELIVERY_INSTRUCTIONS})
               </Label>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5 rounded-lg border bg-muted/20 p-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mr-1">
+                Tambah
+              </span>
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
-                disabled={instructions.length >= MAX_MANUAL_DELIVERY_INSTRUCTIONS}
-                onClick={addInstruction}
+                className="h-7 text-xs"
+                disabled={slotsLeft <= 0}
+                onClick={() => addInstructionsBulk(1)}
               >
-                <Plus className="mr-1 h-3.5 w-3.5" />
-                Tambah arahan
+                <Plus className="mr-1 h-3 w-3" />+1
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs"
+                disabled={slotsLeft < 3}
+                onClick={() => addInstructionsBulk(3)}
+              >
+                +3
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs"
+                disabled={slotsLeft < 5}
+                onClick={() => addInstructionsBulk(5)}
+              >
+                +5
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="h-7 text-xs"
+                disabled={slotsLeft <= 0}
+                onClick={fillToMaxInstructions}
+              >
+                Isi {MAX_MANUAL_DELIVERY_INSTRUCTIONS} baris
+              </Button>
+
+              <span className="mx-1 hidden h-4 w-px bg-border sm:inline" />
+
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mr-1">
+                Padam
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs"
+                onClick={toggleSelectAllInstructions}
+              >
+                {allSelected ? 'Nyahpilih' : 'Pilih semua'}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="destructive"
+                className="h-7 text-xs"
+                disabled={!someSelected}
+                onClick={removeSelectedInstructions}
+              >
+                <Trash2 className="mr-1 h-3 w-3" />
+                Padam dipilih ({selectedKeys.size})
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-7 text-xs text-muted-foreground"
+                disabled={instructions.length <= 1}
+                onClick={resetAllInstructions}
+              >
+                Kosongkan semua
               </Button>
             </div>
 
@@ -520,7 +656,7 @@ export function CreateDeliveryDialog({
               />
             </div>
 
-            <div className="space-y-3">
+            <div className="max-h-[min(52vh,520px)] space-y-3 overflow-y-auto pr-1">
               {instructions.map((row, idx) => {
                 const branch = branches.find((b) => b.id === row.destId);
                 const item = hqStockItems.find((s) => s.id === row.itemId);
@@ -528,15 +664,26 @@ export function CreateDeliveryDialog({
                   ? formatStockItemDetail(item)?.split(' · ').pop()?.replace('Order dalam ', '') ??
                     'unit'
                   : 'unit';
+                const isSelected = selectedKeys.has(row.key);
 
                 return (
                   <div
                     key={row.key}
-                    className="rounded-lg border bg-card p-3 space-y-2"
+                    className={cn(
+                      'rounded-lg border bg-card p-3 space-y-2 transition-colors',
+                      isSelected && 'border-destructive/50 bg-destructive/5'
+                    )}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-[10px]">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 shrink-0 rounded border-input accent-emerald-600"
+                          checked={isSelected}
+                          onChange={() => toggleSelectInstruction(row.key)}
+                          aria-label={`Pilih arahan ${idx + 1}`}
+                        />
+                        <Badge variant="outline" className="text-[10px] shrink-0">
                           Arahan {idx + 1}
                         </Badge>
                         {branch && (
@@ -552,6 +699,7 @@ export function CreateDeliveryDialog({
                         className="h-8 w-8 shrink-0 text-destructive"
                         disabled={instructions.length <= 1}
                         onClick={() => removeInstruction(row.key)}
+                        title="Padam arahan ini"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>

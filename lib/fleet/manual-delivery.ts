@@ -113,6 +113,20 @@ export function buildManualDeliveryLegs(options: {
   return legs;
 }
 
+export function createEmptyManualInstructions(
+  count: number,
+  defaultDestId: string,
+  defaultItemId: string
+): ManualDeliveryInstruction[] {
+  const n = Math.max(0, Math.min(count, MAX_MANUAL_DELIVERY_INSTRUCTIONS));
+  return Array.from({ length: n }, () => ({
+    key: crypto.randomUUID(),
+    destId: defaultDestId,
+    itemId: defaultItemId,
+    qty: '1',
+  }));
+}
+
 export function validateManualInstructions(
   instructions: ManualDeliveryInstructionInput[]
 ): { ok: true } | { ok: false; message: string } {
