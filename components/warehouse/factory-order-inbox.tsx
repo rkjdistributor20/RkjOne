@@ -7,7 +7,7 @@ import { acknowledgeHqFactoryOrder, fetchHqFactoryOrders } from '@/lib/productio
 import type { HqFactoryOrder } from '@/lib/production/types';
 import { formatProductionDayLabel } from '@/lib/production/week-utils';
 import { Button } from '@/components/ui/button';
-import { HqFactoryOrderCard } from '@/components/warehouse/hq-factory-order-card';
+import { FactoryOrderReportView } from '@/components/warehouse/factory-order-report-view';
 
 export function FactoryOrderInbox({ onOrdersChange }: { onOrdersChange?: () => void }) {
   const [orders, setOrders] = useState<HqFactoryOrder[]>([]);
@@ -51,8 +51,8 @@ export function FactoryOrderInbox({ onOrdersChange }: { onOrdersChange?: () => v
           Laporan Order dari HQ
         </p>
         <p className="mt-1">
-          Format order: <strong>1 borang / hari production</strong> · Roti (bag) · Bahan (tong) ·
-          Packaging (bag). Sahkan sebelum production bermula.
+          Kilang terima <strong>jumlah production</strong> dan <strong>pecahan setiap cawangan</strong>{' '}
+          + laluan driver. Order HQ ditutup automatik T-1 jam 10 malam.
         </p>
       </div>
 
@@ -69,13 +69,13 @@ export function FactoryOrderInbox({ onOrdersChange }: { onOrdersChange?: () => v
               {pending.length} order menunggu pengesahan kilang
             </p>
           )}
-          <div className="space-y-4">
+          <div className="space-y-6">
             {orders.map((order) => (
               <div key={order.id}>
-                <HqFactoryOrderCard order={order} />
+                <FactoryOrderReportView orderId={order.id} orderNumber={order.order_number} />
                 {order.status === 'SUBMITTED' && (
                   <Button
-                    className="mt-2 w-full bg-emerald-600 hover:bg-emerald-700 sm:w-auto"
+                    className="mt-3 w-full bg-emerald-600 hover:bg-emerald-700 sm:w-auto"
                     size="sm"
                     onClick={() => handleAck(order.id)}
                   >

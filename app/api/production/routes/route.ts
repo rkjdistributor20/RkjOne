@@ -10,31 +10,29 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Tidak dibenarkan' }, { status: 401 });
   }
 
-  const status = new URL(request.url).searchParams.get('status');
+  const orderId = new URL(request.url).searchParams.get('order_id');
   const supabase = await createClient();
 
   let query = supabase
-    .from('hq_factory_orders' as 'products')
+    .from('hq_delivery_route_plans' as 'products')
     .select(
       `
-      id, order_number, production_date, status, notes, created_at, acknowledged_at, routes_planned_at, created_by,
-      hq_factory_order_items(
-        id, quantity, unit,
-        stock_item:stock_items(item_code, name, category)
-      ),
-      hq_factory_order_branch_items(
-        id, branch_id, quantity, unit,
-        branch:branches(branch_code, branch_name),
-        stock_item:stock_items(item_code, name, category)
+      id, route_name, region_code, production_date, status,
+      driver:drivers(full_name),
+      vehicle:vehicles(vehicle_code, vehicle_type),
+      stops:hq_delivery_route_stops(
+        stop_sequence,
+        branch:branches(branch_code, branch_name)
       )
     `
     )
     .eq('organization_id', profile.organization_id)
-    .order('created_at', { ascending: false })
-    .limit(50);
+    .neq('status', 'CANCELLED')
+    .order('production_date', { ascending: false })
+    .limit(20);
 
-  if (status) {
-    query = query.eq('status', status);
+  if (orderId) {
+    query = query.eq('factory_order_id', orderId);
   }
 
   const { data, error } = await query;
@@ -42,7 +40,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ orders: data ?? [] });
+  return NextResponse.json({ routes: data ?? [] });
 }
 
 export async function POST(request: Request) {
@@ -52,21 +50,20 @@ export async function POST(request: Request) {
   }
 
   if (!canSubmitHqFactoryOrder(profile.role)) {
-    return NextResponse.json(
-      { error: 'Hanya pembuat order HQ boleh hantar order ke kilang' },
-      { status: 403 }
-    );
+    return NextResponse.json({ error: 'Hanya HQ boleh susun laluan' }, { status: 403 });
   }
 
   const body = await request.json();
-  const supabase = await createClient();
+  if (!body.order_id) {
+    return NextResponse.json({ error: 'order_id diperlukan' }, { status: 400 });
+  }
 
-  const { data, error } = await inventoryRpc(supabase, 'create_hq_factory_order', {
-    p_production_date: body.production_date,
-    p_items: body.items ?? [],
-    p_notes: body.notes ?? null,
-    p_branch_items: body.branch_items ?? null,
-  });
+  const supabase = await createClient();
+  const { data, error } = await inventoryRpc(
+    supabase,
+    'create_delivery_routes_for_factory_order',
+    { p_order_id: body.order_id }
+  );
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });

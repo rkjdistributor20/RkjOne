@@ -1,6 +1,9 @@
 import type {
+  DeliveryRoutePlan,
+  FactoryOrderReport,
   FactoryProductionWeek,
   HqFactoryOrder,
+  OrderSuggestion,
   PublishedProductionDate,
 } from './types';
 
@@ -46,9 +49,27 @@ export async function fetchHqFactoryOrders(status?: string) {
   return fetchJson<{ orders: HqFactoryOrder[] }>(`/api/production/orders${params}`);
 }
 
+export async function fetchOrderSuggestion(productionDate: string) {
+  return fetchJson<{ suggestion: OrderSuggestion }>(
+    `/api/production/suggest?production_date=${productionDate}`
+  );
+}
+
+export async function fetchFactoryOrderReport(orderId: string) {
+  return fetchJson<{ report: FactoryOrderReport }>(
+    `/api/production/reports?order_id=${orderId}`
+  );
+}
+
 export async function createHqFactoryOrder(payload: {
   production_date: string;
   items: Array<{ stock_item_id: string; quantity: number; unit?: string }>;
+  branch_items?: Array<{
+    branch_id: string;
+    stock_item_id: string;
+    quantity: number;
+    unit?: string;
+  }>;
   notes?: string;
 }) {
   return fetchJson<{ result: Record<string, unknown> }>('/api/production/orders', {
@@ -62,4 +83,16 @@ export async function acknowledgeHqFactoryOrder(orderId: string) {
     `/api/production/orders/${orderId}/acknowledge`,
     { method: 'POST' }
   );
+}
+
+export async function createDeliveryRoutesForOrder(orderId: string) {
+  return fetchJson<{ result: Record<string, unknown> }>('/api/production/routes', {
+    method: 'POST',
+    body: JSON.stringify({ order_id: orderId }),
+  });
+}
+
+export async function fetchDeliveryRoutePlans(orderId?: string) {
+  const params = orderId ? `?order_id=${orderId}` : '';
+  return fetchJson<{ routes: DeliveryRoutePlan[] }>(`/api/production/routes${params}`);
 }
