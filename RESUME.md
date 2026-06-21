@@ -4,46 +4,54 @@
 
 **Tarikh kemaskini:** 21 Jun 2025  
 **Branch:** `master`  
-**Commit terakhir:** `facceef` — fix: audit all dashboards (BM, real data, UX)
+**Status:** **LIVE** — https://rkj-one.vercel.app
 
 ---
 
 ## Apa yang sudah siap
 
-- App di **root repo** (bukan `web/`)
-- **4 menu POS:** Roti Kaya, Kacang, Kelapa, Benggali + bar stok
-- Migration **00019–00030** applied ke Supabase (`mtygxueknokcihofdttl`)
-- **67 akaun** seeded — `npm run seed:users`
-- Verify go-live **13/13 lulus** — `npm run verify:go-live`
-- Build lulus — `npm run build`
-- **Area Manager:** cawangan & staf grouped ikut region
-- **Dashboard audit siap:** BM labels, data armada sebenar, inventori fix, empty/error states
+- App di **root repo** (Next.js 16)
+- **5 tab menu POS:** Roti Kaya, Kacang, Kelapa, Benggali + **Pelbagai** (12 SKU set/varian)
+- Migration **00019–00041** applied ke Supabase (`mtygxueknokcihofdttl`)
+- **80 akaun** auth + profiles
+- Verify go-live **16/16 lulus** — `npm run verify:go-live`
+- Build production lulus — `npm run build`
+- **Storage buckets** — `delivery-proof`, `bank-slips`, `receipts`
+- **Area Manager:** cawangan, staf & pengguna grouped ikut region; CRUD staf kiosk
+- **Tetapan Admin:** produk, cawangan ON/OFF, ambang stok, pengguna (senarai penuh)
+- **Staf kiosk:** pekerja asing (gaji mingguan auto), borang tambah 3 langkah
+- **Gaji:** bezakan tempatan vs asing, payroll default FOREIGN
+- **Roti expiry** (5 hari), **production date** on order, **reject stok** kiosk
+- **Tukar kata laluan wajib** — `/change-password`
+- **Vercel production:** https://rkj-one.vercel.app
 
 ---
 
-## Langkah seterusnya (belum buat)
+## Belum / manual
 
-1. [ ] **Deploy Vercel**
-   ```powershell
-   npx vercel login
-   npx vercel --prod
-   ```
-   Set env di Vercel: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_APP_URL`
+- Supabase Auth: matikan signup, Site URL production, redirect URLs
+- Pilot 3 cawangan: Gombak, Dengkil Utara, Simpang Pulai Utara
+- Tukar kata laluan default `RkjOne@2025` untuk semua pengguna
+- Git commit semua perubahan tempatan (banyak fail belum commit)
 
-2. [ ] **Supabase Dashboard** (Authentication → Settings)
-   - Matikan email signup
-   - Site URL = URL Vercel production
-   - Redirect: `https://.../auth/callback`, `http://localhost:3000/auth/callback`
+---
 
-3. [ ] **Storage buckets** (automatik atau manual)
-   ```powershell
-   npm run setup:storage
-   ```
-   Buckets: `delivery-proof`, `bank-slips`, `receipts`
+## Langkah terakhir (manual ~2 minit)
 
-4. [ ] **Uji pilot 14 hari** — Gombak, Dengkil Utara, Simpang Pulai Utara
-5. [ ] **Uji login Area Manager** — `safuan@rkj.com`, `hakim@rkj.com`, `yati@rkj.com`
-6. [ ] **Tukar kata laluan** dari `RkjOne@2025` sebelum production
+### Supabase Auth (Dashboard → Authentication → Settings)
+
+- Matikan **Enable email signup**
+- **Site URL** = `https://rkj-one.vercel.app`
+- **Redirect URLs:**
+  - `https://rkj-one.vercel.app/auth/callback`
+  - `http://localhost:3000/auth/callback`
+
+### Uji pantas
+
+- Login HQ: `matisa@rkj.com` / `RkjOne@2025` → tukar kata laluan
+- **POS → Pelbagai** — jual set campur, semak tolakan stok roti
+- **Tetapan → Staf / Pengguna** — tambah staf pekerja asing
+- Area Manager: `safuan@rkj.com`, `hakim@rkj.com`, `yati@rkj.com`
 
 ---
 
@@ -65,10 +73,10 @@ npm run dev
 | Checklist penuh | `docs/GO_LIVE_CHECKLIST.md` |
 | Deploy | `docs/DEPLOYMENT.md` |
 | Env template | `.env.example` |
-| SQL manual | `docs/sql/00019_00030_manual_bundle.sql` |
+| Siap production | `npm run finish:go-live` |
 
 ---
 
 ## Cakap dengan AI
 
-Taip: **"sambung deploy Vercel"** atau **"uji pilot"**
+Taip: **"deploy Vercel"** · **"uji pilot"** · **"uji Area Manager"** · **"commit git"**

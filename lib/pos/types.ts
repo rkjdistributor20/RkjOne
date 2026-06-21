@@ -11,6 +11,12 @@ export interface MenuStockBalance {
   unit: string;
   displayQuantity: number;
   displayUnit: string;
+  /** Paparan bag (mod bag_pcs) */
+  displayBags?: number;
+  /** Baki pcs selepas bag penuh (mod bag_pcs) */
+  displayRemainderPcs?: number;
+  /** pcs per bag — untuk format semula di client */
+  packQuantity?: number;
   status: StockStatus;
   group: 'menu' | 'supplement';
 }

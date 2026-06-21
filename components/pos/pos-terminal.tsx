@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { History, BarChart3, LayoutDashboard } from 'lucide-react';
+import { History, BarChart3, LayoutDashboard, Trash2 } from 'lucide-react';
 import {
   fetchProducts,
   fetchShift,
@@ -11,6 +11,7 @@ import {
   fetchDailySummary,
   fetchBranches,
   fetchStockAvailability,
+  fetchExpiredStock,
   syncOfflineSales,
 } from '@/lib/pos/api';
 import {
@@ -32,7 +33,14 @@ import { ReceiptDialog } from '@/components/pos/receipt-dialog';
 import { TransactionHistory } from '@/components/pos/transaction-history';
 import { DailySummaryPanel } from '@/components/pos/daily-summary-panel';
 import { BranchSelector } from '@/components/pos/branch-selector';
+import { RejectStockPanel } from '@/components/pos/reject-stock-panel';
+import {
+  ExpiredStockAlert,
+  type ExpiredRejectPrefill,
+} from '@/components/pos/expired-stock-alert';
+import type { RotiExpirySummary } from '@/lib/stock/expiry';
 import { needsBranchPicker } from '@/lib/auth/branch-scope';
+import { canUsePosRejectStock } from '@/lib/auth/stock-access';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { buttonVariants } from '@/components/ui/button';
@@ -70,6 +78,8 @@ export function PosTerminal() {
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('sale');
+  const [expirySummary, setExpirySummary] = useState<RotiExpirySummary | null>(null);
+  const [rejectPrefill, setRejectPrefill] = useState<ExpiredRejectPrefill[] | undefined>();
 
   const branchName =
     branches.find((b) => b.id === branchId)?.branch_name ??
@@ -85,18 +95,20 @@ export function PosTerminal() {
       : branchName ?? branchCode;
 
   const showBranchPicker = profile ? needsBranchPicker(profile) : false;
+  const showRejectTab = profile ? canUsePosRejectStock(profile.role) : false;
 
   const loadData = useCallback(async () => {
     if (!branchId) return;
     setLoading(true);
     try {
-      const [productsRes, stockRes, shiftRes, txRes, summaryRes] =
+      const [productsRes, stockRes, shiftRes, txRes, summaryRes, expiryRes] =
         await Promise.allSettled([
           fetchProducts(branchId),
           fetchStockAvailability(branchId),
           fetchShift(branchId),
           fetchTransactions(branchId),
           fetchDailySummary(branchId),
+          fetchExpiredStock(branchId),
         ]);
 
       if (productsRes.status === 'fulfilled') {
@@ -124,6 +136,12 @@ export function PosTerminal() {
       }
       if (summaryRes.status === 'fulfilled') {
         setDailySummary(summaryRes.value.summary);
+      }
+
+      if (expiryRes.status === 'fulfilled') {
+        setExpirySummary(expiryRes.value.summary);
+      } else {
+        setExpirySummary(null);
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Gagal memuatkan data POS');
@@ -220,6 +238,16 @@ export function PosTerminal() {
     loadData();
   }
 
+  function handleRejectExpired(prefill: ExpiredRejectPrefill[]) {
+    setRejectPrefill(prefill);
+    setActiveTab('reject');
+  }
+
+  function handleRejectSuccess() {
+    setRejectPrefill(undefined);
+    loadData();
+  }
+
   if (!profile) {
     return (
       <div className="space-y-4">
@@ -255,7 +283,7 @@ export function PosTerminal() {
         <PageHeader
           badge="Kaunter Tunai"
           title="POS — Kaunter Tunai"
-          description="Ketik produk → bayar · F2 untuk bayar pantas · stok kiosk auto ditolak"
+          description="Ketik produk → bayar · F2 bayar pantas · staf: reject stok rosak dari tab Reject"
           className="flex-1 min-w-[280px]"
         />
         <div className="flex flex-wrap items-center gap-2">
@@ -287,6 +315,12 @@ export function PosTerminal() {
         onCloseShift={() => setCloseShiftOpen(true)}
       />
 
+      <ExpiredStockAlert
+        summary={expirySummary}
+        canReject={showRejectTab}
+        onRejectExpired={handleRejectExpired}
+      />
+
       {isLoading ? (
         <div className="grid flex-1 gap-4 lg:grid-cols-3">
           <Skeleton className="lg:col-span-2 h-full" />
@@ -304,14 +338,20 @@ export function PosTerminal() {
               <BarChart3 className="h-4 w-4" />
               Ringkasan
             </TabsTrigger>
+            {showRejectTab && (
+              <TabsTrigger value="reject" className="gap-1">
+                <Trash2 className="h-4 w-4" />
+                Reject Stok
+              </TabsTrigger>
+            )}
           </TabsList>
 
-          <TabsContent value="sale" className="mt-4 flex-1">
-            <div className="grid h-[calc(100vh-16rem)] gap-4 lg:grid-cols-3">
-              <div className="lg:col-span-2 overflow-hidden">
+          <TabsContent value="sale" className="mt-4 flex min-h-0 flex-1 flex-col">
+            <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-3">
+              <div className="flex min-h-0 flex-col overflow-hidden lg:col-span-2">
                 <ProductGrid />
               </div>
-              <div className="overflow-hidden">
+              <div className="flex min-h-0 flex-col overflow-hidden">
                 <CartPanel onCheckout={() => setPaymentOpen(true)} />
               </div>
             </div>
@@ -324,6 +364,17 @@ export function PosTerminal() {
           <TabsContent value="summary" className="mt-4">
             <DailySummaryPanel />
           </TabsContent>
+
+          {showRejectTab && branchId && (
+            <TabsContent value="reject" className="mt-4">
+              <RejectStockPanel
+                key={rejectPrefill?.map((p) => `${p.stock_item_id}:${p.quantity}`).join('|') ?? 'empty'}
+                branchId={branchId}
+                prefill={rejectPrefill}
+                onSuccess={handleRejectSuccess}
+              />
+            </TabsContent>
+          )}
         </Tabs>
       )}
 

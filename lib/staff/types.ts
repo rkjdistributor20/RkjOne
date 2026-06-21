@@ -6,6 +6,11 @@ export interface StaffMemberRow {
   branch_id: string | null;
   branch_code: string | null;
   branch_name: string | null;
+  worker_type: 'LOCAL' | 'FOREIGN' | null;
+  weekly_amount: number | null;
+  monthly_amount: number | null;
+  shift_hours: number | null;
+  shifts_per_week: number | null;
 }
 
 export interface StaffBranchGroup {

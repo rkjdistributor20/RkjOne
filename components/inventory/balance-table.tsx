@@ -1,6 +1,7 @@
 'use client';
 
 import type { InventoryBalanceRow } from '@/lib/inventory/types';
+import { formatStockQuantity } from '@/lib/stock/catalog';
 import { Badge } from '@/components/ui/badge';
 import {
   Table,
@@ -13,13 +14,14 @@ import {
 
 interface BalanceTableProps {
   balances: InventoryBalanceRow[];
+  showPackConversion?: boolean;
 }
 
-export function BalanceTable({ balances }: BalanceTableProps) {
+export function BalanceTable({ balances, showPackConversion = false }: BalanceTableProps) {
   if (!balances.length) {
     return (
       <p className="py-8 text-center text-sm text-muted-foreground">
-        No stock at this location. Use Receive to add stock.
+        Tiada stok di lokasi ini. Guna tab Terima untuk tambah stok.
       </p>
     );
   }
@@ -30,9 +32,9 @@ export function BalanceTable({ balances }: BalanceTableProps) {
         <TableHeader>
           <TableRow>
             <TableHead>Item</TableHead>
-            <TableHead>Code</TableHead>
-            <TableHead className="text-right">Qty</TableHead>
-            <TableHead>Unit</TableHead>
+            <TableHead>Kod</TableHead>
+            <TableHead className="text-right">Kuantiti</TableHead>
+            {showPackConversion && <TableHead>Penukaran</TableHead>}
             <TableHead>Status</TableHead>
           </TableRow>
         </TableHeader>
@@ -44,9 +46,18 @@ export function BalanceTable({ balances }: BalanceTableProps) {
                 {b.stock_item.item_code}
               </TableCell>
               <TableCell className="text-right font-semibold">
-                {Number(b.quantity).toLocaleString()}
+                {showPackConversion
+                  ? formatStockQuantity(b.quantity, b.unit, {
+                      ...b.stock_item,
+                      item_code: b.stock_item.item_code,
+                    })
+                  : `${Number(b.quantity).toLocaleString('ms-MY')} ${b.unit}`}
               </TableCell>
-              <TableCell>{b.unit}</TableCell>
+              {showPackConversion && (
+                <TableCell className="text-xs text-muted-foreground">
+                  {b.stock_item.conversion_text ?? '—'}
+                </TableCell>
+              )}
               <TableCell>
                 <Badge
                   variant={
@@ -57,7 +68,11 @@ export function BalanceTable({ balances }: BalanceTableProps) {
                         : 'outline'
                   }
                 >
-                  {b.status}
+                  {b.status === 'CRITICAL'
+                    ? 'Kritikal'
+                    : b.status === 'LOW'
+                      ? 'Rendah'
+                      : 'OK'}
                 </Badge>
               </TableCell>
             </TableRow>

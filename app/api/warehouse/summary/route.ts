@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getCurrentProfile } from '@/lib/auth/session';
+import { isHqStockItemCode } from '@/lib/stock/catalog';
 
 export async function GET() {
   const profile = await getCurrentProfile();
@@ -27,14 +28,18 @@ export async function GET() {
       .from('inventory_balances')
       .select(`
         quantity,
-        stock_item:stock_items(min_threshold, critical_threshold)
+        stock_item:stock_items(item_code, min_threshold, critical_threshold)
       `)
       .eq('location_id', hq.id);
 
-    const rows = (balances ?? []) as unknown as Array<{
+    const rows = ((balances ?? []) as unknown as Array<{
       quantity: number;
-      stock_item: { min_threshold: number | null; critical_threshold: number | null };
-    }>;
+      stock_item: {
+        item_code: string;
+        min_threshold: number | null;
+        critical_threshold: number | null;
+      };
+    }>).filter((r) => isHqStockItemCode(r.stock_item?.item_code ?? ''));
 
     totalItems = rows.length;
     totalQty = rows.reduce((s, r) => s + Number(r.quantity), 0);

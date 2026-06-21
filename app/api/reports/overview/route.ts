@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getCurrentProfile } from '@/lib/auth/session';
+import { resolveScopedBranches, applyBranchIdsFilter } from '@/lib/auth/branch-scope';
 
 function parseRange(request: Request) {
   const url = new URL(request.url);
@@ -18,12 +19,28 @@ export async function GET(request: Request) {
   const { from, to } = parseRange(request);
   const supabase = await createClient();
 
-  const { data: summaries } = await supabase
+  let scope;
+  try {
+    scope = await resolveScopedBranches(supabase, profile);
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Forbidden' },
+      { status: 403 }
+    );
+  }
+
+  let summariesQuery = supabase
     .from('pos_daily_summaries')
     .select('total_sales, total_cash, total_qr, transaction_count, void_count, refund_count')
     .eq('organization_id', profile.organization_id)
     .gte('summary_date', from)
     .lte('summary_date', to);
+
+  if (scope.branchIds !== null) {
+    summariesQuery = applyBranchIdsFilter(summariesQuery, 'branch_id', scope.branchIds);
+  }
+
+  const { data: summaries } = await summariesQuery;
 
   const rows = (summaries ?? []) as Array<{
     total_sales: number;
@@ -90,11 +107,17 @@ export async function GET(request: Request) {
     );
   }).length;
 
-  const { data: outstanding } = await supabase
+  let outstandingQuery = supabase
     .from('finance_collections')
     .select('amount')
     .eq('organization_id', profile.organization_id)
-    .in('status', ['PENDING', 'COLLECTED']);
+    .eq('status', 'PENDING');
+
+  if (scope.branchIds !== null) {
+    outstandingQuery = applyBranchIdsFilter(outstandingQuery, 'branch_id', scope.branchIds);
+  }
+
+  const { data: outstanding } = await outstandingQuery;
 
   const outstandingCash = ((outstanding ?? []) as { amount: number }[]).reduce(
     (s, r) => s + Number(r.amount),

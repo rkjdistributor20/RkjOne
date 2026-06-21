@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
-import { Banknote, QrCode, Split } from 'lucide-react';
+import { Banknote, QrCode, Split, Delete, CheckCircle2 } from 'lucide-react';
 import { createSale } from '@/lib/pos/api';
 import {
   enqueueOfflineSale,
@@ -17,12 +17,8 @@ import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
 } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { cn } from '@/lib/utils';
 
 interface PaymentDialogProps {
   open: boolean;
@@ -31,7 +27,48 @@ interface PaymentDialogProps {
   onSuccess: (receipt: SaleResult) => void;
 }
 
-const QUICK_AMOUNTS = [5, 10, 20, 50, 100];
+function buildQuickAmounts(total: number): number[] {
+  if (total <= 0) return [];
+  const amounts = new Set<number>([total]);
+  const round5 = Math.ceil(total / 5) * 5;
+  const round10 = Math.ceil(total / 10) * 10;
+  if (round5 > total) amounts.add(round5);
+  if (round10 > total) amounts.add(round10);
+  for (const bill of [10, 20, 50, 100]) {
+    if (bill >= total) amounts.add(bill);
+  }
+  return [...amounts].sort((a, b) => a - b).slice(0, 6);
+}
+
+const NUMPAD = ['7', '8', '9', '4', '5', '6', '1', '2', '3', 'C', '.', '0'] as const;
+
+function MethodButton({
+  active,
+  onClick,
+  icon: Icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: typeof Banknote;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'flex flex-col items-center justify-center gap-1 rounded-xl border-2 py-3 text-sm font-semibold transition-all',
+        active
+          ? 'border-amber-500 bg-amber-50 text-amber-950 shadow-sm'
+          : 'border-border bg-background text-muted-foreground hover:bg-muted/50'
+      )}
+    >
+      <Icon className={cn('h-5 w-5', active && 'text-amber-600')} />
+      {label}
+    </button>
+  );
+}
 
 export function PaymentDialog({
   open,
@@ -53,6 +90,8 @@ export function PaymentDialog({
   const [cashTendered, setCashTendered] = useState('');
   const [qrAmount, setQrAmount] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const quickAmounts = useMemo(() => buildQuickAmounts(total), [total]);
 
   useEffect(() => {
     if (open) {
@@ -76,8 +115,18 @@ export function PaymentDialog({
   const paidAmount =
     method === 'CASH' ? cashNum : method === 'QR' ? qrNum : cashNum + qrNum;
 
-  const canPay =
-    total > 0 && paidAmount >= total && shift && cart.length > 0;
+  const shortfall = Math.max(total - paidAmount, 0);
+  const canPay = total > 0 && paidAmount >= total && shift && cart.length > 0;
+
+  const appendNumpad = useCallback((key: string) => {
+    setCashTendered((prev) => {
+      if (key === 'C') return '';
+      if (key === '.' && prev.includes('.')) return prev;
+      if (prev === '' && key === '.') return '0.';
+      if (prev === '0' && key !== '.') return key;
+      return prev + key;
+    });
+  }, []);
 
   async function handlePay() {
     if (!shift || !canPay) return;
@@ -137,7 +186,7 @@ export function PaymentDialog({
       }
 
       const { result } = await createSale(payload);
-      toast.success('Bayaran berjaya · stok kiosk ditolak');
+      toast.success('Bayaran berjaya · stok ditolak');
       clearCart();
       onOpenChange(false);
       onSuccess(result);
@@ -151,137 +200,207 @@ export function PaymentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Bayar</DialogTitle>
-          <DialogDescription>
-            Perlu bayar:{' '}
-            <strong className="text-xl text-primary">{formatRM(total)}</strong>
-          </DialogDescription>
-        </DialogHeader>
-
-        <Tabs
-          value={method}
-          onValueChange={(v) => {
-            const next = v as PaymentMethod;
-            setMethod(next);
-            const amount = total > 0 ? total.toFixed(2) : '';
-            if (next === 'CASH') {
-              setCashTendered(amount);
-            } else if (next === 'QR') {
-              setQrAmount(amount);
-            }
-          }}
-        >
-          <TabsList className="grid h-12 w-full grid-cols-3">
-            <TabsTrigger value="CASH" className="gap-1 text-sm">
-              <Banknote className="h-4 w-4" /> Tunai
-            </TabsTrigger>
-            <TabsTrigger value="QR" className="gap-1 text-sm">
-              <QrCode className="h-4 w-4" /> QR
-            </TabsTrigger>
-            <TabsTrigger value="MIXED" className="gap-1 text-sm">
-              <Split className="h-4 w-4" /> Campur
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="CASH" className="space-y-3 pt-3">
-            <div className="space-y-2">
-              <Label>Tunai diterima (RM)</Label>
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                className="h-12 text-lg"
-                value={cashTendered}
-                onChange={(e) => setCashTendered(e.target.value)}
-                autoFocus
-              />
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="secondary"
-                className="h-11 flex-1 min-w-[4.5rem] text-base font-semibold"
-                onClick={() => setCashTendered(total.toFixed(2))}
-              >
-                Tepat
-              </Button>
-              {QUICK_AMOUNTS.map((amt) => (
-                <Button
-                  key={amt}
-                  variant="outline"
-                  className="h-11 min-w-[3.5rem] text-base"
-                  onClick={() => setCashTendered(String(amt))}
-                >
-                  {formatRM(amt)}
-                </Button>
-              ))}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="QR" className="space-y-3 pt-3">
-            <div className="space-y-2">
-              <Label>Amaun QR (RM)</Label>
-              <Input
-                type="number"
-                className="h-12 text-lg"
-                value={qrAmount}
-                onChange={(e) => setQrAmount(e.target.value)}
-                placeholder={total.toFixed(2)}
-              />
-            </div>
-            <Button
-              variant="secondary"
-              className="h-11 w-full text-base"
-              onClick={() => setQrAmount(total.toFixed(2))}
-            >
-              QR penuh — {formatRM(total)}
-            </Button>
-          </TabsContent>
-
-          <TabsContent value="MIXED" className="space-y-3 pt-3">
-            <div className="space-y-2">
-              <Label>Tunai (RM)</Label>
-              <Input
-                type="number"
-                className="h-12 text-lg"
-                value={cashTendered}
-                onChange={(e) => setCashTendered(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>QR (RM)</Label>
-              <Input
-                type="number"
-                className="h-12 text-lg"
-                value={qrAmount}
-                onChange={(e) => setQrAmount(e.target.value)}
-              />
-            </div>
-          </TabsContent>
-        </Tabs>
-
-        {changeAmount > 0 && method !== 'QR' && (
-          <div className="rounded-xl border-2 border-primary/30 bg-primary/5 p-4 text-center">
-            <p className="text-sm text-muted-foreground">Baki tunai</p>
-            <p className="text-3xl font-bold tabular-nums text-primary">
-              {formatRM(changeAmount)}
+      <DialogContent className="flex max-h-[92vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
+        <div className="bg-gradient-to-br from-amber-500 to-orange-600 px-5 py-5 text-white">
+          <p className="text-xs font-medium uppercase tracking-wider text-white/80">
+            Kounter Tunai
+          </p>
+          <p className="mt-1 text-sm text-white/90">Jumlah perlu bayar</p>
+          <p className="mt-0.5 text-4xl font-bold tabular-nums tracking-tight">
+            {formatRM(total)}
+          </p>
+          {cart.length > 0 && (
+            <p className="mt-2 truncate text-xs text-white/75">
+              {cart
+                .slice(0, 2)
+                .map((c) => `${c.quantity}× ${c.name}`)
+                .join(' · ')}
+              {cart.length > 2 ? ` · +${cart.length - 2} lagi` : ''}
             </p>
-          </div>
-        )}
+          )}
+        </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+          <div className="grid grid-cols-3 gap-2">
+            <MethodButton
+              active={method === 'CASH'}
+              onClick={() => {
+                setMethod('CASH');
+                setCashTendered(total > 0 ? total.toFixed(2) : '');
+              }}
+              icon={Banknote}
+              label="Tunai"
+            />
+            <MethodButton
+              active={method === 'QR'}
+              onClick={() => {
+                setMethod('QR');
+                setQrAmount(total > 0 ? total.toFixed(2) : '');
+              }}
+              icon={QrCode}
+              label="QR"
+            />
+            <MethodButton
+              active={method === 'MIXED'}
+              onClick={() => setMethod('MIXED')}
+              icon={Split}
+              label="Campur"
+            />
+          </div>
+
+          {method === 'CASH' && (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Tunai diterima</Label>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  className="h-14 border-2 text-center text-2xl font-bold tabular-nums"
+                  value={cashTendered}
+                  onChange={(e) => setCashTendered(e.target.value.replace(/[^\d.]/g, ''))}
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {quickAmounts.map((amt) => (
+                  <Button
+                    key={amt}
+                    type="button"
+                    variant={Math.abs(amt - total) < 0.01 ? 'default' : 'outline'}
+                    className={cn(
+                      'h-11 flex-1 min-w-[4.5rem] text-base font-semibold',
+                      Math.abs(amt - total) < 0.01 && 'bg-amber-500 hover:bg-amber-600'
+                    )}
+                    onClick={() => setCashTendered(amt.toFixed(2))}
+                  >
+                    {Math.abs(amt - total) < 0.01 ? 'Tepat' : formatRM(amt)}
+                  </Button>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-3 gap-1.5">
+                {NUMPAD.map((key) => (
+                  <Button
+                    key={key}
+                    type="button"
+                    variant="outline"
+                    className="h-12 text-lg font-semibold"
+                    onClick={() => appendNumpad(key)}
+                  >
+                    {key === 'C' ? <Delete className="mx-auto h-5 w-5" /> : key}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {method === 'QR' && (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Amaun QR</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className="h-14 text-center text-2xl font-bold tabular-nums"
+                  value={qrAmount}
+                  onChange={(e) => setQrAmount(e.target.value)}
+                />
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                className="h-12 w-full text-base font-semibold"
+                onClick={() => setQrAmount(total.toFixed(2))}
+              >
+                QR penuh — {formatRM(total)}
+              </Button>
+            </div>
+          )}
+
+          {method === 'MIXED' && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Tunai (RM)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className="h-12 text-lg font-semibold tabular-nums"
+                  value={cashTendered}
+                  onChange={(e) => setCashTendered(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">QR (RM)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className="h-12 text-lg font-semibold tabular-nums"
+                  value={qrAmount}
+                  onChange={(e) => setQrAmount(e.target.value)}
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="sm:col-span-2"
+                onClick={() => {
+                  const half = (total / 2).toFixed(2);
+                  setCashTendered(half);
+                  setQrAmount((total - total / 2).toFixed(2));
+                }}
+              >
+                Bahagi sama — tunai + QR
+              </Button>
+            </div>
+          )}
+
+          {changeAmount > 0 && method !== 'QR' && (
+            <div className="rounded-xl border-2 border-emerald-300 bg-emerald-50 p-4 text-center">
+              <p className="text-xs font-medium uppercase tracking-wide text-emerald-800/70">
+                Baki tunai untuk pelanggan
+              </p>
+              <p className="mt-1 text-4xl font-bold tabular-nums text-emerald-700">
+                {formatRM(changeAmount)}
+              </p>
+            </div>
+          )}
+
+          {shortfall > 0 && paidAmount > 0 && (
+            <div className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-center text-sm text-orange-900">
+              Kurang <strong className="tabular-nums">{formatRM(shortfall)}</strong> lagi
+            </div>
+          )}
+
+          {canPay && !loading && (
+            <div className="flex items-center justify-center gap-1.5 text-xs text-emerald-700">
+              <CheckCircle2 className="h-4 w-4" />
+              Bayaran mencukupi — sedia sahkan
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-2 border-t bg-muted/20 p-4">
+          <Button
+            variant="outline"
+            className="h-12 flex-1"
+            onClick={() => onOpenChange(false)}
+            disabled={loading}
+          >
             Batal
           </Button>
           <Button
-            className="h-12 min-w-[140px] text-base font-bold"
+            className="h-12 flex-[2] gap-2 rounded-xl bg-amber-500 text-base font-bold hover:bg-amber-600"
             disabled={!canPay || loading}
             onClick={handlePay}
           >
-            {loading ? 'Memproses…' : `Sahkan ${formatRM(total)}`}
+            <Banknote className="h-5 w-5" />
+            {loading ? 'Memproses…' : 'Sahkan Bayaran'}
           </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );

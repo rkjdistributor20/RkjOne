@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server';
 import { getCurrentProfile } from '@/lib/auth/session';
 import { resolveScopedBranches, applyBranchIdsFilter } from '@/lib/auth/branch-scope';
 
+const ORG_LOCATION_TYPES = ['FACTORY', 'HQ_WAREHOUSE', 'FLEET_VEHICLE'] as const;
+
 export async function GET(request: Request) {
   const profile = await getCurrentProfile();
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -26,26 +28,61 @@ export async function GET(request: Request) {
     );
   }
 
-  let query = supabase
-    .from('inventory_locations')
-    .select(`
-      *,
-      branch:branches(branch_code, branch_name, region_id),
-      vehicle:vehicles(vehicle_code, vehicle_type)
-    `)
-    .eq('organization_id', profile.organization_id)
-    .eq('is_active', true)
-    .order('location_type')
-    .order('name');
+  const select = `
+    *,
+    branch:branches(branch_code, branch_name, region_id),
+    vehicle:vehicles(vehicle_code, vehicle_type)
+  `;
 
-  if (type) query = query.eq('location_type', type);
+  const baseQuery = () =>
+    supabase
+      .from('inventory_locations')
+      .select(select)
+      .eq('organization_id', profile.organization_id)
+      .eq('is_active', true);
 
-  if (scope.branchIds !== null) {
-    query = applyBranchIdsFilter(query, 'branch_id', scope.branchIds);
+  let locations: unknown[] = [];
+
+  if (scope.branchIds === null) {
+    let query = baseQuery().order('location_type').order('name');
+    if (type) query = query.eq('location_type', type);
+    const { data, error } = await query;
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    locations = data ?? [];
+  } else {
+    let branchQuery = applyBranchIdsFilter(
+      baseQuery(),
+      'branch_id',
+      scope.branchIds
+    )
+      .order('location_type')
+      .order('name');
+    if (type) branchQuery = branchQuery.eq('location_type', type);
+
+    let orgQuery = baseQuery()
+      .is('branch_id', null)
+      .in('location_type', [...ORG_LOCATION_TYPES])
+      .order('location_type')
+      .order('name');
+    if (type) orgQuery = orgQuery.eq('location_type', type);
+
+    const [branchRes, orgRes] = await Promise.all([branchQuery, orgQuery]);
+    if (branchRes.error) {
+      return NextResponse.json({ error: branchRes.error.message }, { status: 500 });
+    }
+    if (orgRes.error) {
+      return NextResponse.json({ error: orgRes.error.message }, { status: 500 });
+    }
+
+    const seen = new Set<string>();
+    for (const loc of [...(orgRes.data ?? []), ...(branchRes.data ?? [])]) {
+      const id = (loc as { id: string }).id;
+      if (!seen.has(id)) {
+        seen.add(id);
+        locations.push(loc);
+      }
+    }
   }
 
-  const { data, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-  return NextResponse.json({ locations: data ?? [] });
+  return NextResponse.json({ locations });
 }

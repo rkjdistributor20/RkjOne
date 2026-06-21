@@ -336,9 +336,9 @@ export function FinanceDashboard() {
                       value={bankInForm.collection_id}
                       onValueChange={(v) => setBankInForm({ ...bankInForm, collection_id: v ?? '' })}
                     >
-                      <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder="Tiada" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">None</SelectItem>
+                        <SelectItem value="">Tiada</SelectItem>
                         {pendingCollections.map((c) => (
                           <SelectItem key={c.id} value={c.id}>
                             {c.collection_number} — {fmt(c.amount)}

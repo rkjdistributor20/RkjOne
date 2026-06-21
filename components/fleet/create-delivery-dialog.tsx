@@ -98,7 +98,7 @@ export function CreateDeliveryDialog({
 
   async function handleCreate() {
     if (!originId || !destId || !hq?.id || !vehicleLocId || !itemId) {
-      toast.error('Select all required fields');
+      toast.error('Sila lengkapkan semua medan wajib');
       return;
     }
 
@@ -144,11 +144,11 @@ export function CreateDeliveryDialog({
         ],
       });
 
-      toast.success('Delivery order created');
+      toast.success('Pesanan penghantaran dicipta');
       onOpenChange(false);
       onSuccess();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to create delivery');
+      toast.error(err instanceof Error ? err.message : 'Gagal cipta penghantaran');
     } finally {
       setLoading(false);
     }
@@ -158,19 +158,19 @@ export function CreateDeliveryDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>New Delivery Order</DialogTitle>
+          <DialogTitle>Pesanan Penghantaran Baharu</DialogTitle>
         </DialogHeader>
 
         <p className="text-xs text-muted-foreground">
-          Chain: Factory → HQ → Vehicle → Branch ({LEG_TYPE_LABELS.FACTORY_TO_HQ}, etc.)
+          Rantaian: Kilang → HQ → Kenderaan → Cawangan ({LEG_TYPE_LABELS.FACTORY_TO_HQ}, dll.)
         </p>
 
         <div className="grid gap-3">
           <div className="space-y-1">
-            <Label>Destination Branch</Label>
+            <Label>Cawangan Destinasi</Label>
             <Select value={destId} onValueChange={(v) => setDestId(v ?? '')}>
               <SelectTrigger>
-                <SelectValue placeholder="Select branch" />
+                <SelectValue placeholder="Pilih cawangan" />
               </SelectTrigger>
               <SelectContent>
                 {branches.map((b) => (
@@ -183,10 +183,10 @@ export function CreateDeliveryDialog({
           </div>
 
           <div className="space-y-1">
-            <Label>Fleet Vehicle Location</Label>
+            <Label>Lokasi Kenderaan Fleet</Label>
             <Select value={vehicleLocId} onValueChange={(v) => setVehicleLocId(v ?? '')}>
               <SelectTrigger>
-                <SelectValue placeholder="Select vehicle location" />
+                <SelectValue placeholder="Pilih lokasi kenderaan" />
               </SelectTrigger>
               <SelectContent>
                 {fleetLocs.map((v) => (
@@ -200,15 +200,15 @@ export function CreateDeliveryDialog({
 
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
-              <Label>Driver</Label>
+              <Label>Pemandu</Label>
               <Select value={driverId} onValueChange={(v) => setDriverId(v ?? '')}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select driver" />
+                  <SelectValue placeholder="Pilih pemandu" />
                 </SelectTrigger>
                 <SelectContent>
                   {drivers.length === 0 ? (
                     <SelectItem value="no-driver" disabled>
-                      No drivers found
+                      Tiada pemandu
                     </SelectItem>
                   ) : (
                     drivers.map((d) => (
@@ -222,10 +222,10 @@ export function CreateDeliveryDialog({
             </div>
 
             <div className="space-y-1">
-              <Label>Vehicle</Label>
+              <Label>Kenderaan</Label>
               <Select value={vehicleId} onValueChange={(v) => setVehicleId(v ?? '')}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select vehicle" />
+                  <SelectValue placeholder="Pilih kenderaan" />
                 </SelectTrigger>
                 <SelectContent>
                   {vehicles.map((v) => (
@@ -240,10 +240,10 @@ export function CreateDeliveryDialog({
 
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
-              <Label>Stock Item</Label>
+              <Label>Item Stok</Label>
               <Select value={itemId} onValueChange={(v) => setItemId(v ?? '')}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select stock item" />
+                  <SelectValue placeholder="Pilih item stok" />
                 </SelectTrigger>
                 <SelectContent>
                   {stockItems.map((s) => (
@@ -256,7 +256,7 @@ export function CreateDeliveryDialog({
             </div>
 
             <div className="space-y-1">
-              <Label>Quantity</Label>
+              <Label>Kuantiti</Label>
               <Input
                 type="number"
                 min="1"
@@ -267,7 +267,7 @@ export function CreateDeliveryDialog({
           </div>
 
           <div className="space-y-1">
-            <Label>Scheduled Date</Label>
+            <Label>Tarikh Jadual</Label>
             <Input
               type="date"
               value={scheduledDate}
@@ -280,7 +280,7 @@ export function CreateDeliveryDialog({
             onClick={handleCreate}
             disabled={loading}
           >
-            {loading ? 'Creating…' : 'Create 3-Leg Delivery'}
+            {loading ? 'Mencipta…' : 'Cipta Penghantaran 3-Leg'}
           </Button>
         </div>
       </DialogContent>

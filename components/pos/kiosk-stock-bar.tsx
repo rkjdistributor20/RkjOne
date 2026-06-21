@@ -1,13 +1,13 @@
 'use client';
 
 import { usePosStore } from '@/stores/pos-store';
-import { POS_MENU_CATEGORIES, formatKioskStockLabel } from '@/lib/pos/utils';
+import { POS_ROTI_MENU_CATEGORIES, formatKioskStockLabel } from '@/lib/pos/utils';
 import type { MenuStockBalance } from '@/lib/pos/types';
 import { cn } from '@/lib/utils';
 
 function balanceLabel(b: MenuStockBalance | undefined) {
   if (!b) return '—';
-  return formatKioskStockLabel(b.displayQuantity, b.displayUnit);
+  return formatKioskStockLabel(b);
 }
 
 function statusClass(status?: MenuStockBalance['status']) {
@@ -28,7 +28,7 @@ function StockCard({
       <p className="truncate text-[11px] font-medium uppercase tracking-wide opacity-80">
         {balance?.label ?? '—'}
       </p>
-      <p className="mt-0.5 text-lg font-bold tabular-nums leading-none">
+      <p className="mt-0.5 text-base font-bold tabular-nums leading-snug sm:text-lg">
         {balanceLabel(balance)}
       </p>
       <p className="mt-1 text-[10px] opacity-70">{subtitle}</p>
@@ -47,11 +47,11 @@ export function KioskStockBar() {
           Stok Roti
         </p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {POS_MENU_CATEGORIES.map((menu) => (
+          {POS_ROTI_MENU_CATEGORIES.map((menu) => (
             <StockCard
               key={menu}
               balance={menuStockByCategory[menu]}
-              subtitle="Baki kiosk"
+              subtitle="Baki kiosk (bag · pcs)"
             />
           ))}
         </div>
@@ -67,9 +67,13 @@ export function KioskStockBar() {
               key={item.key}
               balance={item}
               subtitle={
-                item.displayUnit === 'kg'
-                  ? 'Baki kiosk (kg)'
-                  : 'Baki kiosk (pack)'
+                item.displayUnit === 'tong'
+                  ? 'Baki kiosk (tong)'
+                  : item.displayUnit === 'bag_pcs'
+                    ? 'Baki kiosk (bag · pcs)'
+                    : item.displayUnit === 'bag'
+                      ? 'Baki kiosk (bag)'
+                      : 'Baki kiosk'
               }
             />
           ))}

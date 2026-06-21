@@ -20,7 +20,9 @@ export async function GET() {
 
   let query = supabase
     .from('staff')
-    .select('id, staff_code, full_name, worker_type, branch:branches(branch_name)')
+    .select(
+      'id, staff_code, full_name, worker_type, weekly_amount, monthly_amount, shift_hours, shifts_per_week, branch:branches(branch_name, branch_code)'
+    )
     .eq('organization_id', profile.organization_id)
     .eq('status', 'ACTIVE')
     .order('full_name');

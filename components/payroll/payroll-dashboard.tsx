@@ -1,14 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 import { toast } from 'sonner';
 import { Wallet, FileText, Settings, Users } from 'lucide-react';
 import {
   ModuleLayout,
   ModuleHeader,
   ModuleLoading,
-  KpiGrid,
-  KpiCard,
   moduleTabsListClass,
   moduleTabsTriggerClass,
 } from '@/components/shared/module-ui';
@@ -21,6 +19,8 @@ import {
   approvePayrollRun,
   updatePayrollRule,
 } from '@/lib/payroll/api';
+import { staffPayDisplay } from '@/lib/payroll/staff-pay-rates';
+import { WorkerTypeBadge, resolveWorkerType } from '@/components/payroll/worker-type-badge';
 import type {
   CommissionTier,
   PayrollLineItem,
@@ -123,8 +123,10 @@ export function PayrollDashboard() {
     }
   }
 
-  const foreignCount = staff.filter((s) => s.worker_type === 'FOREIGN').length;
-  const localCount = staff.filter((s) => s.worker_type === 'LOCAL').length;
+  const foreignStaff = staff.filter((s) => resolveWorkerType(s) === 'FOREIGN');
+  const localStaff = staff.filter((s) => resolveWorkerType(s) === 'LOCAL');
+  const foreignRules = rules.filter((r) => r.worker_type === 'FOREIGN');
+  const localRules = rules.filter((r) => r.worker_type === 'LOCAL');
 
   return (
     <ModuleLayout>
@@ -134,8 +136,12 @@ export function PayrollDashboard() {
         icon={Wallet}
         badges={
           <>
-            <Badge variant="secondary">{foreignCount} asing</Badge>
-            <Badge variant="outline">{localCount} tempatan</Badge>
+            <Badge className="border-orange-300 bg-orange-50 text-orange-900 hover:bg-orange-50">
+              {foreignStaff.length} pekerja asing
+            </Badge>
+            <Badge className="border-sky-300 bg-sky-50 text-sky-900 hover:bg-sky-50">
+              {localStaff.length} staf tempatan
+            </Badge>
           </>
         }
       />
@@ -238,9 +244,18 @@ export function PayrollDashboard() {
                           </thead>
                           <tbody>
                             {(run.payroll_line_items as PayrollLineItem[]).map((line) => (
-                              <tr key={line.id} className="border-b">
+                              <tr
+                                key={line.id}
+                                className={
+                                  line.worker_type === 'FOREIGN'
+                                    ? 'border-b bg-orange-50/40'
+                                    : 'border-b bg-sky-50/40'
+                                }
+                              >
                                 <td className="p-2">{line.staff.full_name}</td>
-                                <td className="p-2">{line.worker_type}</td>
+                                <td className="p-2">
+                                  <WorkerTypeBadge workerType={line.worker_type} />
+                                </td>
                                 <td className="p-2">{fmt(line.shift_pay)}</td>
                                 <td className="p-2">{fmt(line.ot_pay)}</td>
                                 <td className="p-2">{fmt(line.basic_salary + line.attendance_allowance)}</td>
@@ -259,36 +274,39 @@ export function PayrollDashboard() {
             )}
           </TabsContent>
 
-          <TabsContent value="rules" className="mt-4 space-y-2">
-            {rules.map((rule) => (
-              <div key={rule.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
-                <div>
-                  <span className="font-medium">{rule.rule_code}</span>
-                  <span className="mx-2 text-muted-foreground">·</span>
-                  {rule.component}
-                  <Badge variant="outline" className="ml-2">{rule.worker_type}</Badge>
-                  <Badge variant="outline" className="ml-1">{rule.period}</Badge>
-                  {rule.shift_hours && (
-                    <span className="ml-2 text-xs text-muted-foreground">{rule.shift_hours}h</span>
-                  )}
-                </div>
-                {rule.rate != null ? (
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      className="h-8 w-24"
-                      value={editRates[rule.id] ?? ''}
-                      onChange={(e) => setEditRates({ ...editRates, [rule.id]: e.target.value })}
-                    />
-                    <Button size="sm" variant="outline" onClick={() => handleSaveRule(rule.id)}>
-                      Save
-                    </Button>
-                  </div>
-                ) : (
-                  <span className="text-xs text-muted-foreground">{rule.notes ?? 'Manual'}</span>
-                )}
-              </div>
-            ))}
+          <TabsContent value="rules" className="mt-4 space-y-6">
+            <div className="space-y-2">
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-orange-900">
+                <span className="inline-block h-2.5 w-2.5 rounded-full bg-orange-400" />
+                Pekerja Asing — Gaji Mingguan (shift)
+              </h3>
+              {foreignRules.map((rule) => (
+                <RuleRow
+                  key={rule.id}
+                  rule={rule}
+                  editRates={editRates}
+                  setEditRates={setEditRates}
+                  onSave={handleSaveRule}
+                  accent="foreign"
+                />
+              ))}
+            </div>
+            <div className="space-y-2">
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-sky-900">
+                <span className="inline-block h-2.5 w-2.5 rounded-full bg-sky-400" />
+                Staf Tempatan — Gaji Bulanan + Komisyen
+              </h3>
+              {localRules.map((rule) => (
+                <RuleRow
+                  key={rule.id}
+                  rule={rule}
+                  editRates={editRates}
+                  setEditRates={setEditRates}
+                  onSave={handleSaveRule}
+                  accent="local"
+                />
+              ))}
+            </div>
           </TabsContent>
 
           <TabsContent value="commission" className="mt-4">
@@ -316,26 +334,149 @@ export function PayrollDashboard() {
             </div>
           </TabsContent>
 
-          <TabsContent value="staff" className="mt-4">
-            <div className="mb-3 flex gap-4 text-sm">
-              <span>Foreign: <strong>{foreignCount}</strong></span>
-              <span>Local: <strong>{localCount}</strong></span>
-              <span>Total: <strong>{staff.length}</strong></span>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {staff.map((s) => (
-                <div key={s.id} className="rounded-lg border p-3 text-sm">
-                  <p className="font-medium">{s.full_name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {s.staff_code} · {s.branch?.branch_name ?? '—'}
-                  </p>
-                  <Badge variant="outline" className="mt-1">{s.worker_type ?? '—'}</Badge>
-                </div>
-              ))}
-            </div>
+          <TabsContent value="staff" className="mt-4 space-y-6">
+            <p className="rounded-md border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-950">
+              Semua staf kiosk berdaftar ialah <strong>pekerja asing</strong> — gaji
+              dikira mengikut kadar shift mingguan.
+            </p>
+
+            <StaffTypeSection
+              title="Pekerja Asing"
+              subtitle="Gaji mingguan · bayaran shift + OT"
+              accent="foreign"
+              count={foreignStaff.length}
+              staff={foreignStaff}
+            />
+
+            {localStaff.length > 0 && (
+              <StaffTypeSection
+                title="Staf Tempatan"
+                subtitle="Gaji bulanan + komisyen + EPF/SOCSO/EIS"
+                accent="local"
+                count={localStaff.length}
+                staff={localStaff}
+              />
+            )}
           </TabsContent>
         </Tabs>
       )}
     </ModuleLayout>
+  );
+}
+
+function StaffTypeSection({
+  title,
+  subtitle,
+  accent,
+  count,
+  staff: staffRows,
+}: {
+  title: string;
+  subtitle: string;
+  accent: 'foreign' | 'local';
+  count: number;
+  staff: PayrollStaffRow[];
+}) {
+  const isForeign = accent === 'foreign';
+  return (
+    <Card className={isForeign ? 'border-orange-200' : 'border-sky-200'}>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex flex-wrap items-center gap-2 text-base">
+          <span
+            className={`inline-block h-2.5 w-2.5 rounded-full ${isForeign ? 'bg-orange-400' : 'bg-sky-400'}`}
+          />
+          {title}
+          <Badge
+            variant="outline"
+            className={
+              isForeign
+                ? 'border-orange-300 bg-orange-50 font-normal text-orange-900'
+                : 'border-sky-300 bg-sky-50 font-normal text-sky-900'
+            }
+          >
+            {count} staf
+          </Badge>
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">{subtitle}</p>
+      </CardHeader>
+      <CardContent>
+        {staffRows.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Tiada staf dalam kategori ini.</p>
+        ) : (
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {staffRows.map((s) => {
+              const type = resolveWorkerType(s);
+              const pay = staffPayDisplay(s);
+              return (
+                <div
+                  key={s.id}
+                  className={`rounded-lg border p-3 text-sm ${isForeign ? 'border-orange-100 bg-orange-50/30' : 'border-sky-100 bg-sky-50/30'}`}
+                >
+                  <p className="font-medium">{s.full_name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {s.staff_code} · {s.branch?.branch_name ?? '—'}
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <WorkerTypeBadge workerType={type} />
+                    {pay && (
+                      <span className="text-xs tabular-nums text-muted-foreground">{pay}</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function RuleRow({
+  rule,
+  editRates,
+  setEditRates,
+  onSave,
+  accent,
+}: {
+  rule: PayrollRule;
+  editRates: Record<string, string>;
+  setEditRates: Dispatch<SetStateAction<Record<string, string>>>;
+  onSave: (id: string) => void;
+  accent: 'foreign' | 'local';
+}) {
+  const isForeign = accent === 'foreign';
+  return (
+    <div
+      className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm ${isForeign ? 'border-orange-100 bg-orange-50/20' : 'border-sky-100 bg-sky-50/20'}`}
+    >
+      <div>
+        <span className="font-medium">{rule.rule_code}</span>
+        <span className="mx-2 text-muted-foreground">·</span>
+        {rule.component}
+        <WorkerTypeBadge workerType={rule.worker_type} showPeriod={false} className="ml-2" />
+        <Badge variant="outline" className="ml-1 font-normal">
+          {rule.period}
+        </Badge>
+        {rule.shift_hours && (
+          <span className="ml-2 text-xs text-muted-foreground">{rule.shift_hours}j</span>
+        )}
+      </div>
+      {rule.rate != null ? (
+        <div className="flex items-center gap-2">
+          <Input
+            type="number"
+            className="h-8 w-24"
+            value={editRates[rule.id] ?? ''}
+            onChange={(e) => setEditRates({ ...editRates, [rule.id]: e.target.value })}
+          />
+          <Button size="sm" variant="outline" onClick={() => onSave(rule.id)}>
+            Simpan
+          </Button>
+        </div>
+      ) : (
+        <span className="text-xs text-muted-foreground">{rule.notes ?? 'Manual'}</span>
+      )}
+    </div>
   );
 }

@@ -61,5 +61,9 @@ export interface PayrollStaffRow {
   staff_code: string;
   full_name: string;
   worker_type: WorkerType | null;
-  branch: { branch_name: string } | null;
+  weekly_amount: number | null;
+  monthly_amount: number | null;
+  shift_hours: number | null;
+  shifts_per_week: number | null;
+  branch: { branch_name: string; branch_code?: string } | null;
 }

@@ -1,3 +1,4 @@
+import type { RotiExpirySummary } from '@/lib/stock/expiry';
 import type {
   CreateSalePayload,
   DailySummary,
@@ -110,4 +111,34 @@ export async function fetchBranches() {
       region_id?: string | null;
     }>;
   }>('/api/branches');
+}
+
+export async function fetchStockItems() {
+  return fetchJson<{
+    items: Array<{
+      id: string;
+      item_code: string;
+      name: string;
+      base_unit: string;
+      pack_quantity?: number | null;
+      conversion_text?: string | null;
+    }>;
+  }>('/api/inventory/stock-items');
+}
+
+export async function fetchExpiredStock(branchId: string) {
+  return fetchJson<{ summary: RotiExpirySummary | null }>(
+    `/api/pos/expired-stock?branch_id=${branchId}`
+  );
+}
+
+export async function submitPosRejectStock(
+  branchId: string,
+  reason: string,
+  items: Array<{ stock_item_id: string; quantity: number; unit?: string }>
+) {
+  return fetchJson<{ result: Record<string, string> }>('/api/pos/reject-stock', {
+    method: 'POST',
+    body: JSON.stringify({ branch_id: branchId, reason, items }),
+  });
 }

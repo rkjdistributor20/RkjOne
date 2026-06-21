@@ -30,10 +30,10 @@ if (-not $SkipDb) {
     Write-Host "`n[2/4] Push database..." -ForegroundColor Green
     if ($ProjectRef) {
         supabase link --project-ref $ProjectRef
-        supabase db push
+        npx supabase db push --yes
     } else {
-        Write-Host "  Tiada -ProjectRef — cuba supabase db push (projek mesti sudah link)" -ForegroundColor Yellow
-        supabase db push
+        Write-Host "  Tiada -ProjectRef — cuba npx supabase db push (projek mesti sudah link)" -ForegroundColor Yellow
+        npx supabase db push --yes
     }
 } else {
     Write-Host "`n[2/4] Skip database push (-SkipDb)" -ForegroundColor Yellow
@@ -50,6 +50,7 @@ Write-Host "`n[4/4] Verify go-live..." -ForegroundColor Green
 npm run verify:go-live
 
 Write-Host "`nSeterusnya:" -ForegroundColor Cyan
+Write-Host "  - npm run finish:go-live  (storage + verify + build)"
 Write-Host "  - Deploy Vercel (docs/DEPLOYMENT.md)"
 Write-Host "  - Jika db push gagal: paste docs/sql/00019_00030_manual_bundle.sql di SQL Editor"
 Write-Host "  - Pilot: Gombak, Dengkil Utara, Simpang Pulai Utara"

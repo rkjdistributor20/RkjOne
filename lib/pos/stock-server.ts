@@ -1,13 +1,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   kioskStockStatus,
-  POS_MENU_CATEGORIES,
+  POS_ROTI_MENU_CATEGORIES,
   POS_MENU_STOCK_CODES,
   POS_SUPPLEMENT_STOCK,
   toKioskStockDisplay,
   type KioskStockRowConfig,
-  type PosMenuCategory,
+  type PosRotiMenuCategory,
 } from '@/lib/pos/utils';
+import { getStockByCode, resolvePackQuantity } from '@/lib/stock/catalog';
 import type { MenuStockBalance, ProductStockInfo, StockStatus } from '@/lib/pos/types';
 
 function stockStatus(qty: number): StockStatus {
@@ -31,11 +32,19 @@ function buildBalanceRow(
   packQuantity: number | null,
   group: 'menu' | 'supplement'
 ): MenuStockBalance {
-  const { displayQuantity, displayUnit, statusValue } = toKioskStockDisplay(
+  const {
+    displayQuantity,
+    displayUnit,
+    statusValue,
+    displayBags,
+    displayRemainderPcs,
+    packQuantity: resolvedPackQty,
+  } = toKioskStockDisplay(
     quantity,
     balanceUnit,
     config.display,
-    packQuantity
+    packQuantity,
+    config.itemCode
   );
 
   return {
@@ -47,6 +56,9 @@ function buildBalanceRow(
     unit: balanceUnit,
     displayQuantity,
     displayUnit,
+    displayBags,
+    displayRemainderPcs,
+    packQuantity: resolvedPackQty,
     status: kioskStockStatus(statusValue, config.display),
     group,
   };
@@ -95,13 +107,16 @@ async function fetchBalancesForCodes(
     const balance = balanceByItemId.get(item.id);
     const quantity = balance?.quantity ?? 0;
     const unit = balance?.unit ?? item.base_unit ?? 'pcs';
+    const resolvedPack = resolvePackQuantity(item.item_code, {
+      pack_quantity: item.pack_quantity,
+    });
 
     return [
       buildBalanceRow(
         { ...config, name: item.name },
         quantity,
         unit,
-        item.pack_quantity,
+        resolvedPack ?? item.pack_quantity ?? config.packQuantity ?? null,
         group
       ),
     ];
@@ -126,12 +141,17 @@ export async function fetchMenuStockBalances(
   supabase: SupabaseClient,
   locationId: string
 ): Promise<Record<string, MenuStockBalance>> {
-  const menuConfigs: KioskStockRowConfig[] = POS_MENU_CATEGORIES.map((menu) => ({
-    key: menu,
-    itemCode: POS_MENU_STOCK_CODES[menu as PosMenuCategory],
-    label: menu,
-    display: 'pcs' as const,
-  }));
+  const menuConfigs: KioskStockRowConfig[] = POS_ROTI_MENU_CATEGORIES.map((menu) => {
+    const code = POS_MENU_STOCK_CODES[menu as PosRotiMenuCategory];
+    const def = getStockByCode(code);
+    return {
+      key: menu,
+      itemCode: code,
+      label: def?.pos_label ?? menu,
+      display: (def?.pos_display ?? 'bag_pcs') as KioskStockRowConfig['display'],
+      packQuantity: def?.pack_quantity,
+    };
+  });
 
   const rows = await fetchBalancesForCodes(
     supabase,

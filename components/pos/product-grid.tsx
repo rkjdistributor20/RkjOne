@@ -5,6 +5,7 @@ import { Search } from 'lucide-react';
 import { usePosStore } from '@/stores/pos-store';
 import { formatRM, normalizePosCategory, formatKioskStockLabel } from '@/lib/pos/utils';
 import { KioskStockBar } from '@/components/pos/kiosk-stock-bar';
+import { PelbagaiProductGrid } from '@/components/pos/pelbagai-product-grid';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -39,8 +40,15 @@ function StockBadge({ status, available }: { status?: string; available?: number
   );
 }
 
-function formatMenuBalance(balance: { displayQuantity: number; displayUnit: string }) {
-  return formatKioskStockLabel(balance.displayQuantity, balance.displayUnit);
+function formatMenuBalance(balance: {
+  displayQuantity: number;
+  displayUnit: string;
+  displayBags?: number;
+  displayRemainderPcs?: number;
+  packQuantity?: number;
+  itemCode?: string;
+}) {
+  return formatKioskStockLabel(balance);
 }
 
 export function ProductGrid() {
@@ -74,10 +82,8 @@ export function ProductGrid() {
   }, [products, selectedCategory, searchQuery]);
 
   return (
-    <div className="flex h-full flex-col gap-3 rounded-xl border bg-card p-3">
-      <KioskStockBar />
-
-      <div className="relative">
+    <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden rounded-xl border bg-card p-3">
+      <div className="relative shrink-0">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           placeholder="Cari roti atau SKU…"
@@ -87,98 +93,126 @@ export function ProductGrid() {
         />
       </div>
 
-      <ScrollArea className="w-full">
-        <div className="flex flex-wrap gap-2 pb-1">
-          {categories.map((cat) => {
-            const menuBalance = menuStockByCategory[cat];
-            return (
-              <button
-                key={cat}
-                type="button"
-                onClick={() => setSelectedCategory(cat)}
-                className={cn(
-                  'rounded-full border px-3 py-1.5 text-sm font-medium transition-colors',
-                  selectedCategory === cat
-                    ? 'border-primary bg-primary text-primary-foreground'
-                    : 'bg-background hover:bg-muted',
-                  menuBalance?.status === 'OUT' && selectedCategory !== cat && 'border-destructive/50',
-                  menuBalance?.status === 'LOW' && selectedCategory !== cat && 'border-orange-300'
-                )}
-              >
-                <span>{cat}</span>
-                {menuBalance && (
-                  <span
+      <ScrollArea className="min-h-0 flex-1">
+        <div className="space-y-3 pr-3 pb-1">
+          <KioskStockBar />
+
+          <div className="flex flex-wrap gap-2">
+            {categories.map((cat) => {
+              const menuBalance = menuStockByCategory[cat];
+              const isPelbagai = cat === 'Pelbagai';
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setSelectedCategory(cat)}
+                  className={cn(
+                    'rounded-full border px-3 py-1.5 text-sm font-medium transition-colors',
+                    selectedCategory === cat
+                      ? isPelbagai
+                        ? 'border-violet-600 bg-violet-600 text-white'
+                        : 'border-primary bg-primary text-primary-foreground'
+                      : 'bg-background hover:bg-muted',
+                    !isPelbagai &&
+                      menuBalance?.status === 'OUT' &&
+                      selectedCategory !== cat &&
+                      'border-destructive/50',
+                    !isPelbagai &&
+                      menuBalance?.status === 'LOW' &&
+                      selectedCategory !== cat &&
+                      'border-orange-300',
+                    isPelbagai &&
+                      selectedCategory !== cat &&
+                      'border-violet-200'
+                  )}
+                >
+                  <span>{cat}</span>
+                  {menuBalance && (
+                    <span
+                      className={cn(
+                        'ml-1.5 text-xs tabular-nums opacity-90',
+                        selectedCategory === cat
+                          ? isPelbagai
+                            ? 'text-white/90'
+                            : 'text-primary-foreground/90'
+                          : 'text-muted-foreground'
+                      )}
+                    >
+                      · {formatMenuBalance(menuBalance)}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {!shift && (
+            <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50 px-3 py-2 text-center text-sm text-amber-900">
+              Buka syif dahulu untuk mula jual
+            </div>
+          )}
+
+          {selectedCategory === 'Pelbagai' ? (
+            <PelbagaiProductGrid
+              products={filteredProducts}
+              stockByProduct={stockByProduct}
+              shiftOpen={!!shift}
+              onAdd={addToCart}
+            />
+          ) : (
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
+              {filteredProducts.map((product) => {
+                const stock = stockByProduct[product.id];
+                const outOfStock = stock?.status === 'OUT';
+                return (
+                  <button
+                    key={product.id}
+                    type="button"
+                    disabled={!shift || outOfStock}
+                    onClick={() => addToCart(product)}
                     className={cn(
-                      'ml-1.5 text-xs tabular-nums opacity-90',
-                      selectedCategory === cat ? 'text-primary-foreground/90' : 'text-muted-foreground'
+                      'flex min-h-[116px] flex-col justify-between rounded-xl border-2 bg-background p-3 text-left transition-all',
+                      'hover:border-primary hover:shadow-md active:scale-[0.97]',
+                      'disabled:cursor-not-allowed disabled:opacity-45',
+                      outOfStock && 'border-dashed opacity-50'
                     )}
                   >
-                    · {formatMenuBalance(menuBalance)}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </ScrollArea>
-
-      {!shift && (
-        <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50 px-3 py-2 text-center text-sm text-amber-900">
-          Buka syif dahulu untuk mula jual
-        </div>
-      )}
-
-      <ScrollArea className="flex-1">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
-          {filteredProducts.map((product) => {
-            const stock = stockByProduct[product.id];
-            const outOfStock = stock?.status === 'OUT';
-            return (
-              <button
-                key={product.id}
-                type="button"
-                disabled={!shift || outOfStock}
-                onClick={() => addToCart(product)}
-                className={cn(
-                  'flex min-h-[116px] flex-col justify-between rounded-xl border-2 bg-background p-3 text-left transition-all',
-                  'hover:border-primary hover:shadow-md active:scale-[0.97]',
-                  'disabled:cursor-not-allowed disabled:opacity-45',
-                  outOfStock && 'border-dashed opacity-50'
-                )}
-              >
-                <div className="flex w-full items-start justify-between gap-1">
-                  <span className="line-clamp-2 text-sm font-semibold leading-snug">
-                    {product.name}
-                  </span>
-                  <StockBadge
-                    status={stock?.status}
-                    available={stock?.available}
-                  />
-                </div>
-                <div className="mt-2 flex w-full items-end justify-between gap-1">
-                  <span className="text-xl font-bold tabular-nums text-foreground">
-                    {formatRM(product.price)}
-                    {product.sale_unit && (
-                      <span className="ml-1 text-xs font-normal text-muted-foreground">
-                        / {product.sale_unit}
+                    <div className="flex w-full items-start justify-between gap-1">
+                      <span className="line-clamp-2 text-sm font-semibold leading-snug">
+                        {product.name}
                       </span>
-                    )}
-                  </span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-        {filteredProducts.length === 0 && (
-          <p className="py-12 text-center text-sm text-muted-foreground">
-            Tiada produk dijumpai
-          </p>
-        )}
-      </ScrollArea>
+                      <StockBadge
+                        status={stock?.status}
+                        available={stock?.available}
+                      />
+                    </div>
+                    <div className="mt-2 flex w-full items-end justify-between gap-1">
+                      <span className="text-xl font-bold tabular-nums text-foreground">
+                        {formatRM(product.price)}
+                        {product.sale_unit && (
+                          <span className="ml-1 text-xs font-normal text-muted-foreground">
+                            / {product.sale_unit}
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
-      <p className="text-[11px] text-muted-foreground">
-        Baki stok kiosk dikemas kini setiap muat semula · ditolak automatik selepas jualan
-      </p>
+          {filteredProducts.length === 0 && (
+            <p className="py-12 text-center text-sm text-muted-foreground">
+              Tiada produk dijumpai
+            </p>
+          )}
+
+          <p className="text-[11px] text-muted-foreground">
+            Baki stok kiosk dikemas kini setiap muat semula · ditolak automatik selepas jualan
+          </p>
+        </div>
+      </ScrollArea>
     </div>
   );
 }

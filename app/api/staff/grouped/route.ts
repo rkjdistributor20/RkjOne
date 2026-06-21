@@ -57,7 +57,9 @@ export async function GET(request: Request) {
 
   let staffQuery = supabase
     .from('staff')
-    .select('id, staff_code, full_name, status, branch_id, region_id')
+    .select(
+      'id, staff_code, full_name, status, branch_id, region_id, worker_type, weekly_amount, monthly_amount, shift_hours, shifts_per_week'
+    )
     .eq('organization_id', profile.organization_id)
     .order('staff_code');
 
@@ -75,6 +77,11 @@ export async function GET(request: Request) {
     status: string;
     branch_id: string | null;
     region_id: string | null;
+    worker_type: 'LOCAL' | 'FOREIGN' | null;
+    weekly_amount: number | null;
+    monthly_amount: number | null;
+    shift_hours: number | null;
+    shifts_per_week: number | null;
   };
 
   type BranchRow = {
@@ -110,6 +117,11 @@ export async function GET(request: Request) {
       branch_id: row.branch_id,
       branch_code: branch.branch_code,
       branch_name: branch.branch_name,
+      worker_type: row.worker_type,
+      weekly_amount: row.weekly_amount,
+      monthly_amount: row.monthly_amount,
+      shift_hours: row.shift_hours,
+      shifts_per_week: row.shifts_per_week,
     });
     staffByBranch.set(row.branch_id, list);
   }

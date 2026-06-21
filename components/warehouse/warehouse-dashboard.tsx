@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Warehouse, Package, ArrowRight, ClipboardCheck } from 'lucide-react';
+import { Warehouse, Package, ArrowRight, ClipboardCheck, CalendarDays, ClipboardList, Inbox } from 'lucide-react';
 import {
   fetchWarehouseSummary,
   fetchWarehouseAudits,
@@ -24,6 +24,12 @@ import { StockLineForm } from '@/components/inventory/stock-line-form';
 import { BalanceTable } from '@/components/inventory/balance-table';
 import { useAuthStore } from '@/stores/auth-store';
 import { isAdminRole } from '@/lib/auth/permissions';
+import { canManageHqStockInOut, canSetRotiProductionDate, canManageFactorySchedule } from '@/lib/auth/stock-access';
+import { fetchProductionCalendar } from '@/lib/production/api';
+import type { PublishedProductionDate } from '@/lib/production/types';
+import { FactoryProductionSchedulePanel } from '@/components/warehouse/factory-production-schedule-panel';
+import { HqFactoryOrderPanel } from '@/components/warehouse/hq-factory-order-panel';
+import { FactoryOrderInbox } from '@/components/warehouse/factory-order-inbox';
 import { COMPANY } from '@/lib/brand/company';
 import { labelFor, TRANSFER_STATUS_LABELS } from '@/lib/ui/labels';
 import {
@@ -40,7 +46,12 @@ import {
 
 export function WarehouseDashboard() {
   const profile = useAuthStore((s) => s.profile);
+  const canManageHq = profile ? canManageHqStockInOut(profile.role) : false;
+  const canOrder = profile ? canSetRotiProductionDate(profile.role) : false;
+  const canFactory = profile ? canManageFactorySchedule(profile.role) : false;
   const canApprove = profile ? isAdminRole(profile.role) || profile.role === 'OPERATION_MANAGER' : false;
+  const [publishedDates, setPublishedDates] = useState<PublishedProductionDate[]>([]);
+  const productionDateOptions = publishedDates.map((d) => d.production_date);
   const [summary, setSummary] = useState<WarehouseSummary | null>(null);
   const [audits, setAudits] = useState<WarehouseAudit[]>([]);
   const [hqLocation, setHqLocation] = useState<InventoryLocation | null>(null);
@@ -52,6 +63,15 @@ export function WarehouseDashboard() {
   const [loading, setLoading] = useState(true);
   const [transferTo, setTransferTo] = useState('');
 
+  const loadCalendar = useCallback(async () => {
+    try {
+      const { dates } = await fetchProductionCalendar();
+      setPublishedDates(dates);
+    } catch {
+      setPublishedDates([]);
+    }
+  }, []);
+
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
@@ -59,12 +79,20 @@ export function WarehouseDashboard() {
         fetchWarehouseSummary(),
         fetchWarehouseAudits(),
         fetchLocations(),
-        fetchStockItems(),
+        fetchStockItems({ hq: true }),
       ]);
+      await loadCalendar();
       setSummary(sum.summary);
       setAudits(aud.audits);
       const allLocs = locs.locations;
-      const hq = allLocs.find((l) => l.location_type === 'HQ_WAREHOUSE') ?? null;
+      const hq =
+        allLocs.find(
+          (l) =>
+            l.location_type === 'HQ_WAREHOUSE' &&
+            l.name.toLowerCase().includes('teluk intan')
+        ) ??
+        allLocs.find((l) => l.location_type === 'HQ_WAREHOUSE') ??
+        null;
       setHqLocation(hq);
       setFleetLocations(allLocs.filter((l) => l.location_type === 'FLEET_VEHICLE'));
       setBranchLocations(allLocs.filter((l) => l.location_type === 'BRANCH_KIOSK'));
@@ -83,7 +111,7 @@ export function WarehouseDashboard() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [loadCalendar]);
 
   useEffect(() => {
     loadData();
@@ -93,7 +121,7 @@ export function WarehouseDashboard() {
     <ModuleLayout>
       <ModuleHeader
         title="Gudang HQ"
-        description={`${COMPANY.hq} — terima stok kilang, pindah ke kenderaan & cawangan, audit berkala`}
+        description={`${COMPANY.hq} — jadual production kilang · order HQ · terima stok · pindah ke cawangan`}
         icon={Warehouse}
       />
 
@@ -108,7 +136,7 @@ export function WarehouseDashboard() {
       ) : (
         <>
           <KpiGrid cols={4}>
-            <KpiCard title="Item Stok" value={summary?.total_items ?? 0} icon={Package} />
+            <KpiCard title="Item Stok" value={`${summary?.total_items ?? 0} / 9`} icon={Package} />
             <KpiCard
               title="Jumlah Kuantiti"
               value={summary?.total_quantity?.toLocaleString() ?? 0}
@@ -127,34 +155,90 @@ export function WarehouseDashboard() {
             />
           </KpiGrid>
 
+          {!canManageHq && (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+              Paparan sahaja — stok masuk/keluar Gudang HQ dikawal oleh pentadbir HQ (Admin /
+              CEO Kilang).
+            </p>
+          )}
+
           <Tabs defaultValue="stock" className="space-y-4">
             <TabsList className={moduleTabsListClass}>
               <TabsTrigger value="stock" className={moduleTabsTriggerClass}>
                 <Package className="h-4 w-4" /> Stok
               </TabsTrigger>
-              <TabsTrigger value="receive" className={moduleTabsTriggerClass}>
-                <Warehouse className="h-4 w-4" /> Terima
-              </TabsTrigger>
-              <TabsTrigger value="transfer" className={moduleTabsTriggerClass}>
-                <ArrowRight className="h-4 w-4" /> Pindah Keluar
-              </TabsTrigger>
-              <TabsTrigger value="audit" className={moduleTabsTriggerClass}>
-                <ClipboardCheck className="h-4 w-4" /> Audit
-              </TabsTrigger>
+              {canFactory && (
+                <TabsTrigger value="schedule" className={moduleTabsTriggerClass}>
+                  <CalendarDays className="h-4 w-4" /> Jadual Kilang
+                </TabsTrigger>
+              )}
+              {canOrder && (
+                <TabsTrigger value="hq-order" className={moduleTabsTriggerClass}>
+                  <ClipboardList className="h-4 w-4" /> Order Kilang
+                </TabsTrigger>
+              )}
+              {canFactory && (
+                <TabsTrigger value="factory-inbox" className={moduleTabsTriggerClass}>
+                  <Inbox className="h-4 w-4" /> Laporan Order
+                </TabsTrigger>
+              )}
+              {canManageHq && (
+                <>
+                  <TabsTrigger value="receive" className={moduleTabsTriggerClass}>
+                    <Warehouse className="h-4 w-4" /> Terima
+                  </TabsTrigger>
+                  <TabsTrigger value="transfer" className={moduleTabsTriggerClass}>
+                    <ArrowRight className="h-4 w-4" /> Pindah Keluar
+                  </TabsTrigger>
+                  <TabsTrigger value="audit" className={moduleTabsTriggerClass}>
+                    <ClipboardCheck className="h-4 w-4" /> Audit
+                  </TabsTrigger>
+                </>
+              )}
             </TabsList>
 
             <TabsContent value="stock" className="mt-2">
               {balances.length === 0 ? (
                 <EmptyState icon={Package} title="Tiada baki stok" description="Terima stok dari kilang melalui tab Terima." />
               ) : (
-                <BalanceTable balances={balances} />
+                <BalanceTable balances={balances} showPackConversion />
               )}
             </TabsContent>
 
+            {canFactory && (
+              <TabsContent value="schedule" className="mt-4">
+                <FactoryProductionSchedulePanel />
+              </TabsContent>
+            )}
+
+            {canOrder && (
+              <TabsContent value="hq-order" className="mt-4">
+                <HqFactoryOrderPanel
+                  stockItems={stockItems}
+                  publishedDates={publishedDates}
+                  onRefreshCalendar={loadCalendar}
+                />
+              </TabsContent>
+            )}
+
+            {canFactory && (
+              <TabsContent value="factory-inbox" className="mt-4">
+                <FactoryOrderInbox />
+              </TabsContent>
+            )}
+
+            {canManageHq && (
+              <>
             <TabsContent value="receive" className="mt-4">
+              <p className="mb-3 text-sm text-muted-foreground">
+                Terima stok dari kilang — pilih tarikh production dari jadual kilang yang diterbitkan.
+              </p>
               <StockLineForm
                 mode="receive"
                 stockItems={stockItems}
+                orderInPacks
+                requireRotiProductionDate
+                productionDateOptions={productionDateOptions}
                 onSubmit={async (items, meta) => {
                   try {
                     await receiveStock(hqLocation.id, items, 'FACTORY', meta?.notes);
@@ -193,6 +277,15 @@ export function WarehouseDashboard() {
                   <StockLineForm
                     mode="receive"
                     stockItems={stockItems}
+                    orderInPacks
+                    requireRotiProductionDate={
+                      branchLocations.some((l) => l.id === transferTo)
+                    }
+                    productionDateOptions={
+                      branchLocations.some((l) => l.id === transferTo)
+                        ? productionDateOptions
+                        : undefined
+                    }
                     onSubmit={async (items) => {
                       try {
                         await createTransfer({
@@ -303,6 +396,8 @@ export function WarehouseDashboard() {
                 )}
               </div>
             </TabsContent>
+              </>
+            )}
           </Tabs>
         </>
       )}

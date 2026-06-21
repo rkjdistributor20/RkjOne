@@ -43,7 +43,7 @@ export async function resolveScopedBranches(
 
   if (isAreaManager(profile.role)) {
     if (!profile.region_id) {
-      return { branchIds: [], regionId: null, branchId: null };
+      throw new Error('Akaun Area Manager tiada region_id — hubungi admin HQ');
     }
 
     const { data: regionBranches } = await supabase

@@ -26,8 +26,19 @@ export const TRANSFER_STATUS_LABELS: Record<string, string> = {
   PENDING: 'Menunggu',
   DISPATCHED: 'Dihantar',
   IN_TRANSIT: 'Dalam Perjalanan',
+  DELIVERED: 'Sampai',
   COMPLETED: 'Selesai',
   CANCELLED: 'Dibatalkan',
+};
+
+export const MOVEMENT_TYPE_LABELS: Record<string, string> = {
+  RECEIVE: 'Terima Stok',
+  TRANSFER_IN: 'Pindah Masuk',
+  TRANSFER_OUT: 'Pindah Keluar',
+  ADJUSTMENT: 'Pelarasan',
+  COUNT: 'Kiraan Stok',
+  WRITE_OFF: 'Lupus / Reject',
+  SALE_DEDUCT: 'Jualan POS',
 };
 
 export const STOCK_STATUS_LABELS: Record<string, string> = {

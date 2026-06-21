@@ -12,7 +12,7 @@ export interface InventoryLocation {
   branch_id: string | null;
   vehicle_id: string | null;
   is_active: boolean;
-  branch?: { branch_code: string; branch_name: string } | null;
+  branch?: { branch_code: string; branch_name: string; region_id?: string | null } | null;
   vehicle?: { vehicle_code: string; vehicle_type: string } | null;
 }
 
@@ -24,6 +24,9 @@ export interface StockItemOption {
   base_unit: string;
   min_threshold: number | null;
   critical_threshold: number | null;
+  pack_quantity?: number | null;
+  pack_unit?: string | null;
+  conversion_text?: string | null;
 }
 
 export interface InventoryBalanceRow {
@@ -55,21 +58,47 @@ export interface StockTransferRow {
   transfer_number: string;
   status: string;
   from_location: { name: string; location_type: string };
-  to_location: { name: string; location_type: string };
+  to_location: { name: string; location_type: string; branch_id?: string | null };
   created_at: string;
   dispatched_at: string | null;
   delivered_at: string | null;
   stock_transfer_items?: Array<{
     quantity: number;
     unit: string;
-    stock_item: { item_code: string; name: string };
+    production_date?: string | null;
+    stock_item: { item_code: string; name: string; category?: string | null };
   }>;
+}
+
+export interface KioskOverviewBranch {
+  branch_id: string;
+  branch_code: string;
+  branch_name: string;
+  location_id: string;
+  location_name: string;
+  roti: Record<
+    string,
+    { item_code: string; name: string; display: string; status: 'OK' | 'LOW' | 'CRITICAL'; quantity: number }
+  >;
+  low_count: number;
+  critical_count: number;
+  worst_status: 'OK' | 'LOW' | 'CRITICAL';
+  pending_transfers: number;
+}
+
+export interface KioskOverviewSummary {
+  total: number;
+  low: number;
+  critical: number;
+  pending: number;
 }
 
 export interface LineItemInput {
   stock_item_id: string;
   quantity: number;
   unit?: string;
+  /** Tarikh production roti (YYYY-MM-DD) — pembuat order sahaja */
+  production_date?: string;
 }
 
 export interface AdjustmentItemInput {

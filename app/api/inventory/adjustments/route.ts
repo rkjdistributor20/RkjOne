@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { inventoryRpc } from '@/lib/supabase/inventory-rpc';
 import { getCurrentProfile } from '@/lib/auth/session';
+import {
+  assertStockMutationAllowed,
+  stockGuardErrorMessage,
+} from '@/lib/inventory/stock-guard';
 
 export async function POST(request: Request) {
   const profile = await getCurrentProfile();
@@ -9,6 +13,17 @@ export async function POST(request: Request) {
 
   const body = await request.json();
   const supabase = await createClient();
+
+  try {
+    await assertStockMutationAllowed(
+      supabase,
+      profile,
+      'adjustment',
+      body.location_id
+    );
+  } catch (err) {
+    return NextResponse.json({ error: stockGuardErrorMessage(err) }, { status: 403 });
+  }
 
   const { data, error } = await inventoryRpc(supabase, 'submit_stock_adjustment', {
     p_location_id: body.location_id,

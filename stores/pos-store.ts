@@ -102,11 +102,15 @@ export const usePosStore = create<PosState>((set, get) => ({
     const existing = cart.find((c) => c.productId === product.id);
     const nextQty = (existing?.quantity ?? 0) + 1;
 
-    if (stock && stock.available <= 0) {
+    if (!stock) {
+      toast.error('Stok tidak dimuatkan — muat semula halaman');
+      return;
+    }
+    if (stock.available <= 0) {
       toast.error('Stok habis — minta bekalan dari HQ');
       return;
     }
-    if (stock && nextQty > stock.available) {
+    if (nextQty > stock.available) {
       toast.error(`Stok kiosk tinggal ${stock.available} unit sahaja`);
       return;
     }
@@ -146,7 +150,11 @@ export const usePosStore = create<PosState>((set, get) => ({
     }
 
     const stock = stockByProduct[productId];
-    if (stock && nextQty > stock.available) {
+    if (!stock) {
+      toast.error('Stok tidak dimuatkan — muat semula halaman');
+      return;
+    }
+    if (nextQty > stock.available) {
       toast.error(`Stok kiosk tinggal ${stock.available} unit sahaja`);
       return;
     }

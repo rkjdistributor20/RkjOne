@@ -2,21 +2,94 @@ import { createClient } from '@/lib/supabase/server';
 import type { DashboardStats } from '@/types/database';
 
 export async function getDashboardStats(
-  orgId: string
+  orgId: string,
+  branchIds: string[] | null = null
 ): Promise<DashboardStats | null> {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from('dashboard_stats')
-    .select('*')
-    .eq('organization_id', orgId)
-    .maybeSingle();
 
-  if (error) {
-    console.error('[dashboard_stats]', error.message);
-    return null;
+  if (branchIds === null) {
+    const { data, error } = await supabase
+      .from('dashboard_stats')
+      .select('*')
+      .eq('organization_id', orgId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('[dashboard_stats]', error.message);
+      return null;
+    }
+
+    return data;
   }
 
-  return data;
+  if (branchIds.length === 0) {
+    return {
+      organization_id: orgId,
+      sales_today: 0,
+      sales_this_week: 0,
+      sales_this_month: 0,
+      pending_approvals: 0,
+      critical_stock_count: 0,
+      low_stock_count: 0,
+      outstanding_cash: 0,
+    };
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const weekStart = new Date();
+  weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+  const weekStartStr = weekStart.toISOString().slice(0, 10);
+  const monthStart = `${today.slice(0, 8)}01`;
+
+  const [todayRes, weekRes, monthRes, approvalsRes, cashRes] = await Promise.all([
+    supabase
+      .from('pos_daily_summaries')
+      .select('total_sales')
+      .eq('organization_id', orgId)
+      .eq('summary_date', today)
+      .in('branch_id', branchIds),
+    supabase
+      .from('pos_daily_summaries')
+      .select('total_sales')
+      .eq('organization_id', orgId)
+      .gte('summary_date', weekStartStr)
+      .in('branch_id', branchIds),
+    supabase
+      .from('pos_daily_summaries')
+      .select('total_sales')
+      .eq('organization_id', orgId)
+      .gte('summary_date', monthStart)
+      .in('branch_id', branchIds),
+    supabase
+      .from('approval_requests')
+      .select('*', { count: 'exact', head: true })
+      .eq('organization_id', orgId)
+      .eq('status', 'PENDING')
+      .in('branch_id', branchIds),
+    supabase
+      .from('finance_collections')
+      .select('amount')
+      .eq('organization_id', orgId)
+      .eq('status', 'PENDING')
+      .in('branch_id', branchIds),
+  ]);
+
+  const sum = (rows: Array<{ total_sales?: number }> | null) =>
+    (rows ?? []).reduce((n, r) => n + Number(r.total_sales ?? 0), 0);
+
+  return {
+    organization_id: orgId,
+    sales_today: sum(todayRes.data as Array<{ total_sales: number }> | null),
+    sales_this_week: sum(weekRes.data as Array<{ total_sales: number }> | null),
+    sales_this_month: sum(monthRes.data as Array<{ total_sales: number }> | null),
+    pending_approvals: approvalsRes.count ?? 0,
+    critical_stock_count: 0,
+    low_stock_count: 0,
+    outstanding_cash: (cashRes.data ?? []).reduce(
+      (n, r) => n + Number((r as { amount: number }).amount ?? 0),
+      0
+    ),
+  };
 }
 
 export type PosBranchSummary = {
@@ -67,36 +140,65 @@ type RecentTransactionRow = {
   branch_id: string;
 };
 
-export async function getPosOverview(orgId: string): Promise<PosOverview> {
+export async function getPosOverview(
+  orgId: string,
+  branchIds: string[] | null = null
+): Promise<PosOverview> {
   const supabase = await createClient();
   const today = new Date().toISOString().slice(0, 10);
 
+  let branchesQuery = supabase
+    .from('branches')
+    .select('id, branch_name, branch_code')
+    .eq('organization_id', orgId)
+    .eq('status', 'ACTIVE');
+
+  if (branchIds !== null) {
+    if (branchIds.length === 0) {
+      return {
+        branches: [],
+        open_shifts: 0,
+        transactions_today: 0,
+        recent_transactions: [],
+      };
+    }
+    branchesQuery = branchesQuery.in('id', branchIds);
+  }
+
+  let summariesQuery = supabase
+    .from('pos_daily_summaries')
+    .select('branch_id, total_sales, transaction_count')
+    .eq('organization_id', orgId)
+    .eq('summary_date', today);
+
+  let shiftsQuery = supabase
+    .from('pos_shifts')
+    .select('branch_id')
+    .eq('organization_id', orgId)
+    .eq('status', 'OPEN');
+
+  let recentQuery = supabase
+    .from('pos_transactions')
+    .select(
+      'id, transaction_number, total, payment_method, created_at, branch_id'
+    )
+    .eq('organization_id', orgId)
+    .eq('status', 'COMPLETED')
+    .gte('created_at', `${today}T00:00:00`)
+    .order('created_at', { ascending: false })
+    .limit(5);
+
+  if (branchIds !== null) {
+    summariesQuery = summariesQuery.in('branch_id', branchIds);
+    shiftsQuery = shiftsQuery.in('branch_id', branchIds);
+    recentQuery = recentQuery.in('branch_id', branchIds);
+  }
+
   const [summariesRes, shiftsRes, recentRes, branchesRes] = await Promise.all([
-    supabase
-      .from('pos_daily_summaries')
-      .select('branch_id, total_sales, transaction_count')
-      .eq('organization_id', orgId)
-      .eq('summary_date', today),
-    supabase
-      .from('pos_shifts')
-      .select('branch_id')
-      .eq('organization_id', orgId)
-      .eq('status', 'OPEN'),
-    supabase
-      .from('pos_transactions')
-      .select(
-        'id, transaction_number, total, payment_method, created_at, branch_id'
-      )
-      .eq('organization_id', orgId)
-      .eq('status', 'COMPLETED')
-      .gte('created_at', `${today}T00:00:00`)
-      .order('created_at', { ascending: false })
-      .limit(5),
-    supabase
-      .from('branches')
-      .select('id, branch_name, branch_code')
-      .eq('organization_id', orgId)
-      .eq('status', 'ACTIVE'),
+    summariesQuery,
+    shiftsQuery,
+    recentQuery,
+    branchesQuery,
   ]);
 
   const summaries = (summariesRes.data ?? []) as DailySummaryRow[];
@@ -159,8 +261,11 @@ export async function getFleetOverview(orgId: string): Promise<FleetOverview> {
 
   const [vehiclesRes, ordersRes] = await Promise.all([
     supabase
-      .from('fleet_vehicles')
-      .select('id, vehicle_code, vehicle_type, plate_number, status')
+      .from('vehicles')
+      .select(`
+        id, vehicle_code, vehicle_type, plate_number, status,
+        fleet_status_log(status, logged_at)
+      `)
       .eq('organization_id', orgId)
       .eq('status', 'ACTIVE')
       .order('vehicle_code'),
@@ -171,38 +276,33 @@ export async function getFleetOverview(orgId: string): Promise<FleetOverview> {
       .in('status', ['PENDING', 'IN_TRANSIT']),
   ]);
 
-  const vehicles = (vehiclesRes.data ?? []) as Array<{
+  const rows = (vehiclesRes.data ?? []) as Array<{
     id: string;
     vehicle_code: string;
     vehicle_type: string;
     plate_number: string | null;
     status: string;
+    fleet_status_log: Array<{ status: string; logged_at: string }> | null;
   }>;
 
   const orders = (ordersRes.data ?? []) as Array<{ status: string }>;
 
-  const statusRes = await supabase
-    .from('fleet_status_logs')
-    .select('vehicle_id, status')
-    .eq('organization_id', orgId)
-    .order('logged_at', { ascending: false });
-
-  const latestByVehicle = new Map<string, string>();
-  for (const log of statusRes.data ?? []) {
-    const row = log as { vehicle_id: string; status: string };
-    if (!latestByVehicle.has(row.vehicle_id)) {
-      latestByVehicle.set(row.vehicle_id, row.status);
-    }
-  }
-
-  return {
-    vehicles: vehicles.map((v) => ({
+  const vehicles = rows.map((v) => {
+    const logs = v.fleet_status_log;
+    const latest = logs?.sort(
+      (a, b) => new Date(b.logged_at).getTime() - new Date(a.logged_at).getTime()
+    )[0];
+    return {
       id: v.id,
       vehicle_code: v.vehicle_code,
       vehicle_type: v.vehicle_type,
       plate_number: v.plate_number,
-      latest_status: latestByVehicle.get(v.id) ?? null,
-    })),
+      latest_status: latest?.status ?? null,
+    };
+  });
+
+  return {
+    vehicles,
     pending_deliveries: orders.filter((o) => o.status === 'PENDING').length,
     in_transit: orders.filter((o) => o.status === 'IN_TRANSIT').length,
   };

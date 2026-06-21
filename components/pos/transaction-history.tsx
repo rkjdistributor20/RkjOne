@@ -42,17 +42,17 @@ export function TransactionHistory({ onRefresh }: TransactionHistoryProps) {
     try {
       if (actionType === 'void') {
         await voidTransaction(actionTx.id, reason);
-        toast.success('Transaction voided');
+        toast.success('Jualan dibatalkan');
       } else {
         await refundTransaction(actionTx.id, reason);
-        toast.success('Transaction refunded');
+        toast.success('Jualan dibayar balik');
       }
       setActionTx(null);
       setActionType(null);
       setReason('');
       onRefresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Action failed');
+      toast.error(err instanceof Error ? err.message : 'Tindakan gagal');
     } finally {
       setLoading(false);
     }
@@ -64,7 +64,7 @@ export function TransactionHistory({ onRefresh }: TransactionHistoryProps) {
         <div className="space-y-2">
           {transactions.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              No transactions yet
+              Tiada transaksi lagi
             </p>
           ) : (
             transactions.map((tx) => (
@@ -106,7 +106,7 @@ export function TransactionHistory({ onRefresh }: TransactionHistoryProps) {
                         }}
                       >
                         <Ban className="mr-1 h-3 w-3" />
-                        Void
+                        Batal
                       </Button>
                       <Button
                         variant="ghost"
@@ -118,7 +118,7 @@ export function TransactionHistory({ onRefresh }: TransactionHistoryProps) {
                         }}
                       >
                         <RotateCcw className="mr-1 h-3 w-3" />
-                        Refund
+                        Bayar Balik
                       </Button>
                     </div>
                   )}
@@ -140,14 +140,14 @@ export function TransactionHistory({ onRefresh }: TransactionHistoryProps) {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {actionType === 'void' ? 'Void Sale' : 'Refund Sale'}
+              {actionType === 'void' ? 'Batal Jualan' : 'Bayar Balik Jualan'}
             </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
             {actionTx?.transaction_number} — {formatRM(Number(actionTx?.total ?? 0))}
           </p>
           <Textarea
-            placeholder="Reason (required)"
+            placeholder="Sebab (wajib)"
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={3}
@@ -158,7 +158,7 @@ export function TransactionHistory({ onRefresh }: TransactionHistoryProps) {
               disabled={!reason.trim() || loading}
               onClick={handleAction}
             >
-              {loading ? 'Processing…' : `Confirm ${actionType}`}
+              {loading ? 'Memproses…' : actionType === 'void' ? 'Sahkan Batal' : 'Sahkan Bayar Balik'}
             </Button>
           </DialogFooter>
         </DialogContent>

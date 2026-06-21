@@ -33,3 +33,4 @@ supabase/.temp/
 
 # Keep example env
 !.env.example
+.vercel

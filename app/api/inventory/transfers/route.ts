@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { inventoryRpc } from '@/lib/supabase/inventory-rpc';
 import { getCurrentProfile } from '@/lib/auth/session';
+import {
+  assertTransferCreateAllowed,
+  stockGuardErrorMessage,
+} from '@/lib/inventory/stock-guard';
 
 export async function GET(request: Request) {
   const profile = await getCurrentProfile();
@@ -16,7 +20,7 @@ export async function GET(request: Request) {
       id, transfer_number, status, created_at, dispatched_at, delivered_at,
       from_location:inventory_locations!stock_transfers_from_location_id_fkey(name, location_type),
       to_location:inventory_locations!stock_transfers_to_location_id_fkey(name, location_type),
-      stock_transfer_items(quantity, unit, stock_item:stock_items(item_code, name))
+      stock_transfer_items(quantity, unit, production_date, stock_item:stock_items(item_code, name, category))
     `)
     .eq('organization_id', profile.organization_id)
     .order('created_at', { ascending: false })
@@ -40,6 +44,17 @@ export async function POST(request: Request) {
 
   const body = await request.json();
   const supabase = await createClient();
+
+  try {
+    await assertTransferCreateAllowed(
+      supabase,
+      profile,
+      body.from_location_id,
+      body.to_location_id
+    );
+  } catch (err) {
+    return NextResponse.json({ error: stockGuardErrorMessage(err) }, { status: 403 });
+  }
 
   const { data, error } = await inventoryRpc(supabase, 'create_stock_transfer', {
     p_from_location_id: body.from_location_id,

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Flame, MapPin, Store } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { mapAuthError, safeRedirectPath } from '@/lib/auth/errors';
 import { COMPANY, BRAND_COLORS } from '@/lib/brand/company';
 import { BrandLogo } from '@/components/brand/brand-logo';
 import { Button } from '@/components/ui/button';
@@ -19,7 +20,7 @@ import {
 
 export function LoginForm() {
   const searchParams = useSearchParams();
-  const redirect = searchParams.get('redirect') ?? '/dashboard';
+  const redirect = safeRedirectPath(searchParams.get('redirect'));
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -38,12 +39,12 @@ export function LoginForm() {
     });
 
     if (authError) {
-      setError(authError.message);
+      setError(mapAuthError(authError.message));
       setLoading(false);
       return;
     }
 
-    window.location.href = redirect.startsWith('/') ? redirect : '/dashboard';
+    window.location.href = redirect;
   }
 
   return (

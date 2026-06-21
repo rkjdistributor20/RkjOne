@@ -17,6 +17,8 @@ import {
   Truck,
 } from 'lucide-react';
 import { getCurrentProfile } from '@/lib/auth/session';
+import { resolveScopedBranches } from '@/lib/auth/branch-scope';
+import { createClient } from '@/lib/supabase/server';
 import { getDashboardStats, getFleetOverview, getPosOverview } from '@/lib/dashboard/queries';
 import { PageHeader, BrandStatsStrip } from '@/components/brand/page-header';
 import { COMPANY } from '@/lib/brand/company';
@@ -38,9 +40,12 @@ export default async function DashboardPage() {
     redirect('/login');
   }
 
+  const supabase = await createClient();
+  const scope = await resolveScopedBranches(supabase, profile);
+
   const [stats, posOverview, fleetOverview] = await Promise.all([
-    getDashboardStats(profile.organization_id),
-    getPosOverview(profile.organization_id),
+    getDashboardStats(profile.organization_id, scope.branchIds),
+    getPosOverview(profile.organization_id, scope.branchIds),
     getFleetOverview(profile.organization_id),
   ]);
 

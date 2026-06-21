@@ -38,7 +38,9 @@ import type {
 import { LOCATION_TYPE_LABELS } from '@/lib/inventory/types';
 import { useAuthStore } from '@/stores/auth-store';
 import { needsBranchPicker } from '@/lib/auth/branch-scope';
+import { getInventoryStockUiAccess, canSetRotiProductionDate, isAreaManagerRole } from '@/lib/auth/stock-access';
 import { BranchScopeSelect } from '@/components/shared/branch-scope-select';
+import { KioskOverviewPanel } from '@/components/inventory/kiosk-overview-panel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -68,8 +70,13 @@ export function InventoryDashboard() {
   const profile = useAuthStore((s) => s.profile);
   const authBranch = useAuthStore((s) => s.branch);
   const showBranchPicker = profile ? needsBranchPicker(profile) : false;
+  const isAreaManager = profile ? isAreaManagerRole(profile.role) : false;
+  const defaultLocType: LocationType | 'ALL' =
+    profile && (isAreaManagerRole(profile.role) || profile.role === 'STAFF')
+      ? 'BRANCH_KIOSK'
+      : 'ALL';
 
-  const [locationType, setLocationType] = useState<LocationType | 'ALL'>('ALL');
+  const [locationType, setLocationType] = useState<LocationType | 'ALL'>(defaultLocType);
   const [locations, setLocations] = useState<InventoryLocation[]>([]);
   const [selectedLocationId, setSelectedLocationId] = useState<string>('');
   const [selectedBranchId, setSelectedBranchId] = useState(profile?.branch_id ?? '');
@@ -131,10 +138,18 @@ export function InventoryDashboard() {
   }, [selectedLocationId]);
 
   useEffect(() => {
-    fetchStockItems()
+    fetchStockItems({ hq: true })
       .then(({ items }) => setStockItems(items))
       .catch(() => toast.error('Gagal memuatkan senarai stok'));
   }, []);
+
+  useEffect(() => {
+    if (!branchId || !locations.length) return;
+    const kiosk = locations.find(
+      (l) => l.branch_id === branchId && l.location_type === 'BRANCH_KIOSK'
+    );
+    if (kiosk) setSelectedLocationId(kiosk.id);
+  }, [branchId, locations]);
 
   useEffect(() => {
     loadLocations();
@@ -145,8 +160,33 @@ export function InventoryDashboard() {
   }, [loadData]);
 
   const selectedLocation = locations.find((l) => l.id === selectedLocationId);
+  const stockAccess = profile
+    ? getInventoryStockUiAccess(profile.role, selectedLocation?.location_type)
+    : null;
+  const orderMaker = profile ? canSetRotiProductionDate(profile.role) : false;
+  const isKioskView = selectedLocation?.location_type === 'BRANCH_KIOSK';
+  const requireRotiProductionOnReceive =
+    orderMaker &&
+    (selectedLocation?.location_type === 'HQ_WAREHOUSE' ||
+      selectedLocation?.location_type === 'FACTORY');
   const lowCount = balances.filter((b) => b.status === 'LOW').length;
   const criticalCount = balances.filter((b) => b.status === 'CRITICAL').length;
+  const pendingInbound = transfers.filter((t) => t.status === 'IN_TRANSIT').length;
+  const showOverview = showBranchPicker && !selectedBranchId && isAreaManager;
+
+  function handleOverviewSelect(branchIdPick: string, locationId: string) {
+    setSelectedBranchId(branchIdPick);
+    setSelectedLocationId(locationId);
+    setLocationType('BRANCH_KIOSK');
+    setActiveTab('balances');
+  }
+
+  function formatLocationLabel(loc: InventoryLocation) {
+    if (loc.branch?.branch_code) {
+      return `${loc.branch.branch_code} · ${loc.branch.branch_name}`;
+    }
+    return `${LOCATION_TYPE_LABELS[loc.location_type]} — ${loc.name}`;
+  }
 
   const receiveSource =
     selectedLocation?.location_type === 'BRANCH_KIOSK' ? 'HQ_WAREHOUSE' : 'FACTORY';
@@ -197,13 +237,13 @@ export function InventoryDashboard() {
     }
   }
 
-  const needsBranchSelection = showBranchPicker && !selectedBranchId;
+  const needsBranchSelection = false;
 
   return (
     <ModuleLayout>
       <ModuleHeader
         title="Inventori"
-        description="Pantau dan urus stok di kilang, gudang HQ, kenderaan, dan kiosk cawangan"
+        description="Kilang → Gudang HQ → Pindah → Terima di Kiosk · pantau baki 9 item stok rasmi"
         icon={Package}
         badges={
           <>
@@ -226,7 +266,9 @@ export function InventoryDashboard() {
         />
       )}
 
-      {needsBranchSelection ? (
+      {showOverview ? (
+        <KioskOverviewPanel onSelectBranch={handleOverviewSelect} />
+      ) : needsBranchSelection ? (
         <BranchRequiredPrompt message="Sila pilih cawangan untuk melihat inventori kiosk dalam kawasan anda." />
       ) : (
         <>
@@ -258,7 +300,7 @@ export function InventoryDashboard() {
               <SelectContent>
                 {locations.map((loc) => (
                   <SelectItem key={loc.id} value={loc.id}>
-                    {LOCATION_TYPE_LABELS[loc.location_type]} — {loc.name}
+                    {formatLocationLabel(loc)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -286,9 +328,29 @@ export function InventoryDashboard() {
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base">{selectedLocation.name}</CardTitle>
                   </CardHeader>
-                  <CardContent className="text-sm text-muted-foreground">
-                    {LOCATION_TYPE_LABELS[selectedLocation.location_type]}
-                    {authBranch && ` · ${authBranch.branch_name}`}
+                  <CardContent className="space-y-2 text-sm text-muted-foreground">
+                    <p>
+                      {LOCATION_TYPE_LABELS[selectedLocation.location_type]}
+                      {authBranch && ` · ${authBranch.branch_name}`}
+                    </p>
+                    {stockAccess?.readOnlyHint && (
+                      <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-950">
+                        {stockAccess.readOnlyHint}
+                      </p>
+                    )}
+                    {isKioskView && pendingInbound > 0 && (
+                      <p className="rounded-md border border-violet-300 bg-violet-50 px-3 py-2 text-sm font-medium text-violet-950">
+                        {pendingInbound} pindahan HQ dalam perjalanan — pergi tab{' '}
+                        <button
+                          type="button"
+                          className="underline"
+                          onClick={() => setActiveTab('transfer')}
+                        >
+                          Pindah
+                        </button>{' '}
+                        → Terima di Kiosk
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
               )}
@@ -304,21 +366,31 @@ export function InventoryDashboard() {
                     <TabsTrigger value="movements" className={moduleTabsTriggerClass}>
                       <History className="h-4 w-4" /> Pergerakan
                     </TabsTrigger>
-                    <TabsTrigger value="receive" className={moduleTabsTriggerClass}>
-                      <Plus className="h-4 w-4" /> Terima
-                    </TabsTrigger>
-                    <TabsTrigger value="transfer" className={moduleTabsTriggerClass}>
-                      <ArrowLeftRight className="h-4 w-4" /> Pindah
-                    </TabsTrigger>
-                    <TabsTrigger value="adjust" className={moduleTabsTriggerClass}>
-                      <ClipboardList className="h-4 w-4" /> Laras
-                    </TabsTrigger>
-                    <TabsTrigger value="count" className={moduleTabsTriggerClass}>
-                      <ClipboardList className="h-4 w-4" /> Kira
-                    </TabsTrigger>
-                    <TabsTrigger value="writeoff" className={moduleTabsTriggerClass}>
-                      <Trash2 className="h-4 w-4" /> Lupus
-                    </TabsTrigger>
+                    {stockAccess?.canReceive && (
+                      <TabsTrigger value="receive" className={moduleTabsTriggerClass}>
+                        <Plus className="h-4 w-4" /> Terima
+                      </TabsTrigger>
+                    )}
+                    {stockAccess?.canTransfer && (
+                      <TabsTrigger value="transfer" className={moduleTabsTriggerClass}>
+                        <ArrowLeftRight className="h-4 w-4" /> Pindah
+                      </TabsTrigger>
+                    )}
+                    {stockAccess?.canAdjust && (
+                      <TabsTrigger value="adjust" className={moduleTabsTriggerClass}>
+                        <ClipboardList className="h-4 w-4" /> Laras
+                      </TabsTrigger>
+                    )}
+                    {stockAccess?.canCount && (
+                      <TabsTrigger value="count" className={moduleTabsTriggerClass}>
+                        <ClipboardList className="h-4 w-4" /> Kira
+                      </TabsTrigger>
+                    )}
+                    {stockAccess?.canWriteOff && (
+                      <TabsTrigger value="writeoff" className={moduleTabsTriggerClass}>
+                        <Trash2 className="h-4 w-4" /> Lupus
+                      </TabsTrigger>
+                    )}
                   </TabsList>
 
                   <TabsContent value="balances" className="mt-4">
@@ -329,7 +401,7 @@ export function InventoryDashboard() {
                         description="Lokasi ini belum mempunyai baki stok. Terima stok dari tab Terima."
                       />
                     ) : (
-                      <BalanceTable balances={balances} />
+                      <BalanceTable balances={balances} showPackConversion={isKioskView} />
                     )}
                   </TabsContent>
 
@@ -338,19 +410,27 @@ export function InventoryDashboard() {
                   </TabsContent>
 
                   <TabsContent value="receive" className="mt-4">
-                    <StockLineForm
-                      mode="receive"
-                      stockItems={stockItems}
-                      onSubmit={(items, meta) => handleReceive(items, meta?.notes)}
-                    />
+                    {stockAccess?.canReceive ? (
+                      <StockLineForm
+                        mode="receive"
+                        stockItems={stockItems}
+                        requireRotiProductionDate={requireRotiProductionOnReceive}
+                        onSubmit={(items, meta) => handleReceive(items, meta?.notes)}
+                      />
+                    ) : null}
                   </TabsContent>
 
                   <TabsContent value="transfer" className="mt-4">
-                    <TransferPanel
+                    {stockAccess?.canTransfer ? (
+                      <TransferPanel
                       locations={locations}
                       stockItems={stockItems}
                       transfers={transfers}
                       currentLocationId={selectedLocationId}
+                      orderInPacks={
+                        selectedLocation?.location_type === 'HQ_WAREHOUSE' ||
+                        selectedLocation?.location_type === 'FACTORY'
+                      }
                       onCreate={async (payload) => {
                         try {
                           await createTransfer(payload);
@@ -380,33 +460,41 @@ export function InventoryDashboard() {
                       }}
                       loadDrivers={fetchDrivers}
                       loadVehicles={fetchVehicles}
+                      canSetRotiProductionDate={orderMaker}
                     />
+                    ) : null}
                   </TabsContent>
 
                   <TabsContent value="adjust" className="mt-4">
-                    <StockLineForm
-                      mode="adjust"
-                      stockItems={stockItems}
-                      balances={balances}
-                      onSubmitAdjust={handleAdjustment}
-                    />
+                    {stockAccess?.canAdjust ? (
+                      <StockLineForm
+                        mode="adjust"
+                        stockItems={stockItems}
+                        balances={balances}
+                        onSubmitAdjust={handleAdjustment}
+                      />
+                    ) : null}
                   </TabsContent>
 
                   <TabsContent value="count" className="mt-4">
-                    <StockLineForm
-                      mode="count"
-                      stockItems={stockItems}
-                      balances={balances}
-                      onSubmitCount={handleCount}
-                    />
+                    {stockAccess?.canCount ? (
+                      <StockLineForm
+                        mode="count"
+                        stockItems={stockItems}
+                        balances={balances}
+                        onSubmitCount={handleCount}
+                      />
+                    ) : null}
                   </TabsContent>
 
                   <TabsContent value="writeoff" className="mt-4">
-                    <StockLineForm
-                      mode="writeoff"
-                      stockItems={stockItems}
-                      onSubmitWriteOff={handleWriteOff}
-                    />
+                    {stockAccess?.canWriteOff ? (
+                      <StockLineForm
+                        mode="writeoff"
+                        stockItems={stockItems}
+                        onSubmitWriteOff={handleWriteOff}
+                      />
+                    ) : null}
                   </TabsContent>
                 </Tabs>
               )}

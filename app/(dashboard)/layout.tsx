@@ -13,6 +13,10 @@ export default async function DashboardLayout({
     redirect('/login');
   }
 
+  if (profile.must_change_password) {
+    redirect('/change-password');
+  }
+
   const permissions = await getRolePermissions(
     profile.organization_id,
     profile.role

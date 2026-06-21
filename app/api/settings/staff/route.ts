@@ -1,0 +1,189 @@
+import { NextResponse } from 'next/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/supabase/server';
+import { getCurrentProfile } from '@/lib/auth/session';
+import { applyBranchIdsFilter } from '@/lib/auth/branch-scope';
+import {
+  assertBranchInPersonnelScope,
+  assertCanManagePersonnel,
+  loadPersonnelScope,
+} from '@/lib/settings/personnel-access';
+import {
+  computeForeignWeeklyPay,
+  computeLocalMonthlyPay,
+  DEFAULT_SHIFTS_PER_WEEK,
+} from '@/lib/payroll/staff-pay-rates';
+import type { PayrollRule } from '@/lib/payroll/types';
+
+async function loadActivePayrollRules(
+  supabase: SupabaseClient,
+  organizationId: string
+) {
+  const { data, error } = await supabase
+    .from('payroll_rules')
+    .select('id, rule_code, worker_type, component, rate, period, shift_hours, status, notes')
+    .eq('organization_id', organizationId)
+    .eq('status', 'ACTIVE');
+
+  if (error) throw new Error(error.message);
+  return (data ?? []) as PayrollRule[];
+}
+
+export async function GET() {
+  const profile = await getCurrentProfile();
+  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  try {
+    assertCanManagePersonnel(profile);
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Forbidden' },
+      { status: 403 }
+    );
+  }
+
+  const supabase = await createClient();
+  let scope;
+  try {
+    scope = await loadPersonnelScope(supabase, profile);
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Forbidden' },
+      { status: 403 }
+    );
+  }
+
+  let query = supabase
+    .from('staff')
+    .select(
+      'id, staff_code, full_name, status, branch_id, region_id, worker_type, weekly_amount, monthly_amount, shift_hours, shifts_per_week, branch:branches(branch_code, branch_name)'
+    )
+    .eq('organization_id', profile.organization_id)
+    .order('staff_code');
+
+  query = applyBranchIdsFilter(query, 'branch_id', scope.branchIds);
+
+  const { data, error } = await query;
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ staff: data ?? [] });
+}
+
+export async function POST(request: Request) {
+  try {
+    const profile = assertCanManagePersonnel(await getCurrentProfile());
+    const body = await request.json();
+    const supabase = await createClient();
+
+    const branchId = await assertBranchInPersonnelScope(
+      supabase,
+      profile,
+      body.branch_id
+    );
+
+    if (!branchId) {
+      return NextResponse.json({ error: 'Cawangan wajib' }, { status: 400 });
+    }
+
+    const staffCode = String(body.staff_code ?? '').trim().toUpperCase();
+    const fullName = String(body.full_name ?? '').trim();
+    const workerType = body.worker_type as 'LOCAL' | 'FOREIGN' | undefined;
+
+    if (!staffCode || !fullName) {
+      return NextResponse.json(
+        { error: 'Kod staf dan nama diperlukan' },
+        { status: 400 }
+      );
+    }
+
+    if (workerType !== 'LOCAL' && workerType !== 'FOREIGN') {
+      return NextResponse.json(
+        { error: 'Pilih jenis staf: Staf Tempatan atau Pekerja Asing' },
+        { status: 400 }
+      );
+    }
+
+    const rules = await loadActivePayrollRules(supabase, profile.organization_id);
+
+    let weeklyAmount: number | null = null;
+    let monthlyAmount: number | null = null;
+    let shiftHours: number | null = null;
+    let shiftsPerWeek: number | null = null;
+
+    if (workerType === 'FOREIGN') {
+      shiftHours = Number(body.shift_hours);
+      shiftsPerWeek = Number(body.shifts_per_week ?? DEFAULT_SHIFTS_PER_WEEK);
+
+      if (!Number.isFinite(shiftHours) || shiftHours <= 0) {
+        return NextResponse.json(
+          { error: 'Pilih kadar shift (8, 9, 12, atau 16 jam)' },
+          { status: 400 }
+        );
+      }
+
+      if (!Number.isFinite(shiftsPerWeek) || shiftsPerWeek <= 0 || shiftsPerWeek > 7) {
+        return NextResponse.json(
+          { error: 'Hari bekerja seminggu mesti antara 1–7' },
+          { status: 400 }
+        );
+      }
+
+      const foreignPay = computeForeignWeeklyPay(rules, shiftHours, shiftsPerWeek);
+      if (foreignPay.perShift <= 0) {
+        return NextResponse.json(
+          { error: 'Kadar shift pekerja asing tidak dijumpai dalam payroll rules' },
+          { status: 400 }
+        );
+      }
+
+      weeklyAmount = foreignPay.weekly;
+    } else {
+      const localPay = computeLocalMonthlyPay(rules);
+      if (localPay.total <= 0) {
+        return NextResponse.json(
+          { error: 'Kadar gaji staf tempatan tidak dijumpai dalam payroll rules' },
+          { status: 400 }
+        );
+      }
+
+      monthlyAmount = localPay.total;
+    }
+
+    const { data: branch } = await supabase
+      .from('branches')
+      .select('region_id')
+      .eq('id', branchId)
+      .maybeSingle();
+
+    const regionId =
+      (branch as { region_id: string } | null)?.region_id ?? profile.region_id;
+
+    const { data, error } = await (supabase as SupabaseClient)
+      .from('staff')
+      .insert({
+        organization_id: profile.organization_id,
+        staff_code: staffCode,
+        full_name: fullName,
+        branch_id: branchId,
+        region_id: regionId,
+        worker_type: workerType,
+        weekly_amount: weeklyAmount,
+        monthly_amount: monthlyAmount,
+        shift_hours: shiftHours,
+        shifts_per_week: shiftsPerWeek,
+        status: 'ACTIVE',
+      })
+      .select(
+        'id, staff_code, full_name, status, branch_id, worker_type, weekly_amount, monthly_amount, shift_hours, shifts_per_week'
+      )
+      .single();
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ staff: data });
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Forbidden' },
+      { status: 403 }
+    );
+  }
+}
+

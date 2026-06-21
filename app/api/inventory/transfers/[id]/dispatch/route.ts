@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { inventoryRpc } from '@/lib/supabase/inventory-rpc';
 import { getCurrentProfile } from '@/lib/auth/session';
+import {
+  assertTransferMutationAllowed,
+  stockGuardErrorMessage,
+} from '@/lib/inventory/stock-guard';
 
 export async function POST(
   _request: Request,
@@ -12,6 +16,17 @@ export async function POST(
 
   const { id } = await params;
   const supabase = await createClient();
+
+  try {
+    await assertTransferMutationAllowed(
+      supabase,
+      profile,
+      'transfer_dispatch',
+      id
+    );
+  } catch (err) {
+    return NextResponse.json({ error: stockGuardErrorMessage(err) }, { status: 403 });
+  }
 
   const { data, error } = await inventoryRpc(supabase, 'dispatch_stock_transfer', {
     p_transfer_id: id,

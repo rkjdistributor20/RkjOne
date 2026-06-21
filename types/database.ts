@@ -286,6 +286,9 @@ export interface Staff {
   account_number: string | null;
   account_holder: string | null;
   weekly_amount: number | null;
+  monthly_amount: number | null;
+  shift_hours: number | null;
+  shifts_per_week: number | null;
   profile_id: string | null;
   status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
   on_hold: boolean;

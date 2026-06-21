@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getCurrentProfile } from '@/lib/auth/session';
+import { HQ_STOCK_ITEM_CODES, isHqStockItemCode } from '@/lib/stock/catalog';
 
 export async function GET(request: Request) {
   const profile = await getCurrentProfile();
@@ -12,11 +13,28 @@ export async function GET(request: Request) {
   }
 
   const supabase = await createClient();
+
+  const { data: locationRow } = await supabase
+    .from('inventory_locations')
+    .select('location_type')
+    .eq('id', locationId)
+    .maybeSingle();
+
+  const isHq =
+    (locationRow as { location_type?: string } | null)?.location_type === 'HQ_WAREHOUSE';
+
+  const isKiosk =
+    (locationRow as { location_type?: string } | null)?.location_type === 'BRANCH_KIOSK';
+
   const { data, error } = await supabase
     .from('inventory_balances')
     .select(`
       id, location_id, stock_item_id, quantity, unit,
-      stock_item:stock_items(id, item_code, name, category, base_unit, min_threshold, critical_threshold)
+      stock_item:stock_items(
+        id, item_code, name, category, base_unit,
+        min_threshold, critical_threshold,
+        pack_quantity, pack_unit, conversion_text
+      )
     `)
     .eq('location_id', locationId)
     .order('updated_at', { ascending: false });
@@ -37,10 +55,24 @@ export async function GET(request: Request) {
       name: string;
       category: string | null;
       base_unit: string;
+      pack_quantity: number | null;
+      pack_unit: string | null;
+      conversion_text: string | null;
     };
   };
 
-  const balances = ((data ?? []) as unknown as Row[]).map((row) => {
+  let rows = (data ?? []) as unknown as Row[];
+
+  if (isHq || isKiosk) {
+    rows = rows.filter((row) => isHqStockItemCode(row.stock_item?.item_code ?? ''));
+    rows.sort(
+      (a, b) =>
+        HQ_STOCK_ITEM_CODES.indexOf(a.stock_item.item_code as (typeof HQ_STOCK_ITEM_CODES)[number]) -
+        HQ_STOCK_ITEM_CODES.indexOf(b.stock_item.item_code as (typeof HQ_STOCK_ITEM_CODES)[number])
+    );
+  }
+
+  const balances = rows.map((row) => {
     const item = row.stock_item;
     const qty = Number(row.quantity);
     let status: 'OK' | 'LOW' | 'CRITICAL' = 'OK';

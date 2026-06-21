@@ -119,8 +119,15 @@ try {
 
   const { count: stockCount } = await supabase
     .from('stock_items')
-    .select('*', { count: 'exact', head: true });
-  pass('Stock items', `${stockCount ?? 0} item`);
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'ACTIVE')
+    .in('item_code', [
+      'ST-PLANTA', 'ST-KELAPA', 'ST-KACANG', 'ST-BENGGALI',
+      'ST-KAYA', 'ST-BUTTER', 'ST-PLASTIC-S', 'ST-PLASTIC-M', 'ST-PLASTIC-B',
+    ]);
+  if ((stockCount ?? 0) === 9) pass('Stock items HQ', '9 jenis (rasmi)');
+  else if ((stockCount ?? 0) >= 9) warn('Stock items HQ', `${stockCount} aktif — semak duplikat STK/PKG`);
+  else fail('Stock items HQ', `${stockCount ?? 0} — jangka 9 jenis`);
 
   const { count: profileCount } = await supabase
     .from('profiles')
@@ -181,22 +188,92 @@ try {
     .select('category')
     .eq('status', 'ACTIVE');
   const cats = new Set((categories ?? []).map((c) => c.category));
-  const expected = ['Roti Kaya', 'Roti Kacang', 'Roti Kelapa', 'Roti Benggali'];
+  const expected = [
+    'Roti Kaya',
+    'Roti Kacang',
+    'Roti Kelapa',
+    'Roti Benggali',
+    'Pelbagai',
+  ];
   const hasAll = expected.every((c) => cats.has(c));
-  if (hasAll && cats.size <= 4) pass('Menu POS (4 kategori)', [...cats].join(', '));
-  else warn('Menu POS', `Aktif: ${[...cats].join(', ') || 'tiada'} — semak 00030`);
+  const pelbagaiCount = (categories ?? []).filter((c) => c.category === 'Pelbagai').length;
+  const { data: pelbagaiProducts } = await supabase
+    .from('products')
+    .select('sku, price')
+    .eq('category', 'Pelbagai')
+    .eq('status', 'ACTIVE');
+  const expectedPelbagai = [
+    ['PLG-KBS-3', 10],
+    ['PLG-KBS-1', 3.3],
+    ['PLG-SCKB-111', 10],
+    ['PLG-SCKB-211', 10],
+    ['PLG-SCKB-212', 11],
+    ['PLG-SCKB-121', 11],
+    ['PLG-SCKB-112', 11],
+    ['PLG-SCK-111', 7],
+    ['PLG-SCK-211', 7],
+    ['PLG-SCK-212', 8],
+    ['PLG-SCK-121', 8],
+    ['PLG-SCK-112', 8],
+    ['PLG-SCK-113', 9],
+    ['PLG-BSEP', 12],
+    ['PLG-BBO', 9],
+    ['PLG-BHKB', 7],
+    ['PLG-BHK', 6],
+    ['PLG-KACB-1', 4.5],
+    ['PLG-KACB-3', 11],
+    ['PLG-KELB-1', 3.5],
+    ['PLG-KELB-3', 10],
+  ];
+  const plgExpectedCount = expectedPelbagai.length;
+  const plgBySku = new Map((pelbagaiProducts ?? []).map((p) => [p.sku, Number(p.price)]));
+  const plgOk = expectedPelbagai.every(
+    ([sku, price]) => plgBySku.has(sku) && Math.abs((plgBySku.get(sku) ?? 0) - price) < 0.01
+  );
+  if (hasAll) {
+    pass(
+      'Menu POS (5 kategori)',
+      [...expected].join(', ') + (pelbagaiCount ? ` · ${pelbagaiCount} SKU Pelbagai` : '')
+    );
+  } else {
+    const missing = expected.filter((c) => !cats.has(c));
+    warn('Menu POS', `Kurang: ${missing.join(', ') || 'tiada'} — semak migration 00043`);
+  }
+  if (plgOk && (pelbagaiProducts?.length ?? 0) === plgExpectedCount) {
+    pass(`Menu Pelbagai (${plgExpectedCount} SKU)`, 'Harga & SKU rasmi OK');
+  } else if ((pelbagaiProducts?.length ?? 0) > 0) {
+    warn(
+      'Menu Pelbagai',
+      `${pelbagaiProducts?.length ?? 0}/${plgExpectedCount} SKU — jalankan migration 00043`
+    );
+  } else {
+    fail('Menu Pelbagai', 'Tiada SKU — jalankan migration 00043');
+  }
 
   console.log('\n3. Auth users (sample)');
   const { data: authList, error: authErr } = await supabase.auth.admin.listUsers({
     page: 1,
-    perPage: 5,
+    perPage: 1000,
   });
   if (authErr) fail('Supabase Auth', authErr.message);
-  else if ((authList?.users?.length ?? 0) > 0) {
-    pass('Auth users', `${authList.users.length}+ wujud (sample)`);
-    warn('Seed users', 'Jika < 50 user, jalankan: npm run seed:users');
-  } else {
-    fail('Auth users', 'Tiada — jalankan: npm run seed:users');
+  else {
+    const userCount = authList?.users?.length ?? 0;
+    if (userCount >= 50) pass('Auth users', `${userCount} akaun`);
+    else if (userCount > 0) warn('Auth users', `${userCount} akaun — jalankan: npm run seed:users`);
+    else fail('Auth users', 'Tiada — jalankan: npm run seed:users');
+  }
+
+  console.log('\n4. Storage buckets');
+  const bucketNames = ['delivery-proof', 'bank-slips', 'receipts'];
+  for (const name of bucketNames) {
+    const res = await fetch(`${url.replace(/\/$/, '')}/storage/v1/bucket/${name}`, {
+      headers: {
+        Authorization: `Bearer ${serviceKey}`,
+        apikey: serviceKey,
+      },
+    });
+    if (res.ok) pass(`Bucket "${name}"`, 'Wujud');
+    else fail(`Bucket "${name}"`, 'Tiada — jalankan: npm run setup:storage');
   }
 } catch (err) {
   fail('Sambungan Supabase', err instanceof Error ? err.message : String(err));
@@ -215,4 +292,4 @@ if (failed > 0) {
   process.exit(1);
 }
 
-console.log('\n==> Asas sistem OK. Teruskan pilot 3 cawangan (docs/GO_LIVE_CHECKLIST.md)\n');
+console.log('\n==> Asas sistem OK. Teruskan: npm run finish:go-live atau deploy Vercel.\n');

@@ -1,81 +1,96 @@
-/** Empat menu rasmi RKJ — tiada kategori lain di POS */
-export const POS_MENU_CATEGORIES = [
-  'Roti Kaya',
-  'Roti Kacang',
-  'Roti Kelapa',
-  'Roti Benggali',
-] as const;
+import {
+  POS_MENU_CATEGORIES,
+  POS_MENU_STOCK_CODES,
+  POS_ROTI_MENU_CATEGORIES,
+  getPosSupplementStock,
+  formatBagPcsLabel,
+  resolvePackQuantity,
+  splitBagAndPcs,
+  toTotalPcs,
+  type PosMenuCategory,
+  type PosRotiMenuCategory,
+} from '@/lib/stock/catalog';
 
-/**
- * Kategori stok inventory (HQ/kiosk) — kekal termasuk Packaging.
- * POS hanya papar 4 menu; plastik ditolak via BOM setiap jualan.
- */
-export const INVENTORY_STOCK_CATEGORIES = [
-  'Roti',
-  'Bahan',
-  'Packaging',
-] as const;
+export { POS_MENU_CATEGORIES, POS_MENU_STOCK_CODES, POS_ROTI_MENU_CATEGORIES };
+export type { PosMenuCategory, PosRotiMenuCategory };
 
-export type PosMenuCategory = (typeof POS_MENU_CATEGORIES)[number];
-
-/** Stok roti asas di kiosk ikut menu POS */
-export const POS_MENU_STOCK_CODES: Record<PosMenuCategory, string> = {
-  'Roti Kaya': 'ST-PLANTA',
-  'Roti Kacang': 'ST-KACANG',
-  'Roti Kelapa': 'ST-KELAPA',
-  'Roti Benggali': 'ST-BENGGALI',
-};
-
-export type KioskStockDisplayMode = 'pcs' | 'kg' | 'pack';
+export type KioskStockDisplayMode = 'pcs' | 'bag' | 'tong' | 'bag_pcs';
 
 export interface KioskStockRowConfig {
   key: string;
   itemCode: string;
   label: string;
   display: KioskStockDisplayMode;
+  packQuantity?: number;
 }
 
-/** Bahan & packaging — dipapar di bar stok POS */
-export const POS_SUPPLEMENT_STOCK: KioskStockRowConfig[] = [
-  { key: 'kaya', itemCode: 'ST-KAYA', label: 'Kaya', display: 'kg' },
-  { key: 'butter', itemCode: 'ST-BUTTER', label: 'Butter', display: 'kg' },
-  { key: 'plastic-s', itemCode: 'ST-PLASTIC-S', label: 'Plastik S', display: 'pack' },
-  { key: 'plastic-m', itemCode: 'ST-PLASTIC-M', label: 'Plastik M', display: 'pack' },
-  { key: 'plastic-b', itemCode: 'ST-PLASTIC-B', label: 'Plastik B', display: 'pack' },
-];
+/** Bahan & plastik — sama catalog dengan Gudang HQ */
+export const POS_SUPPLEMENT_STOCK: KioskStockRowConfig[] = getPosSupplementStock();
+
+export const INVENTORY_STOCK_CATEGORIES = ['Roti', 'Bahan', 'Packaging'] as const;
 
 const LOW_THRESHOLD: Record<KioskStockDisplayMode, number> = {
   pcs: 5,
-  kg: 0.5,
-  pack: 5,
+  bag: 5,
+  tong: 0.5,
+  bag_pcs: 5,
 };
+
+export interface KioskStockDisplayResult {
+  displayQuantity: number;
+  displayUnit: string;
+  statusValue: number;
+  displayBags?: number;
+  displayRemainderPcs?: number;
+  packQuantity?: number;
+}
 
 export function toKioskStockDisplay(
   quantity: number,
   balanceUnit: string,
   display: KioskStockDisplayMode,
-  packQuantity?: number | null
-): { displayQuantity: number; displayUnit: string; statusValue: number } {
+  packQuantity?: number | null,
+  itemCode?: string
+): KioskStockDisplayResult {
   const unit = balanceUnit.toUpperCase();
+  const resolvedPack =
+    resolvePackQuantity(itemCode, { pack_quantity: packQuantity }) ??
+    (packQuantity && packQuantity > 0 ? Number(packQuantity) : null);
 
-  if (display === 'kg') {
+  if (display === 'tong') {
     const grams =
       unit === 'KG' || unit === 'KILOGRAM' ? quantity * 1000 : quantity;
-    const kg = grams / 1000;
-    return { displayQuantity: kg, displayUnit: 'kg', statusValue: kg };
+    const tongSize = resolvedPack && resolvedPack > 0 ? resolvedPack : 5000;
+    const tongs = grams / tongSize;
+    return { displayQuantity: tongs, displayUnit: 'tong', statusValue: tongs };
   }
 
-  if (display === 'pack') {
-    const pcsPerPack = packQuantity && packQuantity > 0 ? Number(packQuantity) : 100;
-    const packs =
-      unit === 'PACK' ? quantity : quantity / pcsPerPack;
-    return { displayQuantity: packs, displayUnit: 'pack', statusValue: packs };
+  if (display === 'bag') {
+    const pcsPerBag = resolvedPack && resolvedPack > 0 ? resolvedPack : 100;
+    const bags = unit === 'BAG' ? quantity : quantity / pcsPerBag;
+    return { displayQuantity: bags, displayUnit: 'bag', statusValue: bags };
   }
 
+  if (display === 'bag_pcs') {
+    const pcsPerBag = resolvedPack && resolvedPack > 0 ? resolvedPack : 1;
+    const totalPcs = toTotalPcs(quantity, balanceUnit, pcsPerBag);
+    const { bags, remainderPcs } = splitBagAndPcs(totalPcs, pcsPerBag);
+    return {
+      displayQuantity: totalPcs,
+      displayUnit: 'bag_pcs',
+      statusValue: totalPcs,
+      displayBags: bags,
+      displayRemainderPcs: remainderPcs,
+      packQuantity: pcsPerBag,
+    };
+  }
+
+  const pcsPerBag = resolvedPack && resolvedPack > 0 ? resolvedPack : 1;
+  const totalPcs = toTotalPcs(quantity, balanceUnit, pcsPerBag);
   return {
-    displayQuantity: quantity,
+    displayQuantity: totalPcs,
     displayUnit: balanceUnit || 'pcs',
-    statusValue: quantity,
+    statusValue: totalPcs,
   };
 }
 
@@ -89,28 +104,53 @@ export function kioskStockStatus(
 }
 
 export function formatKioskStockLabel(
-  displayQuantity: number,
-  displayUnit: string
+  input:
+    | {
+        displayQuantity: number;
+        displayUnit: string;
+        displayBags?: number;
+        displayRemainderPcs?: number;
+        packQuantity?: number;
+        itemCode?: string;
+      }
+    | number,
+  displayUnit?: string
 ): string {
-  if (displayUnit === 'kg') {
+  const balance =
+    typeof input === 'number'
+      ? { displayQuantity: input, displayUnit: displayUnit ?? 'pcs' }
+      : input;
+
+  if (balance.displayUnit === 'bag_pcs') {
+    const packQty =
+      resolvePackQuantity(balance.itemCode, {
+        pack_quantity: balance.packQuantity,
+      }) ?? 1;
+    return formatBagPcsLabel(Math.round(balance.displayQuantity), packQty);
+  }
+
+  if (balance.displayUnit === 'tong') {
     const formatted =
-      displayQuantity >= 10
-        ? displayQuantity.toFixed(1)
-        : displayQuantity.toFixed(2);
-    return `${formatted} kg`;
+      balance.displayQuantity >= 10
+        ? balance.displayQuantity.toFixed(1)
+        : balance.displayQuantity.toFixed(2);
+    return `${formatted} tong`;
   }
-  if (displayUnit === 'pack') {
-    return `${Math.floor(displayQuantity).toLocaleString()} pack`;
+  if (balance.displayUnit === 'bag') {
+    return `${Math.floor(balance.displayQuantity).toLocaleString()} bag`;
   }
-  return `${Math.floor(displayQuantity).toLocaleString()} ${displayUnit}`;
+  return `${Math.floor(balance.displayQuantity).toLocaleString()} ${balance.displayUnit}`;
 }
 
 const LEGACY_CATEGORY: Record<string, PosMenuCategory> = {
   Benggali: 'Roti Benggali',
+  Bengali: 'Roti Benggali',
   Kelapa: 'Roti Kelapa',
   Kacang: 'Roti Kacang',
   Kaya: 'Roti Kaya',
   Planta: 'Roti Kaya',
+  Pelbagai: 'Pelbagai',
+  Miscellaneous: 'Pelbagai',
 };
 
 export function normalizePosCategory(

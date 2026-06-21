@@ -3,6 +3,8 @@ import type {
   CountItemInput,
   InventoryBalanceRow,
   InventoryLocation,
+  KioskOverviewBranch,
+  KioskOverviewSummary,
   LineItemInput,
   StockItemOption,
   StockMovementRow,
@@ -28,8 +30,17 @@ export async function fetchLocations(type?: string, branchId?: string) {
   );
 }
 
-export async function fetchStockItems() {
-  return fetchJson<{ items: StockItemOption[] }>('/api/inventory/stock-items');
+export async function fetchKioskOverview(branchId?: string) {
+  const params = branchId ? `?branch_id=${branchId}` : '';
+  return fetchJson<{
+    branches: KioskOverviewBranch[];
+    summary: KioskOverviewSummary;
+  }>(`/api/inventory/kiosk-overview${params}`);
+}
+
+export async function fetchStockItems(options?: { hq?: boolean }) {
+  const params = options?.hq ? '?hq=1' : '';
+  return fetchJson<{ items: StockItemOption[] }>(`/api/inventory/stock-items${params}`);
 }
 
 export async function fetchBalances(locationId: string) {
