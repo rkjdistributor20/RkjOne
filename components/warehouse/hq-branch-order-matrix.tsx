@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, Sparkles, User } from 'lucide-react';
+import { ChevronDown, ChevronRight, Sparkles, User, TrendingUp } from 'lucide-react';
 import type { OrderSuggestionBranch } from '@/lib/production/types';
 import { driversForRegion } from '@/lib/production/driver-routing';
 import { HQ_ROTI_ITEM_CODES } from '@/lib/stock/catalog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
 export type BranchQtyMap = Record<string, Record<string, string>>;
@@ -20,6 +21,7 @@ interface DriverOption {
 
 interface HqBranchOrderMatrixProps {
   branches: OrderSuggestionBranch[];
+  branchCount?: number;
   quantities: BranchQtyMap;
   branchDrivers: BranchDriverMap;
   onChange: (quantities: BranchQtyMap) => void;
@@ -33,8 +35,15 @@ const REGION_LABELS: Record<string, string> = {
   SELATAN: 'Selatan',
 };
 
+const STOCK_STATUS_CLASS: Record<string, string> = {
+  CRITICAL: 'border-red-300 bg-red-50',
+  LOW: 'border-amber-300 bg-amber-50',
+  OK: 'border-border bg-background',
+};
+
 export function HqBranchOrderMatrix({
   branches,
+  branchCount,
   quantities,
   branchDrivers,
   onChange,
@@ -58,7 +67,7 @@ export function HqBranchOrderMatrix({
   const byRegion = useMemo(() => {
     const map = new Map<string, OrderSuggestionBranch[]>();
     for (const b of branches) {
-      const region = b.region_code ?? 'LAIN';
+      const region = (b.region_code ?? 'LAIN').toUpperCase();
       const list = map.get(region) ?? [];
       list.push(b);
       map.set(region, list);
@@ -67,6 +76,14 @@ export function HqBranchOrderMatrix({
       list.sort((a, b) => a.branch_code.localeCompare(b.branch_code));
     }
     return map;
+  }, [branches]);
+
+  const totalSuggestedBags = useMemo(() => {
+    let n = 0;
+    for (const b of branches) {
+      for (const item of b.items) n += item.suggested_bags;
+    }
+    return n;
   }, [branches]);
 
   function setQty(branchId: string, itemCode: string, value: string) {
@@ -83,7 +100,9 @@ export function HqBranchOrderMatrix({
   function applySuggestion(branch: OrderSuggestionBranch) {
     const next = { ...quantities, [branch.branch_id]: { ...(quantities[branch.branch_id] ?? {}) } };
     for (const item of branch.items) {
-      next[branch.branch_id][item.item_code] = String(item.suggested_bags);
+      if (item.suggested_bags > 0) {
+        next[branch.branch_id][item.item_code] = String(item.suggested_bags);
+      }
     }
     onChange(next);
     if (branch.default_driver_id) {
@@ -102,17 +121,37 @@ export function HqBranchOrderMatrix({
   if (branches.length === 0) {
     return (
       <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-        Tiada cadangan cawangan — semak baki stok kiosk.
+        Tiada cawangan dijumpai — pastikan 36 kiosk cawangan wujud dalam sistem.
       </p>
     );
   }
 
   return (
     <div className="space-y-3">
-      <Button type="button" variant="outline" size="sm" className="gap-1 text-xs" onClick={applyAllDrivers} disabled={disabled}>
-        <User className="h-3 w-3" />
-        Auto-tugaskan driver ikut kawasan
-      </Button>
+      <div className="rounded-lg border border-violet-200 bg-violet-50/60 px-4 py-3 text-sm text-violet-950">
+        <p className="flex flex-wrap items-center gap-2 font-semibold">
+          <TrendingUp className="h-4 w-4" />
+          {branchCount ?? branches.length} cawangan · {totalSuggestedBags} bag cadangan AI
+        </p>
+        <p className="mt-1 text-xs text-violet-900/80">
+          Baki stok kiosk + ramalan ikut jualan 14 hari &amp; potensi lokasi (RNR/OBR/Plaza Tol).
+          Klik <strong>Cadangan</strong> per cawangan atau guna butang di atas untuk isi semua.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="gap-1 text-xs"
+          onClick={applyAllDrivers}
+          disabled={disabled}
+        >
+          <User className="h-3 w-3" />
+          Auto-tugaskan driver ikut kawasan
+        </Button>
+      </div>
 
       {[...byRegion.entries()].map(([region, regionBranches]) => (
         <div key={region} className="overflow-hidden rounded-xl border bg-card">
@@ -124,7 +163,11 @@ export function HqBranchOrderMatrix({
             <span className="font-semibold">
               {REGION_LABELS[region] ?? region} · {regionBranches.length} cawangan
             </span>
-            {openRegions[region] ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            {openRegions[region] ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
           </button>
 
           {openRegions[region] && (
@@ -133,13 +176,37 @@ export function HqBranchOrderMatrix({
                 const regionDrivers = driversForRegion(allDrivers, branch.region_code);
                 const selectedDriver =
                   branchDrivers[branch.branch_id] ?? branch.default_driver_id ?? '';
+                const branchSuggested = branch.items.reduce((s, i) => s + i.suggested_bags, 0);
 
                 return (
                   <div key={branch.branch_id} className="px-4 py-3">
                     <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         <p className="font-medium">{branch.branch_name}</p>
-                        <p className="text-xs text-muted-foreground">{branch.branch_code}</p>
+                        <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                          <span>{branch.branch_code}</span>
+                          {branch.potential_factor != null && (
+                            <Badge variant="secondary" className="text-[10px]">
+                              Potensi ×{branch.potential_factor}
+                            </Badge>
+                          )}
+                          {branch.branch_status === 'INACTIVE' && (
+                            <Badge variant="outline" className="text-[10px]">
+                              Tidak aktif
+                            </Badge>
+                          )}
+                          {branch.has_kiosk === false && (
+                            <Badge variant="destructive" className="text-[10px]">
+                              Tiada kiosk
+                            </Badge>
+                          )}
+                          {branch.avg_daily_sales != null && branch.avg_daily_sales > 0 && (
+                            <span>RM{branch.avg_daily_sales}/hari</span>
+                          )}
+                          {branchSuggested > 0 && (
+                            <span className="text-violet-700">AI: {branchSuggested} bag</span>
+                          )}
+                        </p>
                       </div>
                       <select
                         className="h-9 max-w-[200px] rounded-md border bg-background px-2 text-xs"
@@ -170,25 +237,54 @@ export function HqBranchOrderMatrix({
                       {HQ_ROTI_ITEM_CODES.map((code) => {
                         const hint = branch.items.find((i) => i.item_code === code);
                         const val = quantities[branch.branch_id]?.[code] ?? '';
+                        const status = hint?.stock_status ?? 'OK';
                         return (
                           <div
                             key={code}
-                            className="flex items-center gap-2 rounded-lg border px-2 py-1.5"
+                            className={cn(
+                              'rounded-lg border px-2 py-1.5',
+                              STOCK_STATUS_CLASS[status] ?? STOCK_STATUS_CLASS.OK
+                            )}
                           >
-                            <span className="min-w-0 flex-1 truncate text-xs font-medium">
-                              {hint?.name ?? code.replace('ST-', '')}
-                            </span>
-                            <Input
-                              type="number"
-                              min="0"
-                              step="1"
-                              disabled={disabled}
-                              className="h-8 w-14 px-1 text-center text-sm tabular-nums"
-                              placeholder="0"
-                              value={val}
-                              onChange={(e) => setQty(branch.branch_id, code, e.target.value)}
-                            />
-                            <span className="text-[10px] text-muted-foreground">bag</span>
+                            <div className="mb-1 flex items-center justify-between gap-1">
+                              <span className="truncate text-xs font-medium">
+                                {hint?.name ?? code.replace('ST-', '')}
+                              </span>
+                              {status !== 'OK' && (
+                                <Badge
+                                  variant={status === 'CRITICAL' ? 'destructive' : 'outline'}
+                                  className="h-4 px-1 text-[9px]"
+                                >
+                                  {status}
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Input
+                                type="number"
+                                min="0"
+                                step="1"
+                                disabled={disabled}
+                                className="h-8 w-14 px-1 text-center text-sm tabular-nums"
+                                placeholder="0"
+                                value={val}
+                                onChange={(e) => setQty(branch.branch_id, code, e.target.value)}
+                              />
+                              <span className="text-[10px] text-muted-foreground">bag</span>
+                            </div>
+                            {hint && (
+                              <p className="mt-1 text-[10px] leading-tight text-muted-foreground">
+                                Stok: <strong>{hint.current_pcs}</strong> pcs
+                                {hint.suggested_bags > 0 && (
+                                  <>
+                                    {' '}
+                                    · cadangan{' '}
+                                    <strong className="text-violet-700">{hint.suggested_bags}</strong>{' '}
+                                    bag
+                                  </>
+                                )}
+                              </p>
+                            )}
                           </div>
                         );
                       })}

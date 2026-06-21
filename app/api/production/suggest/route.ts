@@ -2,6 +2,20 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getCurrentProfile } from '@/lib/auth/session';
 import { inventoryRpc } from '@/lib/supabase/inventory-rpc';
+import type { OrderSuggestion } from '@/lib/production/types';
+
+function parseSuggestion(data: unknown): OrderSuggestion | null {
+  if (!data) return null;
+  if (typeof data === 'string') {
+    try {
+      return JSON.parse(data) as OrderSuggestion;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof data === 'object') return data as OrderSuggestion;
+  return null;
+}
 
 export async function GET(request: Request) {
   const profile = await getCurrentProfile();
@@ -26,5 +40,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
-  return NextResponse.json({ suggestion: data });
+  const suggestion = parseSuggestion(data);
+  if (!suggestion) {
+    return NextResponse.json({ error: 'Format cadangan tidak sah' }, { status: 500 });
+  }
+
+  return NextResponse.json({ suggestion });
 }

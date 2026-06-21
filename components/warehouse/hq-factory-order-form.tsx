@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 import { Send, FileText, Sparkles, Clock, AlertTriangle } from 'lucide-react';
 import type { StockItemOption } from '@/lib/inventory/types';
 import type { OrderSuggestion, PublishedProductionDate } from '@/lib/production/types';
@@ -85,8 +86,9 @@ export function HqFactoryOrderForm({
     try {
       const { suggestion: data } = await fetchOrderSuggestion(date);
       setSuggestion(data);
-    } catch {
+    } catch (err) {
       setSuggestion(null);
+      toast.error(err instanceof Error ? err.message : 'Gagal memuatkan cadangan cawangan');
     } finally {
       setLoadingSuggest(false);
     }
@@ -107,7 +109,9 @@ export function HqFactoryOrderForm({
     for (const branch of suggestion.branches) {
       next[branch.branch_id] = {};
       for (const item of branch.items) {
-        next[branch.branch_id][item.item_code] = String(item.suggested_bags);
+        if (item.suggested_bags > 0) {
+          next[branch.branch_id][item.item_code] = String(item.suggested_bags);
+        }
       }
     }
     setBranchQty(next);
@@ -318,6 +322,7 @@ export function HqFactoryOrderForm({
               ) : (
                 <HqBranchOrderMatrix
                   branches={suggestion?.branches ?? []}
+                  branchCount={suggestion?.branch_count}
                   quantities={branchQty}
                   branchDrivers={branchDrivers}
                   onChange={setBranchQty}

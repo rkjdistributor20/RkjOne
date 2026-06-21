@@ -72,6 +72,8 @@ export interface OrderSuggestionBranchItem {
   suggested_bags: number;
   suggested_pcs: number;
   unit: string;
+  stock_status?: 'OK' | 'LOW' | 'CRITICAL';
+  prediction_note?: string;
 }
 
 export interface OrderSuggestionBranch {
@@ -79,7 +81,11 @@ export interface OrderSuggestionBranch {
   branch_code: string;
   branch_name: string;
   region_code: string | null;
-  location_id: string;
+  location_id: string | null;
+  branch_status?: string;
+  has_kiosk?: boolean;
+  potential_factor?: number;
+  avg_daily_sales?: number;
   default_driver_id?: string | null;
   default_driver_name?: string | null;
   items: OrderSuggestionBranchItem[];
@@ -97,6 +103,7 @@ export interface OrderSuggestion {
   production_date: string;
   cutoff_at: string;
   window_open: boolean;
+  branch_count?: number;
   branches: OrderSuggestionBranch[];
   factory_items: OrderSuggestionFactoryItem[];
 }
