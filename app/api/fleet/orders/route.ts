@@ -3,16 +3,19 @@ import { createClient } from '@/lib/supabase/server';
 import { inventoryRpc } from '@/lib/supabase/inventory-rpc';
 import { getCurrentProfile } from '@/lib/auth/session';
 
-export async function GET() {
+export async function GET(request: Request) {
   const profile = await getCurrentProfile();
 
   if (!profile) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const { searchParams } = new URL(request.url);
+  const mine = searchParams.get('mine') === 'true';
+
   const supabase = await createClient();
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('delivery_orders')
     .select(`
       *,
@@ -35,6 +38,24 @@ export async function GET() {
     `)
     .eq('organization_id', profile.organization_id)
     .order('created_at', { ascending: false });
+
+  if (mine && profile.role === 'DRIVER') {
+    const { data: driverRow } = await supabase
+      .from('drivers')
+      .select('id')
+      .eq('organization_id', profile.organization_id)
+      .eq('profile_id', profile.id)
+      .eq('status', 'ACTIVE')
+      .maybeSingle();
+
+    const driverId = (driverRow as { id: string } | null)?.id;
+    if (!driverId) {
+      return NextResponse.json({ orders: [] });
+    }
+    query = query.eq('primary_driver_id', driverId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -63,6 +84,7 @@ export async function POST(request: Request) {
       p_primary_driver_id: payload.primary_driver_id ?? null,
       p_primary_vehicle_id: payload.primary_vehicle_id ?? null,
       p_scheduled_date: payload.scheduled_date ?? null,
+      p_ai_route_summary: payload.ai_route_summary ?? null,
     });
 
     if (error) {

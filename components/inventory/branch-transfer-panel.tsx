@@ -5,10 +5,13 @@ import { toast } from 'sonner';
 import {
   AlertCircle,
   ArrowDownToLine,
+  ArrowRight,
   ArrowUpFromLine,
   Plus,
   Search,
+  Store,
   Trash2,
+  Warehouse,
 } from 'lucide-react';
 import {
   createTransfer,
@@ -34,7 +37,14 @@ import {
   validateRebalancePlan,
   type DropAllocation,
   type PickupAllocation,
+  type TransferLeg,
 } from '@/lib/inventory/branch-rebalance';
+import {
+  TRANSFER_ROUTE_LABELS,
+  type TransferRouteMode,
+  isAllowedInventoryJourneyRoute,
+  routeModeFromTransfer,
+} from '@/lib/inventory/transfer-route';
 import {
   formatBranchDestination,
   formatBranchDestinationDetail,
@@ -60,9 +70,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth-store';
-import { isAreaManagerRole, isOperationManagerRole } from '@/lib/auth/stock-access';
+import { isAreaManagerRole, isOperationManagerRole, canManageHqStockInOut } from '@/lib/auth/stock-access';
 import {
   formatExpiryDate,
   ROTI_SHELF_LIFE_DAYS,
@@ -196,6 +207,224 @@ async function loadPickupLinesForLocation(
   return buildPickupLines(stockItems, official, batches);
 }
 
+function buildHqPickupLines(
+  stockItems: StockItemOption[],
+  balances: InventoryBalanceRow[]
+): StockLine[] {
+  const byCode = new Map(balances.map((b) => [b.stock_item.item_code, b]));
+  return HQ_STOCK_ITEM_CODES.map((code) => {
+    const def = getStockByCode(code)!;
+    const item = stockItems.find((s) => s.item_code === code);
+    const row = byCode.get(code);
+    const is_roti = (HQ_ROTI_ITEM_CODES as readonly string[]).includes(code);
+    return {
+      item_code: code,
+      stock_item_id: item?.id ?? row?.stock_item_id ?? '',
+      name: def.name,
+      unit: row?.unit ?? def.base_unit,
+      balance: Number(row?.quantity ?? 0),
+      quantity: '',
+      production_date: '',
+      is_roti,
+    };
+  });
+}
+
+async function loadHqPickupLines(
+  locationId: string,
+  stockItems: StockItemOption[]
+): Promise<StockLine[]> {
+  const { balances: rows } = await fetchBalances(locationId);
+  const official = rows.filter((r) => isHqStockItemCode(r.stock_item.item_code));
+  return buildHqPickupLines(stockItems, official);
+}
+
+function countStopUnits(lines: StockLine[]): number {
+  let total = 0;
+  for (const line of lines) {
+    if (line.is_roti && line.batches?.length) {
+      for (const batch of line.batches) total += Number(batch.quantity) || 0;
+    } else {
+      total += Number(line.quantity) || 0;
+    }
+  }
+  return total;
+}
+
+function buildAllocationsFromStops(
+  pickupStops: PickupStop[],
+  dropStops: DropStop[]
+): { pickups: PickupAllocation[]; drops: DropAllocation[] } {
+  const pickups: PickupAllocation[] = pickupStops
+    .filter((s) => s.locationId)
+    .map((s) => {
+      const items: PickupAllocation['items'] = [];
+      for (const line of s.lines) {
+        if (line.is_roti && line.batches?.length) {
+          for (const batch of line.batches) {
+            const qty = Number(batch.quantity);
+            if (qty <= 0 || batch.expired) continue;
+            items.push({
+              stock_item_id: line.stock_item_id,
+              item_code: line.item_code,
+              quantity: qty,
+              unit: line.unit,
+              production_date: batch.production_date,
+              expires_on: batch.expires_on,
+            });
+          }
+        } else if (Number(line.quantity) > 0) {
+          items.push({
+            stock_item_id: line.stock_item_id,
+            item_code: line.item_code,
+            quantity: Number(line.quantity),
+            unit: line.unit,
+          });
+        }
+      }
+      return { locationId: s.locationId, items };
+    })
+    .filter((p) => p.items.length > 0);
+
+  const drops: DropAllocation[] = dropStops
+    .filter((s) => s.locationId)
+    .map((s) => ({
+      locationId: s.locationId,
+      items: s.lines
+        .filter((l) => Number(l.quantity) > 0)
+        .map((l) => ({
+          stock_item_id: l.stock_item_id,
+          item_code: l.item_code,
+          quantity: Number(l.quantity),
+          unit: l.unit,
+        })),
+    }))
+    .filter((d) => d.items.length > 0);
+
+  return { pickups, drops };
+}
+
+function formatLegItemLabel(item: TransferLeg['items'][number]): string {
+  const name = getStockByCode(item.item_code)?.name ?? item.item_code;
+  const qty = formatStockQuantity(item.quantity, item.unit, { item_code: item.item_code });
+  if (item.production_date) {
+    return `${name} ${qty} · prod ${formatExpiryDate(item.production_date)}`;
+  }
+  return `${name} ${qty}`;
+}
+
+function JourneyPreviewPanel({
+  kiosks,
+  pickupStops,
+  dropStops,
+  legs,
+  totalsBalanced,
+}: {
+  kiosks: InventoryLocation[];
+  pickupStops: PickupStop[];
+  dropStops: DropStop[];
+  legs: TransferLeg[];
+  totalsBalanced: boolean;
+}) {
+  const labelFor = (locationId: string) => {
+    const loc = kiosks.find((k) => k.id === locationId);
+    return loc ? formatBranchDestination(loc) : 'Cawangan';
+  };
+
+  const pickupNodes = pickupStops
+    .filter((s) => s.locationId)
+    .map((s) => ({
+      id: s.locationId,
+      label: labelFor(s.locationId),
+      sub: countStopUnits(s.lines) > 0 ? `${countStopUnits(s.lines)} unit` : 'Tiada kuantiti',
+    }));
+
+  const dropNodes = dropStops
+    .filter((s) => s.locationId)
+    .map((s) => ({
+      id: s.locationId,
+      label: labelFor(s.locationId),
+      sub: countStopUnits(s.lines) > 0 ? `${countStopUnits(s.lines)} unit` : 'Tiada kuantiti',
+    }));
+
+  if (!pickupNodes.length && !dropNodes.length) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-xl border bg-muted/30 p-3 space-y-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Pratonton perjalanan
+      </p>
+
+      <div className="flex flex-wrap items-center gap-1">
+        {pickupNodes.map((node, i) => (
+          <div key={`pick-${node.id}`} className="flex items-center gap-1">
+            {i > 0 && <span className="text-[10px] text-muted-foreground">+</span>}
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50/80 px-2.5 py-1.5 text-center">
+              <ArrowDownToLine className="mx-auto h-3.5 w-3.5 text-emerald-700" />
+              <p className="text-[10px] font-semibold text-emerald-900">Ambil</p>
+              <p className="max-w-[100px] truncate text-[9px] font-medium">{node.label}</p>
+              <p className="max-w-[100px] truncate text-[9px] text-muted-foreground">{node.sub}</p>
+            </div>
+          </div>
+        ))}
+
+        {pickupNodes.length > 0 && dropNodes.length > 0 && (
+          <ArrowRight className="mx-1 h-4 w-4 shrink-0 text-muted-foreground/70" />
+        )}
+
+        {dropNodes.map((node, i) => (
+          <div key={`drop-${node.id}`} className="flex items-center gap-1">
+            {i > 0 && <span className="text-[10px] text-muted-foreground">+</span>}
+            <div className="rounded-lg border border-amber-200 bg-amber-50/80 px-2.5 py-1.5 text-center">
+              <ArrowUpFromLine className="mx-auto h-3.5 w-3.5 text-amber-700" />
+              <p className="text-[10px] font-semibold text-amber-900">Hantar</p>
+              <p className="max-w-[100px] truncate text-[9px] font-medium">{node.label}</p>
+              <p className="max-w-[100px] truncate text-[9px] text-muted-foreground">{node.sub}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {totalsBalanced && legs.length > 0 ? (
+        <div className="space-y-2 border-t pt-3">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Pindahan kiosk → kiosk ({legs.length})
+          </p>
+          {legs.map((leg, idx) => (
+            <div key={`${leg.from_location_id}-${leg.to_location_id}-${idx}`} className="rounded-lg border bg-card p-2.5 text-xs">
+              <div className="flex items-center gap-1.5 font-medium">
+                <Store className="h-3.5 w-3.5 text-emerald-700" />
+                <span className="truncate">{labelFor(leg.from_location_id)}</span>
+                <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground" />
+                <Store className="h-3.5 w-3.5 text-amber-700" />
+                <span className="truncate">{labelFor(leg.to_location_id)}</span>
+              </div>
+              <ul className="mt-1.5 space-y-0.5 pl-1 text-muted-foreground">
+                {leg.items.map((item) => (
+                  <li key={`${item.item_code}-${item.production_date ?? 'x'}`}>
+                    · {formatLegItemLabel(item)}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      ) : (
+        pickupNodes.length > 0 &&
+        dropNodes.length > 0 && (
+          <p className="border-t pt-2 text-[11px] text-muted-foreground">
+            {totalsBalanced
+              ? 'Masukkan kuantiti stok untuk pratonton pindahan.'
+              : 'Seimbangkan jumlah diambil = dihantar untuk pratonton pindahan penuh.'}
+          </p>
+        )
+      )}
+    </div>
+  );
+}
+
 function BranchSelect({
   kiosks,
   value,
@@ -279,10 +508,13 @@ function StockGrid({
   lines,
   mode,
   onChange,
+  pickupRotiMode = 'batch',
 }: {
   lines: StockLine[];
   mode: 'pickup' | 'drop';
   onChange: (lines: StockLine[]) => void;
+  /** batch = kiosk batch roti; aggregate = HQ / single-line prod date */
+  pickupRotiMode?: 'batch' | 'aggregate';
 }) {
   function updateBatchQty(lineIdx: number, batchIdx: number, quantity: string) {
     onChange(
@@ -317,7 +549,10 @@ function StockGrid({
         </thead>
         <tbody>
           {lines.map((line, idx) => {
-            if (mode === 'pickup' && line.is_roti) {
+            const useRotiBatches =
+              mode === 'pickup' && line.is_roti && pickupRotiMode === 'batch';
+
+            if (useRotiBatches) {
               const batches = line.batches ?? [];
               if (!batches.length) {
                 return (
@@ -379,7 +614,10 @@ function StockGrid({
 
             return (
               <tr key={line.item_code} className="border-b last:border-0">
-                <td className="px-2 py-1.5" colSpan={mode === 'pickup' ? 4 : 1}>
+                <td
+                  className="px-2 py-1.5"
+                  colSpan={mode === 'pickup' && pickupRotiMode === 'aggregate' && line.is_roti ? 1 : mode === 'pickup' ? 4 : 1}
+                >
                   <p className="font-medium leading-tight">{line.name}</p>
                   <p className="text-[10px] text-muted-foreground">{line.item_code}</p>
                   {mode === 'drop' && line.is_roti && (
@@ -388,7 +626,35 @@ function StockGrid({
                     </p>
                   )}
                 </td>
-                {mode === 'pickup' && null}
+                {mode === 'pickup' && pickupRotiMode === 'aggregate' && line.is_roti && (
+                  <>
+                    <td className="px-2 py-1.5">
+                      <Input
+                        type="date"
+                        className="h-8"
+                        value={line.production_date}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          onChange(
+                            lines.map((l, i) =>
+                              i === idx ? { ...l, production_date: val } : l
+                            )
+                          );
+                        }}
+                      />
+                    </td>
+                    <td className="px-2 py-1.5 text-xs text-muted-foreground">
+                      {line.production_date
+                        ? formatExpiryDate(
+                            new Date(line.production_date + 'T00:00:00')
+                              .toISOString()
+                              .slice(0, 10)
+                          )
+                        : '—'}
+                    </td>
+                    <td className="px-2 py-1.5 text-xs text-muted-foreground">—</td>
+                  </>
+                )}
                 <td className="px-2 py-1.5 text-xs text-muted-foreground">
                   {mode === 'pickup'
                     ? formatStockQuantity(line.balance, line.unit, {
@@ -593,61 +859,26 @@ export function BranchTransferPanel() {
   }
 
   function toAllocations(): { pickups: PickupAllocation[]; drops: DropAllocation[] } {
-    const pickups: PickupAllocation[] = pickupStops
-      .filter((s) => s.locationId)
-      .map((s) => {
-        const items: PickupAllocation['items'] = [];
-        for (const line of s.lines) {
-          if (line.is_roti && line.batches?.length) {
-            for (const batch of line.batches) {
-              const qty = Number(batch.quantity);
-              if (qty <= 0) continue;
-              if (batch.expired) {
-                throw new Error(`${line.name} (${batch.production_date}): batch sudah luput`);
-              }
-              if (qty > batch.balance) {
-                throw new Error(`${line.name}: kuantiti melebihi baki batch (${batch.balance})`);
-              }
-              items.push({
-                stock_item_id: line.stock_item_id,
-                item_code: line.item_code,
-                quantity: qty,
-                unit: line.unit,
-                production_date: batch.production_date,
-                expires_on: batch.expires_on,
-              });
-            }
-          } else if (Number(line.quantity) > 0) {
-            const qty = Number(line.quantity);
-            if (qty > line.balance) {
-              throw new Error(`${line.name}: kuantiti melebihi baki (${line.balance})`);
-            }
-            items.push({
-              stock_item_id: line.stock_item_id,
-              item_code: line.item_code,
-              quantity: qty,
-              unit: line.unit,
-            });
-          }
-        }
-        return { locationId: s.locationId, items };
-      })
-      .filter((p) => p.items.length > 0);
+    const { pickups, drops } = buildAllocationsFromStops(pickupStops, dropStops);
 
-    const drops: DropAllocation[] = dropStops
-      .filter((s) => s.locationId)
-      .map((s) => ({
-        locationId: s.locationId,
-        items: s.lines
-          .filter((l) => Number(l.quantity) > 0)
-          .map((l) => ({
-            stock_item_id: l.stock_item_id,
-            item_code: l.item_code,
-            quantity: Number(l.quantity),
-            unit: l.unit,
-          })),
-      }))
-      .filter((d) => d.items.length > 0);
+    for (const s of pickupStops) {
+      for (const line of s.lines) {
+        if (line.is_roti && line.batches?.length) {
+          for (const batch of line.batches) {
+            const qty = Number(batch.quantity);
+            if (qty <= 0) continue;
+            if (batch.expired) {
+              throw new Error(`${line.name} (${batch.production_date}): batch sudah luput`);
+            }
+            if (qty > batch.balance) {
+              throw new Error(`${line.name}: kuantiti melebihi baki batch (${batch.balance})`);
+            }
+          }
+        } else if (Number(line.quantity) > 0 && Number(line.quantity) > line.balance) {
+          throw new Error(`${line.name}: kuantiti melebihi baki (${line.balance})`);
+        }
+      }
+    }
 
     return { pickups, drops };
   }
@@ -723,13 +954,21 @@ export function BranchTransferPanel() {
     }
   }
 
-  if (loading) {
-    return <Skeleton className="h-64 w-full rounded-xl" />;
-  }
-
   const totalsBalanced = HQ_STOCK_ITEM_CODES.every(
     (code) => (pickTotals.get(code) ?? 0) === (dropTotals.get(code) ?? 0)
   );
+
+  const previewLegs = useMemo(() => {
+    if (!totalsBalanced || !pickupStops.length || !dropStops.length) return [];
+    const { pickups, drops } = buildAllocationsFromStops(pickupStops, dropStops);
+    const validation = validateRebalancePlan(pickups, drops);
+    if (!validation.ok) return [];
+    return buildTransferLegs(pickups, drops);
+  }, [pickupStops, dropStops, totalsBalanced]);
+
+  if (loading) {
+    return <Skeleton className="h-64 w-full rounded-xl" />;
+  }
 
   return (
     <div className="space-y-6">
@@ -778,6 +1017,14 @@ export function BranchTransferPanel() {
           />
         </div>
       </div>
+
+      <JourneyPreviewPanel
+        kiosks={kiosks}
+        pickupStops={pickupStops}
+        dropStops={dropStops}
+        legs={previewLegs}
+        totalsBalanced={totalsBalanced}
+      />
 
       <div className="grid gap-6 xl:grid-cols-2">
         {/* Pickup */}

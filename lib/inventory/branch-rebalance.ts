@@ -60,30 +60,48 @@ export function itemTotals(
 
 export function validateRebalancePlan(
   pickups: PickupAllocation[],
-  drops: DropAllocation[]
+  drops: DropAllocation[],
+  options?: { mode?: 'kiosk-kiosk' | 'hq-kiosk' }
 ): { ok: true } | { ok: false; message: string } {
+  const mode = options?.mode ?? 'kiosk-kiosk';
+
   if (!pickups.length) {
-    return { ok: false, message: 'Tambah sekurang-kurangnya satu cawangan ambil (pickup)' };
+    return {
+      ok: false,
+      message:
+        mode === 'hq-kiosk'
+          ? 'Masukkan stok dari Gudang HQ'
+          : 'Tambah sekurang-kurangnya satu cawangan ambil (pickup)',
+    };
   }
   if (!drops.length) {
     return { ok: false, message: 'Tambah sekurang-kurangnya satu cawangan hantar (drop)' };
   }
 
   const branchCount = countUniqueBranches(pickups, drops);
-  if (branchCount > MAX_REBALANCE_BRANCHES) {
+  if (mode === 'hq-kiosk') {
+    if (drops.length > MAX_REBALANCE_BRANCHES) {
+      return {
+        ok: false,
+        message: `Maksimum ${MAX_REBALANCE_BRANCHES} cawangan destinasi — kini ${drops.length}`,
+      };
+    }
+  } else if (branchCount > MAX_REBALANCE_BRANCHES) {
     return {
       ok: false,
       message: `Maksimum ${MAX_REBALANCE_BRANCHES} cawangan — kini ${branchCount}`,
     };
   }
 
-  const pickupIds = new Set(pickups.map((p) => p.locationId));
-  for (const drop of drops) {
-    if (pickupIds.has(drop.locationId)) {
-      return {
-        ok: false,
-        message: 'Cawangan ambil dan hantar mestilah berbeza',
-      };
+  if (mode === 'kiosk-kiosk') {
+    const pickupIds = new Set(pickups.map((p) => p.locationId));
+    for (const drop of drops) {
+      if (pickupIds.has(drop.locationId)) {
+        return {
+          ok: false,
+          message: 'Cawangan ambil dan hantar mestilah berbeza',
+        };
+      }
     }
   }
 

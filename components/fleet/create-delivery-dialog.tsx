@@ -10,21 +10,29 @@ import {
   Store,
   Search,
   Info,
+  Plus,
+  Trash2,
+  Sparkles,
+  Navigation,
 } from 'lucide-react';
-import type { DeliveryLegType, FleetDriver, FleetVehicle } from '@/lib/fleet/types';
-import { createDeliveryOrder } from '@/lib/fleet/api';
+import { createDeliveryOrder, optimizeRoutePreview } from '@/lib/fleet/api';
 import type { InventoryLocation, StockItemOption } from '@/lib/inventory/types';
 import { HQ_FACTORY_ORDER_SECTIONS } from '@/lib/production/hq-order-format';
 import {
+  buildManualDeliveryLegs,
+  MAX_MANUAL_DELIVERY_INSTRUCTIONS,
+  validateManualInstructions,
+  type ManualDeliveryInstruction,
+} from '@/lib/fleet/manual-delivery';
+import { readCurrentPosition, reorderByKeys } from '@/lib/fleet/route-ai';
+import {
   formatBranchDestination,
   formatBranchDestinationDetail,
-  formatDriverDetail,
   formatDriverName,
   formatFleetSlot,
   formatLocationNode,
   formatStockItemDetail,
   formatStockItemName,
-  formatVehicleDetail,
   formatVehicleName,
   fleetLocationForVehicle,
   sortBranchesByName,
@@ -33,6 +41,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
@@ -50,6 +59,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import type { FleetDriver, FleetVehicle } from '@/lib/fleet/types';
 
 type StockOrigin = 'FROM_FACTORY' | 'FROM_HQ';
 
@@ -61,6 +71,22 @@ interface CreateDeliveryDialogProps {
   drivers: FleetDriver[];
   vehicles: FleetVehicle[];
   onSuccess: () => void;
+}
+
+function newInstructionKey() {
+  return crypto.randomUUID();
+}
+
+function emptyInstruction(
+  branches: InventoryLocation[],
+  defaultItemId: string
+): ManualDeliveryInstruction {
+  return {
+    key: newInstructionKey(),
+    destId: branches[0]?.id ?? '',
+    itemId: defaultItemId,
+    qty: '1',
+  };
 }
 
 export function CreateDeliveryDialog({
@@ -90,28 +116,28 @@ export function CreateDeliveryDialog({
   );
 
   const hqStockItems = useMemo(() => {
-    const codes = new Set(
-      HQ_FACTORY_ORDER_SECTIONS.flatMap((s) => s.itemCodes)
-    );
+    const codes = new Set(HQ_FACTORY_ORDER_SECTIONS.flatMap((s) => s.itemCodes));
     return stockItems.filter((s) => codes.has(s.item_code as never));
   }, [stockItems]);
 
+  const defaultItemId = hqStockItems[0]?.id ?? '';
+
   const [stockOrigin, setStockOrigin] = useState<StockOrigin>('FROM_FACTORY');
-  const [destId, setDestId] = useState('');
   const [branchSearch, setBranchSearch] = useState('');
   const [driverId, setDriverId] = useState('');
   const [vehicleId, setVehicleId] = useState('');
-  const [itemId, setItemId] = useState('');
-  const [qty, setQty] = useState('1');
   const [scheduledDate, setScheduledDate] = useState(
     new Date().toISOString().slice(0, 10)
   );
+  const [instructions, setInstructions] = useState<ManualDeliveryInstruction[]>([]);
   const [loading, setLoading] = useState(false);
+  const [optimizing, setOptimizing] = useState(false);
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [position, setPosition] = useState<{ lat: number; lng: number } | null>(null);
 
-  const selectedBranch = branches.find((b) => b.id === destId);
   const selectedDriver = drivers.find((d) => d.id === driverId);
   const selectedVehicle = vehicles.find((v) => v.id === vehicleId);
-  const selectedItem = hqStockItems.find((s) => s.id === itemId);
   const fleetSlot = fleetLocationForVehicle(vehicleId, fleetLocs);
 
   const filteredBranches = useMemo(() => {
@@ -129,17 +155,27 @@ export function CreateDeliveryDialog({
     setStockOrigin('FROM_FACTORY');
     setBranchSearch('');
     setScheduledDate(new Date().toISOString().slice(0, 10));
-    setQty('1');
-    if (branches.length) setDestId(branches[0].id);
     if (drivers.length) setDriverId(drivers[0].id);
-    if (hqStockItems.length) setItemId(hqStockItems[0].id);
-  }, [open, branches, drivers, hqStockItems]);
+    setInstructions([emptyInstruction(branches, defaultItemId)]);
+    setAiSummary(null);
+    setPosition(null);
+  }, [open, branches, drivers, defaultItemId]);
 
   useEffect(() => {
     if (!driverId) return;
     const linked = vehicleForDriver(driverId, vehicles);
     if (linked) setVehicleId(linked.id);
   }, [driverId, vehicles]);
+
+  const parsedInstructions = useMemo(
+    () =>
+      instructions.map((row) => ({
+        destId: row.destId,
+        itemId: row.itemId,
+        quantity: Number(row.qty),
+      })),
+    [instructions]
+  );
 
   const journeyNodes = useMemo(() => {
     const nodes: Array<{ icon: typeof Factory; label: string; sub?: string }> = [];
@@ -158,23 +194,100 @@ export function CreateDeliveryDialog({
           : formatFleetSlot(fleetSlot),
       });
     }
-    if (selectedBranch) {
+    instructions.forEach((row, idx) => {
+      const branch = branches.find((b) => b.id === row.destId);
+      if (!branch) return;
       nodes.push({
         icon: Store,
-        label: 'Kiosk',
-        sub: formatBranchDestination(selectedBranch),
+        label: `Hentian ${idx + 1}`,
+        sub: formatBranchDestination(branch),
       });
-    }
+    });
     return nodes;
-  }, [stockOrigin, factory, hq, fleetSlot, selectedVehicle, selectedBranch]);
+  }, [stockOrigin, factory, hq, fleetSlot, selectedVehicle, instructions, branches]);
 
-  const qtyUnitLabel = selectedItem
-    ? formatStockItemDetail(selectedItem)?.split(' · ').pop()?.replace('Order dalam ', '') ?? 'unit'
-    : 'unit';
+  function updateInstruction(key: string, patch: Partial<ManualDeliveryInstruction>) {
+    setInstructions((prev) =>
+      prev.map((row) => (row.key === key ? { ...row, ...patch } : row))
+    );
+    setAiSummary(null);
+  }
+
+  function addInstruction() {
+    if (instructions.length >= MAX_MANUAL_DELIVERY_INSTRUCTIONS) {
+      toast.error(`Maksimum ${MAX_MANUAL_DELIVERY_INSTRUCTIONS} arahan dalam satu pesanan`);
+      return;
+    }
+    setInstructions((prev) => [...prev, emptyInstruction(branches, defaultItemId)]);
+  }
+
+  function removeInstruction(key: string) {
+    setInstructions((prev) => {
+      if (prev.length <= 1) {
+        toast.error('Sekurang-kurangnya satu arahan diperlukan');
+        return prev;
+      }
+      return prev.filter((row) => row.key !== key);
+    });
+    setAiSummary(null);
+  }
+
+  async function captureGps() {
+    setGpsLoading(true);
+    try {
+      const pos = await readCurrentPosition();
+      if (!pos) {
+        toast.error('Tidak dapat lokasi GPS — benarkan akses lokasi');
+        return;
+      }
+      setPosition(pos);
+      toast.success('Lokasi semasa direkod');
+    } finally {
+      setGpsLoading(false);
+    }
+  }
+
+  async function handleAiSort() {
+    const valid = instructions.filter(
+      (r) => r.destId && r.itemId && Number(r.qty) > 0
+    );
+    if (!valid.length) {
+      toast.error('Isi sekurang-kurangnya satu arahan lengkap');
+      return;
+    }
+
+    setOptimizing(true);
+    try {
+      let lat = position?.lat;
+      let lng = position?.lng;
+      if (lat == null || lng == null) {
+        const pos = await readCurrentPosition();
+        if (pos) {
+          setPosition(pos);
+          lat = pos.lat;
+          lng = pos.lng;
+        }
+      }
+
+      const { result } = await optimizeRoutePreview({
+        stops: valid.map((r) => ({ key: r.key, location_id: r.destId })),
+        current_lat: lat,
+        current_lng: lng,
+      });
+
+      setInstructions((prev) => reorderByKeys(prev, result.orderedKeys));
+      setAiSummary(result.summary);
+      toast.success(result.usedGps ? 'Laluan disusun dari GPS' : 'Laluan disusun AI');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Gagal susun laluan');
+    } finally {
+      setOptimizing(false);
+    }
+  }
 
   async function handleCreate() {
-    if (!destId || !hq?.id || !itemId || !driverId || !vehicleId) {
-      toast.error('Sila pilih cawangan, pemandu dan stok');
+    if (!hq?.id || !driverId || !vehicleId) {
+      toast.error('Sila pilih pemandu dan pastikan Gudang HQ wujud');
       return;
     }
 
@@ -186,92 +299,51 @@ export function CreateDeliveryDialog({
 
     const originId = stockOrigin === 'FROM_FACTORY' ? factory?.id : hq.id;
     if (!originId) {
-      toast.error(stockOrigin === 'FROM_FACTORY' ? 'Lokasi kilang tidak dijumpai' : 'Gudang HQ tidak dijumpai');
+      toast.error(
+        stockOrigin === 'FROM_FACTORY' ? 'Lokasi kilang tidak dijumpai' : 'Gudang HQ tidak dijumpai'
+      );
       return;
     }
 
-    const qtyNum = Number(qty);
-    if (!qtyNum || qtyNum <= 0) {
-      toast.error('Kuantiti mesti lebih 0');
+    const validation = validateManualInstructions(parsedInstructions);
+    if (!validation.ok) {
+      toast.error(validation.message);
+      return;
+    }
+
+    const lastDest = parsedInstructions[parsedInstructions.length - 1]?.destId;
+    if (!lastDest) {
+      toast.error('Tiada destinasi akhir');
       return;
     }
 
     setLoading(true);
     try {
-      const items = [{ stock_item_id: itemId, quantity: qtyNum }];
-      const legMeta = {
-        driver_id: driverId,
-        vehicle_id: vehicleId,
-        items,
-      };
-
-      const legs: Array<{
-        leg_sequence: number;
-        leg_type: DeliveryLegType;
-        from_location_id: string;
-        to_location_id: string;
-        driver_id?: string;
-        vehicle_id?: string;
-        items: Array<{ stock_item_id: string; quantity: number }>;
-      }> = [];
-
-      if (stockOrigin === 'FROM_FACTORY') {
-        legs.push(
-          {
-            leg_sequence: 1,
-            leg_type: 'FACTORY_TO_HQ',
-            from_location_id: originId,
-            to_location_id: hq.id,
-            ...legMeta,
-          },
-          {
-            leg_sequence: 2,
-            leg_type: 'HQ_TO_VEHICLE',
-            from_location_id: hq.id,
-            to_location_id: slot.id,
-            ...legMeta,
-          },
-          {
-            leg_sequence: 3,
-            leg_type: 'VEHICLE_TO_BRANCH',
-            from_location_id: slot.id,
-            to_location_id: destId,
-            ...legMeta,
-          }
-        );
-      } else {
-        legs.push(
-          {
-            leg_sequence: 1,
-            leg_type: 'HQ_TO_VEHICLE',
-            from_location_id: hq.id,
-            to_location_id: slot.id,
-            ...legMeta,
-          },
-          {
-            leg_sequence: 2,
-            leg_type: 'VEHICLE_TO_BRANCH',
-            from_location_id: slot.id,
-            to_location_id: destId,
-            ...legMeta,
-          }
-        );
-      }
+      const legs = buildManualDeliveryLegs({
+        stockOrigin,
+        factoryId: factory?.id,
+        hqId: hq.id,
+        fleetSlotId: slot.id,
+        driverId,
+        vehicleId,
+        instructions: parsedInstructions,
+      });
 
       await createDeliveryOrder({
         origin_location_id: originId,
-        final_destination_id: destId,
+        final_destination_id: lastDest,
         primary_driver_id: driverId,
         primary_vehicle_id: vehicleId,
         scheduled_date: scheduledDate,
+        ai_route_summary: aiSummary ?? undefined,
         notes:
           stockOrigin === 'FROM_HQ'
-            ? 'Penghantaran manual — stok dari Gudang HQ'
-            : 'Penghantaran manual — stok dari Kilang',
+            ? `Penghantaran manual — ${instructions.length} arahan · stok dari Gudang HQ${aiSummary ? ' · AI' : ''}`
+            : `Penghantaran manual — ${instructions.length} arahan · stok dari Kilang${aiSummary ? ' · AI' : ''}`,
         legs,
       });
 
-      toast.success('Pesanan penghantaran dicipta');
+      toast.success(`Pesanan penghantaran dicipta (${instructions.length} arahan)`);
       onOpenChange(false);
       onSuccess();
     } catch (err) {
@@ -283,49 +355,87 @@ export function CreateDeliveryDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-xl">
+      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Pesanan Penghantaran Manual</DialogTitle>
           <DialogDescription>
-            Untuk kes khas sahaja. Aliran utama syarikat: Order HQ → Kilang → cross-dock → arahan
-            driver (max 20 cawangan/hari).
+            Kes khas: sehingga {MAX_MANUAL_DELIVERY_INSTRUCTIONS} arahan (hentian cawangan) dalam
+            satu pesanan. Aliran utama: Order HQ → Kilang → cross-dock → arahan driver (max 20
+            hentian/hari).
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50/60 px-3 py-2 text-xs text-blue-950">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <span>
-            Isi mengikut urutan perniagaan: <strong>destinasi</strong> →{' '}
-            <strong>pemandu</strong> → <strong>stok</strong>. Kenderaan &amp; armada auto
-            dipadankan dengan pemandu.
+            Isi <strong>asal stok</strong> &amp; <strong>pemandu</strong>, kemudian tambah arahan
+            (cawangan + stok). Kenderaan auto dipadankan dengan pemandu.
           </span>
         </div>
 
-        {/* Aliran visual */}
         <div className="rounded-xl border bg-muted/30 p-3">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Pratonton perjalanan
-          </p>
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Pratonton perjalanan
+            </p>
+            <div className="flex gap-1.5">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs"
+                disabled={gpsLoading}
+                onClick={captureGps}
+              >
+                <Navigation className="mr-1 h-3 w-3" />
+                {gpsLoading ? 'GPS…' : 'Lokasi'}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                className="h-7 bg-violet-600 text-xs hover:bg-violet-700"
+                disabled={optimizing || instructions.length === 0}
+                onClick={handleAiSort}
+              >
+                <Sparkles className="mr-1 h-3 w-3" />
+                {optimizing ? 'Menyusun…' : 'Susun AI'}
+              </Button>
+            </div>
+          </div>
+          {aiSummary && (
+            <p className="mb-2 flex items-start gap-1 text-[10px] text-violet-800">
+              <Sparkles className="mt-0.5 h-3 w-3 shrink-0" />
+              {aiSummary}
+            </p>
+          )}
+          {position && (
+            <p className="mb-2 text-[10px] text-muted-foreground">
+              GPS: {position.lat.toFixed(5)}, {position.lng.toFixed(5)}
+            </p>
+          )}
           <div className="flex flex-wrap items-center gap-1">
-            {journeyNodes.map((node, i) => (
-              <div key={`${node.label}-${i}`} className="flex items-center gap-1">
-                {i > 0 && <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/60" />}
-                <div className="rounded-lg border bg-card px-2.5 py-1.5 text-center">
-                  <node.icon className="mx-auto h-3.5 w-3.5 text-emerald-700" />
-                  <p className="text-[10px] font-semibold">{node.label}</p>
-                  {node.sub && (
-                    <p className="max-w-[88px] truncate text-[9px] text-muted-foreground">
-                      {node.sub}
-                    </p>
-                  )}
+            {journeyNodes.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Tambah arahan untuk pratonton</p>
+            ) : (
+              journeyNodes.map((node, i) => (
+                <div key={`${node.label}-${i}`} className="flex items-center gap-1">
+                  {i > 0 && <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/60" />}
+                  <div className="rounded-lg border bg-card px-2.5 py-1.5 text-center">
+                    <node.icon className="mx-auto h-3.5 w-3.5 text-emerald-700" />
+                    <p className="text-[10px] font-semibold">{node.label}</p>
+                    {node.sub && (
+                      <p className="max-w-[96px] truncate text-[9px] text-muted-foreground">
+                        {node.sub}
+                      </p>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 
         <div className="grid gap-4">
-          {/* 1. Asal stok */}
           <div className="space-y-1.5">
             <Label className="text-sm font-semibold">1. Asal stok</Label>
             <Select
@@ -346,50 +456,8 @@ export function CreateDeliveryDialog({
             </Select>
           </div>
 
-          {/* 2. Destinasi */}
           <div className="space-y-1.5">
-            <Label className="text-sm font-semibold">2. Cawangan destinasi</Label>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                className="pl-9"
-                placeholder="Cari nama cawangan…"
-                value={branchSearch}
-                onChange={(e) => setBranchSearch(e.target.value)}
-              />
-            </div>
-            <Select value={destId} onValueChange={(v) => setDestId(v ?? '')}>
-              <SelectTrigger>
-                <SelectValue placeholder="Pilih cawangan kiosk">
-                  {selectedBranch ? formatBranchDestination(selectedBranch) : undefined}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent className="max-h-60">
-                {filteredBranches.length === 0 ? (
-                  <SelectItem value="none" disabled>
-                    Tiada cawangan sepadan
-                  </SelectItem>
-                ) : (
-                  filteredBranches.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>
-                      <span className="flex flex-col items-start">
-                        <span>{formatBranchDestination(b)}</span>
-                        {formatBranchDestinationDetail(b) && (
-                          <span className="text-xs text-muted-foreground">
-                            {formatBranchDestinationDetail(b)}
-                          </span>
-                        )}
-                      </span>
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* 3. Pemandu & kenderaan (auto) */}
-          <div className="space-y-1.5">
-            <Label className="text-sm font-semibold">3. Pemandu penghantaran</Label>
+            <Label className="text-sm font-semibold">2. Pemandu penghantaran</Label>
             <Select value={driverId} onValueChange={(v) => setDriverId(v ?? '')}>
               <SelectTrigger>
                 <SelectValue placeholder="Pilih pemandu">
@@ -420,67 +488,163 @@ export function CreateDeliveryDialog({
             {selectedVehicle && (
               <p className="text-xs text-muted-foreground">
                 Kenderaan: <strong>{formatVehicleName(selectedVehicle)}</strong>
-                {formatVehicleDetail(selectedVehicle) && ` · ${formatVehicleDetail(selectedVehicle)}`}
                 {fleetSlot && ` · Slot ${formatFleetSlot(fleetSlot, selectedVehicle)}`}
               </p>
             )}
-            {selectedDriver && !selectedVehicle && (
-              <p className="text-xs text-amber-700">Pemandu ini belum dipautkan kenderaan default.</p>
-            )}
           </div>
 
-          {/* 4. Stok */}
-          <div className="space-y-1.5">
-            <Label className="text-sm font-semibold">4. Stok dihantar</Label>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <Select value={itemId} onValueChange={(v) => setItemId(v ?? '')}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Pilih item">
-                    {formatStockItemName(selectedItem)}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {HQ_FACTORY_ORDER_SECTIONS.map((section) => {
-                    const sectionItems = hqStockItems.filter((s) =>
-                      section.itemCodes.includes(s.item_code as never)
-                    );
-                    if (!sectionItems.length) return null;
-                    return (
-                      <SelectGroup key={section.id}>
-                        <SelectLabel>{section.title}</SelectLabel>
-                        {sectionItems.map((s) => (
-                          <SelectItem key={s.id} value={s.id}>
-                            <span className="flex flex-col items-start">
-                              <span>{s.name}</span>
-                              {formatStockItemDetail(s) && (
-                                <span className="text-xs text-muted-foreground">
-                                  {formatStockItemDetail(s)}
-                                </span>
-                              )}
-                            </span>
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Kuantiti ({qtyUnitLabel})</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={qty}
-                  onChange={(e) => setQty(e.target.value)}
-                />
-              </div>
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Label className="text-sm font-semibold">
+                3. Arahan penghantaran ({instructions.length}/{MAX_MANUAL_DELIVERY_INSTRUCTIONS})
+              </Label>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={instructions.length >= MAX_MANUAL_DELIVERY_INSTRUCTIONS}
+                onClick={addInstruction}
+              >
+                <Plus className="mr-1 h-3.5 w-3.5" />
+                Tambah arahan
+              </Button>
+            </div>
+
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                className="pl-9"
+                placeholder="Cari cawangan (tapisan senarai)…"
+                value={branchSearch}
+                onChange={(e) => setBranchSearch(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-3">
+              {instructions.map((row, idx) => {
+                const branch = branches.find((b) => b.id === row.destId);
+                const item = hqStockItems.find((s) => s.id === row.itemId);
+                const qtyUnitLabel = item
+                  ? formatStockItemDetail(item)?.split(' · ').pop()?.replace('Order dalam ', '') ??
+                    'unit'
+                  : 'unit';
+
+                return (
+                  <div
+                    key={row.key}
+                    className="rounded-lg border bg-card p-3 space-y-2"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-[10px]">
+                          Arahan {idx + 1}
+                        </Badge>
+                        {branch && (
+                          <span className="text-xs text-muted-foreground truncate">
+                            {formatBranchDestination(branch)}
+                          </span>
+                        )}
+                      </div>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 shrink-0 text-destructive"
+                        disabled={instructions.length <= 1}
+                        onClick={() => removeInstruction(row.key)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Cawangan</Label>
+                        <Select
+                          value={row.destId}
+                          onValueChange={(v) => updateInstruction(row.key, { destId: v ?? '' })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Pilih cawangan">
+                              {branch ? formatBranchDestination(branch) : undefined}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent className="max-h-52">
+                            {filteredBranches.length === 0 ? (
+                              <SelectItem value="none" disabled>
+                                Tiada cawangan sepadan
+                              </SelectItem>
+                            ) : (
+                              filteredBranches.map((b) => (
+                                <SelectItem key={b.id} value={b.id}>
+                                  <span className="flex flex-col items-start">
+                                    <span>{formatBranchDestination(b)}</span>
+                                    {formatBranchDestinationDetail(b) && (
+                                      <span className="text-xs text-muted-foreground">
+                                        {formatBranchDestinationDetail(b)}
+                                      </span>
+                                    )}
+                                  </span>
+                                </SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Stok</Label>
+                        <Select
+                          value={row.itemId}
+                          onValueChange={(v) => updateInstruction(row.key, { itemId: v ?? '' })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Pilih item">
+                              {formatStockItemName(item)}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {HQ_FACTORY_ORDER_SECTIONS.map((section) => {
+                              const sectionItems = hqStockItems.filter((s) =>
+                                section.itemCodes.includes(s.item_code as never)
+                              );
+                              if (!sectionItems.length) return null;
+                              return (
+                                <SelectGroup key={section.id}>
+                                  <SelectLabel>{section.title}</SelectLabel>
+                                  {sectionItems.map((s) => (
+                                    <SelectItem key={s.id} value={s.id}>
+                                      {s.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectGroup>
+                              );
+                            })}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1 sm:max-w-[180px]">
+                      <Label className="text-xs text-muted-foreground">
+                        Kuantiti ({qtyUnitLabel})
+                      </Label>
+                      <Input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={row.qty}
+                        onChange={(e) => updateInstruction(row.key, { qty: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
-          {/* 5. Tarikh */}
           <div className="space-y-1.5">
-            <Label className="text-sm font-semibold">5. Tarikh penghantaran</Label>
+            <Label className="text-sm font-semibold">4. Tarikh penghantaran</Label>
             <Input
               type="date"
               value={scheduledDate}
@@ -488,16 +652,27 @@ export function CreateDeliveryDialog({
             />
           </div>
 
-          {/* Ringkasan */}
-          {selectedBranch && selectedDriver && selectedItem && (
+          {instructions.some((r) => r.destId && r.itemId && Number(r.qty) > 0) && (
             <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3 text-sm">
               <p className="font-medium text-emerald-950">Ringkasan</p>
               <p className="mt-1 text-emerald-900/90">
-                Hantar <strong>{qty} {qtyUnitLabel}</strong> {selectedItem.name} ke{' '}
-                <strong>{formatBranchDestination(selectedBranch)}</strong> melalui{' '}
+                <strong>{instructions.length} arahan</strong> ke{' '}
+                {new Set(instructions.map((r) => r.destId).filter(Boolean)).size} cawangan melalui{' '}
                 {formatDriverName(selectedDriver)}
                 {stockOrigin === 'FROM_FACTORY' ? ' (via Kilang & HQ)' : ' (dari Gudang HQ)'}.
               </p>
+              <ul className="mt-2 space-y-0.5 text-xs text-emerald-900/80">
+                {instructions.map((row, idx) => {
+                  const branch = branches.find((b) => b.id === row.destId);
+                  const item = hqStockItems.find((s) => s.id === row.itemId);
+                  if (!branch || !item || Number(row.qty) <= 0) return null;
+                  return (
+                    <li key={row.key}>
+                      {idx + 1}. {formatBranchDestination(branch)} — {row.qty}× {item.name}
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
           )}
 
@@ -506,7 +681,9 @@ export function CreateDeliveryDialog({
             onClick={handleCreate}
             disabled={loading || !fleetSlot}
           >
-            {loading ? 'Mencipta…' : 'Cipta Pesanan Penghantaran'}
+            {loading
+              ? 'Mencipta…'
+              : `Cipta Pesanan (${instructions.length} arahan)`}
           </Button>
         </div>
       </DialogContent>

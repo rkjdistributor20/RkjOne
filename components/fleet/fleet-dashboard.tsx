@@ -28,6 +28,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CreateDeliveryDialog } from '@/components/fleet/create-delivery-dialog';
 import { PodDialog } from '@/components/fleet/pod-dialog';
 import { DriverWorkSchedulePanel } from '@/components/fleet/driver-work-schedule-panel';
+import { DriverManualRoutePanel } from '@/components/fleet/driver-manual-route-panel';
 import { FleetOverviewPanel } from '@/components/fleet/fleet-overview-panel';
 import {
   ModuleLayout,
@@ -119,10 +120,18 @@ export function FleetDashboard() {
       <ModuleLayout>
         <ModuleHeader
           title="Arahan Penghantaran"
-          description="1 arahan sehingga 20 cawangan · susunan laluan AI · Kilang → HQ → Kiosk"
+          description="Kongsi lokasi semasa — AI susun baki hentian · max 20 cawangan/arahan kilang"
           icon={Truck}
         />
-        <DriverWorkSchedulePanel driverMode />
+        <div className="space-y-6">
+          <DriverWorkSchedulePanel driverMode />
+          <div>
+            <h2 className="mb-3 text-sm font-semibold text-muted-foreground">
+              Pesanan Manual (DO)
+            </h2>
+            <DriverManualRoutePanel />
+          </div>
+        </div>
       </ModuleLayout>
     );
   }

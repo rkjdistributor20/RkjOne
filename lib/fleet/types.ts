@@ -57,6 +57,10 @@ export interface DeliveryOrder {
   scheduled_date: string | null;
   notes: string | null;
   created_at: string;
+  ai_route_summary?: string | null;
+  ai_optimized_at?: string | null;
+  driver_current_lat?: number | null;
+  driver_current_lng?: number | null;
   origin_location: { name: string; location_type: string };
   final_destination: { name: string; location_type: string };
   primary_driver: { full_name: string } | null;
@@ -80,6 +84,7 @@ export interface CreateDeliveryPayload {
   primary_vehicle_id?: string;
   scheduled_date?: string;
   notes?: string;
+  ai_route_summary?: string;
   legs: Array<{
     leg_sequence: number;
     leg_type: DeliveryLegType;

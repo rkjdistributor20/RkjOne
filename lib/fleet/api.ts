@@ -36,6 +36,42 @@ export async function fetchDeliveryOrders(status?: string) {
   return fetchJson<{ orders: DeliveryOrder[] }>(`/api/fleet/orders${params}`);
 }
 
+export async function fetchMyDeliveryOrders() {
+  return fetchJson<{ orders: DeliveryOrder[] }>('/api/fleet/orders?mine=true');
+}
+
+export async function optimizeRoutePreview(payload: {
+  stops: Array<{ key: string; location_id: string }>;
+  current_lat?: number | null;
+  current_lng?: number | null;
+}) {
+  return fetchJson<{
+    result: {
+      orderedKeys: string[];
+      summary: string;
+      criticalCount: number;
+      lowCount: number;
+      usedGps: boolean;
+    };
+  }>('/api/fleet/route/optimize', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function optimizeDeliveryOrderRoute(
+  orderId: string,
+  payload?: { current_lat?: number | null; current_lng?: number | null }
+) {
+  return fetchJson<{ result: Record<string, unknown> }>(
+    `/api/fleet/orders/${orderId}/optimize-route`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload ?? {}),
+    }
+  );
+}
+
 export async function fetchDeliveryOrder(id: string) {
   return fetchJson<{ order: DeliveryOrder }>(`/api/fleet/orders/${id}`);
 }
