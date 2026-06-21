@@ -323,6 +323,11 @@ export function HqFactoryOrderForm({
                 <HqBranchOrderMatrix
                   branches={suggestion?.branches ?? []}
                   branchCount={suggestion?.branch_count}
+                  orderLeadDays={suggestion?.order_lead_days}
+                  stockCoverageDays={suggestion?.stock_coverage_days}
+                  orderDeadlineNote={suggestion?.order_deadline_note}
+                  holidayDemandBoost={suggestion?.holiday_demand_boost}
+                  holidaysInWindow={suggestion?.holidays_in_window}
                   quantities={branchQty}
                   branchDrivers={branchDrivers}
                   onChange={setBranchQty}

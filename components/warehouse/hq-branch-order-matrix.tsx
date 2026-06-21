@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, Sparkles, User, TrendingUp } from 'lucide-react';
-import type { OrderSuggestionBranch } from '@/lib/production/types';
+import { ChevronDown, ChevronRight, Sparkles, User, TrendingUp, CalendarDays } from 'lucide-react';
+import type { MalaysiaHolidayInWindow, OrderSuggestionBranch } from '@/lib/production/types';
+import { formatHolidayDate, formatHolidayType } from '@/lib/production/holiday-labels';
 import { driversForRegion } from '@/lib/production/driver-routing';
 import { HQ_ROTI_ITEM_CODES } from '@/lib/stock/catalog';
 import { Input } from '@/components/ui/input';
@@ -22,6 +23,11 @@ interface DriverOption {
 interface HqBranchOrderMatrixProps {
   branches: OrderSuggestionBranch[];
   branchCount?: number;
+  orderLeadDays?: number;
+  stockCoverageDays?: number;
+  orderDeadlineNote?: string;
+  holidayDemandBoost?: number;
+  holidaysInWindow?: MalaysiaHolidayInWindow[];
   quantities: BranchQtyMap;
   branchDrivers: BranchDriverMap;
   onChange: (quantities: BranchQtyMap) => void;
@@ -44,6 +50,11 @@ const STOCK_STATUS_CLASS: Record<string, string> = {
 export function HqBranchOrderMatrix({
   branches,
   branchCount,
+  orderLeadDays,
+  stockCoverageDays,
+  orderDeadlineNote,
+  holidayDemandBoost,
+  holidaysInWindow,
   quantities,
   branchDrivers,
   onChange,
@@ -128,14 +139,62 @@ export function HqBranchOrderMatrix({
 
   return (
     <div className="space-y-3">
+      {(orderDeadlineNote || (holidaysInWindow?.length ?? 0) > 0) && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-950">
+          <p className="flex flex-wrap items-center gap-2 font-semibold">
+            <CalendarDays className="h-4 w-4" />
+            Perancangan stok lebuhraya
+            {orderLeadDays != null && (
+              <Badge variant="secondary" className="text-[10px]">
+                {orderLeadDays} hari sebelum stok baharu
+              </Badge>
+            )}
+            {holidayDemandBoost != null && holidayDemandBoost > 1.05 && (
+              <Badge variant="outline" className="border-amber-400 text-[10px] text-amber-900">
+                Lonjakan cuti ×{holidayDemandBoost}
+              </Badge>
+            )}
+          </p>
+          {orderDeadlineNote && (
+            <p className="mt-1 text-xs text-amber-900/90">{orderDeadlineNote}</p>
+          )}
+          {(holidaysInWindow?.length ?? 0) > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {holidaysInWindow!.slice(0, 8).map((h) => (
+                <Badge
+                  key={`${h.date}-${h.name}`}
+                  variant="outline"
+                  className="text-[10px] font-normal"
+                  title={`Pengganda permintaan ×${h.demand_multiplier}`}
+                >
+                  {formatHolidayDate(h.date)} · {h.name} ({formatHolidayType(h.type)})
+                </Badge>
+              ))}
+              {(holidaysInWindow?.length ?? 0) > 8 && (
+                <Badge variant="secondary" className="text-[10px]">
+                  +{(holidaysInWindow?.length ?? 0) - 8} lagi
+                </Badge>
+              )}
+            </div>
+          )}
+          {stockCoverageDays != null && stockCoverageDays > 0 && (
+            <p className="mt-1.5 text-[10px] text-amber-800/80">
+              Sasaran stok merangkumi {stockCoverageDays} hari selepas terima stok + cuti umum,
+              cuti sekolah, festif &amp; puncak hujung minggu lebuhraya.
+            </p>
+          )}
+        </div>
+      )}
+
       <div className="rounded-lg border border-violet-200 bg-violet-50/60 px-4 py-3 text-sm text-violet-950">
         <p className="flex flex-wrap items-center gap-2 font-semibold">
           <TrendingUp className="h-4 w-4" />
           {branchCount ?? branches.length} cawangan · {totalSuggestedBags} bag cadangan AI
         </p>
         <p className="mt-1 text-xs text-violet-900/80">
-          Baki stok kiosk + ramalan ikut jualan 14 hari &amp; potensi lokasi (RNR/OBR/Plaza Tol).
-          Klik <strong>Cadangan</strong> per cawangan atau guna butang di atas untuk isi semua.
+          Baki stok kiosk + ramalan ikut jualan 14 hari, potensi lokasi (RNR/OBR/Plaza Tol) &amp;
+          kalendar cuti Malaysia. Klik <strong>Cadangan</strong> per cawangan atau guna butang di
+          atas untuk isi semua.
         </p>
       </div>
 
@@ -275,6 +334,9 @@ export function HqBranchOrderMatrix({
                             {hint && (
                               <p className="mt-1 text-[10px] leading-tight text-muted-foreground">
                                 Stok: <strong>{hint.current_pcs}</strong> pcs
+                                {hint.daily_pcs_estimate != null && hint.daily_pcs_estimate > 0 && (
+                                  <> · ~{hint.daily_pcs_estimate} pcs/hari</>
+                                )}
                                 {hint.suggested_bags > 0 && (
                                   <>
                                     {' '}
@@ -283,6 +345,11 @@ export function HqBranchOrderMatrix({
                                     bag
                                   </>
                                 )}
+                              </p>
+                            )}
+                            {hint?.prediction_note && (
+                              <p className="mt-0.5 text-[9px] leading-tight text-violet-800/80">
+                                {hint.prediction_note}
                               </p>
                             )}
                           </div>

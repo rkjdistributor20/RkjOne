@@ -72,8 +72,16 @@ export interface OrderSuggestionBranchItem {
   suggested_bags: number;
   suggested_pcs: number;
   unit: string;
+  daily_pcs_estimate?: number;
   stock_status?: 'OK' | 'LOW' | 'CRITICAL';
   prediction_note?: string;
+}
+
+export interface MalaysiaHolidayInWindow {
+  date: string;
+  name: string;
+  type: string;
+  demand_multiplier: number;
 }
 
 export interface OrderSuggestionBranch {
@@ -86,6 +94,7 @@ export interface OrderSuggestionBranch {
   has_kiosk?: boolean;
   potential_factor?: number;
   avg_daily_sales?: number;
+  effective_consumption_days?: number;
   default_driver_id?: string | null;
   default_driver_name?: string | null;
   items: OrderSuggestionBranchItem[];
@@ -104,6 +113,12 @@ export interface OrderSuggestion {
   cutoff_at: string;
   window_open: boolean;
   branch_count?: number;
+  order_lead_days?: number;
+  stock_coverage_days?: number;
+  stock_receive_date?: string;
+  order_deadline_note?: string;
+  holiday_demand_boost?: number;
+  holidays_in_window?: MalaysiaHolidayInWindow[];
   branches: OrderSuggestionBranch[];
   factory_items: OrderSuggestionFactoryItem[];
 }

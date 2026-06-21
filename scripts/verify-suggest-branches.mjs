@@ -75,6 +75,14 @@ const withSuggest =
   j.branches?.filter((b) => b.items?.some((i) => i.suggested_bags > 0)).length ?? 0;
 console.log('Branches with AI suggestions:', withSuggest);
 
+console.log('Order lead days:', j.order_lead_days);
+console.log('Holiday boost:', j.holiday_demand_boost);
+console.log('Holidays in window:', j.holidays_in_window?.length ?? 0);
+if (j.holidays_in_window?.length) {
+  console.log('  First:', j.holidays_in_window[0].name, j.holidays_in_window[0].date);
+}
+console.log('Deadline note:', j.order_deadline_note);
+
 const sample = j.branches?.find((b) => b.branch_code === 'BR001');
 if (sample) {
   console.log(
