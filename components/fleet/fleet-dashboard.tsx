@@ -75,7 +75,7 @@ export function FleetDashboard() {
         fetchFleetDrivers(),
         fetchFleetStatus(),
         fetchLocations(),
-        fetchStockItems(),
+        fetchStockItems({ hq: true }),
       ]);
       setOrders(ord.orders as DeliveryOrder[]);
       setVehicles(veh.vehicles);
