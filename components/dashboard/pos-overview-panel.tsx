@@ -11,6 +11,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { labelFor, PAYMENT_METHOD_LABELS } from '@/lib/ui/labels';
 
 function formatRM(amount: number) {
   return `RM ${amount.toLocaleString('ms-MY', { minimumFractionDigits: 2 })}`;
@@ -122,7 +123,7 @@ export function PosOverviewPanel({ overview }: { overview: PosOverview }) {
                       </span>
                     )}
                     <p className="text-xs text-muted-foreground">
-                      {formatTime(tx.created_at)} · {tx.payment_method}
+                      {formatTime(tx.created_at)} · {labelFor(PAYMENT_METHOD_LABELS, tx.payment_method)}
                     </p>
                   </div>
                   <span className="font-semibold tabular-nums">

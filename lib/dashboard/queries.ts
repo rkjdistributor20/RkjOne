@@ -121,7 +121,9 @@ export async function getPosOverview(orgId: string): Promise<PosOverview> {
   });
 
   return {
-    branches: branchSummaries.sort((a, b) => b.total_sales - a.total_sales),
+    branches: branchSummaries
+      .filter((b) => b.total_sales > 0 || b.transaction_count > 0 || b.shift_open)
+      .sort((a, b) => b.total_sales - a.total_sales),
     open_shifts: openShiftBranches.size,
     transactions_today: branchSummaries.reduce(
       (n, b) => n + b.transaction_count,
@@ -135,5 +137,73 @@ export async function getPosOverview(orgId: string): Promise<PosOverview> {
       created_at: t.created_at,
       branch_name: branchNameMap.get(t.branch_id),
     })),
+  };
+}
+
+export type FleetOverviewVehicle = {
+  id: string;
+  vehicle_code: string;
+  vehicle_type: string;
+  plate_number: string | null;
+  latest_status: string | null;
+};
+
+export type FleetOverview = {
+  vehicles: FleetOverviewVehicle[];
+  pending_deliveries: number;
+  in_transit: number;
+};
+
+export async function getFleetOverview(orgId: string): Promise<FleetOverview> {
+  const supabase = await createClient();
+
+  const [vehiclesRes, ordersRes] = await Promise.all([
+    supabase
+      .from('fleet_vehicles')
+      .select('id, vehicle_code, vehicle_type, plate_number, status')
+      .eq('organization_id', orgId)
+      .eq('status', 'ACTIVE')
+      .order('vehicle_code'),
+    supabase
+      .from('delivery_orders')
+      .select('status')
+      .eq('organization_id', orgId)
+      .in('status', ['PENDING', 'IN_TRANSIT']),
+  ]);
+
+  const vehicles = (vehiclesRes.data ?? []) as Array<{
+    id: string;
+    vehicle_code: string;
+    vehicle_type: string;
+    plate_number: string | null;
+    status: string;
+  }>;
+
+  const orders = (ordersRes.data ?? []) as Array<{ status: string }>;
+
+  const statusRes = await supabase
+    .from('fleet_status_logs')
+    .select('vehicle_id, status')
+    .eq('organization_id', orgId)
+    .order('logged_at', { ascending: false });
+
+  const latestByVehicle = new Map<string, string>();
+  for (const log of statusRes.data ?? []) {
+    const row = log as { vehicle_id: string; status: string };
+    if (!latestByVehicle.has(row.vehicle_id)) {
+      latestByVehicle.set(row.vehicle_id, row.status);
+    }
+  }
+
+  return {
+    vehicles: vehicles.map((v) => ({
+      id: v.id,
+      vehicle_code: v.vehicle_code,
+      vehicle_type: v.vehicle_type,
+      plate_number: v.plate_number,
+      latest_status: latestByVehicle.get(v.id) ?? null,
+    })),
+    pending_deliveries: orders.filter((o) => o.status === 'PENDING').length,
+    in_transit: orders.filter((o) => o.status === 'IN_TRANSIT').length,
   };
 }

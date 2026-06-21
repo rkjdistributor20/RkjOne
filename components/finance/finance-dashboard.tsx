@@ -106,7 +106,7 @@ export function FinanceDashboard() {
         setReconForm((r) => ({ ...r, branch_id: branchId || br.branches[0].id }));
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to load finance');
+      toast.error(err instanceof Error ? err.message : 'Gagal memuatkan kewangan');
     } finally {
       setLoading(false);
     }
@@ -169,9 +169,9 @@ export function FinanceDashboard() {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-xl font-bold">Finance</h2>
+        <h2 className="text-xl font-bold">Kewangan</h2>
         <p className="text-sm text-muted-foreground">
-          Cash collection · Bank-in · Reconciliation · Daily reports
+          Kutipan tunai · bank masuk · penyelarasan · laporan harian
         </p>
       </div>
 
@@ -182,19 +182,19 @@ export function FinanceDashboard() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground">Pending</CardTitle>
+                <CardTitle className="text-xs font-medium text-muted-foreground">Menunggu</CardTitle>
               </CardHeader>
               <CardContent className="text-xl font-bold">{summary?.pending_collections ?? 0}</CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground">Collected Today</CardTitle>
+                <CardTitle className="text-xs font-medium text-muted-foreground">Dikutip Hari Ini</CardTitle>
               </CardHeader>
               <CardContent className="text-xl font-bold">{fmt(summary?.collected_today ?? 0)}</CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground">Banked Today</CardTitle>
+                <CardTitle className="text-xs font-medium text-muted-foreground">Bank Masuk Hari Ini</CardTitle>
               </CardHeader>
               <CardContent className="text-xl font-bold">{fmt(summary?.banked_today ?? 0)}</CardContent>
             </Card>

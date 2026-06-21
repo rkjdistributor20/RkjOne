@@ -101,8 +101,8 @@ export interface PodPayload {
 }
 
 export const LEG_TYPE_LABELS: Record<DeliveryLegType, string> = {
-  FACTORY_TO_HQ: 'Factory → HQ',
-  HQ_TO_VEHICLE: 'HQ → Vehicle',
-  VEHICLE_TO_VEHICLE: 'Vehicle → Vehicle',
-  VEHICLE_TO_BRANCH: 'Vehicle → Branch',
+  FACTORY_TO_HQ: 'Kilang → Gudang HQ',
+  HQ_TO_VEHICLE: 'Gudang HQ → Kenderaan',
+  VEHICLE_TO_VEHICLE: 'Kenderaan → Kenderaan',
+  VEHICLE_TO_BRANCH: 'Kenderaan → Cawangan',
 };

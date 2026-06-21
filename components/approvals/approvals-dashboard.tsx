@@ -5,23 +5,12 @@ import { toast } from 'sonner';
 import { CheckCircle, XCircle, Clock } from 'lucide-react';
 import { fetchApprovals, approveRequest, rejectRequest } from '@/lib/approvals/api';
 import type { ApprovalRequest } from '@/lib/approvals/types';
+import { labelFor, APPROVAL_ENTITY_LABELS, APPROVAL_STATUS_LABELS } from '@/lib/ui/labels';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-
-const ENTITY_LABELS: Record<string, string> = {
-  SHIFT: 'Shift',
-  PAYROLL: 'Payroll',
-  STOCK_ADJUSTMENT: 'Stock Adjustment',
-  STOCK_WRITE_OFF: 'Write-off',
-  STOCK_TRANSFER: 'Transfer',
-  VOID_SALE: 'Void Sale',
-  REFUND: 'Refund',
-  BANK_IN: 'Bank In',
-  CASH_RECONCILIATION: 'Cash Reconciliation',
-};
 
 export function ApprovalsDashboard() {
   const [pending, setPending] = useState<ApprovalRequest[]>([]);
@@ -33,14 +22,21 @@ export function ApprovalsDashboard() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [p, r] = await Promise.all([
+      const [p, approved, rejected] = await Promise.all([
         fetchApprovals('PENDING'),
         fetchApprovals('APPROVED'),
+        fetchApprovals('REJECTED'),
       ]);
       setPending(p.approvals);
-      setResolved(r.approvals.slice(0, 20));
+      const history = [...approved.approvals, ...rejected.approvals]
+        .sort(
+          (a, b) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        )
+        .slice(0, 30);
+      setResolved(history);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to load approvals');
+      toast.error(err instanceof Error ? err.message : 'Gagal memuatkan kelulusan');
     } finally {
       setLoading(false);
     }
@@ -53,31 +49,31 @@ export function ApprovalsDashboard() {
   async function handleApprove(id: string) {
     try {
       await approveRequest(id);
-      toast.success('Approved');
+      toast.success('Diluluskan');
       loadData();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Approval failed');
+      toast.error(err instanceof Error ? err.message : 'Gagal meluluskan');
     }
   }
 
   async function handleReject(id: string) {
     try {
       await rejectRequest(id, rejectReason || undefined);
-      toast.success('Rejected');
+      toast.success('Ditolak');
       setRejectId(null);
       setRejectReason('');
       loadData();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Reject failed');
+      toast.error(err instanceof Error ? err.message : 'Gagal menolak');
     }
   }
 
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-xl font-bold">Approvals</h2>
+        <h2 className="text-xl font-bold">Kelulusan</h2>
         <p className="text-sm text-muted-foreground">
-          Shifts · payroll · stock · cash reconciliation
+          Syif · gaji · stok · penyelarasan tunai
         </p>
       </div>
 
@@ -88,16 +84,18 @@ export function ApprovalsDashboard() {
           <TabsList>
             <TabsTrigger value="pending" className="gap-1">
               <Clock className="h-4 w-4" />
-              Pending ({pending.length})
+              Menunggu ({pending.length})
             </TabsTrigger>
             <TabsTrigger value="history" className="gap-1">
-              <CheckCircle className="h-4 w-4" /> History
+              <CheckCircle className="h-4 w-4" /> Sejarah
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="pending" className="mt-4 space-y-3">
             {pending.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No pending approvals</p>
+              <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+                Tiada kelulusan menunggu.
+              </p>
             ) : (
               pending.map((req) => (
                 <div key={req.id} className="rounded-lg border p-4">
@@ -105,7 +103,7 @@ export function ApprovalsDashboard() {
                     <div>
                       <p className="font-medium">{req.title}</p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        {ENTITY_LABELS[req.entity_type] ?? req.entity_type}
+                        {labelFor(APPROVAL_ENTITY_LABELS, req.entity_type, req.entity_type)}
                         {req.branch && ` · ${req.branch.branch_name}`}
                         {req.requester && ` · ${req.requester.full_name}`}
                       </p>
@@ -116,7 +114,9 @@ export function ApprovalsDashboard() {
                         {new Date(req.created_at).toLocaleString('ms-MY')}
                       </p>
                     </div>
-                    <Badge variant="secondary">{req.status}</Badge>
+                    <Badge variant="secondary">
+                      {labelFor(APPROVAL_STATUS_LABELS, req.status)}
+                    </Badge>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Button
@@ -124,26 +124,26 @@ export function ApprovalsDashboard() {
                       className="bg-green-600 hover:bg-green-700"
                       onClick={() => handleApprove(req.id)}
                     >
-                      <CheckCircle className="mr-1 h-4 w-4" /> Approve
+                      <CheckCircle className="mr-1 h-4 w-4" /> Lulus
                     </Button>
                     {rejectId === req.id ? (
                       <>
                         <Input
                           className="h-8 w-48"
-                          placeholder="Reason (optional)"
+                          placeholder="Sebab (pilihan)"
                           value={rejectReason}
                           onChange={(e) => setRejectReason(e.target.value)}
                         />
                         <Button size="sm" variant="destructive" onClick={() => handleReject(req.id)}>
-                          Confirm Reject
+                          Sahkan Tolak
                         </Button>
                         <Button size="sm" variant="ghost" onClick={() => setRejectId(null)}>
-                          Cancel
+                          Batal
                         </Button>
                       </>
                     ) : (
                       <Button size="sm" variant="outline" onClick={() => setRejectId(req.id)}>
-                        <XCircle className="mr-1 h-4 w-4" /> Reject
+                        <XCircle className="mr-1 h-4 w-4" /> Tolak
                       </Button>
                     )}
                   </div>
@@ -153,17 +153,23 @@ export function ApprovalsDashboard() {
           </TabsContent>
 
           <TabsContent value="history" className="mt-4 space-y-2">
-            {resolved.map((req) => (
-              <div key={req.id} className="flex justify-between rounded-lg border p-3 text-sm">
-                <div>
-                  <p className="font-medium">{req.title}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {ENTITY_LABELS[req.entity_type] ?? req.entity_type}
-                  </p>
+            {resolved.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Tiada sejarah kelulusan.</p>
+            ) : (
+              resolved.map((req) => (
+                <div key={req.id} className="flex justify-between rounded-lg border p-3 text-sm">
+                  <div>
+                    <p className="font-medium">{req.title}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {labelFor(APPROVAL_ENTITY_LABELS, req.entity_type, req.entity_type)}
+                    </p>
+                  </div>
+                  <Badge variant="outline">
+                    {labelFor(APPROVAL_STATUS_LABELS, req.status)}
+                  </Badge>
                 </div>
-                <Badge variant="outline">{req.status}</Badge>
-              </div>
-            ))}
+              ))
+            )}
           </TabsContent>
         </Tabs>
       )}

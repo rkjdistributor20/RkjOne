@@ -81,7 +81,7 @@ export function ReportsDashboard() {
       setInventory(inv.items);
       setFleet(fl.fleet);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to load reports');
+      toast.error(err instanceof Error ? err.message : 'Gagal memuatkan laporan');
     } finally {
       setLoading(false);
     }
@@ -97,14 +97,14 @@ export function ReportsDashboard() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold">Reports</h2>
+          <h2 className="text-xl font-bold">Laporan</h2>
           <p className="text-sm text-muted-foreground">
-            Sales · branches · products · staff · inventory · fleet
+            Jualan · cawangan · produk · staf · inventori · armada
           </p>
         </div>
         <div className="flex flex-wrap items-end gap-2">
           <div className="space-y-1">
-            <Label className="text-xs">From</Label>
+            <Label className="text-xs">Dari</Label>
             <Input
               type="date"
               className="h-9 w-36"
@@ -113,7 +113,7 @@ export function ReportsDashboard() {
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">To</Label>
+            <Label className="text-xs">Hingga</Label>
             <Input
               type="date"
               className="h-9 w-36"
@@ -122,7 +122,7 @@ export function ReportsDashboard() {
             />
           </div>
           <Button className="bg-amber-500 hover:bg-amber-600 h-9" onClick={loadData}>
-            Refresh
+            Muat Semula
           </Button>
         </div>
       </div>
@@ -134,13 +134,13 @@ export function ReportsDashboard() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground">Total Sales</CardTitle>
+                <CardTitle className="text-xs font-medium text-muted-foreground">Jumlah Jualan</CardTitle>
               </CardHeader>
               <CardContent className="text-xl font-bold">{fmt(overview?.total_sales ?? 0)}</CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground">Transactions</CardTitle>
+                <CardTitle className="text-xs font-medium text-muted-foreground">Transaksi</CardTitle>
               </CardHeader>
               <CardContent className="text-xl font-bold">{overview?.transaction_count ?? 0}</CardContent>
             </Card>
@@ -154,7 +154,7 @@ export function ReportsDashboard() {
             </Card>
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground">Payroll Net</CardTitle>
+                <CardTitle className="text-xs font-medium text-muted-foreground">Gaji Bersih</CardTitle>
               </CardHeader>
               <CardContent className="text-xl font-bold">{fmt(overview?.payroll_net ?? 0)}</CardContent>
             </Card>
@@ -163,22 +163,22 @@ export function ReportsDashboard() {
           <Tabs defaultValue="sales">
             <TabsList className="flex-wrap h-auto">
               <TabsTrigger value="sales" className="gap-1">
-                <TrendingUp className="h-4 w-4" /> Sales
+                <TrendingUp className="h-4 w-4" /> Jualan
               </TabsTrigger>
               <TabsTrigger value="branches" className="gap-1">
-                <Building2 className="h-4 w-4" /> Branches
+                <Building2 className="h-4 w-4" /> Cawangan
               </TabsTrigger>
               <TabsTrigger value="products" className="gap-1">
-                <Package className="h-4 w-4" /> Products
+                <Package className="h-4 w-4" /> Produk
               </TabsTrigger>
               <TabsTrigger value="staff" className="gap-1">
-                <Users className="h-4 w-4" /> Staff
+                <Users className="h-4 w-4" /> Staf
               </TabsTrigger>
               <TabsTrigger value="inventory" className="gap-1">
-                <Warehouse className="h-4 w-4" /> Stock
+                <Warehouse className="h-4 w-4" /> Stok
               </TabsTrigger>
               <TabsTrigger value="fleet" className="gap-1">
-                <Truck className="h-4 w-4" /> Fleet
+                <Truck className="h-4 w-4" /> Armada
               </TabsTrigger>
             </TabsList>
 

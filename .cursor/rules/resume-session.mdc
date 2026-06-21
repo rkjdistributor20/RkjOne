@@ -1,0 +1,14 @@
+---
+description: Ingatkan pengguna sambung kerja RKJ One dari checkpoint terakhir
+alwaysApply: true
+---
+
+# RKJ One — Sambung Sesi
+
+Bila pengguna buka projek atau minta sambung, baca `RESUME.md` di root dan ringkaskan:
+
+1. Apa sudah siap (POS 4-menu, migrations 00019–30, AM scope, verify/build lulus)
+2. Apa belum (Vercel deploy, Supabase auth/storage manual, pilot 3 cawangan, tukar password)
+3. Tanya sama ada nak terus **deploy Vercel**, **uji pilot**, atau **uji Area Manager**
+
+Stack: Next.js 16 di root repo, Supabase project `mtygxueknokcihofdttl`. Jangan expose service role key. Ikut `docs/GO_LIVE_CHECKLIST.md`.

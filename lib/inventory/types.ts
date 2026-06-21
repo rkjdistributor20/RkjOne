@@ -85,8 +85,8 @@ export interface CountItemInput {
 }
 
 export const LOCATION_TYPE_LABELS: Record<LocationType, string> = {
-  FACTORY: 'Factory',
-  HQ_WAREHOUSE: 'HQ Warehouse',
-  FLEET_VEHICLE: 'Fleet Vehicle',
-  BRANCH_KIOSK: 'Branch Kiosk',
+  FACTORY: 'Kilang',
+  HQ_WAREHOUSE: 'Gudang HQ',
+  FLEET_VEHICLE: 'Kenderaan',
+  BRANCH_KIOSK: 'Kiosk Cawangan',
 };

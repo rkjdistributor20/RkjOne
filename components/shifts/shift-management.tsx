@@ -132,9 +132,15 @@ export function ShiftManagement() {
         />
       )}
 
+      {showBranchPicker && !branchId && (
+        <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+          Sila pilih cawangan untuk melihat jadual shift dan kehadiran.
+        </p>
+      )}
+
       {loading ? (
         <Skeleton className="h-64 w-full" />
-      ) : (
+      ) : showBranchPicker && !branchId ? null : (
         <Tabs defaultValue="schedule">
           <TabsList className="flex-wrap h-auto">
             <TabsTrigger value="schedule" className="gap-1">

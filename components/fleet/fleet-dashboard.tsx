@@ -15,6 +15,11 @@ import { fetchLocations, fetchStockItems } from '@/lib/inventory/api';
 import type { DeliveryLeg, DeliveryOrder, FleetDriver, FleetStatusLog, FleetVehicle } from '@/lib/fleet/types';
 import { LEG_TYPE_LABELS } from '@/lib/fleet/types';
 import type { InventoryLocation, StockItemOption } from '@/lib/inventory/types';
+import {
+  labelFor,
+  DELIVERY_STATUS_LABELS,
+  FLEET_VEHICLE_STATUS_LABELS,
+} from '@/lib/ui/labels';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -29,6 +34,8 @@ const STATUS_VARIANT: Record<string, 'outline' | 'secondary' | 'destructive' | '
   DELIVERED: 'outline',
   DRAFT: 'secondary',
 };
+
+const VEHICLE_STATUS_OPTIONS = Object.keys(FLEET_VEHICLE_STATUS_LABELS);
 
 export function FleetDashboard() {
   const [orders, setOrders] = useState<DeliveryOrder[]>([]);
@@ -60,7 +67,7 @@ export function FleetDashboard() {
       setLocations(loc.locations);
       setStockItems(items.items);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to load fleet data');
+      toast.error(err instanceof Error ? err.message : 'Gagal memuatkan data armada');
     } finally {
       setLoading(false);
     }
@@ -73,20 +80,20 @@ export function FleetDashboard() {
   async function handleDispatch(legId: string) {
     try {
       await dispatchLeg(legId);
-      toast.success('Leg dispatched');
+      toast.success('Leg dihantar');
       loadData();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Dispatch failed');
+      toast.error(err instanceof Error ? err.message : 'Gagal hantar leg');
     }
   }
 
   async function handleLogStatus(vehicleId: string, status: string) {
     try {
       await logFleetStatus({ vehicle_id: vehicleId, status });
-      toast.success('Status logged');
+      toast.success('Status direkod');
       loadData();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to log status');
+      toast.error(err instanceof Error ? err.message : 'Gagal rekod status');
     }
   }
 
@@ -94,14 +101,14 @@ export function FleetDashboard() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold">Fleet Management</h2>
+          <h2 className="text-xl font-bold">Pengurusan Armada</h2>
           <p className="text-sm text-muted-foreground">
-            Factory → HQ → Vehicle → Branch · POD tracking
+            Kilang → Gudang HQ → Kenderaan → Cawangan · Jejak POD
           </p>
         </div>
         <Button className="bg-amber-500 hover:bg-amber-600" onClick={() => setCreateOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
-          New Delivery
+          Penghantaran Baharu
         </Button>
       </div>
 
@@ -111,19 +118,21 @@ export function FleetDashboard() {
         <Tabs defaultValue="deliveries">
           <TabsList>
             <TabsTrigger value="deliveries" className="gap-1">
-              <Package className="h-4 w-4" /> Deliveries
+              <Package className="h-4 w-4" /> Penghantaran
             </TabsTrigger>
             <TabsTrigger value="vehicles" className="gap-1">
-              <Truck className="h-4 w-4" /> Vehicles
+              <Truck className="h-4 w-4" /> Kenderaan
             </TabsTrigger>
             <TabsTrigger value="status" className="gap-1">
-              <MapPin className="h-4 w-4" /> Status Log
+              <MapPin className="h-4 w-4" /> Log Status
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="deliveries" className="mt-4 space-y-4">
             {orders.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No delivery orders yet</p>
+              <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+                Tiada pesanan penghantaran lagi.
+              </p>
             ) : (
               orders.map((order) => (
                 <Card key={order.id}>
@@ -137,7 +146,7 @@ export function FleetDashboard() {
                         </p>
                       </div>
                       <Badge variant={STATUS_VARIANT[order.status] ?? 'outline'}>
-                        {order.status}
+                        {labelFor(DELIVERY_STATUS_LABELS, order.status)}
                       </Badge>
                     </div>
                   </CardHeader>
@@ -155,7 +164,9 @@ export function FleetDashboard() {
                                 {leg.from_location.name} → {leg.to_location.name}
                               </p>
                             </div>
-                            <Badge variant="outline">{leg.status}</Badge>
+                            <Badge variant="outline">
+                              {labelFor(DELIVERY_STATUS_LABELS, leg.status)}
+                            </Badge>
                           </div>
                           <ul className="mt-2 text-xs text-muted-foreground">
                             {leg.delivery_leg_items?.map((item, i) => (
@@ -167,7 +178,7 @@ export function FleetDashboard() {
                           <div className="mt-2 flex gap-2">
                             {leg.status === 'PENDING' && (
                               <Button size="sm" variant="outline" onClick={() => handleDispatch(leg.id)}>
-                                Dispatch
+                                Hantar
                               </Button>
                             )}
                             {leg.status === 'IN_TRANSIT' && (
@@ -179,7 +190,7 @@ export function FleetDashboard() {
                                   setPodOpen(true);
                                 }}
                               >
-                                Submit POD
+                                Hantar POD
                               </Button>
                             )}
                             {leg.proof_of_delivery?.[0] && (
@@ -197,56 +208,75 @@ export function FleetDashboard() {
           </TabsContent>
 
           <TabsContent value="vehicles" className="mt-4">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {vehicles.map((v) => (
-                <Card key={v.id}>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm">{v.vehicle_code}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2 text-sm">
-                    <p>{v.vehicle_type} {v.plate_number && `· ${v.plate_number}`}</p>
-                    <p className="text-muted-foreground">Capacity: {v.capacity ?? '—'}</p>
-                    {v.latest_status && (
-                      <Badge variant="outline">{v.latest_status}</Badge>
-                    )}
-                    <div className="flex flex-wrap gap-1 pt-1">
-                      {['Loading', 'In Transit', 'At Branch', 'Returning'].map((s) => (
-                        <Button
-                          key={s}
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 text-xs"
-                          onClick={() => handleLogStatus(v.id, s)}
-                        >
-                          {s}
-                        </Button>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            {vehicles.length === 0 ? (
+              <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+                Tiada kenderaan didaftarkan.
+              </p>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {vehicles.map((v) => (
+                  <Card key={v.id}>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm">{v.vehicle_code}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-sm">
+                      <p>
+                        {v.vehicle_type} {v.plate_number && `· ${v.plate_number}`}
+                      </p>
+                      <p className="text-muted-foreground">
+                        Kapasiti: {v.capacity ?? '—'}
+                      </p>
+                      {v.latest_status && (
+                        <Badge variant="outline">
+                          {labelFor(FLEET_VEHICLE_STATUS_LABELS, v.latest_status, v.latest_status)}
+                        </Badge>
+                      )}
+                      <div className="flex flex-wrap gap-1 pt-1">
+                        {VEHICLE_STATUS_OPTIONS.map((s) => (
+                          <Button
+                            key={s}
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 text-xs"
+                            onClick={() => handleLogStatus(v.id, s)}
+                          >
+                            {FLEET_VEHICLE_STATUS_LABELS[s]}
+                          </Button>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="status" className="mt-4 space-y-2">
-            {statusLogs.map((log) => (
-              <div key={log.id} className="rounded-lg border p-3 text-sm">
-                <div className="flex justify-between">
-                  <span className="font-medium">
-                    {log.vehicle.vehicle_code} — {log.status}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {new Date(log.logged_at).toLocaleString('ms-MY')}
-                  </span>
+            {statusLogs.length === 0 ? (
+              <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+                Tiada log status armada.
+              </p>
+            ) : (
+              statusLogs.map((log) => (
+                <div key={log.id} className="rounded-lg border p-3 text-sm">
+                  <div className="flex justify-between">
+                    <span className="font-medium">
+                      {log.vehicle.vehicle_code} —{' '}
+                      {labelFor(FLEET_VEHICLE_STATUS_LABELS, log.status, log.status)}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(log.logged_at).toLocaleString('ms-MY')}
+                    </span>
+                  </div>
+                  {log.driver && (
+                    <p className="text-xs text-muted-foreground">{log.driver.full_name}</p>
+                  )}
+                  {log.location_description && (
+                    <p className="text-xs">{log.location_description}</p>
+                  )}
                 </div>
-                {log.driver && (
-                  <p className="text-xs text-muted-foreground">{log.driver.full_name}</p>
-                )}
-                {log.location_description && (
-                  <p className="text-xs">{log.location_description}</p>
-                )}
-              </div>
-            ))}
+              ))
+            )}
           </TabsContent>
         </Tabs>
       )}

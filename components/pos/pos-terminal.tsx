@@ -113,6 +113,7 @@ export function PosTerminal() {
         setStockByProduct({});
         setMenuStockByCategory({});
         setSupplementStock([]);
+        toast.error('Gagal memuatkan stok — jualan mungkin terhad');
       }
 
       if (shiftRes.status === 'fulfilled') {
@@ -167,7 +168,7 @@ export function PosTerminal() {
     }
     fetchBranches()
       .then(({ branches: b }) => setBranches(b))
-      .catch(() => {});
+      .catch(() => toast.error('Gagal memuatkan senarai cawangan'));
   }, [profile?.branch_id, setBranchId]);
 
   useEffect(() => {

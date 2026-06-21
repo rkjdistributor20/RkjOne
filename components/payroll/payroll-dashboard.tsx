@@ -66,7 +66,7 @@ export function PayrollDashboard() {
       });
       setEditRates(rates);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to load payroll');
+      toast.error(err instanceof Error ? err.message : 'Gagal memuatkan gaji');
     } finally {
       setLoading(false);
     }
@@ -120,9 +120,9 @@ export function PayrollDashboard() {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-xl font-bold">Payroll</h2>
+        <h2 className="text-xl font-bold">Gaji & Komisyen</h2>
         <p className="text-sm text-muted-foreground">
-          Foreign shift pay · Local salary + commission · EPF/SOCSO/EIS
+          Gaji shift asing · gaji tempatan + komisyen · EPF/SOCSO/EIS
         </p>
       </div>
 

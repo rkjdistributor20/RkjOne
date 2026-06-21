@@ -160,7 +160,7 @@ export function AppShell({ children }: AppShellProps) {
     router.refresh();
   }
 
-  const greeting = profile?.full_name?.split(' ')[0] ?? 'Staff';
+  const greeting = profile?.full_name?.split(' ')[0] ?? 'Staf';
 
   return (
     <div className="flex min-h-screen bg-background">

@@ -17,10 +17,13 @@ import {
   Truck,
 } from 'lucide-react';
 import { getCurrentProfile } from '@/lib/auth/session';
-import { getDashboardStats, getPosOverview } from '@/lib/dashboard/queries';
+import { getDashboardStats, getFleetOverview, getPosOverview } from '@/lib/dashboard/queries';
 import { PageHeader, BrandStatsStrip } from '@/components/brand/page-header';
 import { COMPANY } from '@/lib/brand/company';
 import { PosOverviewPanel } from '@/components/dashboard/pos-overview-panel';
+import { labelFor, FLEET_VEHICLE_STATUS_LABELS } from '@/lib/ui/labels';
+import { buttonVariants } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 function StatCard({
   title,
   value,
@@ -70,10 +73,13 @@ export default async function DashboardPage() {
     redirect('/login');
   }
 
-  const [stats, posOverview] = await Promise.all([
+  const [stats, posOverview, fleetOverview] = await Promise.all([
     getDashboardStats(profile.organization_id),
     getPosOverview(profile.organization_id),
+    getFleetOverview(profile.organization_id),
   ]);
+
+  const statsUnavailable = stats === null;
 
   return (
     <div className="space-y-6">
@@ -85,25 +91,32 @@ export default async function DashboardPage() {
 
       <BrandStatsStrip />
 
+      {statsUnavailable && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Statistik papan pemuka tidak dapat dimuatkan. Semak sambungan pangkalan data atau
+          view <code className="text-xs">dashboard_stats</code>.
+        </div>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Jualan Hari Ini"
-          value={formatRM(stats?.sales_today ?? 0)}
+          value={statsUnavailable ? '—' : formatRM(stats!.sales_today ?? 0)}
           icon={TrendingUp}
         />
         <StatCard
           title="Jualan Minggu Ini"
-          value={formatRM(stats?.sales_this_week ?? 0)}
+          value={statsUnavailable ? '—' : formatRM(stats!.sales_this_week ?? 0)}
           icon={TrendingUp}
         />
         <StatCard
           title="Jualan Bulan Ini"
-          value={formatRM(stats?.sales_this_month ?? 0)}
+          value={statsUnavailable ? '—' : formatRM(stats!.sales_this_month ?? 0)}
           icon={TrendingUp}
         />
         <StatCard
           title="Tunai Tertunggak"
-          value={formatRM(stats?.outstanding_cash ?? 0)}
+          value={statsUnavailable ? '—' : formatRM(stats!.outstanding_cash ?? 0)}
           icon={Banknote}
           variant="warning"
         />
@@ -112,21 +125,21 @@ export default async function DashboardPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard
           title="Stok Rendah"
-          value={String(stats?.low_stock_count ?? 0)}
+          value={statsUnavailable ? '—' : String(stats!.low_stock_count ?? 0)}
           description="Di bawah ambang minimum"
           icon={Package}
           variant="warning"
         />
         <StatCard
           title="Stok Kritikal"
-          value={String(stats?.critical_stock_count ?? 0)}
+          value={statsUnavailable ? '—' : String(stats!.critical_stock_count ?? 0)}
           description="Tindakan segera diperlukan"
           icon={AlertTriangle}
           variant="danger"
         />
         <StatCard
           title="Kelulusan Tertunda"
-          value={String(stats?.pending_approvals ?? 0)}
+          value={statsUnavailable ? '—' : String(stats!.pending_approvals ?? 0)}
           description="Menunggu tindakan pengurus"
           icon={CheckCircle2}
         />
@@ -136,23 +149,37 @@ export default async function DashboardPage() {
         <PosOverviewPanel overview={posOverview} />
 
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Truck className="h-5 w-5" />
-              Status Penghantaran
-            </CardTitle>
-            <CardDescription>Ringkasan status pesanan penghantaran</CardDescription>
+          <CardHeader className="flex flex-row items-start justify-between gap-4">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Truck className="h-5 w-5" />
+                Armada & Penghantaran
+              </CardTitle>
+              <CardDescription>
+                {fleetOverview.pending_deliveries} menunggu · {fleetOverview.in_transit} dalam perjalanan
+              </CardDescription>
+            </div>
+            <Link href="/fleet" className={cn(buttonVariants({ size: 'sm' }), 'shrink-0')}>
+              Buka Armada
+            </Link>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {['V001 Lori 5T', 'V002 Lori 3T', 'V003 Lori 1T', 'V004 Van', 'V005 Lori/Van'].map(
-                (v) => (
-                  <Badge key={v} variant="outline">
-                    {v}
+            {fleetOverview.vehicles.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Tiada kenderaan didaftarkan.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {fleetOverview.vehicles.map((v) => (
+                  <Badge key={v.id} variant="outline" className="gap-1 px-3 py-1">
+                    {v.vehicle_code} · {v.vehicle_type}
+                    {v.latest_status && (
+                      <span className="text-muted-foreground">
+                        — {labelFor(FLEET_VEHICLE_STATUS_LABELS, v.latest_status, v.latest_status)}
+                      </span>
+                    )}
                   </Badge>
-                )
-              )}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -165,7 +192,7 @@ export default async function DashboardPage() {
         <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {[
             { label: 'Buka Syif POS', href: '/pos' },
-            { label: 'Pindah Stok', href: '/inventory' },
+            { label: 'Inventori', href: '/inventory' },
             { label: 'Lihat Laporan', href: '/reports' },
             { label: 'Kelulusan Tertunda', href: '/approvals' },
           ].map((action) => (

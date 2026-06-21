@@ -50,7 +50,7 @@ export function BrandStatsStrip() {
         { label: 'Ditubuhkan', value: String(COMPANY.founded) },
         { label: 'Cawangan', value: `${COMPANY.branchCount} kiosk` },
         { label: 'Wilayah', value: COMPANY.regions.join(' · ') },
-        { label: 'Ibu Pejabat', value: 'Teluk Intan' },
+        { label: 'Ibu Pejabat', value: COMPANY.hq.split(',')[0] ?? COMPANY.hq },
       ].map((item) => (
         <div
           key={item.label}
