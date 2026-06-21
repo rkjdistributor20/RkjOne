@@ -47,6 +47,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  ModuleLayout,
+  ModuleHeader,
+  ModuleLoading,
+  KpiGrid,
+  KpiCard,
+  moduleTabsListClass,
+  moduleTabsTriggerClass,
+  formatRM,
+} from '@/components/shared/module-ui';
 
 function fmt(n: number) {
   return `RM ${Number(n).toLocaleString('ms-MY', { minimumFractionDigits: 2 })}`;
@@ -167,66 +177,43 @@ export function FinanceDashboard() {
   const pendingCollections = collections.filter((c) => c.status === 'PENDING');
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-xl font-bold">Kewangan</h2>
-        <p className="text-sm text-muted-foreground">
-          Kutipan tunai · bank masuk · penyelarasan · laporan harian
-        </p>
-      </div>
+    <ModuleLayout>
+      <ModuleHeader
+        title="Kewangan"
+        description="Kutipan tunai kiosk, bank masuk, penyelarasan, dan laporan harian"
+        icon={Banknote}
+        badges={
+          pendingCollections.length > 0 ? (
+            <Badge variant="destructive">{pendingCollections.length} kutipan menunggu</Badge>
+          ) : undefined
+        }
+      />
 
       {loading ? (
-        <Skeleton className="h-48 w-full" />
+        <ModuleLoading />
       ) : (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground">Menunggu</CardTitle>
-              </CardHeader>
-              <CardContent className="text-xl font-bold">{summary?.pending_collections ?? 0}</CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground">Dikutip Hari Ini</CardTitle>
-              </CardHeader>
-              <CardContent className="text-xl font-bold">{fmt(summary?.collected_today ?? 0)}</CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground">Bank Masuk Hari Ini</CardTitle>
-              </CardHeader>
-              <CardContent className="text-xl font-bold">{fmt(summary?.banked_today ?? 0)}</CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground">Pending Recon</CardTitle>
-              </CardHeader>
-              <CardContent className="text-xl font-bold">{summary?.pending_reconciliations ?? 0}</CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground">Outstanding</CardTitle>
-              </CardHeader>
-              <CardContent className="text-xl font-bold text-orange-600">
-                {fmt(summary?.outstanding_cash ?? 0)}
-              </CardContent>
-            </Card>
-          </div>
+          <KpiGrid cols={5}>
+            <KpiCard title="Menunggu" value={summary?.pending_collections ?? 0} icon={ClipboardList} />
+            <KpiCard title="Dikutip Hari Ini" value={fmt(summary?.collected_today ?? 0)} icon={Banknote} />
+            <KpiCard title="Bank Masuk" value={fmt(summary?.banked_today ?? 0)} icon={Landmark} />
+            <KpiCard title="Penyelarasan" value={summary?.pending_reconciliations ?? 0} icon={BarChart3} variant="warning" />
+            <KpiCard title="Tertunggak" value={fmt(summary?.outstanding_cash ?? 0)} icon={Banknote} variant="warning" />
+          </KpiGrid>
 
-          <Tabs defaultValue="collections">
-            <TabsList>
-              <TabsTrigger value="collections" className="gap-1">
-                <Banknote className="h-4 w-4" /> Collections
+          <Tabs defaultValue="collections" className="space-y-4">
+            <TabsList className={moduleTabsListClass}>
+              <TabsTrigger value="collections" className={moduleTabsTriggerClass}>
+                <Banknote className="h-4 w-4" /> Kutipan
               </TabsTrigger>
-              <TabsTrigger value="bankin" className="gap-1">
-                <Landmark className="h-4 w-4" /> Bank In
+              <TabsTrigger value="bankin" className={moduleTabsTriggerClass}>
+                <Landmark className="h-4 w-4" /> Bank Masuk
               </TabsTrigger>
-              <TabsTrigger value="recon" className="gap-1">
-                <ClipboardList className="h-4 w-4" /> Reconciliation
+              <TabsTrigger value="recon" className={moduleTabsTriggerClass}>
+                <ClipboardList className="h-4 w-4" /> Penyelarasan
               </TabsTrigger>
-              <TabsTrigger value="reports" className="gap-1">
-                <BarChart3 className="h-4 w-4" /> Reports
+              <TabsTrigger value="reports" className={moduleTabsTriggerClass}>
+                <BarChart3 className="h-4 w-4" /> Laporan
               </TabsTrigger>
             </TabsList>
 
@@ -507,6 +494,6 @@ export function FinanceDashboard() {
           </Tabs>
         </>
       )}
-    </div>
+    </ModuleLayout>
   );
 }

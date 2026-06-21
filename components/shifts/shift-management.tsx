@@ -17,6 +17,14 @@ import type { ShiftTemplate, StaffShiftRow, AttendanceRow } from '@/lib/shifts/t
 import { useAuthStore } from '@/stores/auth-store';
 import { needsBranchPicker } from '@/lib/auth/branch-scope';
 import { BranchScopeSelect } from '@/components/shared/branch-scope-select';
+import {
+  ModuleLayout,
+  ModuleHeader,
+  ModuleLoading,
+  BranchRequiredPrompt,
+  moduleTabsListClass,
+  moduleTabsTriggerClass,
+} from '@/components/shared/module-ui';
 import { StaffByRegionPanel } from '@/components/staff/staff-by-region-panel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -116,13 +124,12 @@ export function ShiftManagement() {
   );
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-xl font-bold">Pengurusan Shift</h2>
-        <p className="text-sm text-muted-foreground">
-          Jadual shift · kehadiran · staf ikut kawasan Area Manager
-        </p>
-      </div>
+    <ModuleLayout>
+      <ModuleHeader
+        title="Pengurusan Syif"
+        description="Jadual shift, kehadiran staf, dan kelulusan — ikut skop cawangan Area Manager"
+        icon={Clock}
+      />
 
       {showBranchPicker && (
         <BranchScopeSelect
@@ -132,17 +139,13 @@ export function ShiftManagement() {
         />
       )}
 
-      {showBranchPicker && !branchId && (
-        <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-          Sila pilih cawangan untuk melihat jadual shift dan kehadiran.
-        </p>
-      )}
-
-      {loading ? (
-        <Skeleton className="h-64 w-full" />
-      ) : showBranchPicker && !branchId ? null : (
-        <Tabs defaultValue="schedule">
-          <TabsList className="flex-wrap h-auto">
+      {showBranchPicker && !branchId ? (
+        <BranchRequiredPrompt message="Sila pilih cawangan untuk melihat jadual shift dan kehadiran." />
+      ) : loading ? (
+        <ModuleLoading />
+      ) : (
+        <Tabs defaultValue="schedule" className="space-y-4">
+          <TabsList className={moduleTabsListClass}>
             <TabsTrigger value="schedule" className="gap-1">
               <Calendar className="h-4 w-4" /> Jadual
             </TabsTrigger>
@@ -345,6 +348,6 @@ export function ShiftManagement() {
           </TabsContent>
         </Tabs>
       )}
-    </div>
+    </ModuleLayout>
   );
 }

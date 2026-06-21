@@ -4,6 +4,15 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Wallet, FileText, Settings, Users } from 'lucide-react';
 import {
+  ModuleLayout,
+  ModuleHeader,
+  ModuleLoading,
+  KpiGrid,
+  KpiCard,
+  moduleTabsListClass,
+  moduleTabsTriggerClass,
+} from '@/components/shared/module-ui';
+import {
   fetchPayrollRuns,
   fetchPayrollRules,
   fetchCommissionTiers,
@@ -118,30 +127,35 @@ export function PayrollDashboard() {
   const localCount = staff.filter((s) => s.worker_type === 'LOCAL').length;
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-xl font-bold">Gaji & Komisyen</h2>
-        <p className="text-sm text-muted-foreground">
-          Gaji shift asing · gaji tempatan + komisyen · EPF/SOCSO/EIS
-        </p>
-      </div>
+    <ModuleLayout>
+      <ModuleHeader
+        title="Gaji & Komisyen"
+        description="Gaji shift asing · gaji tempatan + komisyen · EPF/SOCSO/EIS"
+        icon={Wallet}
+        badges={
+          <>
+            <Badge variant="secondary">{foreignCount} asing</Badge>
+            <Badge variant="outline">{localCount} tempatan</Badge>
+          </>
+        }
+      />
 
       {loading ? (
-        <Skeleton className="h-64 w-full" />
+        <ModuleLoading />
       ) : (
-        <Tabs defaultValue="runs">
-          <TabsList>
-            <TabsTrigger value="runs" className="gap-1">
-              <FileText className="h-4 w-4" /> Runs
+        <Tabs defaultValue="runs" className="space-y-4">
+          <TabsList className={moduleTabsListClass}>
+            <TabsTrigger value="runs" className={moduleTabsTriggerClass}>
+              <FileText className="h-4 w-4" /> Jana Gaji
             </TabsTrigger>
-            <TabsTrigger value="rules" className="gap-1">
-              <Settings className="h-4 w-4" /> Rules
+            <TabsTrigger value="rules" className={moduleTabsTriggerClass}>
+              <Settings className="h-4 w-4" /> Peraturan
             </TabsTrigger>
-            <TabsTrigger value="commission" className="gap-1">
-              <Wallet className="h-4 w-4" /> Commission
+            <TabsTrigger value="commission" className={moduleTabsTriggerClass}>
+              <Wallet className="h-4 w-4" /> Komisyen
             </TabsTrigger>
-            <TabsTrigger value="staff" className="gap-1">
-              <Users className="h-4 w-4" /> Staff
+            <TabsTrigger value="staff" className={moduleTabsTriggerClass}>
+              <Users className="h-4 w-4" /> Staf
             </TabsTrigger>
           </TabsList>
 
@@ -322,6 +336,6 @@ export function PayrollDashboard() {
           </TabsContent>
         </Tabs>
       )}
-    </div>
+    </ModuleLayout>
   );
 }

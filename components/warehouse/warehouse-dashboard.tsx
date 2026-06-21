@@ -26,6 +26,17 @@ import { useAuthStore } from '@/stores/auth-store';
 import { isAdminRole } from '@/lib/auth/permissions';
 import { COMPANY } from '@/lib/brand/company';
 import { labelFor, TRANSFER_STATUS_LABELS } from '@/lib/ui/labels';
+import {
+  ModuleLayout,
+  ModuleHeader,
+  ModuleLoading,
+  EmptyState,
+  KpiGrid,
+  KpiCard,
+  SectionCard,
+  moduleTabsListClass,
+  moduleTabsTriggerClass,
+} from '@/components/shared/module-ui';
 
 export function WarehouseDashboard() {
   const profile = useAuthStore((s) => s.profile);
@@ -79,76 +90,62 @@ export function WarehouseDashboard() {
   }, [loadData]);
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-xl font-bold">Gudang HQ</h2>
-        <p className="text-sm text-muted-foreground">
-          {COMPANY.hq} · Terima · Pindah · Audit
-        </p>
-      </div>
+    <ModuleLayout>
+      <ModuleHeader
+        title="Gudang HQ"
+        description={`${COMPANY.hq} — terima stok kilang, pindah ke kenderaan & cawangan, audit berkala`}
+        icon={Warehouse}
+      />
 
       {loading ? (
-        <Skeleton className="h-48 w-full" />
+        <ModuleLoading />
       ) : !hqLocation ? (
-        <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-          Lokasi gudang HQ tidak dijumpai. Hubungi pentadbir sistem.
-        </p>
+        <EmptyState
+          icon={Warehouse}
+          title="Lokasi HQ tidak dijumpai"
+          description="Hubungi pentadbir sistem untuk konfigurasi lokasi gudang HQ."
+        />
       ) : (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Item Stok</CardTitle>
-              </CardHeader>
-              <CardContent className="text-2xl font-bold">{summary?.total_items ?? 0}</CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Jumlah Kuantiti</CardTitle>
-              </CardHeader>
-              <CardContent className="text-2xl font-bold">
-                {summary?.total_quantity?.toLocaleString() ?? 0}
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Stok Rendah</CardTitle>
-              </CardHeader>
-              <CardContent className="text-2xl font-bold text-orange-600">
-                {summary?.low_stock_count ?? 0}
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Menunggu</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm">
-                Pindahan: {summary?.pending_transfers ?? 0}
-                <br />
-                Penghantaran: {summary?.pending_deliveries ?? 0}
-              </CardContent>
-            </Card>
-          </div>
+          <KpiGrid cols={4}>
+            <KpiCard title="Item Stok" value={summary?.total_items ?? 0} icon={Package} />
+            <KpiCard
+              title="Jumlah Kuantiti"
+              value={summary?.total_quantity?.toLocaleString() ?? 0}
+              icon={Package}
+            />
+            <KpiCard
+              title="Stok Rendah"
+              value={summary?.low_stock_count ?? 0}
+              icon={Package}
+              variant="warning"
+            />
+            <KpiCard
+              title="Menunggu"
+              value={`${summary?.pending_transfers ?? 0} pindah · ${summary?.pending_deliveries ?? 0} hantar`}
+              icon={ArrowRight}
+            />
+          </KpiGrid>
 
-          <Tabs defaultValue="stock">
-            <TabsList>
-              <TabsTrigger value="stock" className="gap-1">
+          <Tabs defaultValue="stock" className="space-y-4">
+            <TabsList className={moduleTabsListClass}>
+              <TabsTrigger value="stock" className={moduleTabsTriggerClass}>
                 <Package className="h-4 w-4" /> Stok
               </TabsTrigger>
-              <TabsTrigger value="receive" className="gap-1">
+              <TabsTrigger value="receive" className={moduleTabsTriggerClass}>
                 <Warehouse className="h-4 w-4" /> Terima
               </TabsTrigger>
-              <TabsTrigger value="transfer" className="gap-1">
+              <TabsTrigger value="transfer" className={moduleTabsTriggerClass}>
                 <ArrowRight className="h-4 w-4" /> Pindah Keluar
               </TabsTrigger>
-              <TabsTrigger value="audit" className="gap-1">
+              <TabsTrigger value="audit" className={moduleTabsTriggerClass}>
                 <ClipboardCheck className="h-4 w-4" /> Audit
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="stock" className="mt-4">
+            <TabsContent value="stock" className="mt-2">
               {balances.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Tiada baki stok di gudang HQ.</p>
+                <EmptyState icon={Package} title="Tiada baki stok" description="Terima stok dari kilang melalui tab Terima." />
               ) : (
                 <BalanceTable balances={balances} />
               )}
@@ -309,6 +306,6 @@ export function WarehouseDashboard() {
           </Tabs>
         </>
       )}
-    </div>
+    </ModuleLayout>
   );
 }

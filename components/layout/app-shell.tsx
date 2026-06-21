@@ -27,7 +27,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { createClient } from '@/lib/supabase/client';
-import { getVisibleNavItems } from '@/lib/auth/permissions';
+import { getVisibleNavItems, getNavLabelForPath } from '@/lib/auth/permissions';
 import { ROLE_LABELS } from '@/types/enums';
 import { useAuthStore } from '@/stores/auth-store';
 
@@ -150,6 +150,7 @@ function UserFooter({ onLogout }: { onLogout: () => void }) {
 
 export function AppShell({ children }: AppShellProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const { profile } = useAuthStore();
 
   async function handleLogout() {
@@ -161,6 +162,7 @@ export function AppShell({ children }: AppShellProps) {
   }
 
   const greeting = profile?.full_name?.split(' ')[0] ?? 'Staf';
+  const pageTitle = getNavLabelForPath(pathname);
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -191,8 +193,8 @@ export function AppShell({ children }: AppShellProps) {
           </Sheet>
 
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              {COMPANY.name}
+            <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+              {pageTitle}
             </p>
             <h1 className="truncate text-lg font-bold md:text-xl">
               Selamat datang, {greeting}
@@ -204,7 +206,7 @@ export function AppShell({ children }: AppShellProps) {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto bg-muted/20 p-4 md:p-6">{children}</main>
       </div>
     </div>
   );

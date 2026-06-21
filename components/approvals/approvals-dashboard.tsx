@@ -2,15 +2,24 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { CheckCircle, XCircle, Clock } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, CheckSquare } from 'lucide-react';
 import { fetchApprovals, approveRequest, rejectRequest } from '@/lib/approvals/api';
 import type { ApprovalRequest } from '@/lib/approvals/types';
 import { labelFor, APPROVAL_ENTITY_LABELS, APPROVAL_STATUS_LABELS } from '@/lib/ui/labels';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  ModuleLayout,
+  ModuleHeader,
+  ModuleLoading,
+  EmptyState,
+  RecordRow,
+  SectionCard,
+  moduleTabsListClass,
+  moduleTabsTriggerClass,
+} from '@/components/shared/module-ui';
 
 export function ApprovalsDashboard() {
   const [pending, setPending] = useState<ApprovalRequest[]>([]);
@@ -69,36 +78,44 @@ export function ApprovalsDashboard() {
   }
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-xl font-bold">Kelulusan</h2>
-        <p className="text-sm text-muted-foreground">
-          Syif · gaji · stok · penyelarasan tunai
-        </p>
-      </div>
+    <ModuleLayout>
+      <ModuleHeader
+        title="Kelulusan"
+        description="Luluskan atau tolak permintaan syif, gaji, stok, dan penyelarasan tunai"
+        icon={CheckSquare}
+        badges={
+          pending.length > 0 ? (
+            <Badge variant="destructive">{pending.length} menunggu tindakan</Badge>
+          ) : (
+            <Badge variant="outline">Semua selesai</Badge>
+          )
+        }
+      />
 
       {loading ? (
-        <Skeleton className="h-48 w-full" />
+        <ModuleLoading rows={1} />
       ) : (
-        <Tabs defaultValue="pending">
-          <TabsList>
-            <TabsTrigger value="pending" className="gap-1">
+        <Tabs defaultValue="pending" className="space-y-4">
+          <TabsList className={moduleTabsListClass}>
+            <TabsTrigger value="pending" className={moduleTabsTriggerClass}>
               <Clock className="h-4 w-4" />
               Menunggu ({pending.length})
             </TabsTrigger>
-            <TabsTrigger value="history" className="gap-1">
+            <TabsTrigger value="history" className={moduleTabsTriggerClass}>
               <CheckCircle className="h-4 w-4" /> Sejarah
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="pending" className="mt-4 space-y-3">
+          <TabsContent value="pending" className="mt-2 space-y-3">
             {pending.length === 0 ? (
-              <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-                Tiada kelulusan menunggu.
-              </p>
+              <EmptyState
+                icon={CheckCircle}
+                title="Tiada kelulusan menunggu"
+                description="Semua permintaan telah diproses. Rekod baharu akan muncul di sini."
+              />
             ) : (
               pending.map((req) => (
-                <div key={req.id} className="rounded-lg border p-4">
+                <SectionCard key={req.id}>
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
                       <p className="font-medium">{req.title}</p>
@@ -147,17 +164,21 @@ export function ApprovalsDashboard() {
                       </Button>
                     )}
                   </div>
-                </div>
+                </SectionCard>
               ))
             )}
           </TabsContent>
 
-          <TabsContent value="history" className="mt-4 space-y-2">
+          <TabsContent value="history" className="mt-2 space-y-2">
             {resolved.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Tiada sejarah kelulusan.</p>
+              <EmptyState
+                icon={Clock}
+                title="Tiada sejarah"
+                description="Kelulusan yang telah diproses akan dipaparkan di sini."
+              />
             ) : (
               resolved.map((req) => (
-                <div key={req.id} className="flex justify-between rounded-lg border p-3 text-sm">
+                <RecordRow key={req.id}>
                   <div>
                     <p className="font-medium">{req.title}</p>
                     <p className="text-xs text-muted-foreground">
@@ -167,12 +188,12 @@ export function ApprovalsDashboard() {
                   <Badge variant="outline">
                     {labelFor(APPROVAL_STATUS_LABELS, req.status)}
                   </Badge>
-                </div>
+                </RecordRow>
               ))
             )}
           </TabsContent>
         </Tabs>
       )}
-    </div>
+    </ModuleLayout>
   );
 }

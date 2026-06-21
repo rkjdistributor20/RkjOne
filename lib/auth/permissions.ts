@@ -73,3 +73,12 @@ export function getVisibleNavItems(
     return canAccessModule(role, item.module, permissions);
   });
 }
+
+export function getNavLabelForPath(pathname: string): string {
+  const exact = NAV_ITEMS.find((item) => item.href === pathname);
+  if (exact) return exact.label;
+  const prefix = NAV_ITEMS.find(
+    (item) => item.href !== '/dashboard' && pathname.startsWith(`${item.href}/`)
+  );
+  return prefix?.label ?? 'Papan Pemuka';
+}

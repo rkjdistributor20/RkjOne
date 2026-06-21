@@ -24,48 +24,13 @@ import { PosOverviewPanel } from '@/components/dashboard/pos-overview-panel';
 import { labelFor, FLEET_VEHICLE_STATUS_LABELS } from '@/lib/ui/labels';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-function StatCard({
-  title,
-  value,
-  description,
-  icon: Icon,
-  variant = 'default',
-}: {
-  title: string;
-  value: string;
-  description?: string;
-  icon: React.ElementType;
-  variant?: 'default' | 'warning' | 'danger';
-}) {
-  const colors = {
-    default: 'text-primary bg-primary/10',
-    warning: 'text-orange-600 bg-orange-50',
-    danger: 'text-red-600 bg-red-50',
-  };
-
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
-          {title}
-        </CardTitle>
-        <div className={`rounded-lg p-2 ${colors[variant]}`}>
-          <Icon className="h-4 w-4" />
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
-        {description && (
-          <p className="mt-1 text-xs text-muted-foreground">{description}</p>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function formatRM(amount: number) {
-  return `RM ${amount.toLocaleString('ms-MY', { minimumFractionDigits: 2 })}`;
-}
+import {
+  ModuleLayout,
+  KpiGrid,
+  KpiCard,
+  SectionCard,
+  formatRM,
+} from '@/components/shared/module-ui';
 
 export default async function DashboardPage() {
   const profile = await getCurrentProfile();
@@ -82,7 +47,7 @@ export default async function DashboardPage() {
   const statsUnavailable = stats === null;
 
   return (
-    <div className="space-y-6">
+    <ModuleLayout>
       <PageHeader
         badge={COMPANY.systemName}
         title="Papan Pemuka"
@@ -98,52 +63,52 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
+      <KpiGrid>
+        <KpiCard
           title="Jualan Hari Ini"
           value={statsUnavailable ? '—' : formatRM(stats!.sales_today ?? 0)}
           icon={TrendingUp}
         />
-        <StatCard
+        <KpiCard
           title="Jualan Minggu Ini"
           value={statsUnavailable ? '—' : formatRM(stats!.sales_this_week ?? 0)}
           icon={TrendingUp}
         />
-        <StatCard
+        <KpiCard
           title="Jualan Bulan Ini"
           value={statsUnavailable ? '—' : formatRM(stats!.sales_this_month ?? 0)}
           icon={TrendingUp}
         />
-        <StatCard
+        <KpiCard
           title="Tunai Tertunggak"
           value={statsUnavailable ? '—' : formatRM(stats!.outstanding_cash ?? 0)}
           icon={Banknote}
           variant="warning"
         />
-      </div>
+      </KpiGrid>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <StatCard
+      <KpiGrid cols={3}>
+        <KpiCard
           title="Stok Rendah"
           value={statsUnavailable ? '—' : String(stats!.low_stock_count ?? 0)}
           description="Di bawah ambang minimum"
           icon={Package}
           variant="warning"
         />
-        <StatCard
+        <KpiCard
           title="Stok Kritikal"
           value={statsUnavailable ? '—' : String(stats!.critical_stock_count ?? 0)}
           description="Tindakan segera diperlukan"
           icon={AlertTriangle}
           variant="danger"
         />
-        <StatCard
+        <KpiCard
           title="Kelulusan Tertunda"
           value={statsUnavailable ? '—' : String(stats!.pending_approvals ?? 0)}
           description="Menunggu tindakan pengurus"
           icon={CheckCircle2}
         />
-      </div>
+      </KpiGrid>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <PosOverviewPanel overview={posOverview} />
@@ -184,12 +149,8 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Tindakan Pantas</CardTitle>
-          <CardDescription>Tugasan biasa harian</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+      <SectionCard title="Tindakan Pantas" description="Tugasan biasa harian">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {[
             { label: 'Buka Syif POS', href: '/pos' },
             { label: 'Inventori', href: '/inventory' },
@@ -204,8 +165,8 @@ export default async function DashboardPage() {
               {action.label}
             </Link>
           ))}
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </SectionCard>
+    </ModuleLayout>
   );
 }

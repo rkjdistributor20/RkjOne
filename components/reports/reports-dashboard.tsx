@@ -10,6 +10,8 @@ import {
   Users,
   Truck,
   Warehouse,
+  Wallet,
+  Banknote,
 } from 'lucide-react';
 import {
   fetchReportOverview,
@@ -35,6 +37,17 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  ModuleLayout,
+  ModuleHeader,
+  ModuleLoading,
+  KpiGrid,
+  KpiCard,
+  PrimaryActionButton,
+  moduleTabsListClass,
+  moduleTabsTriggerClass,
+  formatRM,
+} from '@/components/shared/module-ui';
 
 function fmt(n: number) {
   return `RM ${Number(n).toLocaleString('ms-MY', { minimumFractionDigits: 2 })}`;
@@ -94,90 +107,71 @@ export function ReportsDashboard() {
   const maxTrend = Math.max(...trend.map((t) => t.total_sales), 1);
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-bold">Laporan</h2>
-          <p className="text-sm text-muted-foreground">
-            Jualan · cawangan · produk · staf · inventori · armada
-          </p>
-        </div>
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="space-y-1">
-            <Label className="text-xs">Dari</Label>
-            <Input
-              type="date"
-              className="h-9 w-36"
-              value={range.from}
-              onChange={(e) => setRange({ ...range, from: e.target.value })}
-            />
+    <ModuleLayout>
+      <ModuleHeader
+        title="Laporan"
+        description="Analisis jualan, prestasi cawangan, produk, staf, inventori, dan armada"
+        icon={BarChart3}
+        actions={
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Dari</Label>
+              <Input
+                type="date"
+                className="h-9 w-36"
+                value={range.from}
+                onChange={(e) => setRange({ ...range, from: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Hingga</Label>
+              <Input
+                type="date"
+                className="h-9 w-36"
+                value={range.to}
+                onChange={(e) => setRange({ ...range, to: e.target.value })}
+              />
+            </div>
+            <PrimaryActionButton className="h-9" onClick={loadData}>
+              Muat Semula
+            </PrimaryActionButton>
           </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Hingga</Label>
-            <Input
-              type="date"
-              className="h-9 w-36"
-              value={range.to}
-              onChange={(e) => setRange({ ...range, to: e.target.value })}
-            />
-          </div>
-          <Button className="bg-amber-500 hover:bg-amber-600 h-9" onClick={loadData}>
-            Muat Semula
-          </Button>
-        </div>
-      </div>
+        }
+      />
 
       {loading ? (
-        <Skeleton className="h-64 w-full" />
+        <ModuleLoading />
       ) : (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground">Jumlah Jualan</CardTitle>
-              </CardHeader>
-              <CardContent className="text-xl font-bold">{fmt(overview?.total_sales ?? 0)}</CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground">Transaksi</CardTitle>
-              </CardHeader>
-              <CardContent className="text-xl font-bold">{overview?.transaction_count ?? 0}</CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground">Cash / QR</CardTitle>
-              </CardHeader>
-              <CardContent className="text-sm">
-                {fmt(overview?.total_cash ?? 0)} / {fmt(overview?.total_qr ?? 0)}
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xs font-medium text-muted-foreground">Gaji Bersih</CardTitle>
-              </CardHeader>
-              <CardContent className="text-xl font-bold">{fmt(overview?.payroll_net ?? 0)}</CardContent>
-            </Card>
-          </div>
+          <KpiGrid>
+            <KpiCard title="Jumlah Jualan" value={fmt(overview?.total_sales ?? 0)} icon={TrendingUp} />
+            <KpiCard title="Transaksi" value={overview?.transaction_count ?? 0} icon={BarChart3} />
+            <KpiCard
+              title="Tunai / QR"
+              value={`${fmt(overview?.total_cash ?? 0)} / ${fmt(overview?.total_qr ?? 0)}`}
+              icon={Banknote}
+            />
+            <KpiCard title="Gaji Bersih" value={fmt(overview?.payroll_net ?? 0)} icon={Wallet} />
+          </KpiGrid>
 
-          <Tabs defaultValue="sales">
-            <TabsList className="flex-wrap h-auto">
-              <TabsTrigger value="sales" className="gap-1">
+          <Tabs defaultValue="sales" className="space-y-4">
+            <TabsList className={moduleTabsListClass}>
+              <TabsTrigger value="sales" className={moduleTabsTriggerClass}>
                 <TrendingUp className="h-4 w-4" /> Jualan
               </TabsTrigger>
-              <TabsTrigger value="branches" className="gap-1">
+              <TabsTrigger value="branches" className={moduleTabsTriggerClass}>
                 <Building2 className="h-4 w-4" /> Cawangan
               </TabsTrigger>
-              <TabsTrigger value="products" className="gap-1">
+              <TabsTrigger value="products" className={moduleTabsTriggerClass}>
                 <Package className="h-4 w-4" /> Produk
               </TabsTrigger>
-              <TabsTrigger value="staff" className="gap-1">
+              <TabsTrigger value="staff" className={moduleTabsTriggerClass}>
                 <Users className="h-4 w-4" /> Staf
               </TabsTrigger>
-              <TabsTrigger value="inventory" className="gap-1">
+              <TabsTrigger value="inventory" className={moduleTabsTriggerClass}>
                 <Warehouse className="h-4 w-4" /> Stok
               </TabsTrigger>
-              <TabsTrigger value="fleet" className="gap-1">
+              <TabsTrigger value="fleet" className={moduleTabsTriggerClass}>
                 <Truck className="h-4 w-4" /> Armada
               </TabsTrigger>
             </TabsList>
@@ -293,7 +287,7 @@ export function ReportsDashboard() {
           </Tabs>
         </>
       )}
-    </div>
+    </ModuleLayout>
   );
 }
 

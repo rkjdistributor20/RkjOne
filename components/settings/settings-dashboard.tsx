@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { Users, Package, Building2, SlidersHorizontal } from 'lucide-react';
+import { Users, Package, Building2, SlidersHorizontal, Settings2 } from 'lucide-react';
 import { StaffByRegionPanel } from '@/components/staff/staff-by-region-panel';
 import {
   fetchSettingsUsers,
@@ -25,6 +25,14 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  ModuleLayout,
+  ModuleHeader,
+  ModuleLoading,
+  EmptyState,
+  moduleTabsListClass,
+  moduleTabsTriggerClass,
+} from '@/components/shared/module-ui';
 
 function fmt(n: number) {
   return `RM ${Number(n).toFixed(2)}`;
@@ -100,35 +108,34 @@ export function SettingsDashboard() {
   }
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-xl font-bold">Tetapan Admin</h2>
-        <p className="text-sm text-muted-foreground">
-          Data induk · ambang stok · pengguna
-        </p>
-      </div>
+    <ModuleLayout>
+      <ModuleHeader
+        title="Tetapan Admin"
+        description="Urus produk, cawangan, ambang stok, staf, dan pengguna sistem"
+        icon={Settings2}
+      />
 
       {loading ? (
-        <Skeleton className="h-64 w-full" />
+        <ModuleLoading />
       ) : (
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="flex-wrap h-auto">
-            <TabsTrigger value="products" className="gap-1">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+          <TabsList className={moduleTabsListClass}>
+            <TabsTrigger value="products" className={moduleTabsTriggerClass}>
               <Package className="h-4 w-4" /> Produk
             </TabsTrigger>
-            <TabsTrigger value="branches" className="gap-1">
+            <TabsTrigger value="branches" className={moduleTabsTriggerClass}>
               <Building2 className="h-4 w-4" /> Cawangan
             </TabsTrigger>
-            <TabsTrigger value="stock" className="gap-1">
+            <TabsTrigger value="stock" className={moduleTabsTriggerClass}>
               <SlidersHorizontal className="h-4 w-4" /> Ambang Stok
             </TabsTrigger>
             {canViewStaff && (
-              <TabsTrigger value="staff" className="gap-1">
+              <TabsTrigger value="staff" className={moduleTabsTriggerClass}>
                 <Users className="h-4 w-4" /> Staf
               </TabsTrigger>
             )}
             {isAdmin && (
-              <TabsTrigger value="users" className="gap-1">
+              <TabsTrigger value="users" className={moduleTabsTriggerClass}>
                 <Users className="h-4 w-4" /> Pengguna
               </TabsTrigger>
             )}
@@ -169,7 +176,7 @@ export function SettingsDashboard() {
 
           <TabsContent value="branches" className="mt-4">
             {branches.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Tiada cawangan.</p>
+              <EmptyState icon={Building2} title="Tiada cawangan" />
             ) : (
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {branches.map((b) => (
@@ -189,7 +196,7 @@ export function SettingsDashboard() {
             {!isAdmin && role !== 'CEO_FACTORY' ? (
               <p className="text-sm text-muted-foreground">Hanya pentadbir boleh edit ambang stok</p>
             ) : stockItems.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Tiada item stok.</p>
+              <EmptyState icon={SlidersHorizontal} title="Tiada item stok" />
             ) : (
               stockItems.map((item) => (
                 <div key={item.id} className="flex flex-wrap items-end gap-3 rounded-lg border p-3 text-sm">
@@ -271,6 +278,6 @@ export function SettingsDashboard() {
           )}
         </Tabs>
       )}
-    </div>
+    </ModuleLayout>
   );
 }

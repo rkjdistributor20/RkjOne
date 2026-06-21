@@ -54,6 +54,15 @@ import { BalanceTable } from '@/components/inventory/balance-table';
 import { MovementList } from '@/components/inventory/movement-list';
 import { StockLineForm } from '@/components/inventory/stock-line-form';
 import { TransferPanel } from '@/components/inventory/transfer-panel';
+import {
+  ModuleLayout,
+  ModuleHeader,
+  ModuleLoading,
+  EmptyState,
+  BranchRequiredPrompt,
+  moduleTabsListClass,
+  moduleTabsTriggerClass,
+} from '@/components/shared/module-ui';
 
 export function InventoryDashboard() {
   const profile = useAuthStore((s) => s.profile);
@@ -191,23 +200,22 @@ export function InventoryDashboard() {
   const needsBranchSelection = showBranchPicker && !selectedBranchId;
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-bold">Inventori</h2>
-          <p className="text-sm text-muted-foreground">
-            Kilang · Gudang HQ · Kenderaan · Kiosk
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {criticalCount > 0 && (
-            <Badge variant="destructive">{criticalCount} Kritikal</Badge>
-          )}
-          {lowCount > 0 && (
-            <Badge variant="secondary">{lowCount} Stok Rendah</Badge>
-          )}
-        </div>
-      </div>
+    <ModuleLayout>
+      <ModuleHeader
+        title="Inventori"
+        description="Pantau dan urus stok di kilang, gudang HQ, kenderaan, dan kiosk cawangan"
+        icon={Package}
+        badges={
+          <>
+            {criticalCount > 0 && (
+              <Badge variant="destructive">{criticalCount} Kritikal</Badge>
+            )}
+            {lowCount > 0 && (
+              <Badge variant="secondary">{lowCount} Stok Rendah</Badge>
+            )}
+          </>
+        }
+      />
 
       {showBranchPicker && (
         <BranchScopeSelect
@@ -219,9 +227,7 @@ export function InventoryDashboard() {
       )}
 
       {needsBranchSelection ? (
-        <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-          Sila pilih cawangan untuk melihat inventori.
-        </p>
+        <BranchRequiredPrompt message="Sila pilih cawangan untuk melihat inventori kiosk dalam kawasan anda." />
       ) : (
         <>
           <div className="flex flex-wrap gap-3">
@@ -260,15 +266,19 @@ export function InventoryDashboard() {
           </div>
 
           {locationsLoading ? (
-            <Skeleton className="h-64 w-full" />
+            <ModuleLoading rows={1} />
           ) : locations.length === 0 ? (
-            <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-              Tiada lokasi inventori untuk tapisan ini.
-            </p>
+            <EmptyState
+              icon={Package}
+              title="Tiada lokasi inventori"
+              description="Tiada lokasi untuk tapisan ini. Cuba pilih jenis lokasi lain."
+            />
           ) : !selectedLocationId ? (
-            <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-              Sila pilih lokasi inventori.
-            </p>
+            <EmptyState
+              icon={Package}
+              title="Pilih lokasi"
+              description="Pilih lokasi inventori dari senarai di atas."
+            />
           ) : (
             <>
               {selectedLocation && (
@@ -286,34 +296,38 @@ export function InventoryDashboard() {
               {loading ? (
                 <Skeleton className="h-64 w-full" />
               ) : (
-                <Tabs value={activeTab} onValueChange={setActiveTab}>
-                  <TabsList className="flex h-auto flex-wrap gap-1">
-                    <TabsTrigger value="balances" className="gap-1">
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+                  <TabsList className={moduleTabsListClass}>
+                    <TabsTrigger value="balances" className={moduleTabsTriggerClass}>
                       <Package className="h-4 w-4" /> Baki
                     </TabsTrigger>
-                    <TabsTrigger value="movements" className="gap-1">
+                    <TabsTrigger value="movements" className={moduleTabsTriggerClass}>
                       <History className="h-4 w-4" /> Pergerakan
                     </TabsTrigger>
-                    <TabsTrigger value="receive" className="gap-1">
+                    <TabsTrigger value="receive" className={moduleTabsTriggerClass}>
                       <Plus className="h-4 w-4" /> Terima
                     </TabsTrigger>
-                    <TabsTrigger value="transfer" className="gap-1">
+                    <TabsTrigger value="transfer" className={moduleTabsTriggerClass}>
                       <ArrowLeftRight className="h-4 w-4" /> Pindah
                     </TabsTrigger>
-                    <TabsTrigger value="adjust" className="gap-1">
+                    <TabsTrigger value="adjust" className={moduleTabsTriggerClass}>
                       <ClipboardList className="h-4 w-4" /> Laras
                     </TabsTrigger>
-                    <TabsTrigger value="count" className="gap-1">
+                    <TabsTrigger value="count" className={moduleTabsTriggerClass}>
                       <ClipboardList className="h-4 w-4" /> Kira
                     </TabsTrigger>
-                    <TabsTrigger value="writeoff" className="gap-1">
+                    <TabsTrigger value="writeoff" className={moduleTabsTriggerClass}>
                       <Trash2 className="h-4 w-4" /> Lupus
                     </TabsTrigger>
                   </TabsList>
 
                   <TabsContent value="balances" className="mt-4">
                     {balances.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">Tiada baki stok di lokasi ini.</p>
+                      <EmptyState
+                        icon={Package}
+                        title="Tiada baki stok"
+                        description="Lokasi ini belum mempunyai baki stok. Terima stok dari tab Terima."
+                      />
                     ) : (
                       <BalanceTable balances={balances} />
                     )}
@@ -400,6 +414,6 @@ export function InventoryDashboard() {
           )}
         </>
       )}
-    </div>
+    </ModuleLayout>
   );
 }

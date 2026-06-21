@@ -24,9 +24,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
 import { CreateDeliveryDialog } from '@/components/fleet/create-delivery-dialog';
 import { PodDialog } from '@/components/fleet/pod-dialog';
+import {
+  ModuleLayout,
+  ModuleHeader,
+  ModuleLoading,
+  EmptyState,
+  PrimaryActionButton,
+  KpiGrid,
+  KpiCard,
+  moduleTabsListClass,
+  moduleTabsTriggerClass,
+} from '@/components/shared/module-ui';
 
 const STATUS_VARIANT: Record<string, 'outline' | 'secondary' | 'destructive' | 'default'> = {
   PENDING: 'secondary',
@@ -97,42 +107,73 @@ export function FleetDashboard() {
     }
   }
 
+  const activeDeliveries = orders.filter(
+    (o) => o.status === 'PENDING' || o.status === 'IN_TRANSIT'
+  ).length;
+
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-bold">Pengurusan Armada</h2>
-          <p className="text-sm text-muted-foreground">
-            Kilang → Gudang HQ → Kenderaan → Cawangan · Jejak POD
-          </p>
-        </div>
-        <Button className="bg-amber-500 hover:bg-amber-600" onClick={() => setCreateOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Penghantaran Baharu
-        </Button>
-      </div>
+    <ModuleLayout>
+      <ModuleHeader
+        title="Pengurusan Armada"
+        description="Aliran penghantaran Kilang → Gudang HQ → Kenderaan → Cawangan dengan jejak POD"
+        icon={Truck}
+        badges={
+          <>
+            <Badge variant="secondary">{vehicles.length} kenderaan</Badge>
+            <Badge variant={activeDeliveries > 0 ? 'default' : 'outline'}>
+              {activeDeliveries} penghantaran aktif
+            </Badge>
+          </>
+        }
+        actions={
+          <PrimaryActionButton onClick={() => setCreateOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Penghantaran Baharu
+          </PrimaryActionButton>
+        }
+      />
 
       {loading ? (
-        <Skeleton className="h-64 w-full" />
+        <ModuleLoading />
       ) : (
-        <Tabs defaultValue="deliveries">
-          <TabsList>
-            <TabsTrigger value="deliveries" className="gap-1">
+        <Tabs defaultValue="deliveries" className="space-y-4">
+          <TabsList className={moduleTabsListClass}>
+            <TabsTrigger value="deliveries" className={moduleTabsTriggerClass}>
               <Package className="h-4 w-4" /> Penghantaran
             </TabsTrigger>
-            <TabsTrigger value="vehicles" className="gap-1">
+            <TabsTrigger value="vehicles" className={moduleTabsTriggerClass}>
               <Truck className="h-4 w-4" /> Kenderaan
             </TabsTrigger>
-            <TabsTrigger value="status" className="gap-1">
+            <TabsTrigger value="status" className={moduleTabsTriggerClass}>
               <MapPin className="h-4 w-4" /> Log Status
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="deliveries" className="mt-4 space-y-4">
+          {!loading && (
+            <KpiGrid cols={3}>
+              <KpiCard title="Pesanan" value={orders.length} icon={Package} />
+              <KpiCard title="Kenderaan" value={vehicles.length} icon={Truck} />
+              <KpiCard
+                title="Log Hari Ini"
+                value={statusLogs.length}
+                icon={MapPin}
+              />
+            </KpiGrid>
+          )}
+
+          <TabsContent value="deliveries" className="mt-2 space-y-4">
             {orders.length === 0 ? (
-              <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-                Tiada pesanan penghantaran lagi.
-              </p>
+              <EmptyState
+                icon={Package}
+                title="Tiada pesanan penghantaran"
+                description="Cipta penghantaran baharu untuk pindahkan stok dari kilang atau HQ ke cawangan."
+                action={
+                  <PrimaryActionButton onClick={() => setCreateOpen(true)}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Penghantaran Baharu
+                  </PrimaryActionButton>
+                }
+              />
             ) : (
               orders.map((order) => (
                 <Card key={order.id}>
@@ -207,11 +248,13 @@ export function FleetDashboard() {
             )}
           </TabsContent>
 
-          <TabsContent value="vehicles" className="mt-4">
+          <TabsContent value="vehicles" className="mt-2">
             {vehicles.length === 0 ? (
-              <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-                Tiada kenderaan didaftarkan.
-              </p>
+              <EmptyState
+                icon={Truck}
+                title="Tiada kenderaan didaftarkan"
+                description="Daftar kenderaan dalam tetapan atau import CSV fleet."
+              />
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {vehicles.map((v) => (
@@ -251,11 +294,13 @@ export function FleetDashboard() {
             )}
           </TabsContent>
 
-          <TabsContent value="status" className="mt-4 space-y-2">
+          <TabsContent value="status" className="mt-2 space-y-2">
             {statusLogs.length === 0 ? (
-              <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-                Tiada log status armada.
-              </p>
+              <EmptyState
+                icon={MapPin}
+                title="Tiada log status"
+                description="Rekod status kenderaan dari tab Kenderaan."
+              />
             ) : (
               statusLogs.map((log) => (
                 <div key={log.id} className="rounded-lg border p-3 text-sm">
@@ -297,6 +342,6 @@ export function FleetDashboard() {
         leg={podLeg}
         onSuccess={loadData}
       />
-    </div>
+    </ModuleLayout>
   );
 }
