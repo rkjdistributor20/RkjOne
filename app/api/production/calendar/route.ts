@@ -44,5 +44,23 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ dates: parseRpcJsonArray(data) });
+  const dates = parseRpcJsonArray(data);
+  if (dates.length === 0) {
+    const { data: weeks } = await supabase
+      .from('factory_production_weeks' as 'products')
+      .select('id, status')
+      .eq('organization_id', profile.organization_id)
+      .eq('status', 'PUBLISHED')
+      .limit(1);
+    if ((weeks ?? []).length > 0) {
+      console.error('[production/calendar] RPC returned empty but published weeks exist', {
+        org: profile.organization_id,
+        from,
+        to,
+        rpcData: data,
+      });
+    }
+  }
+
+  return NextResponse.json({ dates });
 }

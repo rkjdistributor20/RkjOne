@@ -15,6 +15,9 @@ export async function GET(request: Request) {
   }
 
   const supabase = await createClient();
+
+  await inventoryRpc(supabase, 'close_expired_production_order_windows', {});
+
   const { data, error } = await inventoryRpc(supabase, 'suggest_hq_factory_order', {
     p_production_date: productionDate,
   });
