@@ -57,6 +57,24 @@ export function canManageFactorySchedule(role: string): boolean {
   );
 }
 
+/** HQ hantar order ke kilang (bukan CEO Kilang) */
+export function canSubmitHqFactoryOrder(role: string): boolean {
+  return (['SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER'] as UserRole[]).includes(
+    role as UserRole
+  );
+}
+
+/** Sidebar / route Kilang */
+export function canAccessFactoryNav(role: string): boolean {
+  return canManageFactorySchedule(role);
+}
+
+/** Sidebar / route Gudang HQ — CEO Kilang guna dashboard Kilang sahaja */
+export function canAccessHqWarehouseNav(role: string): boolean {
+  if (role === 'CEO_FACTORY') return false;
+  return canManageHqStockInOut(role) || canSubmitHqFactoryOrder(role);
+}
+
 /** Pengurus Kawasan urus stok masuk/keluar kiosk kawasan */
 export function canManageKioskStockInOut(role: string): boolean {
   return isAreaManagerRole(role) || canManageHqStockInOut(role);

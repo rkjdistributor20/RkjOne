@@ -1,4 +1,5 @@
 import type { PermissionLevel, PermissionModule, UserRole } from '@/types/enums';
+import { canAccessFactoryNav, canAccessHqWarehouseNav } from '@/lib/auth/stock-access';
 
 const LEVEL_RANK: Record<PermissionLevel, number> = {
   NONE: 0,
@@ -52,6 +53,7 @@ export const NAV_ITEMS: Array<{
   { href: '/branches', label: 'Cawangan', module: 'reports', icon: 'Building2' },
   { href: '/shifts', label: 'Syif', module: 'shift', icon: 'Clock' },
   { href: '/inventory', label: 'Inventori', module: 'stock_kiosk', icon: 'Package' },
+  { href: '/factory', label: 'Kilang', module: 'stock_hq', icon: 'Factory' },
   { href: '/warehouse', label: 'Gudang HQ', module: 'stock_hq', icon: 'Warehouse' },
   { href: '/fleet', label: 'Armada', module: 'fleet', icon: 'Truck' },
   { href: '/payroll', label: 'Gaji', module: 'payroll', icon: 'Wallet' },
@@ -69,6 +71,15 @@ export function getVisibleNavItems(
     if (item.href === '/dashboard') return true;
     if (item.href === '/settings') {
       return isAdminRole(role) || role === 'AREA_MANAGER' || role === 'OPERATION_MANAGER';
+    }
+    if (item.href === '/factory') {
+      return canAccessFactoryNav(role);
+    }
+    if (item.href === '/warehouse') {
+      return (
+        canAccessHqWarehouseNav(role) &&
+        canAccessModule(role, item.module, permissions)
+      );
     }
     return canAccessModule(role, item.module, permissions);
   });

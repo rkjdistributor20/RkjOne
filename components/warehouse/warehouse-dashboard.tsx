@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Warehouse, Package, ArrowRight, ClipboardCheck, CalendarDays, ClipboardList, Inbox } from 'lucide-react';
+import { Warehouse, Package, ArrowRight, ClipboardCheck, ClipboardList } from 'lucide-react';
 import {
   fetchWarehouseSummary,
   fetchWarehouseAudits,
@@ -18,18 +18,17 @@ import type { InventoryLocation, StockItemOption, StockTransferRow, InventoryBal
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
 import { StockLineForm } from '@/components/inventory/stock-line-form';
 import { BalanceTable } from '@/components/inventory/balance-table';
 import { useAuthStore } from '@/stores/auth-store';
 import { isAdminRole } from '@/lib/auth/permissions';
-import { canManageHqStockInOut, canSetRotiProductionDate, canManageFactorySchedule } from '@/lib/auth/stock-access';
+import {
+  canManageHqStockInOut,
+  canSubmitHqFactoryOrder,
+} from '@/lib/auth/stock-access';
 import { fetchProductionCalendar } from '@/lib/production/api';
 import type { PublishedProductionDate } from '@/lib/production/types';
-import { FactoryProductionSchedulePanel } from '@/components/warehouse/factory-production-schedule-panel';
 import { HqFactoryOrderPanel } from '@/components/warehouse/hq-factory-order-panel';
-import { FactoryOrderInbox } from '@/components/warehouse/factory-order-inbox';
 import { COMPANY } from '@/lib/brand/company';
 import { labelFor, TRANSFER_STATUS_LABELS } from '@/lib/ui/labels';
 import {
@@ -39,7 +38,6 @@ import {
   EmptyState,
   KpiGrid,
   KpiCard,
-  SectionCard,
   moduleTabsListClass,
   moduleTabsTriggerClass,
 } from '@/components/shared/module-ui';
@@ -47,8 +45,7 @@ import {
 export function WarehouseDashboard() {
   const profile = useAuthStore((s) => s.profile);
   const canManageHq = profile ? canManageHqStockInOut(profile.role) : false;
-  const canOrder = profile ? canSetRotiProductionDate(profile.role) : false;
-  const canFactory = profile ? canManageFactorySchedule(profile.role) : false;
+  const canOrder = profile ? canSubmitHqFactoryOrder(profile.role) : false;
   const canApprove = profile ? isAdminRole(profile.role) || profile.role === 'OPERATION_MANAGER' : false;
   const [publishedDates, setPublishedDates] = useState<PublishedProductionDate[]>([]);
   const productionDateOptions = publishedDates.map((d) => d.production_date);
@@ -117,11 +114,13 @@ export function WarehouseDashboard() {
     loadData();
   }, [loadData]);
 
+  const defaultTab = canOrder ? 'hq-order' : 'stock';
+
   return (
     <ModuleLayout>
       <ModuleHeader
         title="Gudang HQ"
-        description={`${COMPANY.hq} — jadual production kilang · order HQ · terima stok · pindah ke cawangan`}
+        description={`${COMPANY.hq} — order ke kilang · terima stok · pindah ke cawangan`}
         icon={Warehouse}
       />
 
@@ -157,29 +156,19 @@ export function WarehouseDashboard() {
 
           {!canManageHq && (
             <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-              Paparan sahaja — stok masuk/keluar Gudang HQ dikawal oleh pentadbir HQ (Admin /
-              CEO Kilang).
+              Paparan sahaja — stok masuk/keluar Gudang HQ dikawal oleh pentadbir HQ (Admin).
+              {canOrder && ' Anda boleh hantar order ke kilang di tab Order Kilang.'}
             </p>
           )}
 
-          <Tabs defaultValue="stock" className="space-y-4">
+          <Tabs defaultValue={defaultTab} className="space-y-4">
             <TabsList className={moduleTabsListClass}>
               <TabsTrigger value="stock" className={moduleTabsTriggerClass}>
                 <Package className="h-4 w-4" /> Stok
               </TabsTrigger>
-              {canFactory && (
-                <TabsTrigger value="schedule" className={moduleTabsTriggerClass}>
-                  <CalendarDays className="h-4 w-4" /> Jadual Kilang
-                </TabsTrigger>
-              )}
               {canOrder && (
                 <TabsTrigger value="hq-order" className={moduleTabsTriggerClass}>
                   <ClipboardList className="h-4 w-4" /> Order Kilang
-                </TabsTrigger>
-              )}
-              {canFactory && (
-                <TabsTrigger value="factory-inbox" className={moduleTabsTriggerClass}>
-                  <Inbox className="h-4 w-4" /> Laporan Order
                 </TabsTrigger>
               )}
               {canManageHq && (
@@ -205,12 +194,6 @@ export function WarehouseDashboard() {
               )}
             </TabsContent>
 
-            {canFactory && (
-              <TabsContent value="schedule" className="mt-4">
-                <FactoryProductionSchedulePanel />
-              </TabsContent>
-            )}
-
             {canOrder && (
               <TabsContent value="hq-order" className="mt-4">
                 <HqFactoryOrderPanel
@@ -221,181 +204,175 @@ export function WarehouseDashboard() {
               </TabsContent>
             )}
 
-            {canFactory && (
-              <TabsContent value="factory-inbox" className="mt-4">
-                <FactoryOrderInbox />
-              </TabsContent>
-            )}
-
             {canManageHq && (
               <>
-            <TabsContent value="receive" className="mt-4">
-              <p className="mb-3 text-sm text-muted-foreground">
-                Terima stok dari kilang — pilih tarikh production dari jadual kilang yang diterbitkan.
-              </p>
-              <StockLineForm
-                mode="receive"
-                stockItems={stockItems}
-                orderInPacks
-                requireRotiProductionDate
-                productionDateOptions={productionDateOptions}
-                onSubmit={async (items, meta) => {
-                  try {
-                    await receiveStock(hqLocation.id, items, 'FACTORY', meta?.notes);
-                    toast.success('Stok diterima di HQ');
-                    loadData();
-                  } catch (err) {
-                    toast.error(err instanceof Error ? err.message : 'Gagal terima stok');
-                  }
-                }}
-              />
-            </TabsContent>
-
-            <TabsContent value="transfer" className="mt-4 space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Pindah stok dari HQ ke kenderaan atau cawangan
-              </p>
-              <>
-                <select
-                  className="rounded-md border px-3 py-2 text-sm"
-                  value={transferTo}
-                  onChange={(e) => setTransferTo(e.target.value)}
-                >
-                  <option value="">Pilih destinasi…</option>
-                  <optgroup label="Kenderaan">
-                    {fleetLocations.map((l) => (
-                      <option key={l.id} value={l.id}>{l.name}</option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="Cawangan">
-                    {branchLocations.map((l) => (
-                      <option key={l.id} value={l.id}>{l.name}</option>
-                    ))}
-                  </optgroup>
-                </select>
-                {transferTo && (
+                <TabsContent value="receive" className="mt-4">
+                  <p className="mb-3 text-sm text-muted-foreground">
+                    Terima stok dari kilang — pilih tarikh production dari jadual kilang yang diterbitkan.
+                  </p>
                   <StockLineForm
                     mode="receive"
                     stockItems={stockItems}
                     orderInPacks
-                    requireRotiProductionDate={
-                      branchLocations.some((l) => l.id === transferTo)
-                    }
-                    productionDateOptions={
-                      branchLocations.some((l) => l.id === transferTo)
-                        ? productionDateOptions
-                        : undefined
-                    }
-                    onSubmit={async (items) => {
+                    requireRotiProductionDate
+                    productionDateOptions={productionDateOptions}
+                    onSubmit={async (items, meta) => {
                       try {
-                        await createTransfer({
-                          from_location_id: hqLocation.id,
-                          to_location_id: transferTo,
-                          items,
-                        });
-                        toast.success('Pindahan dicipta');
+                        await receiveStock(hqLocation.id, items, 'FACTORY', meta?.notes);
+                        toast.success('Stok diterima di HQ');
                         loadData();
                       } catch (err) {
-                        toast.error(err instanceof Error ? err.message : 'Gagal cipta pindahan');
+                        toast.error(err instanceof Error ? err.message : 'Gagal terima stok');
                       }
                     }}
                   />
-                )}
-              </>
-              <div className="space-y-2">
-                <h3 className="font-semibold text-sm">Pindahan HQ</h3>
-                {transfers.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Tiada pindahan HQ.</p>
-                ) : (
-                  transfers.map((t) => (
-                    <div key={t.id} className="flex items-center justify-between rounded-lg border p-3 text-sm">
-                      <div>
-                        <p className="font-medium">{t.transfer_number}</p>
-                        <p className="text-xs text-muted-foreground">
-                          → {t.to_location.name}
-                        </p>
-                      </div>
-                      <div className="flex gap-2">
-                        <Badge variant="outline">
-                          {labelFor(TRANSFER_STATUS_LABELS, t.status)}
-                        </Badge>
-                        {t.status === 'PENDING' && (
-                          <Button size="sm" variant="outline" onClick={async () => {
-                            try {
-                              await dispatchTransfer(t.id);
-                              toast.success('Dihantar');
-                              loadData();
-                            } catch (err) {
-                              toast.error(err instanceof Error ? err.message : 'Gagal hantar');
-                            }
-                          }}>
-                            Hantar
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </TabsContent>
+                </TabsContent>
 
-            <TabsContent value="audit" className="mt-4 space-y-4">
-              <StockLineForm
-                mode="count"
-                stockItems={stockItems}
-                balances={balances}
-                onSubmitCount={async (items, notes) => {
-                  try {
-                    await submitWarehouseAudit(
-                      hqLocation.id,
-                      items.map((i) => ({
-                        stock_item_id: i.stock_item_id,
-                        audited_quantity: i.counted_quantity,
-                      })),
-                      notes
-                    );
-                    toast.success('Audit gudang dihantar');
-                    loadData();
-                  } catch (err) {
-                    toast.error(err instanceof Error ? err.message : 'Gagal hantar audit');
-                  }
-                }}
-              />
-              <div className="space-y-2">
-                <h3 className="font-semibold text-sm">Sejarah Audit</h3>
-                {audits.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Tiada rekod audit.</p>
-                ) : (
-                  audits.map((a) => (
-                    <div key={a.id} className="rounded-lg border p-3 text-sm">
-                      <div className="flex justify-between">
-                        <span className="font-medium">{a.audit_number}</span>
-                        <Badge variant="outline">{labelFor(TRANSFER_STATUS_LABELS, a.status, a.status)}</Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground">{a.audit_date}</p>
-                      {a.status === 'PENDING' && canApprove && (
-                        <Button
-                          size="sm"
-                          className="mt-2"
-                          variant="outline"
-                          onClick={async () => {
-                            try {
-                              await approveWarehouseAudit(a.id);
-                              toast.success('Audit diluluskan');
-                              loadData();
-                            } catch (err) {
-                              toast.error(err instanceof Error ? err.message : 'Gagal luluskan audit');
-                            }
-                          }}
-                        >
-                          Luluskan
-                        </Button>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-            </TabsContent>
+                <TabsContent value="transfer" className="mt-4 space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Pindah stok dari HQ ke kenderaan atau cawangan
+                  </p>
+                  <>
+                    <select
+                      className="rounded-md border px-3 py-2 text-sm"
+                      value={transferTo}
+                      onChange={(e) => setTransferTo(e.target.value)}
+                    >
+                      <option value="">Pilih destinasi…</option>
+                      <optgroup label="Kenderaan">
+                        {fleetLocations.map((l) => (
+                          <option key={l.id} value={l.id}>{l.name}</option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Cawangan">
+                        {branchLocations.map((l) => (
+                          <option key={l.id} value={l.id}>{l.name}</option>
+                        ))}
+                      </optgroup>
+                    </select>
+                    {transferTo && (
+                      <StockLineForm
+                        mode="receive"
+                        stockItems={stockItems}
+                        orderInPacks
+                        requireRotiProductionDate={
+                          branchLocations.some((l) => l.id === transferTo)
+                        }
+                        productionDateOptions={
+                          branchLocations.some((l) => l.id === transferTo)
+                            ? productionDateOptions
+                            : undefined
+                        }
+                        onSubmit={async (items) => {
+                          try {
+                            await createTransfer({
+                              from_location_id: hqLocation.id,
+                              to_location_id: transferTo,
+                              items,
+                            });
+                            toast.success('Pindahan dicipta');
+                            loadData();
+                          } catch (err) {
+                            toast.error(err instanceof Error ? err.message : 'Gagal cipta pindahan');
+                          }
+                        }}
+                      />
+                    )}
+                  </>
+                  <div className="space-y-2">
+                    <h3 className="font-semibold text-sm">Pindahan HQ</h3>
+                    {transfers.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Tiada pindahan HQ.</p>
+                    ) : (
+                      transfers.map((t) => (
+                        <div key={t.id} className="flex items-center justify-between rounded-lg border p-3 text-sm">
+                          <div>
+                            <p className="font-medium">{t.transfer_number}</p>
+                            <p className="text-xs text-muted-foreground">
+                              → {t.to_location.name}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <Badge variant="outline">
+                              {labelFor(TRANSFER_STATUS_LABELS, t.status)}
+                            </Badge>
+                            {t.status === 'PENDING' && (
+                              <Button size="sm" variant="outline" onClick={async () => {
+                                try {
+                                  await dispatchTransfer(t.id);
+                                  toast.success('Dihantar');
+                                  loadData();
+                                } catch (err) {
+                                  toast.error(err instanceof Error ? err.message : 'Gagal hantar');
+                                }
+                              }}>
+                                Hantar
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="audit" className="mt-4 space-y-4">
+                  <StockLineForm
+                    mode="count"
+                    stockItems={stockItems}
+                    balances={balances}
+                    onSubmitCount={async (items, notes) => {
+                      try {
+                        await submitWarehouseAudit(
+                          hqLocation.id,
+                          items.map((i) => ({
+                            stock_item_id: i.stock_item_id,
+                            audited_quantity: i.counted_quantity,
+                          })),
+                          notes
+                        );
+                        toast.success('Audit gudang dihantar');
+                        loadData();
+                      } catch (err) {
+                        toast.error(err instanceof Error ? err.message : 'Gagal hantar audit');
+                      }
+                    }}
+                  />
+                  <div className="space-y-2">
+                    <h3 className="font-semibold text-sm">Sejarah Audit</h3>
+                    {audits.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Tiada rekod audit.</p>
+                    ) : (
+                      audits.map((a) => (
+                        <div key={a.id} className="rounded-lg border p-3 text-sm">
+                          <div className="flex justify-between">
+                            <span className="font-medium">{a.audit_number}</span>
+                            <Badge variant="outline">{labelFor(TRANSFER_STATUS_LABELS, a.status, a.status)}</Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">{a.audit_date}</p>
+                          {a.status === 'PENDING' && canApprove && (
+                            <Button
+                              size="sm"
+                              className="mt-2"
+                              variant="outline"
+                              onClick={async () => {
+                                try {
+                                  await approveWarehouseAudit(a.id);
+                                  toast.success('Audit diluluskan');
+                                  loadData();
+                                } catch (err) {
+                                  toast.error(err instanceof Error ? err.message : 'Gagal luluskan audit');
+                                }
+                              }}
+                            >
+                              Luluskan
+                            </Button>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </TabsContent>
               </>
             )}
           </Tabs>

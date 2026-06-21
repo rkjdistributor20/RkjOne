@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getCurrentProfile } from '@/lib/auth/session';
-import { canSetRotiProductionDate } from '@/lib/auth/stock-access';
+import { canSubmitHqFactoryOrder } from '@/lib/auth/stock-access';
 import { inventoryRpc } from '@/lib/supabase/inventory-rpc';
 
 export async function GET(request: Request) {
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Tidak dibenarkan' }, { status: 401 });
   }
 
-  if (!canSetRotiProductionDate(profile.role)) {
+  if (!canSubmitHqFactoryOrder(profile.role)) {
     return NextResponse.json(
       { error: 'Hanya pembuat order HQ boleh hantar order ke kilang' },
       { status: 403 }

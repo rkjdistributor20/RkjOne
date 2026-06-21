@@ -9,7 +9,7 @@ import { formatProductionDayLabel } from '@/lib/production/week-utils';
 import { Button } from '@/components/ui/button';
 import { HqFactoryOrderCard } from '@/components/warehouse/hq-factory-order-card';
 
-export function FactoryOrderInbox() {
+export function FactoryOrderInbox({ onOrdersChange }: { onOrdersChange?: () => void }) {
   const [orders, setOrders] = useState<HqFactoryOrder[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -35,6 +35,7 @@ export function FactoryOrderInbox() {
       await acknowledgeHqFactoryOrder(id);
       toast.success('Order disahkan — sedia untuk production');
       load();
+      onOrdersChange?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Gagal sahkan order');
     }
