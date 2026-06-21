@@ -8,22 +8,14 @@ import type { OrderSuggestion, PublishedProductionDate } from '@/lib/production/
 import { ORDER_PHASE_LABELS } from '@/lib/production/types';
 import { fetchOrderSuggestion } from '@/lib/production/api';
 import {
-  HQ_FACTORY_ORDER_SECTIONS,
-  formatHqOrderPreview,
-  getHqOrderUnitLabel,
-} from '@/lib/production/hq-order-format';
-import {
   formatOrderCutoff,
   getOrderWindowCountdown,
   isCutoffPassed,
 } from '@/lib/production/order-window';
 import { formatProductionDayLabel } from '@/lib/production/week-utils';
-import { getStockByCode, resolveRejectToBaseQuantity } from '@/lib/stock/catalog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import {
   HqBranchOrderMatrix,
@@ -37,7 +29,7 @@ interface HqFactoryOrderFormProps {
   publishedDates: PublishedProductionDate[];
   onSubmit: (payload: {
     production_date: string;
-    items: Array<{ stock_item_id: string; quantity: number; unit?: string }>;
+    items?: Array<{ stock_item_id: string; quantity: number; unit?: string }>;
     branch_items?: Array<{
       branch_id: string;
       stock_item_id: string;
@@ -57,7 +49,6 @@ export function HqFactoryOrderForm({
   const [productionDate, setProductionDate] = useState('');
   const [branchQty, setBranchQty] = useState<BranchQtyMap>({});
   const [branchDrivers, setBranchDrivers] = useState<BranchDriverMap>({});
-  const [factoryQty, setFactoryQty] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingSuggest, setLoadingSuggest] = useState(false);
@@ -99,7 +90,6 @@ export function HqFactoryOrderForm({
       loadSuggestion(productionDate);
       setBranchQty({});
       setBranchDrivers({});
-      setFactoryQty({});
     }
   }, [productionDate, loadSuggestion]);
 
@@ -109,8 +99,9 @@ export function HqFactoryOrderForm({
     for (const branch of suggestion.branches) {
       next[branch.branch_id] = {};
       for (const item of branch.items) {
-        if (item.suggested_bags > 0) {
-          next[branch.branch_id][item.item_code] = String(item.suggested_bags);
+        const qty = item.suggested_order_qty ?? item.suggested_bags;
+        if (qty > 0) {
+          next[branch.branch_id][item.item_code] = String(qty);
         }
       }
     }
@@ -121,12 +112,6 @@ export function HqFactoryOrderForm({
       if (branch.default_driver_id) fd[branch.branch_id] = branch.default_driver_id;
     }
     setBranchDrivers(fd);
-
-    const fq: Record<string, string> = {};
-    for (const item of suggestion.factory_items) {
-      fq[item.item_code] = String(item.suggested_qty);
-    }
-    setFactoryQty(fq);
   }
 
   const branchItems = useMemo(() => {
@@ -134,43 +119,20 @@ export function HqFactoryOrderForm({
     return buildBranchItemsFromMatrix(suggestion.branches, branchQty, branchDrivers, stockIdByCode);
   }, [suggestion, branchQty, branchDrivers, stockIdByCode]);
 
-  const factoryItems = useMemo(() => {
-    const items: Array<{ stock_item_id: string; quantity: number; unit?: string; code: string }> = [];
-    for (const section of HQ_FACTORY_ORDER_SECTIONS) {
-      if (section.id === 'roti') continue;
-      for (const code of section.itemCodes) {
-        const orderQty = Number(factoryQty[code]) || 0;
-        if (orderQty <= 0) continue;
-        const stockItemId = stockIdByCode.get(code);
-        if (!stockItemId) continue;
-        const resolved = resolveRejectToBaseQuantity(code, orderQty, false);
-        items.push({
-          code,
-          stock_item_id: stockItemId,
-          quantity: resolved.quantity,
-          unit: resolved.unit,
-        });
-      }
-    }
-    return items;
-  }, [factoryQty, stockIdByCode]);
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!productionDate || !windowOpen) return;
-    if (branchItems.length === 0 && factoryItems.length === 0) return;
+    if (branchItems.length === 0) return;
 
     setLoading(true);
     try {
       await onSubmit({
         production_date: productionDate,
         branch_items: branchItems,
-        items: factoryItems,
         notes: notes.trim() || undefined,
       });
       setBranchQty({});
       setBranchDrivers({});
-      setFactoryQty({});
       setNotes('');
       loadSuggestion(productionDate);
     } finally {
@@ -194,11 +156,11 @@ export function HqFactoryOrderForm({
             <FileText className="h-5 w-5" />
           </div>
           <div>
-            <p className="font-bold text-amber-950">Order Ramalan HQ → Kilang (Per Cawangan + Driver)</p>
+            <p className="font-bold text-amber-950">Order Ramalan HQ → Kilang (Semua Stok Per Cawangan)</p>
             <p className="mt-1 text-sm text-amber-900/80">
-              Wajib isi <strong>order per cawangan</strong> — HQ tidak menyimpan stok. Bila kilang
-              sahkan, stok auto dihantar terus ke kiosk; driver sahkan sampai di Armada. Susun laluan
-              driver sebelum muktamad — kilang tidak boleh sahkan tanpa laluan.
+              Wajib isi <strong>roti + bahan + packaging per cawangan</strong> — driver hantar ikut
+              keperluan masing-masing kiosk. Bila kilang sahkan, stok auto dihantar terus ke kiosk.
+              Susun laluan driver sebelum muktamad.
             </p>
           </div>
         </div>
@@ -310,79 +272,24 @@ export function HqFactoryOrderForm({
             </Button>
           </div>
 
-          <Tabs defaultValue="branches" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="branches">Order Per Cawangan</TabsTrigger>
-              <TabsTrigger value="factory">Bahan & Packaging Kilang</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="branches">
-              {loadingSuggest ? (
-                <p className="text-sm text-muted-foreground">Memuatkan cadangan stok cawangan…</p>
-              ) : (
-                <HqBranchOrderMatrix
-                  branches={suggestion?.branches ?? []}
-                  branchCount={suggestion?.branch_count}
-                  orderLeadDays={suggestion?.order_lead_days}
-                  stockCoverageDays={suggestion?.stock_coverage_days}
-                  orderDeadlineNote={suggestion?.order_deadline_note}
-                  holidayDemandBoost={suggestion?.holiday_demand_boost}
-                  holidaysInWindow={suggestion?.holidays_in_window}
-                  quantities={branchQty}
-                  branchDrivers={branchDrivers}
-                  onChange={setBranchQty}
-                  onDriverChange={setBranchDrivers}
-                  disabled={!windowOpen}
-                />
-              )}
-            </TabsContent>
-
-            <TabsContent value="factory" className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Bahan tong & packaging bag — anggaran sistem ikut jumlah roti semua cawangan.
-              </p>
-              {HQ_FACTORY_ORDER_SECTIONS.filter((s) => s.id !== 'roti').map((section) => (
-                <div key={section.id} className="rounded-xl border p-4">
-                  <p className="mb-2 text-sm font-bold">{section.title}</p>
-                  <div className="space-y-2">
-                    {section.itemCodes.map((code) => {
-                      const item = stockItems.find((s) => s.item_code === code);
-                      const def = getStockByCode(code);
-                      const orderQty = Number(factoryQty[code]) || 0;
-                      const preview = formatHqOrderPreview(code, orderQty);
-                      const suggest = suggestion?.factory_items.find((f) => f.item_code === code);
-                      return (
-                        <div key={code} className="flex items-center gap-3">
-                          <span className="min-w-0 flex-1 text-sm">{item?.name ?? code}</span>
-                          <Input
-                            type="number"
-                            min="0"
-                            step={def?.pack_unit === 'TONG' ? '0.5' : '1'}
-                            className="h-9 w-20 text-center"
-                            value={factoryQty[code] ?? ''}
-                            onChange={(e) =>
-                              setFactoryQty((p) => ({ ...p, [code]: e.target.value }))
-                            }
-                          />
-                          <span className="w-10 text-xs text-muted-foreground">
-                            {getHqOrderUnitLabel(code)}
-                          </span>
-                          {suggest && (
-                            <span className="text-[10px] text-muted-foreground">
-                              cadangan: {suggest.suggested_qty}
-                            </span>
-                          )}
-                          {preview && (
-                            <span className="text-xs text-amber-800">{preview}</span>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </TabsContent>
-          </Tabs>
+          {loadingSuggest ? (
+            <p className="text-sm text-muted-foreground">Memuatkan cadangan stok cawangan…</p>
+          ) : (
+            <HqBranchOrderMatrix
+              branches={suggestion?.branches ?? []}
+              branchCount={suggestion?.branch_count}
+              orderLeadDays={suggestion?.order_lead_days}
+              stockCoverageDays={suggestion?.stock_coverage_days}
+              orderDeadlineNote={suggestion?.order_deadline_note}
+              holidayDemandBoost={suggestion?.holiday_demand_boost}
+              holidaysInWindow={suggestion?.holidays_in_window}
+              quantities={branchQty}
+              branchDrivers={branchDrivers}
+              onChange={setBranchQty}
+              onDriverChange={setBranchDrivers}
+              disabled={!windowOpen}
+            />
+          )}
 
           <div className="space-y-1.5">
             <Label htmlFor="hq-order-notes">Nota order (pilihan)</Label>
@@ -395,13 +302,14 @@ export function HqFactoryOrderForm({
             />
           </div>
 
-          {(branchItems.length > 0 || factoryItems.length > 0) && (
+          {branchItems.length > 0 && (
             <div className="rounded-xl border border-violet-200 bg-violet-50/50 p-4 text-sm">
               <p className="font-semibold text-violet-950">
                 Ringkasan · {formatProductionDayLabel(productionDate)}
               </p>
               <p className="mt-1 text-muted-foreground">
-                {branchItems.length} baris cawangan · {factoryItems.length} item kilang (bahan/packaging)
+                {branchItems.length} baris stok ·{' '}
+                {new Set(branchItems.map((i) => i.branch_id)).size} cawangan (roti + bahan + packaging)
               </p>
             </div>
           )}

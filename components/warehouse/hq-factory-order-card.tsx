@@ -110,7 +110,7 @@ export function HqFactoryOrderCard({ order, className }: HqFactoryOrderCardProps
       {(order.hq_factory_order_branch_items?.length ?? 0) > 0 && (
         <p className="border-t bg-muted/10 px-4 py-2 text-xs text-muted-foreground">
           {new Set(order.hq_factory_order_branch_items?.map((i) => i.branch_id)).size} cawangan ·{' '}
-          {order.hq_factory_order_branch_items?.length} baris roti
+          {order.hq_factory_order_branch_items?.length} baris stok (roti + bahan + packaging)
         </p>
       )}
     </div>

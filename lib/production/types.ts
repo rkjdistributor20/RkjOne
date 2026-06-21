@@ -67,9 +67,12 @@ export interface OrderSuggestionBranchItem {
   stock_item_id: string;
   item_code: string;
   name: string;
+  category?: 'Roti' | 'Bahan' | 'Packaging' | string;
   current_pcs: number;
   target_pcs: number;
   suggested_bags: number;
+  suggested_order_qty?: number;
+  order_unit_label?: string;
   suggested_pcs: number;
   unit: string;
   daily_pcs_estimate?: number;

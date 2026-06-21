@@ -63,7 +63,7 @@ export async function POST(request: Request) {
 
   const { data, error } = await inventoryRpc(supabase, 'create_hq_factory_order', {
     p_production_date: body.production_date,
-    p_items: body.items ?? [],
+    p_items: body.items ?? null,
     p_notes: body.notes ?? null,
     p_branch_items: body.branch_items ?? null,
   });

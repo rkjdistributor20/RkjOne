@@ -4,8 +4,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, Sparkles, User, TrendingUp, CalendarDays } from 'lucide-react';
 import type { MalaysiaHolidayInWindow, OrderSuggestionBranch } from '@/lib/production/types';
 import { formatHolidayDate, formatHolidayType } from '@/lib/production/holiday-labels';
+import { HQ_FACTORY_ORDER_SECTIONS, getHqOrderUnitLabel } from '@/lib/production/hq-order-format';
 import { driversForRegion } from '@/lib/production/driver-routing';
-import { HQ_ROTI_ITEM_CODES } from '@/lib/stock/catalog';
+import {
+  HQ_STOCK_ITEM_CODES,
+  getStockByCode,
+  resolveRejectToBaseQuantity,
+} from '@/lib/stock/catalog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -46,6 +51,10 @@ const STOCK_STATUS_CLASS: Record<string, string> = {
   LOW: 'border-amber-300 bg-amber-50',
   OK: 'border-border bg-background',
 };
+
+function suggestedQty(item: OrderSuggestionBranch['items'][number]): number {
+  return item.suggested_order_qty ?? item.suggested_bags ?? 0;
+}
 
 export function HqBranchOrderMatrix({
   branches,
@@ -89,10 +98,12 @@ export function HqBranchOrderMatrix({
     return map;
   }, [branches]);
 
-  const totalSuggestedBags = useMemo(() => {
+  const totalSuggestedLines = useMemo(() => {
     let n = 0;
     for (const b of branches) {
-      for (const item of b.items) n += item.suggested_bags;
+      for (const item of b.items) {
+        if (suggestedQty(item) > 0) n += 1;
+      }
     }
     return n;
   }, [branches]);
@@ -111,8 +122,9 @@ export function HqBranchOrderMatrix({
   function applySuggestion(branch: OrderSuggestionBranch) {
     const next = { ...quantities, [branch.branch_id]: { ...(quantities[branch.branch_id] ?? {}) } };
     for (const item of branch.items) {
-      if (item.suggested_bags > 0) {
-        next[branch.branch_id][item.item_code] = String(item.suggested_bags);
+      const qty = suggestedQty(item);
+      if (qty > 0) {
+        next[branch.branch_id][item.item_code] = String(qty);
       }
     }
     onChange(next);
@@ -189,12 +201,12 @@ export function HqBranchOrderMatrix({
       <div className="rounded-lg border border-violet-200 bg-violet-50/60 px-4 py-3 text-sm text-violet-950">
         <p className="flex flex-wrap items-center gap-2 font-semibold">
           <TrendingUp className="h-4 w-4" />
-          {branchCount ?? branches.length} cawangan · {totalSuggestedBags} bag cadangan AI
+          {branchCount ?? branches.length} cawangan · {totalSuggestedLines} baris cadangan AI
         </p>
         <p className="mt-1 text-xs text-violet-900/80">
-          Baki stok kiosk + ramalan ikut jualan 14 hari, potensi lokasi (RNR/OBR/Plaza Tol) &amp;
-          kalendar cuti Malaysia. Klik <strong>Cadangan</strong> per cawangan atau guna butang di
-          atas untuk isi semua.
+          Order sekali gus per cawangan: <strong>roti + bahan + packaging</strong> — driver hantar
+          ikut keperluan masing-masing kiosk. Klik <strong>Cadangan</strong> atau guna butang di
+          atas.
         </p>
       </div>
 
@@ -235,7 +247,7 @@ export function HqBranchOrderMatrix({
                 const regionDrivers = driversForRegion(allDrivers, branch.region_code);
                 const selectedDriver =
                   branchDrivers[branch.branch_id] ?? branch.default_driver_id ?? '';
-                const branchSuggested = branch.items.reduce((s, i) => s + i.suggested_bags, 0);
+                const branchSuggested = branch.items.reduce((s, i) => s + suggestedQty(i), 0);
 
                 return (
                   <div key={branch.branch_id} className="px-4 py-3">
@@ -263,7 +275,7 @@ export function HqBranchOrderMatrix({
                             <span>RM{branch.avg_daily_sales}/hari</span>
                           )}
                           {branchSuggested > 0 && (
-                            <span className="text-violet-700">AI: {branchSuggested} bag</span>
+                            <span className="text-violet-700">AI: {branchSuggested} item</span>
                           )}
                         </p>
                       </div>
@@ -292,70 +304,95 @@ export function HqBranchOrderMatrix({
                         Cadangan
                       </Button>
                     </div>
-                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                      {HQ_ROTI_ITEM_CODES.map((code) => {
-                        const hint = branch.items.find((i) => i.item_code === code);
-                        const val = quantities[branch.branch_id]?.[code] ?? '';
-                        const status = hint?.stock_status ?? 'OK';
-                        return (
-                          <div
-                            key={code}
-                            className={cn(
-                              'rounded-lg border px-2 py-1.5',
-                              STOCK_STATUS_CLASS[status] ?? STOCK_STATUS_CLASS.OK
-                            )}
-                          >
-                            <div className="mb-1 flex items-center justify-between gap-1">
-                              <span className="truncate text-xs font-medium">
-                                {hint?.name ?? code.replace('ST-', '')}
-                              </span>
-                              {status !== 'OK' && (
-                                <Badge
-                                  variant={status === 'CRITICAL' ? 'destructive' : 'outline'}
-                                  className="h-4 px-1 text-[9px]"
-                                >
-                                  {status}
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Input
-                                type="number"
-                                min="0"
-                                step="1"
-                                disabled={disabled}
-                                className="h-8 w-14 px-1 text-center text-sm tabular-nums"
-                                placeholder="0"
-                                value={val}
-                                onChange={(e) => setQty(branch.branch_id, code, e.target.value)}
-                              />
-                              <span className="text-[10px] text-muted-foreground">bag</span>
-                            </div>
-                            {hint && (
-                              <p className="mt-1 text-[10px] leading-tight text-muted-foreground">
-                                Stok: <strong>{hint.current_pcs}</strong> pcs
-                                {hint.daily_pcs_estimate != null && hint.daily_pcs_estimate > 0 && (
-                                  <> · ~{hint.daily_pcs_estimate} pcs/hari</>
+
+                    {HQ_FACTORY_ORDER_SECTIONS.map((section) => (
+                      <div key={section.id} className="mb-3 last:mb-0">
+                        <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          {section.title}
+                        </p>
+                        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                          {section.itemCodes.map((code) => {
+                            const hint = branch.items.find((i) => i.item_code === code);
+                            const val = quantities[branch.branch_id]?.[code] ?? '';
+                            const status = hint?.stock_status ?? 'OK';
+                            const unitLabel =
+                              hint?.order_unit_label ?? getHqOrderUnitLabel(code).toLowerCase();
+                            const def = getStockByCode(code);
+                            const step = def?.pack_unit === 'TONG' ? '0.5' : '1';
+
+                            return (
+                              <div
+                                key={code}
+                                className={cn(
+                                  'rounded-lg border px-2 py-1.5',
+                                  section.id === 'roti'
+                                    ? STOCK_STATUS_CLASS[status] ?? STOCK_STATUS_CLASS.OK
+                                    : 'border-border bg-background'
                                 )}
-                                {hint.suggested_bags > 0 && (
-                                  <>
-                                    {' '}
-                                    · cadangan{' '}
-                                    <strong className="text-violet-700">{hint.suggested_bags}</strong>{' '}
-                                    bag
-                                  </>
+                              >
+                                <div className="mb-1 flex items-center justify-between gap-1">
+                                  <span className="truncate text-xs font-medium">
+                                    {hint?.name ?? code.replace('ST-', '')}
+                                  </span>
+                                  {section.id === 'roti' && status !== 'OK' && (
+                                    <Badge
+                                      variant={status === 'CRITICAL' ? 'destructive' : 'outline'}
+                                      className="h-4 px-1 text-[9px]"
+                                    >
+                                      {status}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step={step}
+                                    disabled={disabled}
+                                    className="h-8 w-14 px-1 text-center text-sm tabular-nums"
+                                    placeholder="0"
+                                    value={val}
+                                    onChange={(e) => setQty(branch.branch_id, code, e.target.value)}
+                                  />
+                                  <span className="text-[10px] text-muted-foreground">{unitLabel}</span>
+                                </div>
+                                {hint && (
+                                  <p className="mt-1 text-[10px] leading-tight text-muted-foreground">
+                                    {section.id === 'roti' ? (
+                                      <>
+                                        Stok: <strong>{hint.current_pcs}</strong> pcs
+                                        {hint.daily_pcs_estimate != null &&
+                                          hint.daily_pcs_estimate > 0 && (
+                                            <> · ~{hint.daily_pcs_estimate} pcs/hari</>
+                                          )}
+                                      </>
+                                    ) : (
+                                      <>
+                                        Baki: <strong>{Number(hint.current_pcs).toLocaleString('ms-MY')}</strong>{' '}
+                                        {hint.unit === 'GRAM' ? 'g' : hint.unit.toLowerCase()}
+                                      </>
+                                    )}
+                                    {suggestedQty(hint) > 0 && (
+                                      <>
+                                        {' '}
+                                        · cadangan{' '}
+                                        <strong className="text-violet-700">{suggestedQty(hint)}</strong>{' '}
+                                        {unitLabel}
+                                      </>
+                                    )}
+                                  </p>
                                 )}
-                              </p>
-                            )}
-                            {hint?.prediction_note && (
-                              <p className="mt-0.5 text-[9px] leading-tight text-violet-800/80">
-                                {hint.prediction_note}
-                              </p>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
+                                {hint?.prediction_note && section.id === 'roti' && (
+                                  <p className="mt-0.5 text-[9px] leading-tight text-violet-800/80">
+                                    {hint.prediction_note}
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 );
               })}
@@ -383,21 +420,17 @@ export function buildBranchItemsFromMatrix(
 
   for (const branch of branches) {
     const driverId = branchDrivers[branch.branch_id] ?? branch.default_driver_id ?? undefined;
-    for (const code of HQ_ROTI_ITEM_CODES) {
-      const bags = Number(quantities[branch.branch_id]?.[code]) || 0;
-      if (bags <= 0) continue;
+    for (const code of HQ_STOCK_ITEM_CODES) {
+      const orderQty = Number(quantities[branch.branch_id]?.[code]) || 0;
+      if (orderQty <= 0) continue;
       const stockItemId = stockIdByCode.get(code);
       if (!stockItemId) continue;
-      const hint = branch.items.find((i) => i.item_code === code);
-      const pcsPerBag =
-        hint?.suggested_bags && hint.suggested_pcs
-          ? hint.suggested_pcs / hint.suggested_bags
-          : 20;
+      const resolved = resolveRejectToBaseQuantity(code, orderQty, false);
       items.push({
         branch_id: branch.branch_id,
         stock_item_id: stockItemId,
-        quantity: bags * pcsPerBag,
-        unit: 'PCS',
+        quantity: resolved.quantity,
+        unit: resolved.unit,
         assigned_driver_id: driverId,
       });
     }

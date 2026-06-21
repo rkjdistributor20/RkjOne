@@ -52,7 +52,7 @@ export function HqFactoryOrderPanel({
 
   async function handleSubmit(payload: {
     production_date: string;
-    items: Array<{ stock_item_id: string; quantity: number; unit?: string }>;
+    items?: Array<{ stock_item_id: string; quantity: number; unit?: string }>;
     branch_items?: Array<{
       branch_id: string;
       stock_item_id: string;
