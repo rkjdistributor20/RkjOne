@@ -167,8 +167,8 @@ export function HqDeliveryRoutePanel({
 
       {routes.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          Submit order dengan driver per cawangan, kemudian susun laluan untuk production{' '}
-          {productionDate}.
+          Wajib susun laluan sebelum kilang sahkan order — stok akan auto dihantar ke cawangan
+          mengikut hentian di bawah untuk production {productionDate}.
         </p>
       ) : (
         <div className="space-y-4">

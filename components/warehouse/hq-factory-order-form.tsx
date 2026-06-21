@@ -192,9 +192,9 @@ export function HqFactoryOrderForm({
           <div>
             <p className="font-bold text-amber-950">Order Ramalan HQ → Kilang (Per Cawangan + Driver)</p>
             <p className="mt-1 text-sm text-amber-900/80">
-              Bila kilang terbit jadual awal, HQ boleh buat <strong>order ramalan</strong> serta susun
-              laluan driver — driver lihat jadual kerja lebih awal. Boleh ubah sehingga T-1 jam 10
-              malam, kemudian auto-muktamad ke kilang.
+              Wajib isi <strong>order per cawangan</strong> — HQ tidak menyimpan stok. Bila kilang
+              sahkan, stok auto dihantar terus ke kiosk; driver sahkan sampai di Armada. Susun laluan
+              driver sebelum muktamad — kilang tidak boleh sahkan tanpa laluan.
             </p>
           </div>
         </div>
@@ -402,7 +402,7 @@ export function HqFactoryOrderForm({
             disabled={
               loading ||
               !windowOpen ||
-              (branchItems.length === 0 && factoryItems.length === 0)
+              branchItems.length === 0
             }
           >
             <Send className="h-5 w-5" />

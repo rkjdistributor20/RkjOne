@@ -8,6 +8,13 @@ export const DRIVER_ROLE_LABELS: Record<DriverRouteRole, string> = {
   HUB_RELAY: 'Sambut stok → Kiosk',
 };
 
+export const STOP_STATUS_LABELS: Record<string, string> = {
+  PENDING: 'Menunggu kilang',
+  IN_TRANSIT: 'Dalam perjalanan',
+  DELIVERED: 'Disahkan',
+  SKIPPED: 'Dilangkau',
+};
+
 export const ROUTE_STATUS_LABELS: Record<string, string> = {
   PLANNED: 'Dirancang',
   WAITING_HANDOFF: 'Menunggu sambut stok',

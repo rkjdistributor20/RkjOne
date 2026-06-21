@@ -207,10 +207,13 @@ export interface DriverWorkScheduleEntry {
   handoff_completed: boolean;
   depends_on_ready: boolean;
   stops: Array<{
+    stop_id?: string;
     sequence: number;
     branch_code: string;
     branch_name: string;
     is_handoff: boolean;
+    status?: string;
     item_count: number;
   }>;
+  order_status?: string;
 }

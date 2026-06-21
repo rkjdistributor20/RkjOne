@@ -142,3 +142,16 @@ export async function fetchDeliveryRoutePlans(orderId?: string) {
   const params = orderId ? `?order_id=${orderId}` : '';
   return fetchJson<{ routes: DeliveryRoutePlan[] }>(`/api/production/routes${params}`);
 }
+
+export async function confirmRouteStopDelivery(
+  stopId: string,
+  payload?: { receiver_name?: string; driver_notes?: string }
+) {
+  return fetchJson<{ result: Record<string, unknown> }>(
+    `/api/production/routes/stops/${stopId}/confirm`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload ?? {}),
+    }
+  );
+}

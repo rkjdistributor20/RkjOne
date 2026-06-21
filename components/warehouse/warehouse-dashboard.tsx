@@ -8,13 +8,10 @@ import {
   fetchWarehouseAudits,
   submitWarehouseAudit,
   approveWarehouseAudit,
-  receiveStock,
-  createTransfer,
-  dispatchTransfer,
 } from '@/lib/warehouse/api';
-import { fetchLocations, fetchStockItems, fetchBalances, fetchTransfers } from '@/lib/inventory/api';
+import { fetchLocations, fetchStockItems, fetchBalances } from '@/lib/inventory/api';
 import type { WarehouseAudit, WarehouseSummary } from '@/lib/warehouse/types';
-import type { InventoryLocation, StockItemOption, StockTransferRow, InventoryBalanceRow } from '@/lib/inventory/types';
+import type { InventoryLocation, StockItemOption, InventoryBalanceRow } from '@/lib/inventory/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -48,17 +45,12 @@ export function WarehouseDashboard() {
   const canOrder = profile ? canSubmitHqFactoryOrder(profile.role) : false;
   const canApprove = profile ? isAdminRole(profile.role) || profile.role === 'OPERATION_MANAGER' : false;
   const [publishedDates, setPublishedDates] = useState<PublishedProductionDate[]>([]);
-  const productionDateOptions = publishedDates.map((d) => d.production_date);
   const [summary, setSummary] = useState<WarehouseSummary | null>(null);
   const [audits, setAudits] = useState<WarehouseAudit[]>([]);
   const [hqLocation, setHqLocation] = useState<InventoryLocation | null>(null);
-  const [fleetLocations, setFleetLocations] = useState<InventoryLocation[]>([]);
-  const [branchLocations, setBranchLocations] = useState<InventoryLocation[]>([]);
   const [stockItems, setStockItems] = useState<StockItemOption[]>([]);
   const [balances, setBalances] = useState<InventoryBalanceRow[]>([]);
-  const [transfers, setTransfers] = useState<StockTransferRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [transferTo, setTransferTo] = useState('');
 
   const loadCalendar = useCallback(async () => {
     try {
@@ -91,16 +83,10 @@ export function WarehouseDashboard() {
         allLocs.find((l) => l.location_type === 'HQ_WAREHOUSE') ??
         null;
       setHqLocation(hq);
-      setFleetLocations(allLocs.filter((l) => l.location_type === 'FLEET_VEHICLE'));
-      setBranchLocations(allLocs.filter((l) => l.location_type === 'BRANCH_KIOSK'));
 
       if (hq) {
-        const [bal, trf] = await Promise.all([
-          fetchBalances(hq.id),
-          fetchTransfers(hq.id),
-        ]);
+        const bal = await fetchBalances(hq.id);
         setBalances(bal.balances);
-        setTransfers(trf.transfers);
       }
       setStockItems(items.items);
     } catch (err) {
@@ -120,7 +106,7 @@ export function WarehouseDashboard() {
     <ModuleLayout>
       <ModuleHeader
         title="Gudang HQ"
-        description={`${COMPANY.hq} — order ke kilang · terima stok · pindah ke cawangan`}
+        description={`${COMPANY.hq} — order per cawangan · cross-dock terus ke kiosk · driver sahkan`}
         icon={Warehouse}
       />
 
@@ -156,8 +142,17 @@ export function WarehouseDashboard() {
 
           {!canManageHq && (
             <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-              Paparan sahaja — stok masuk/keluar Gudang HQ dikawal oleh pentadbir HQ (Admin).
-              {canOrder && ' Anda boleh hantar order ke kilang di tab Order Kilang.'}
+              Paparan sahaja — Gudang HQ tidak menyimpan stok; pre-order dihantar terus ke cawangan
+              selepas kilang sahkan.
+              {canOrder && ' Anda boleh hantar order per cawangan di tab Order Kilang.'}
+            </p>
+          )}
+
+          {canManageHq && (
+            <p className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">
+              <strong>Cross-dock:</strong> Bila kilang sahkan order muktamad, stok diterima automatik
+              dan dihantar terus ke cawangan mengikut laluan driver. Tiada simpanan stok di HQ —
+              driver sahkan penghantaran di tab Armada → Jadual Kerja.
             </p>
           )}
 
@@ -172,25 +167,27 @@ export function WarehouseDashboard() {
                 </TabsTrigger>
               )}
               {canManageHq && (
-                <>
-                  <TabsTrigger value="receive" className={moduleTabsTriggerClass}>
-                    <Warehouse className="h-4 w-4" /> Terima
-                  </TabsTrigger>
-                  <TabsTrigger value="transfer" className={moduleTabsTriggerClass}>
-                    <ArrowRight className="h-4 w-4" /> Pindah Keluar
-                  </TabsTrigger>
-                  <TabsTrigger value="audit" className={moduleTabsTriggerClass}>
-                    <ClipboardCheck className="h-4 w-4" /> Audit
-                  </TabsTrigger>
-                </>
+                <TabsTrigger value="audit" className={moduleTabsTriggerClass}>
+                  <ClipboardCheck className="h-4 w-4" /> Audit
+                </TabsTrigger>
               )}
             </TabsList>
 
             <TabsContent value="stock" className="mt-2">
               {balances.length === 0 ? (
-                <EmptyState icon={Package} title="Tiada baki stok" description="Terima stok dari kilang melalui tab Terima." />
+                <EmptyState
+                  icon={Package}
+                  title="Tiada stok simpanan di HQ"
+                  description="Gudang HQ cross-dock — stok dari kilang dihantar terus ke cawangan selepas order disahkan."
+                />
               ) : (
-                <BalanceTable balances={balances} showPackConversion />
+                <>
+                  <p className="mb-3 text-sm text-amber-800">
+                    Baki stok di HQ sepatutnya sifar (cross-dock). Jika ada baki, semak penghantaran
+                    yang belum disahkan driver.
+                  </p>
+                  <BalanceTable balances={balances} showPackConversion />
+                </>
               )}
             </TabsContent>
 
@@ -205,118 +202,7 @@ export function WarehouseDashboard() {
             )}
 
             {canManageHq && (
-              <>
-                <TabsContent value="receive" className="mt-4">
-                  <p className="mb-3 text-sm text-muted-foreground">
-                    Terima stok dari kilang — pilih tarikh production dari jadual kilang yang diterbitkan.
-                  </p>
-                  <StockLineForm
-                    mode="receive"
-                    stockItems={stockItems}
-                    orderInPacks
-                    requireRotiProductionDate
-                    productionDateOptions={productionDateOptions}
-                    onSubmit={async (items, meta) => {
-                      try {
-                        await receiveStock(hqLocation.id, items, 'FACTORY', meta?.notes);
-                        toast.success('Stok diterima di HQ');
-                        loadData();
-                      } catch (err) {
-                        toast.error(err instanceof Error ? err.message : 'Gagal terima stok');
-                      }
-                    }}
-                  />
-                </TabsContent>
-
-                <TabsContent value="transfer" className="mt-4 space-y-4">
-                  <p className="text-sm text-muted-foreground">
-                    Pindah stok dari HQ ke kenderaan atau cawangan
-                  </p>
-                  <>
-                    <select
-                      className="rounded-md border px-3 py-2 text-sm"
-                      value={transferTo}
-                      onChange={(e) => setTransferTo(e.target.value)}
-                    >
-                      <option value="">Pilih destinasi…</option>
-                      <optgroup label="Kenderaan">
-                        {fleetLocations.map((l) => (
-                          <option key={l.id} value={l.id}>{l.name}</option>
-                        ))}
-                      </optgroup>
-                      <optgroup label="Cawangan">
-                        {branchLocations.map((l) => (
-                          <option key={l.id} value={l.id}>{l.name}</option>
-                        ))}
-                      </optgroup>
-                    </select>
-                    {transferTo && (
-                      <StockLineForm
-                        mode="receive"
-                        stockItems={stockItems}
-                        orderInPacks
-                        requireRotiProductionDate={
-                          branchLocations.some((l) => l.id === transferTo)
-                        }
-                        productionDateOptions={
-                          branchLocations.some((l) => l.id === transferTo)
-                            ? productionDateOptions
-                            : undefined
-                        }
-                        onSubmit={async (items) => {
-                          try {
-                            await createTransfer({
-                              from_location_id: hqLocation.id,
-                              to_location_id: transferTo,
-                              items,
-                            });
-                            toast.success('Pindahan dicipta');
-                            loadData();
-                          } catch (err) {
-                            toast.error(err instanceof Error ? err.message : 'Gagal cipta pindahan');
-                          }
-                        }}
-                      />
-                    )}
-                  </>
-                  <div className="space-y-2">
-                    <h3 className="font-semibold text-sm">Pindahan HQ</h3>
-                    {transfers.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">Tiada pindahan HQ.</p>
-                    ) : (
-                      transfers.map((t) => (
-                        <div key={t.id} className="flex items-center justify-between rounded-lg border p-3 text-sm">
-                          <div>
-                            <p className="font-medium">{t.transfer_number}</p>
-                            <p className="text-xs text-muted-foreground">
-                              → {t.to_location.name}
-                            </p>
-                          </div>
-                          <div className="flex gap-2">
-                            <Badge variant="outline">
-                              {labelFor(TRANSFER_STATUS_LABELS, t.status)}
-                            </Badge>
-                            {t.status === 'PENDING' && (
-                              <Button size="sm" variant="outline" onClick={async () => {
-                                try {
-                                  await dispatchTransfer(t.id);
-                                  toast.success('Dihantar');
-                                  loadData();
-                                } catch (err) {
-                                  toast.error(err instanceof Error ? err.message : 'Gagal hantar');
-                                }
-                              }}>
-                                Hantar
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="audit" className="mt-4 space-y-4">
+              <TabsContent value="audit" className="mt-4 space-y-4">
                   <StockLineForm
                     mode="count"
                     stockItems={stockItems}
@@ -373,7 +259,6 @@ export function WarehouseDashboard() {
                     )}
                   </div>
                 </TabsContent>
-              </>
             )}
           </Tabs>
         </>

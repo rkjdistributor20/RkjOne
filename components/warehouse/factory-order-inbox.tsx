@@ -35,7 +35,7 @@ export function FactoryOrderInbox({ onOrdersChange }: { onOrdersChange?: () => v
   async function handleAck(id: string) {
     try {
       await acknowledgeHqFactoryOrder(id);
-      toast.success('Order disahkan — sedia untuk production');
+      toast.success('Order disahkan — stok auto dihantar ke cawangan, driver sahkan penghantaran');
       load();
       onOrdersChange?.();
     } catch (err) {
@@ -56,7 +56,8 @@ export function FactoryOrderInbox({ onOrdersChange }: { onOrdersChange?: () => v
         </p>
         <p className="mt-1">
           <strong>Ramalan</strong> = perancangan awal HQ (boleh berubah).{' '}
-          <strong>Muktamad</strong> = order sah untuk production — sahkan di bawah.
+          <strong>Muktamad</strong> = order sah — sahkan di bawah. Selepas sahkan, stok auto
+          diterima HQ & dihantar terus ke cawangan; driver sahkan sampai di Armada.
         </p>
       </div>
 
