@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Truck, Plus, MapPin, Package, CalendarDays } from 'lucide-react';
+import { Truck, Plus, MapPin, Package, CalendarDays, LayoutDashboard } from 'lucide-react';
 import {
   fetchDeliveryOrders,
   fetchFleetDrivers,
@@ -15,6 +15,7 @@ import { fetchLocations, fetchStockItems } from '@/lib/inventory/api';
 import type { DeliveryLeg, DeliveryOrder, FleetDriver, FleetStatusLog, FleetVehicle } from '@/lib/fleet/types';
 import { LEG_TYPE_LABELS } from '@/lib/fleet/types';
 import type { InventoryLocation, StockItemOption } from '@/lib/inventory/types';
+import { useAuthStore } from '@/stores/auth-store';
 import {
   labelFor,
   DELIVERY_STATUS_LABELS,
@@ -27,6 +28,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CreateDeliveryDialog } from '@/components/fleet/create-delivery-dialog';
 import { PodDialog } from '@/components/fleet/pod-dialog';
 import { DriverWorkSchedulePanel } from '@/components/fleet/driver-work-schedule-panel';
+import { FleetOverviewPanel } from '@/components/fleet/fleet-overview-panel';
 import {
   ModuleLayout,
   ModuleHeader,
@@ -49,18 +51,22 @@ const STATUS_VARIANT: Record<string, 'outline' | 'secondary' | 'destructive' | '
 const VEHICLE_STATUS_OPTIONS = Object.keys(FLEET_VEHICLE_STATUS_LABELS);
 
 export function FleetDashboard() {
+  const profile = useAuthStore((s) => s.profile);
+  const isDriver = profile?.role === 'DRIVER';
+
   const [orders, setOrders] = useState<DeliveryOrder[]>([]);
   const [vehicles, setVehicles] = useState<FleetVehicle[]>([]);
   const [drivers, setDrivers] = useState<FleetDriver[]>([]);
   const [statusLogs, setStatusLogs] = useState<FleetStatusLog[]>([]);
   const [locations, setLocations] = useState<InventoryLocation[]>([]);
   const [stockItems, setStockItems] = useState<StockItemOption[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!isDriver);
   const [createOpen, setCreateOpen] = useState(false);
   const [podLeg, setPodLeg] = useState<DeliveryLeg | null>(null);
   const [podOpen, setPodOpen] = useState(false);
 
   const loadData = useCallback(async () => {
+    if (isDriver) return;
     setLoading(true);
     try {
       const [ord, veh, drv, logs, loc, items] = await Promise.all([
@@ -82,7 +88,7 @@ export function FleetDashboard() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isDriver]);
 
   useEffect(() => {
     loadData();
@@ -108,6 +114,19 @@ export function FleetDashboard() {
     }
   }
 
+  if (isDriver) {
+    return (
+      <ModuleLayout>
+        <ModuleHeader
+          title="Arahan Penghantaran"
+          description="1 arahan sehingga 20 cawangan · susunan laluan AI · Kilang → HQ → Kiosk"
+          icon={Truck}
+        />
+        <DriverWorkSchedulePanel driverMode />
+      </ModuleLayout>
+    );
+  }
+
   const activeDeliveries = orders.filter(
     (o) => o.status === 'PENDING' || o.status === 'IN_TRANSIT'
   ).length;
@@ -116,7 +135,7 @@ export function FleetDashboard() {
     <ModuleLayout>
       <ModuleHeader
         title="Pengurusan Armada"
-        description="Aliran penghantaran Kilang → Gudang HQ → Kenderaan → Cawangan dengan jejak POD"
+        description="Selaras Kilang · Gudang HQ · Armada · Kiosk — DO digabung per driver (max 20 hentian/arahan)"
         icon={Truck}
         badges={
           <>
@@ -129,7 +148,7 @@ export function FleetDashboard() {
         actions={
           <PrimaryActionButton onClick={() => setCreateOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
-            Penghantaran Baharu
+            Penghantaran Manual
           </PrimaryActionButton>
         }
       />
@@ -137,13 +156,16 @@ export function FleetDashboard() {
       {loading ? (
         <ModuleLoading />
       ) : (
-        <Tabs defaultValue="deliveries" className="space-y-4">
+        <Tabs defaultValue="overview" className="space-y-4">
           <TabsList className={moduleTabsListClass}>
-            <TabsTrigger value="deliveries" className={moduleTabsTriggerClass}>
-              <Package className="h-4 w-4" /> Penghantaran
+            <TabsTrigger value="overview" className={moduleTabsTriggerClass}>
+              <LayoutDashboard className="h-4 w-4" /> Ringkasan
             </TabsTrigger>
             <TabsTrigger value="schedule" className={moduleTabsTriggerClass}>
-              <CalendarDays className="h-4 w-4" /> Jadual Kerja
+              <CalendarDays className="h-4 w-4" /> Arahan Driver
+            </TabsTrigger>
+            <TabsTrigger value="deliveries" className={moduleTabsTriggerClass}>
+              <Package className="h-4 w-4" /> DO Manual
             </TabsTrigger>
             <TabsTrigger value="vehicles" className={moduleTabsTriggerClass}>
               <Truck className="h-4 w-4" /> Kenderaan
@@ -153,28 +175,31 @@ export function FleetDashboard() {
             </TabsTrigger>
           </TabsList>
 
-          {!loading && (
-            <KpiGrid cols={3}>
-              <KpiCard title="Pesanan" value={orders.length} icon={Package} />
-              <KpiCard title="Kenderaan" value={vehicles.length} icon={Truck} />
-              <KpiCard
-                title="Log Hari Ini"
-                value={statusLogs.length}
-                icon={MapPin}
-              />
-            </KpiGrid>
-          )}
+          <TabsContent value="overview" className="mt-2">
+            <FleetOverviewPanel />
+          </TabsContent>
+
+          <TabsContent value="schedule" className="mt-2">
+            <DriverWorkSchedulePanel />
+          </TabsContent>
 
           <TabsContent value="deliveries" className="mt-2 space-y-4">
+            {!loading && (
+              <KpiGrid cols={3}>
+                <KpiCard title="Pesanan" value={orders.length} icon={Package} />
+                <KpiCard title="Kenderaan" value={vehicles.length} icon={Truck} />
+                <KpiCard title="Log Hari Ini" value={statusLogs.length} icon={MapPin} />
+              </KpiGrid>
+            )}
             {orders.length === 0 ? (
               <EmptyState
                 icon={Package}
-                title="Tiada pesanan penghantaran"
-                description="Cipta penghantaran baharu untuk pindahkan stok dari kilang atau HQ ke cawangan."
+                title="Tiada pesanan manual"
+                description="Aliran utama: Gudang HQ → rancang laluan → driver terima arahan gabungan. DO manual untuk kes khas."
                 action={
                   <PrimaryActionButton onClick={() => setCreateOpen(true)}>
                     <Plus className="mr-2 h-4 w-4" />
-                    Penghantaran Baharu
+                    Penghantaran Manual
                   </PrimaryActionButton>
                 }
               />
@@ -250,10 +275,6 @@ export function FleetDashboard() {
                 </Card>
               ))
             )}
-          </TabsContent>
-
-          <TabsContent value="schedule" className="mt-2">
-            <DriverWorkSchedulePanel />
           </TabsContent>
 
           <TabsContent value="vehicles" className="mt-2">

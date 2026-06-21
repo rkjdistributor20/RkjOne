@@ -160,3 +160,10 @@ export async function confirmRouteStopDelivery(
     }
   );
 }
+
+export async function optimizeDeliveryRoute(planId: string) {
+  return fetchJson<{ result: Record<string, unknown> }>(
+    `/api/production/routes/${planId}/optimize`,
+    { method: 'POST' }
+  );
+}

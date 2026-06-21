@@ -18,7 +18,8 @@ export async function GET(request: Request) {
     .select(
       `
       id, route_name, region_code, production_date, status, route_pattern,
-      handoff_completed_at, depends_on_plan_id,
+      handoff_completed_at, depends_on_plan_id, instruction_code, instruction_part,
+      ai_route_summary, ai_optimized_at,
       driver:drivers(id, full_name, driver_code),
       vehicle:vehicles(vehicle_code, vehicle_type),
       stops:hq_delivery_route_stops(
@@ -75,5 +76,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
-  return NextResponse.json({ result: data });
+  const { data: processed, error: postErr } = await inventoryRpc(
+    supabase,
+    'post_process_driver_instructions',
+    { p_order_id: body.order_id, p_max_stops: 20 }
+  );
+
+  if (postErr) {
+    return NextResponse.json({ error: postErr.message }, { status: 400 });
+  }
+
+  return NextResponse.json({ result: data, post_process: processed });
 }

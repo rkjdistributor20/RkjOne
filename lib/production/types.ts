@@ -183,6 +183,10 @@ export interface DeliveryRoutePlan {
   status: string;
   handoff_completed_at?: string | null;
   depends_on_plan_id?: string | null;
+  instruction_code?: string | null;
+  instruction_part?: number;
+  ai_route_summary?: string | null;
+  ai_optimized_at?: string | null;
   driver?: { id?: string; full_name: string; driver_code?: string } | null;
   vehicle?: { vehicle_code: string; vehicle_type: string } | null;
   stops?: Array<{
@@ -216,8 +220,26 @@ export const ORDER_PHASE_LABELS: Record<string, string> = {
   FINAL: 'Muktamad ke Kilang',
 };
 
+export interface DriverWorkScheduleStopItem {
+  item_code: string;
+  name: string;
+  category: string | null;
+  quantity: number;
+  unit: string;
+}
+
+export interface DriverWorkSchedulePickItem {
+  item_code: string;
+  name: string;
+  category: string | null;
+  total_qty: number;
+  unit: string;
+}
+
 export interface DriverWorkScheduleEntry {
   plan_id: string;
+  instruction_code: string | null;
+  instruction_part: number;
   production_date: string;
   route_name: string;
   region_code: string | null;
@@ -231,14 +253,24 @@ export interface DriverWorkScheduleEntry {
   vehicle: string | null;
   handoff_completed: boolean;
   depends_on_ready: boolean;
+  ai_route_summary: string | null;
+  ai_optimized?: boolean;
+  total_stops: number;
+  kiosk_stops: number;
+  completed_stops: number;
+  pick_summary: DriverWorkSchedulePickItem[];
   stops: Array<{
     stop_id?: string;
     sequence: number;
     branch_code: string;
     branch_name: string;
+    branch_id?: string | null;
     is_handoff: boolean;
     status?: string;
     item_count: number;
+    priority_score?: number;
+    route_hint?: string;
+    items: DriverWorkScheduleStopItem[];
   }>;
   order_status?: string;
 }

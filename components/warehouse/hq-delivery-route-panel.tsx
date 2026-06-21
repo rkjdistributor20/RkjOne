@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   RefreshCw,
   SlidersHorizontal,
+  Sparkles,
 } from 'lucide-react';
 import {
   completeRouteHandoff,
@@ -17,6 +18,7 @@ import {
   fetchDeliveryRoutePlans,
   updateDeliveryRoutePlan,
   adjustRouteStopItems,
+  optimizeDeliveryRoute,
 } from '@/lib/production/api';
 import type { DeliveryRoutePlan } from '@/lib/production/types';
 import {
@@ -44,6 +46,7 @@ export function HqDeliveryRoutePanel({
 }: HqDeliveryRoutePanelProps) {
   const [routes, setRoutes] = useState<DeliveryRoutePlan[]>([]);
   const [planning, setPlanning] = useState(false);
+  const [optimizing, setOptimizing] = useState<string | null>(null);
   const [adjustReason, setAdjustReason] = useState('Kekurangan stok dari kilang');
 
   const load = useCallback(async () => {
@@ -65,8 +68,8 @@ export function HqDeliveryRoutePanel({
       await createDeliveryRoutesForOrder(orderId, replace);
       toast.success(
         replace
-          ? 'Laluan dirancang semula ikut driver ditugaskan'
-          : 'Laluan driver dirancang — hub/sambut stok + kiosk'
+          ? 'Laluan dirancang semula — max 20 hentian/arahan, susunan AI'
+          : 'Laluan driver dirancang — DO digabung & dioptimumkan AI'
       );
       await load();
       onRoutesPlanned?.();
@@ -124,6 +127,20 @@ export function HqDeliveryRoutePanel({
     }
   }
 
+  async function handleOptimize(planId: string) {
+    setOptimizing(planId);
+    try {
+      const { result } = await optimizeDeliveryRoute(planId);
+      const summary = (result as { summary?: string }).summary;
+      toast.success(summary ?? 'Susunan laluan AI dikemas kini');
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Gagal optimumkan laluan');
+    } finally {
+      setOptimizing(null);
+    }
+  }
+
   const hubPlans = routes.filter((r) => r.route_pattern === 'HUB_PRIMARY');
 
   return (
@@ -135,9 +152,9 @@ export function HqDeliveryRoutePanel({
             Perjalanan Driver ke Cawangan
           </p>
           <p className="mt-1 text-xs text-emerald-900/80">
-            Pilih driver per cawangan dalam borang order. Sistem auto susun:{' '}
-            <strong>Hub (D001)</strong> sambut stok ke relay (Fazil/Ridhuan) dahulu → kemudian
-            hantar ke kiosk. HQ boleh ubah susunan &amp; pelarasan stok jika kilang kurang bekalan.
+            DO cawangan digabung per driver (max <strong>20 hentian/arahan</strong>). AI susun
+            laluan: kritikal didahulukan → arah jalan Utara/Barat/Selatan. Hub (D001) sambut
+            stok relay dahulu.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -194,8 +211,28 @@ export function HqDeliveryRoutePanel({
               <div key={route.id} className="rounded-lg border bg-white p-3 text-sm shadow-sm">
                 <div className="mb-2 flex flex-wrap items-center gap-2">
                   <span className="font-medium">{route.route_name}</span>
+                  {route.instruction_code && (
+                    <Badge variant="outline" className="font-mono text-[10px]">
+                      {route.instruction_code}
+                    </Badge>
+                  )}
+                  {route.instruction_part != null && route.instruction_part > 1 && (
+                    <Badge className="bg-blue-100 text-blue-900">
+                      Bahagian {route.instruction_part}
+                    </Badge>
+                  )}
                   {route.region_code && <Badge variant="outline">{route.region_code}</Badge>}
                   <Badge variant="secondary">{DRIVER_ROLE_LABELS[pattern] ?? pattern}</Badge>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="ml-auto h-7 gap-1 text-xs"
+                    disabled={optimizing === route.id}
+                    onClick={() => handleOptimize(route.id)}
+                  >
+                    <Sparkles className="h-3 w-3" />
+                    {optimizing === route.id ? 'AI…' : 'Susun AI'}
+                  </Button>
                   <Badge
                     className={
                       route.status === 'WAITING_HANDOFF'
