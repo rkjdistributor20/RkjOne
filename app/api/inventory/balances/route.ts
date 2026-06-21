@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getCurrentProfile } from '@/lib/auth/session';
-import { HQ_STOCK_ITEM_CODES, isHqStockItemCode } from '@/lib/stock/catalog';
+import { padHqStockBalances } from '@/lib/inventory/balance-utils';
+import { isHqStockItemCode } from '@/lib/stock/catalog';
 
 export async function GET(request: Request) {
   const profile = await getCurrentProfile();
@@ -20,11 +21,12 @@ export async function GET(request: Request) {
     .eq('id', locationId)
     .maybeSingle();
 
-  const isHq =
-    (locationRow as { location_type?: string } | null)?.location_type === 'HQ_WAREHOUSE';
-
-  const isKiosk =
-    (locationRow as { location_type?: string } | null)?.location_type === 'BRANCH_KIOSK';
+  const locationType = (locationRow as { location_type?: string } | null)?.location_type;
+  const isOfficialNode =
+    locationType === 'HQ_WAREHOUSE' ||
+    locationType === 'BRANCH_KIOSK' ||
+    locationType === 'FACTORY' ||
+    locationType === 'FLEET_VEHICLE';
 
   const { data, error } = await supabase
     .from('inventory_balances')
@@ -63,13 +65,10 @@ export async function GET(request: Request) {
 
   let rows = (data ?? []) as unknown as Row[];
 
-  if (isHq || isKiosk) {
+  if (isOfficialNode) {
     rows = rows.filter((row) => isHqStockItemCode(row.stock_item?.item_code ?? ''));
-    rows.sort(
-      (a, b) =>
-        HQ_STOCK_ITEM_CODES.indexOf(a.stock_item.item_code as (typeof HQ_STOCK_ITEM_CODES)[number]) -
-        HQ_STOCK_ITEM_CODES.indexOf(b.stock_item.item_code as (typeof HQ_STOCK_ITEM_CODES)[number])
-    );
+    const balances = padHqStockBalances(locationId, rows);
+    return NextResponse.json({ balances });
   }
 
   const balances = rows.map((row) => {

@@ -9,6 +9,8 @@ import {
   Plus,
   ClipboardList,
   Trash2,
+  LayoutDashboard,
+  MapPinned,
 } from 'lucide-react';
 import {
   fetchLocations,
@@ -38,9 +40,10 @@ import type {
 import { LOCATION_TYPE_LABELS } from '@/lib/inventory/types';
 import { useAuthStore } from '@/stores/auth-store';
 import { needsBranchPicker } from '@/lib/auth/branch-scope';
-import { getInventoryStockUiAccess, canSetRotiProductionDate, isAreaManagerRole } from '@/lib/auth/stock-access';
+import { getInventoryStockUiAccess, canSetRotiProductionDate, isAreaManagerRole, isStaffRole } from '@/lib/auth/stock-access';
 import { BranchScopeSelect } from '@/components/shared/branch-scope-select';
 import { KioskOverviewPanel } from '@/components/inventory/kiosk-overview-panel';
+import { InventorySupplyChainPanel } from '@/components/inventory/inventory-supply-chain-panel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -70,7 +73,9 @@ export function InventoryDashboard() {
   const profile = useAuthStore((s) => s.profile);
   const authBranch = useAuthStore((s) => s.branch);
   const showBranchPicker = profile ? needsBranchPicker(profile) : false;
+  const isStaff = profile ? isStaffRole(profile.role) : false;
   const isAreaManager = profile ? isAreaManagerRole(profile.role) : false;
+  const canViewOverview = profile ? !isStaff : false;
   const defaultLocType: LocationType | 'ALL' =
     profile && (isAreaManagerRole(profile.role) || profile.role === 'STAFF')
       ? 'BRANCH_KIOSK'
@@ -87,6 +92,9 @@ export function InventoryDashboard() {
   const [loading, setLoading] = useState(true);
   const [locationsLoading, setLocationsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('balances');
+  const [dashboardView, setDashboardView] = useState<'overview' | 'location'>(
+    canViewOverview ? 'overview' : 'location'
+  );
 
   const branchId = showBranchPicker
     ? selectedBranchId || undefined
@@ -113,10 +121,12 @@ export function InventoryDashboard() {
   }, [locationType, branchId, selectedLocationId]);
 
   const loadData = useCallback(async () => {
-    if (!selectedLocationId) {
-      setBalances([]);
-      setMovements([]);
-      setTransfers([]);
+    if (!selectedLocationId || dashboardView !== 'location') {
+      if (dashboardView !== 'location') {
+        setBalances([]);
+        setMovements([]);
+        setTransfers([]);
+      }
       setLoading(false);
       return;
     }
@@ -135,7 +145,7 @@ export function InventoryDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [selectedLocationId]);
+  }, [selectedLocationId, dashboardView]);
 
   useEffect(() => {
     fetchStockItems({ hq: true })
@@ -172,12 +182,20 @@ export function InventoryDashboard() {
   const lowCount = balances.filter((b) => b.status === 'LOW').length;
   const criticalCount = balances.filter((b) => b.status === 'CRITICAL').length;
   const pendingInbound = transfers.filter((t) => t.status === 'IN_TRANSIT').length;
-  const showOverview = showBranchPicker && !selectedBranchId && isAreaManager;
+  const showKioskGrid = canViewOverview && (!isAreaManager || !selectedBranchId);
 
   function handleOverviewSelect(branchIdPick: string, locationId: string) {
     setSelectedBranchId(branchIdPick);
     setSelectedLocationId(locationId);
     setLocationType('BRANCH_KIOSK');
+    setDashboardView('location');
+    setActiveTab('balances');
+  }
+
+  function handleSupplyChainSelect(locationId: string, locationType: LocationType) {
+    setLocationType(locationType);
+    setSelectedLocationId(locationId);
+    setDashboardView('location');
     setActiveTab('balances');
   }
 
@@ -237,26 +255,88 @@ export function InventoryDashboard() {
     }
   }
 
+  const isOfficialLocation =
+    selectedLocation?.location_type === 'HQ_WAREHOUSE' ||
+    selectedLocation?.location_type === 'FACTORY' ||
+    selectedLocation?.location_type === 'FLEET_VEHICLE' ||
+    isKioskView;
+
   const needsBranchSelection = false;
 
   return (
     <ModuleLayout>
       <ModuleHeader
         title="Inventori"
-        description="Kilang → Gudang HQ → Pindah → Terima di Kiosk · pantau baki 9 item stok rasmi"
+        description="Kilang → Gudang HQ → Armada → Kiosk · 9 item stok rasmi selaras di seluruh rantaian"
         icon={Package}
         badges={
-          <>
-            {criticalCount > 0 && (
-              <Badge variant="destructive">{criticalCount} Kritikal</Badge>
-            )}
-            {lowCount > 0 && (
-              <Badge variant="secondary">{lowCount} Stok Rendah</Badge>
-            )}
-          </>
+          dashboardView === 'location' ? (
+            <>
+              {criticalCount > 0 && (
+                <Badge variant="destructive">{criticalCount} Kritikal</Badge>
+              )}
+              {lowCount > 0 && (
+                <Badge variant="secondary">{lowCount} Stok Rendah</Badge>
+              )}
+            </>
+          ) : null
         }
       />
 
+      {canViewOverview && (
+        <Tabs
+          value={dashboardView}
+          onValueChange={(v) => setDashboardView(v as 'overview' | 'location')}
+          className="space-y-4"
+        >
+          <TabsList className={moduleTabsListClass}>
+            <TabsTrigger value="overview" className={moduleTabsTriggerClass}>
+              <LayoutDashboard className="h-4 w-4" /> Ringkasan
+            </TabsTrigger>
+            <TabsTrigger value="location" className={moduleTabsTriggerClass}>
+              <MapPinned className="h-4 w-4" /> Detail Lokasi
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview" className="mt-0 space-y-6">
+            {showBranchPicker && (
+              <BranchScopeSelect
+                value={selectedBranchId}
+                onChange={setSelectedBranchId}
+                allowAll={profile?.role === 'AREA_MANAGER'}
+                allLabel="Semua kiosk kawasan saya"
+              />
+            )}
+            <InventorySupplyChainPanel onSelectLocation={handleSupplyChainSelect} />
+            {showKioskGrid && (
+              <div className="space-y-3">
+                <div>
+                  <h2 className="text-base font-semibold">Stok Roti — Cawangan</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Paparan bag/pcs · klik Buka untuk urus stok penuh 9 item
+                  </p>
+                </div>
+                <KioskOverviewPanel
+                  branchId={selectedBranchId || undefined}
+                  onSelectBranch={handleOverviewSelect}
+                />
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="location" className="mt-0">
+            {renderLocationPanel()}
+          </TabsContent>
+        </Tabs>
+      )}
+
+      {!canViewOverview && renderLocationPanel()}
+    </ModuleLayout>
+  );
+
+  function renderLocationPanel() {
+    return (
+      <>
       {showBranchPicker && (
         <BranchScopeSelect
           value={selectedBranchId}
@@ -266,9 +346,7 @@ export function InventoryDashboard() {
         />
       )}
 
-      {showOverview ? (
-        <KioskOverviewPanel onSelectBranch={handleOverviewSelect} />
-      ) : needsBranchSelection ? (
+      {needsBranchSelection ? (
         <BranchRequiredPrompt message="Sila pilih cawangan untuk melihat inventori kiosk dalam kawasan anda." />
       ) : (
         <>
@@ -401,7 +479,11 @@ export function InventoryDashboard() {
                         description="Lokasi ini belum mempunyai baki stok. Terima stok dari tab Terima."
                       />
                     ) : (
-                      <BalanceTable balances={balances} showPackConversion={isKioskView} />
+                      <BalanceTable
+                        balances={balances}
+                        showPackConversion={isKioskView || isOfficialLocation}
+                        groupByCategory={isOfficialLocation}
+                      />
                     )}
                   </TabsContent>
 
@@ -502,6 +584,7 @@ export function InventoryDashboard() {
           )}
         </>
       )}
-    </ModuleLayout>
-  );
+      </>
+    );
+  }
 }

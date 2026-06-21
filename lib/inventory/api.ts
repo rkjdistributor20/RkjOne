@@ -3,6 +3,7 @@ import type {
   CountItemInput,
   InventoryBalanceRow,
   InventoryLocation,
+  InventoryOverviewResponse,
   KioskOverviewBranch,
   KioskOverviewSummary,
   LineItemInput,
@@ -36,6 +37,10 @@ export async function fetchKioskOverview(branchId?: string) {
     branches: KioskOverviewBranch[];
     summary: KioskOverviewSummary;
   }>(`/api/inventory/kiosk-overview${params}`);
+}
+
+export async function fetchInventoryOverview() {
+  return fetchJson<InventoryOverviewResponse>('/api/inventory/overview');
 }
 
 export async function fetchStockItems(options?: { hq?: boolean }) {

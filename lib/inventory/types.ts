@@ -76,6 +76,7 @@ export interface KioskOverviewBranch {
   branch_name: string;
   location_id: string;
   location_name: string;
+  has_location?: boolean;
   roti: Record<
     string,
     { item_code: string; name: string; display: string; status: 'OK' | 'LOW' | 'CRITICAL'; quantity: number }
@@ -91,6 +92,36 @@ export interface KioskOverviewSummary {
   low: number;
   critical: number;
   pending: number;
+  no_location?: number;
+}
+
+export interface InventoryOverviewNodeLocation {
+  id: string;
+  name: string;
+  subtitle?: string;
+  low_count: number;
+  critical_count: number;
+  total_items: number;
+}
+
+export interface InventoryOverviewNode {
+  location_type: LocationType;
+  label: string;
+  location_count: number;
+  item_lines: number;
+  total_quantity_pcs: number;
+  low_count: number;
+  critical_count: number;
+  in_transit_in: number;
+  in_transit_out: number;
+  locations: InventoryOverviewNodeLocation[];
+}
+
+export interface InventoryOverviewResponse {
+  nodes: InventoryOverviewNode[];
+  pipeline: { in_transit: number; pending_receive: number };
+  network: { low: number; critical: number; kiosks: number };
+  updated_at: string;
 }
 
 export interface LineItemInput {
