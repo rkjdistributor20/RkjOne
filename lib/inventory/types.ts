@@ -57,8 +57,8 @@ export interface StockTransferRow {
   id: string;
   transfer_number: string;
   status: string;
-  from_location: { name: string; location_type: string };
-  to_location: { name: string; location_type: string; branch_id?: string | null };
+  from_location: { id?: string; name: string; location_type: string; branch_id?: string | null };
+  to_location: { id?: string; name: string; location_type: string; branch_id?: string | null };
   created_at: string;
   dispatched_at: string | null;
   delivered_at: string | null;

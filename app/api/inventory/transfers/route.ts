@@ -18,8 +18,8 @@ export async function GET(request: Request) {
     .from('stock_transfers')
     .select(`
       id, transfer_number, status, created_at, dispatched_at, delivered_at,
-      from_location:inventory_locations!stock_transfers_from_location_id_fkey(name, location_type),
-      to_location:inventory_locations!stock_transfers_to_location_id_fkey(name, location_type),
+      from_location:inventory_locations!stock_transfers_from_location_id_fkey(id, name, location_type, branch_id),
+      to_location:inventory_locations!stock_transfers_to_location_id_fkey(id, name, location_type, branch_id),
       stock_transfer_items(quantity, unit, production_date, stock_item:stock_items(item_code, name, category))
     `)
     .eq('organization_id', profile.organization_id)

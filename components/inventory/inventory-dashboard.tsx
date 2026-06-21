@@ -40,7 +40,9 @@ import type {
 import { LOCATION_TYPE_LABELS } from '@/lib/inventory/types';
 import { useAuthStore } from '@/stores/auth-store';
 import { needsBranchPicker } from '@/lib/auth/branch-scope';
-import { getInventoryStockUiAccess, canSetRotiProductionDate, isAreaManagerRole, isStaffRole } from '@/lib/auth/stock-access';
+import { getInventoryStockUiAccess, canSetRotiProductionDate, isAreaManagerRole, isStaffRole, canAccessBranchKioskTransferTab } from '@/lib/auth/stock-access';
+import { formatBranchDestination } from '@/lib/fleet/display-labels';
+import { BranchTransferPanel } from '@/components/inventory/branch-transfer-panel';
 import { BranchScopeSelect } from '@/components/shared/branch-scope-select';
 import { KioskOverviewPanel } from '@/components/inventory/kiosk-overview-panel';
 import { InventorySupplyChainPanel } from '@/components/inventory/inventory-supply-chain-panel';
@@ -76,6 +78,7 @@ export function InventoryDashboard() {
   const isStaff = profile ? isStaffRole(profile.role) : false;
   const isAreaManager = profile ? isAreaManagerRole(profile.role) : false;
   const canViewOverview = profile ? !isStaff : false;
+  const canCrossBranchTransfer = profile ? canAccessBranchKioskTransferTab(profile.role) : false;
   const defaultLocType: LocationType | 'ALL' =
     profile && (isAreaManagerRole(profile.role) || profile.role === 'STAFF')
       ? 'BRANCH_KIOSK'
@@ -92,7 +95,7 @@ export function InventoryDashboard() {
   const [loading, setLoading] = useState(true);
   const [locationsLoading, setLocationsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('balances');
-  const [dashboardView, setDashboardView] = useState<'overview' | 'location'>(
+  const [dashboardView, setDashboardView] = useState<'overview' | 'location' | 'branch-transfer'>(
     canViewOverview ? 'overview' : 'location'
   );
 
@@ -200,8 +203,8 @@ export function InventoryDashboard() {
   }
 
   function formatLocationLabel(loc: InventoryLocation) {
-    if (loc.branch?.branch_code) {
-      return `${loc.branch.branch_code} · ${loc.branch.branch_name}`;
+    if (loc.branch?.branch_name) {
+      return formatBranchDestination(loc);
     }
     return `${LOCATION_TYPE_LABELS[loc.location_type]} — ${loc.name}`;
   }
@@ -286,7 +289,9 @@ export function InventoryDashboard() {
       {canViewOverview && (
         <Tabs
           value={dashboardView}
-          onValueChange={(v) => setDashboardView(v as 'overview' | 'location')}
+          onValueChange={(v) =>
+            setDashboardView(v as 'overview' | 'location' | 'branch-transfer')
+          }
           className="space-y-4"
         >
           <TabsList className={moduleTabsListClass}>
@@ -296,6 +301,11 @@ export function InventoryDashboard() {
             <TabsTrigger value="location" className={moduleTabsTriggerClass}>
               <MapPinned className="h-4 w-4" /> Detail Lokasi
             </TabsTrigger>
+            {canCrossBranchTransfer && (
+              <TabsTrigger value="branch-transfer" className={moduleTabsTriggerClass}>
+                <ArrowLeftRight className="h-4 w-4" /> Pindah Cawangan
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="overview" className="mt-0 space-y-6">
@@ -327,6 +337,12 @@ export function InventoryDashboard() {
           <TabsContent value="location" className="mt-0">
             {renderLocationPanel()}
           </TabsContent>
+
+          {canCrossBranchTransfer && (
+            <TabsContent value="branch-transfer" className="mt-0">
+              <BranchTransferPanel />
+            </TabsContent>
+          )}
         </Tabs>
       )}
 

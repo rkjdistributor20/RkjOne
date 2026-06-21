@@ -2,9 +2,12 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Profile } from '@/types/database';
 import {
   areaManagerMayManageLocation,
+  canBranchKioskTransfer,
   canManageHqStockInOut,
   isAreaManagerRole,
   isHqLocationType,
+  isKioskLocationType,
+  isOperationManagerRole,
   isStaffRole,
   staffMayRejectAtKiosk,
   type StockMutationOperation,
@@ -82,6 +85,13 @@ async function assertLocationAccess(
       isHqLocationType(location.location_type)
     ) {
       deny('Pengurus Kawasan tidak urus stok masuk/keluar Gudang HQ');
+    }
+    return;
+  }
+
+  if (isOperationManagerRole(role)) {
+    if (!isKioskLocationType(location.location_type)) {
+      deny('Pengurus Operasi urus stok kiosk cawangan sahaja — bukan Kilang/Gudang HQ');
     }
     return;
   }
@@ -173,6 +183,22 @@ export async function assertTransferCreateAllowed(
   const to = await loadLocation(supabase, toLocationId);
   if (!from || !to) deny('Lokasi tidak dijumpai');
 
+  if (canBranchKioskTransfer(profile.role)) {
+    const kioskPair =
+      isKioskLocationType(from.location_type) && isKioskLocationType(to.location_type);
+    if (kioskPair) {
+      if (from.branch_id && to.branch_id && from.branch_id === to.branch_id) {
+        deny('Pilih cawangan destinasi yang berbeza');
+      }
+      await assertLocationAccess(supabase, profile, from, 'transfer_create');
+      await assertLocationAccess(supabase, profile, to, 'transfer_create');
+      return;
+    }
+    if (isOperationManagerRole(profile.role) || isAreaManagerRole(profile.role)) {
+      deny('Pindahan cawangan hanya antara kiosk — pilih cawangan asal dan destinasi');
+    }
+  }
+
   await assertLocationAccess(supabase, profile, from, 'transfer_create');
   await assertLocationAccess(supabase, profile, to, 'transfer_create');
 
@@ -182,4 +208,13 @@ export async function assertTransferCreateAllowed(
   if (isHqLocationType(to.location_type) && !canManageHqStockInOut(profile.role)) {
     deny('Hanya HQ urus stok masuk Gudang HQ / kilang');
   }
+}
+
+export function isKioskToKioskTransfer(
+  from: LocationRow,
+  to: LocationRow
+): boolean {
+  return (
+    isKioskLocationType(from.location_type) && isKioskLocationType(to.location_type)
+  );
 }

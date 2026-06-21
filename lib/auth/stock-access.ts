@@ -33,6 +33,28 @@ export function isAreaManagerRole(role: string): boolean {
   return role === 'AREA_MANAGER';
 }
 
+export function isOperationManagerRole(role: string): boolean {
+  return role === 'OPERATION_MANAGER';
+}
+
+/** OM / Admin — pindah stok antara kiosk semua cawangan */
+export function canCrossBranchKioskTransfer(role: string): boolean {
+  return (
+    isOperationManagerRole(role) ||
+    (['SUPER_ADMIN', 'ADMIN'] as UserRole[]).includes(role as UserRole)
+  );
+}
+
+/** Tab Pindah Cawangan — AM (kawasan sahaja) atau OM/Admin (semua cawangan) */
+export function canAccessBranchKioskTransferTab(role: string): boolean {
+  return canCrossBranchKioskTransfer(role) || isAreaManagerRole(role);
+}
+
+/** Benarkan aliran pindahan kiosk → kiosk (skop cawangan disemak di guard / DB) */
+export function canBranchKioskTransfer(role: string): boolean {
+  return canAccessBranchKioskTransferTab(role);
+}
+
 export function isHqLocationType(locationType: string): boolean {
   return locationType === 'HQ_WAREHOUSE' || locationType === 'FACTORY';
 }
@@ -116,6 +138,8 @@ export interface InventoryStockUiAccess {
   canAdjust: boolean;
   canCount: boolean;
   canWriteOff: boolean;
+  /** Tab pindahan antara cawangan (OM) */
+  canCrossBranchTransfer?: boolean;
   readOnlyHint?: string;
 }
 
@@ -147,9 +171,27 @@ export function getInventoryStockUiAccess(
       canAdjust: kiosk,
       canCount: kiosk,
       canWriteOff: kiosk,
+      canCrossBranchTransfer: true,
       readOnlyHint: kiosk
-        ? 'Stok masuk kiosk: terima pindahan HQ di tab Pindah → Terima di Kiosk. Tab Terima tidak digunakan di cawangan.'
+        ? 'Stok masuk kiosk: terima pindahan HQ di tab Pindah → Terima di Kiosk. Pindah antara cawangan kawasan: tab Pindah Cawangan.'
         : 'Pengurus Kawasan urus stok kiosk kawasan sahaja — bukan Gudang HQ.',
+    };
+  }
+
+  if (isOperationManagerRole(role)) {
+    const kiosk = !locationType || isKioskLocationType(locationType);
+    return {
+      canViewBalances: true,
+      canViewMovements: true,
+      canReceive: false,
+      canTransfer: kiosk,
+      canAdjust: kiosk,
+      canCount: kiosk,
+      canWriteOff: kiosk,
+      canCrossBranchTransfer: true,
+      readOnlyHint: kiosk
+        ? 'Pindahan HQ ke kiosk melalui Gudang. Untuk pindah antara cawangan, guna tab Pindah Cawangan.'
+        : 'Guna tab Pindah Cawangan untuk alih stok antara kiosk (stok lama / keperluan mendesak).',
     };
   }
 
@@ -162,6 +204,7 @@ export function getInventoryStockUiAccess(
       canAdjust: true,
       canCount: true,
       canWriteOff: true,
+      canCrossBranchTransfer: true,
     };
   }
 
