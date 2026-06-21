@@ -54,6 +54,12 @@ export async function fetchBalances(locationId: string) {
   );
 }
 
+export async function fetchRotiBatches(locationId: string) {
+  return fetchJson<import('@/lib/stock/expiry').RotiBatchesResponse>(
+    `/api/inventory/roti-batches?location_id=${locationId}`
+  );
+}
+
 export async function fetchMovements(locationId: string, limit = 50) {
   return fetchJson<{ movements: StockMovementRow[] }>(
     `/api/inventory/movements?location_id=${locationId}&limit=${limit}`
