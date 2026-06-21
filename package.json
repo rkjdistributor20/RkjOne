@@ -9,6 +9,7 @@
     "lint": "eslint",
     "seed:users": "node scripts/seed-auth-users.mjs",
     "verify:go-live": "node scripts/verify-go-live.mjs",
+    "setup:storage": "node scripts/setup-storage.mjs",
     "bundle:migrations": "node scripts/bundle-migrations.mjs"
   },
   "dependencies": {
