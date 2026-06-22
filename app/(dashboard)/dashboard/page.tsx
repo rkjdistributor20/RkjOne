@@ -31,6 +31,10 @@ import {
 import { StaffSchedulePanel } from '@/components/shifts/staff-schedule-panel';
 import { BrandStatsStrip } from '@/components/brand/page-header';
 import { COMPANY } from '@/lib/brand/company';
+import {
+  LOGISTIK_DELIVERY_TITLE,
+  LOGISTIK_LABEL,
+} from '@/lib/fleet/logistics-label';
 import { PosOverviewPanel } from '@/components/dashboard/pos-overview-panel';
 import { AreaManagerDashboard } from '@/components/dashboard/area-manager-dashboard';
 import {
@@ -238,11 +242,11 @@ export default async function DashboardPage() {
         <PosOverviewPanel overview={posOverview} />
 
         <SectionCard
-          title="Armada & Penghantaran"
+          title={LOGISTIK_DELIVERY_TITLE}
           description={`${fleetOverview.pending_deliveries} menunggu · ${fleetOverview.in_transit} dalam perjalanan`}
           action={
             <Link href="/fleet" className={cn(buttonVariants({ size: 'sm' }), 'shrink-0')}>
-              Buka Armada
+              Buka {LOGISTIK_LABEL}
             </Link>
           }
         >

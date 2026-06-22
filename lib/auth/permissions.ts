@@ -1,5 +1,6 @@
 import type { PermissionLevel, PermissionModule, UserRole } from '@/types/enums';
 import { HQ_DISTRIBUTOR_LABEL } from '@/lib/brand/legal-entities';
+import { LOGISTIK_LABEL } from '@/lib/fleet/logistics-label';
 import { canAccessFactoryNav, canAccessHqWarehouseNav } from '@/lib/auth/stock-access';
 import {
   filterNavForRole,
@@ -59,7 +60,7 @@ export const NAV_ITEMS: Array<{
   { href: '/inventory', label: 'Inventori', module: 'stock_kiosk', icon: 'Package' },
   { href: '/factory', label: 'Kilang', module: 'stock_hq', icon: 'Factory' },
   { href: '/warehouse', label: HQ_DISTRIBUTOR_LABEL, module: 'stock_hq', icon: 'Warehouse' },
-  { href: '/fleet', label: 'Armada', module: 'fleet', icon: 'Truck' },
+  { href: '/fleet', label: LOGISTIK_LABEL, module: 'fleet', icon: 'Truck' },
   { href: '/payroll', label: 'Gaji', module: 'payroll', icon: 'Wallet' },
   { href: '/finance', label: 'Kewangan', module: 'finance', icon: 'Banknote' },
   { href: '/reports', label: 'Laporan', module: 'reports', icon: 'BarChart3' },

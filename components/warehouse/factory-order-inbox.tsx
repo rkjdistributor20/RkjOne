@@ -9,6 +9,7 @@ import { ORDER_PHASE_LABELS } from '@/lib/production/types';
 import { formatProductionDayLabel } from '@/lib/production/week-utils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { LOGISTIK_LABEL } from '@/lib/fleet/logistics-label';
 import { FactoryOrderReportView } from '@/components/warehouse/factory-order-report-view';
 
 export function FactoryOrderInbox({ onOrdersChange }: { onOrdersChange?: () => void }) {
@@ -57,7 +58,7 @@ export function FactoryOrderInbox({ onOrdersChange }: { onOrdersChange?: () => v
         <p className="mt-1">
           <strong>Ramalan</strong> = perancangan awal HQ (boleh berubah).{' '}
           <strong>Muktamad</strong> = order sah — sahkan di bawah. Selepas sahkan, stok auto
-          diterima HQ & dihantar terus ke cawangan; driver sahkan sampai di Armada.
+          diterima HQ & dihantar terus ke cawangan; driver sahkan sampai di {LOGISTIK_LABEL}.
         </p>
       </div>
 

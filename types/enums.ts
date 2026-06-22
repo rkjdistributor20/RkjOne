@@ -1,4 +1,5 @@
 import { HQ_DISTRIBUTOR_LABEL } from '@/lib/brand/legal-entities';
+import { LOGISTIK_LABEL } from '@/lib/fleet/logistics-label';
 
 export const USER_ROLES = [
   'SUPER_ADMIN',
@@ -69,7 +70,7 @@ export const MODULE_LABELS: Record<PermissionModule, string> = {
   shift: 'Syif',
   stock_kiosk: 'Inventori Kiosk',
   stock_hq: HQ_DISTRIBUTOR_LABEL,
-  fleet: 'Armada',
+  fleet: LOGISTIK_LABEL,
   payroll: 'Gaji',
   finance: 'Kewangan',
   reports: 'Laporan',

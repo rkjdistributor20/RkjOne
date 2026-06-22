@@ -9,6 +9,7 @@ import {
 import { HQ_STOCK_ITEM_CODES } from '@/lib/stock/catalog';
 import type { LocationType } from '@/lib/inventory/types';
 import { HQ_DISTRIBUTOR_LABEL } from '@/lib/brand/legal-entities';
+import { LOGISTIK_LABEL } from '@/lib/fleet/logistics-label';
 
 type NodeSummary = {
   location_type: LocationType;
@@ -164,7 +165,7 @@ export async function GET(request: Request) {
   const typeLabels: Record<LocationType, string> = {
     FACTORY: 'Kilang',
     HQ_WAREHOUSE: HQ_DISTRIBUTOR_LABEL,
-    FLEET_VEHICLE: 'Armada',
+    FLEET_VEHICLE: LOGISTIK_LABEL,
     BRANCH_KIOSK: 'Kiosk Cawangan',
   };
 

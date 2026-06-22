@@ -15,6 +15,10 @@ import { fetchLocations, fetchStockItems } from '@/lib/inventory/api';
 import type { DeliveryLeg, DeliveryOrder, FleetDriver, FleetStatusLog, FleetVehicle } from '@/lib/fleet/types';
 import { LEG_TYPE_LABELS } from '@/lib/fleet/types';
 import { HQ_DISTRIBUTOR_LABEL } from '@/lib/brand/legal-entities';
+import {
+  LOGISTIK_LABEL,
+  LOGISTIK_MODULE_TITLE,
+} from '@/lib/fleet/logistics-label';
 import type { InventoryLocation, StockItemOption } from '@/lib/inventory/types';
 import { useAuthStore } from '@/stores/auth-store';
 import {
@@ -86,7 +90,7 @@ export function FleetDashboard() {
       setLocations(loc.locations);
       setStockItems(items.items);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Gagal memuatkan data armada');
+      toast.error(err instanceof Error ? err.message : 'Gagal memuatkan data logistik');
     } finally {
       setLoading(false);
     }
@@ -144,8 +148,8 @@ export function FleetDashboard() {
   return (
     <ModuleLayout>
       <ModuleHeader
-        title="Pengurusan Armada"
-        description={`Selaras Kilang · ${HQ_DISTRIBUTOR_LABEL} · Armada · Kiosk — DO digabung per driver (max 20 hentian/arahan)`}
+        title={LOGISTIK_MODULE_TITLE}
+        description={`Selaras Kilang · ${HQ_DISTRIBUTOR_LABEL} · ${LOGISTIK_LABEL} · Kiosk — DO digabung per driver (max 20 hentian/arahan)`}
         icon={Truck}
         badges={
           <>

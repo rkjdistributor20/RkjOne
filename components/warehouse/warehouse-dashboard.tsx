@@ -28,6 +28,7 @@ import type { PublishedProductionDate } from '@/lib/production/types';
 import { HqFactoryOrderPanel } from '@/components/warehouse/hq-factory-order-panel';
 import { COMPANY } from '@/lib/brand/company';
 import { HQ_DISTRIBUTOR_LABEL } from '@/lib/brand/legal-entities';
+import { LOGISTIK_LABEL } from '@/lib/fleet/logistics-label';
 import { labelFor, TRANSFER_STATUS_LABELS } from '@/lib/ui/labels';
 import {
   ModuleLayout,
@@ -156,7 +157,7 @@ export function WarehouseDashboard() {
             <p className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">
               <strong>Cross-dock:</strong> Bila kilang sahkan order muktamad, stok diterima automatik
               dan dihantar terus ke cawangan mengikut laluan driver. Tiada simpanan stok di HQ —
-              driver sahkan penghantaran di tab Armada → Jadual Kerja.
+              driver sahkan penghantaran di tab {LOGISTIK_LABEL} → Jadual Kerja.
             </p>
           )}
 

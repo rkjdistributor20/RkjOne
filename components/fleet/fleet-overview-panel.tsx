@@ -28,7 +28,7 @@ export function FleetOverviewPanel() {
       setSchedule(sched.schedule);
       setInventory(inv);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Gagal memuatkan ringkasan armada');
+      toast.error(err instanceof Error ? err.message : 'Gagal memuatkan ringkasan logistik');
       setSchedule([]);
       setInventory(null);
     } finally {

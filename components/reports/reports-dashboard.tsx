@@ -30,6 +30,7 @@ import type {
   SalesTrendRow,
   StaffPerformanceRow,
 } from '@/lib/reports/types';
+import { LOGISTIK_LABEL } from '@/lib/fleet/logistics-label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -110,7 +111,7 @@ export function ReportsDashboard() {
     <ModuleLayout>
       <ModuleHeader
         title="Laporan"
-        description="Analisis jualan, prestasi cawangan, produk, staf, inventori, dan armada"
+        description={`Analisis jualan, prestasi cawangan, produk, staf, inventori, dan ${LOGISTIK_LABEL.toLowerCase()}`}
         icon={BarChart3}
         actions={
           <div className="flex flex-wrap items-end gap-2">
@@ -172,7 +173,7 @@ export function ReportsDashboard() {
                 <Warehouse className="h-4 w-4" /> Stok
               </TabsTrigger>
               <TabsTrigger value="fleet" className={moduleTabsTriggerClass}>
-                <Truck className="h-4 w-4" /> Armada
+                <Truck className="h-4 w-4" /> {LOGISTIK_LABEL}
               </TabsTrigger>
             </TabsList>
 

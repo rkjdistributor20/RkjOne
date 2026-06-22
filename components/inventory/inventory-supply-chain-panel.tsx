@@ -19,6 +19,7 @@ import type {
   LocationType,
 } from '@/lib/inventory/types';
 import { HQ_DISTRIBUTOR_LABEL } from '@/lib/brand/legal-entities';
+import { LOGISTIK_LABEL } from '@/lib/fleet/logistics-label';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -92,7 +93,7 @@ export function InventorySupplyChainPanel({
         <KpiCard
           label="Pindahan dalam perjalanan"
           value={data.pipeline.in_transit}
-          hint="Kilang → HQ → Armada → Kiosk"
+          hint={`Kilang → HQ → ${LOGISTIK_LABEL} → Kiosk`}
           icon={Truck}
           tone="violet"
         />

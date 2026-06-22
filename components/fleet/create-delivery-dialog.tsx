@@ -18,6 +18,7 @@ import {
 import { createDeliveryOrder, optimizeRoutePreview } from '@/lib/fleet/api';
 import type { InventoryLocation, StockItemOption } from '@/lib/inventory/types';
 import { HQ_DISTRIBUTOR_LABEL } from '@/lib/brand/legal-entities';
+import { LOGISTIK_LABEL } from '@/lib/fleet/logistics-label';
 import { HQ_FACTORY_ORDER_SECTIONS } from '@/lib/production/hq-order-format';
 import {
   buildManualDeliveryLegs,
@@ -196,7 +197,7 @@ export function CreateDeliveryDialog({
     if (fleetSlot || selectedVehicle) {
       nodes.push({
         icon: Truck,
-        label: 'Armada',
+        label: LOGISTIK_LABEL,
         sub: selectedVehicle
           ? formatVehicleName(selectedVehicle)
           : formatFleetSlot(fleetSlot),
@@ -358,7 +359,7 @@ export function CreateDeliveryDialog({
 
     const slot = fleetLocationForVehicle(vehicleId, fleetLocs);
     if (!slot) {
-      toast.error('Kenderaan pemandu tiada lokasi armada — daftar dalam inventori');
+      toast.error(`Kenderaan pemandu tiada lokasi logistik — daftar dalam inventori`);
       return;
     }
 
@@ -512,10 +513,10 @@ export function CreateDeliveryDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="FROM_FACTORY">
-                  Dari Kilang (production baharu → HQ → armada)
+                  Dari Kilang (production baharu → HQ → logistik)
                 </SelectItem>
                 <SelectItem value="FROM_HQ">
-                  Dari {HQ_DISTRIBUTOR_LABEL} (stok sedia ada → armada)
+                  Dari {HQ_DISTRIBUTOR_LABEL} (stok sedia ada → logistik)
                 </SelectItem>
               </SelectContent>
             </Select>

@@ -5,7 +5,7 @@ import { resolveScopedBranches, applyBranchIdsFilter } from '@/lib/auth/branch-s
 
 const ORG_LOCATION_TYPES = ['FACTORY', 'HQ_WAREHOUSE', 'FLEET_VEHICLE'] as const;
 
-/** Peranan ini hanya lihat kiosk dalam kawasan — bukan Kilang / Gudang HQ / Armada */
+/** Peranan ini hanya lihat kiosk dalam kawasan — bukan Kilang / Gudang HQ / Logistik */
 const KIOSK_ONLY_ROLES = new Set(['AREA_MANAGER', 'STAFF']);
 
 export async function GET(request: Request) {

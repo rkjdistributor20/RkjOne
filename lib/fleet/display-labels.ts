@@ -1,4 +1,5 @@
 import type { FleetDriver, FleetVehicle } from '@/lib/fleet/types';
+import { LOGISTIK_LABEL } from '@/lib/fleet/logistics-label';
 import type { InventoryLocation, StockItemOption } from '@/lib/inventory/types';
 import { LOCATION_TYPE_LABELS } from '@/lib/inventory/types';
 import { getHqOrderUnitLabel } from '@/lib/production/hq-order-format';
@@ -69,8 +70,8 @@ export function formatLocationNode(loc: InventoryLocation | undefined | null): s
   if (!loc) return '—';
   if (loc.location_type === 'BRANCH_KIOSK') return formatBranchDestination(loc);
   if (loc.location_type === 'FLEET_VEHICLE') {
-    if (loc.vehicle?.vehicle_type) return `Armada · ${loc.vehicle.vehicle_type}`;
-    return 'Armada';
+    if (loc.vehicle?.vehicle_type) return `${LOGISTIK_LABEL} · ${loc.vehicle.vehicle_type}`;
+    return LOGISTIK_LABEL;
   }
   return LOCATION_TYPE_LABELS[loc.location_type] ?? loc.name;
 }
