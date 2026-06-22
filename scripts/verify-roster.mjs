@@ -51,13 +51,26 @@ function fail(label, detail) {
   console.log(`  ✗ ${label}${detail ? ` — ${detail}` : ''}`);
 }
 
-function getNextMondayIso() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  const day = d.getDay();
-  const toMon = day === 0 ? 1 : 8 - day;
-  d.setDate(d.getDate() + toMon);
-  return d.toISOString().slice(0, 10);
+function getMonday(d = new Date()) {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  const day = x.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  x.setDate(x.getDate() + diff);
+  return x;
+}
+
+function formatDateISO(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function getNextWeekStart() {
+  const mon = getMonday();
+  mon.setDate(mon.getDate() + 7);
+  return formatDateISO(mon);
 }
 
 console.log('\n=== Semakan Jadual Staf Mingguan (00062) ===\n');
@@ -122,7 +135,7 @@ if (authErr || !safuanAuth.session) {
   } else {
     ok('Cawangan ujian', branch.branch_code);
 
-    const weekStart = getNextMondayIso();
+    const weekStart = getNextWeekStart();
     const { data: staffRows } = await admin
       .from('staff')
       .select('id')
