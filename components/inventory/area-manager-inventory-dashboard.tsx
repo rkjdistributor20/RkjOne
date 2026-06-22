@@ -46,7 +46,7 @@ import { formatBranchDestination } from '@/lib/fleet/display-labels';
 import { BranchTransferPanel } from '@/components/inventory/branch-transfer-panel';
 import { BranchScopeSelect } from '@/components/shared/branch-scope-select';
 import { KioskOverviewPanel } from '@/components/inventory/kiosk-overview-panel';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -332,34 +332,29 @@ export function AreaManagerInventoryDashboard() {
               )}
             </TabsList>
 
-            <TabsContent value="balances" className="mt-4">
-              {balances.length === 0 ? (
-                <EmptyState
-                  icon={Package}
-                  title="Tiada baki stok"
-                  description="Lokasi ini belum mempunyai baki stok. Terima stok dari tab Terima."
-                />
-              ) : (
-                <BalanceTable balances={balances} showPackConversion groupByCategory />
-              )}
-            </TabsContent>
+            <div className="mt-4">
+              {activeTab === 'balances' &&
+                (balances.length === 0 ? (
+                  <EmptyState
+                    icon={Package}
+                    title="Tiada baki stok"
+                    description="Lokasi ini belum mempunyai baki stok. Terima stok dari tab Terima."
+                  />
+                ) : (
+                  <BalanceTable balances={balances} showPackConversion groupByCategory />
+                ))}
 
-            <TabsContent value="movements" className="mt-4">
-              <MovementList movements={movements} />
-            </TabsContent>
+              {activeTab === 'movements' && <MovementList movements={movements} />}
 
-            <TabsContent value="receive" className="mt-4">
-              {stockAccess?.canReceive ? (
+              {activeTab === 'receive' && stockAccess?.canReceive && (
                 <StockLineForm
                   mode="receive"
                   stockItems={stockItems}
                   onSubmit={(items, meta) => handleReceive(items, meta?.notes)}
                 />
-              ) : null}
-            </TabsContent>
+              )}
 
-            <TabsContent value="transfer" className="mt-4">
-              {stockAccess?.canTransfer ? (
+              {activeTab === 'transfer' && stockAccess?.canTransfer && (
                 <TransferPanel
                   locations={kioskLocations}
                   kioskOnly
@@ -397,40 +392,34 @@ export function AreaManagerInventoryDashboard() {
                   loadVehicles={fetchVehicles}
                   canSetRotiProductionDate={orderMaker}
                 />
-              ) : null}
-            </TabsContent>
+              )}
 
-            <TabsContent value="adjust" className="mt-4">
-              {stockAccess?.canAdjust ? (
+              {activeTab === 'adjust' && stockAccess?.canAdjust && (
                 <StockLineForm
                   mode="adjust"
                   stockItems={stockItems}
                   balances={balances}
                   onSubmitAdjust={handleAdjustment}
                 />
-              ) : null}
-            </TabsContent>
+              )}
 
-            <TabsContent value="count" className="mt-4">
-              {stockAccess?.canCount ? (
+              {activeTab === 'count' && stockAccess?.canCount && (
                 <StockLineForm
                   mode="count"
                   stockItems={stockItems}
                   balances={balances}
                   onSubmitCount={handleCount}
                 />
-              ) : null}
-            </TabsContent>
+              )}
 
-            <TabsContent value="writeoff" className="mt-4">
-              {stockAccess?.canWriteOff ? (
+              {activeTab === 'writeoff' && stockAccess?.canWriteOff && (
                 <StockLineForm
                   mode="writeoff"
                   stockItems={stockItems}
                   onSubmitWriteOff={handleWriteOff}
                 />
-              ) : null}
-            </TabsContent>
+              )}
+            </div>
           </Tabs>
         )}
       </>
@@ -476,7 +465,7 @@ export function AreaManagerInventoryDashboard() {
   }
 
   return (
-    <ModuleLayout>
+    <ModuleLayout data-am-inventory="v2">
       <ModuleHeader
         title="Inventori Kawasan"
         description="Stok kiosk cawangan dalam kawasan anda — terima, pindah, kira & lupus"

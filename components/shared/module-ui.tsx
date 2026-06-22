@@ -9,12 +9,12 @@ import type { ComponentProps } from 'react';
 export function ModuleLayout({
   children,
   className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
+  ...props
+}: ComponentProps<'div'>) {
   return (
-    <div className={cn('mx-auto w-full max-w-7xl space-y-6', className)}>{children}</div>
+    <div className={cn('mx-auto w-full max-w-7xl space-y-6', className)} {...props}>
+      {children}
+    </div>
   );
 }
 

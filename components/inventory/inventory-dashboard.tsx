@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   Package,
@@ -73,6 +74,7 @@ import {
 } from '@/components/shared/module-ui';
 
 export function InventoryDashboard() {
+  const router = useRouter();
   const profile = useAuthStore((s) => s.profile);
   const showBranchPicker = profile ? needsBranchPicker(profile) : false;
   const isStaff = profile ? isStaffRole(profile.role) : false;
@@ -191,6 +193,12 @@ export function InventoryDashboard() {
     loadData();
   }, [loadData]);
 
+  useEffect(() => {
+    if (profile?.role === 'AREA_MANAGER') {
+      router.replace('/inventory/kawasan');
+    }
+  }, [profile, router]);
+
   const selectedLocation = locations.find((l) => l.id === selectedLocationId);
   const locationSelectValue =
     boundSelectValue(selectedLocationId, locations.map((l) => l.id)) ?? '';
@@ -202,6 +210,15 @@ export function InventoryDashboard() {
       </ModuleLayout>
     );
   }
+
+  if (profile.role === 'AREA_MANAGER') {
+    return (
+      <ModuleLayout>
+        <ModuleLoading />
+      </ModuleLayout>
+    );
+  }
+
   const stockAccess = profile
     ? getInventoryStockUiAccess(profile.role, selectedLocation?.location_type)
     : null;

@@ -87,7 +87,11 @@ export function getVisibleNavItems(
     return canAccessModule(role, item.module, permissions);
   });
 
-  return filterNavForRole(role, items);
+  return filterNavForRole(role, items).map((item) =>
+    role === 'AREA_MANAGER' && item.href === '/inventory'
+      ? { ...item, href: '/inventory/kawasan' }
+      : item
+  );
 }
 
 export function getNavLabelForPath(pathname: string): string {

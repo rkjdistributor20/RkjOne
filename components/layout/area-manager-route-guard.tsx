@@ -17,6 +17,15 @@ export function AreaManagerRouteGuard() {
 
   useEffect(() => {
     if (!profile || !isAreaManagerRole(profile.role)) return;
+
+    if (
+      pathname === '/inventory' ||
+      (pathname.startsWith('/inventory/') && !pathname.startsWith('/inventory/kawasan'))
+    ) {
+      router.replace('/inventory/kawasan');
+      return;
+    }
+
     if (isAreaManagerAllowedPath(pathname)) return;
 
     toast.message('Halaman ini urusan HQ — anda dihalakan ke papan pemuka');
