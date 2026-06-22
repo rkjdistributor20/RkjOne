@@ -10,6 +10,7 @@
     "seed:users": "node scripts/seed-auth-users.mjs",
     "verify:go-live": "node scripts/verify-go-live.mjs",
     "verify:production": "node scripts/verify-production.mjs",
+    "verify:roster": "node scripts/verify-roster.mjs",
     "setup:storage": "node scripts/setup-storage.mjs",
     "finish:go-live": "node scripts/finish-go-live.mjs",
     "deploy:env": "node scripts/push-vercel-env.mjs",
