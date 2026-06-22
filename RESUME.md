@@ -2,7 +2,7 @@
 
 > **Buka fail ini bila buka semula projek.** Kemaskini tarikh bila selesai satu fasa.
 
-**Tarikh kemaskini:** 21 Jun 2025 (AM dashboard + inventori kiosk siap)  
+**Tarikh kemaskini:** 22 Jun 2025 (health API + verify:production + inventori AM server prop)  
 **Branch:** `master` (sync dengan GitHub + Vercel)  
 **Status LIVE:** https://rkj-one.vercel.app  
 **Supabase:** `mtygxueknokcihofdttl` · migration sehingga **00061**
@@ -29,14 +29,16 @@ Ramalan/Order HQ → Kilang (production) → Cross-dock Gudang HQ
 ### Platform
 | Platform | Status |
 |----------|--------|
-| **GitHub** `rkjdistributor20/RkjOne` | `master` commit `b893e8c` |
+| **GitHub** `rkjdistributor20/RkjOne` | `master` commit terkini (push selepas sesi) |
 | **Vercel** | Auto-deploy dari `master` |
 | **Supabase DB** | Migration **00001–00061** applied |
 
 ### Commit terkini (Area Manager)
 | Commit | Kandungan |
 |--------|-----------|
-| `b893e8c` | Buang dropdown **ALL + UUID** inventori AM — grid Buka sahaja |
+| `c92d5c7` | Inventori AM — dynamic import server `/inventory` |
+| `0ef7916` | Middleware + pautan dashboard AM |
+| `4eb8167` | Komponen `area-manager-inventory-dashboard` berasingan |
 | `65b7152` | Inventori AM: **kiosk cawangan sahaja** — buang Kilang/HQ/Armada |
 | `d04b6f5` | Dashboard AM khusus kawasan |
 | `9314ee1` | Fix paparan UUID inventori |
@@ -135,10 +137,10 @@ npm run dev
 
 ## 📋 Prioriti bila sambung sesi
 
-1. **UAT manual AM** — Safuan, Hakim, Yati di production (Ctrl+F5)
+1. **UAT manual AM** — ikut `docs/UAT_AM.md` (Safuan → Hakim → Yati)
 2. **Auth Supabase** (A) — 5 min, impak besar
-3. **`npm run verify:go-live`** ✓ + **`npm run verify:am`** ✓ + **`npm run build`** ✓ (21 Jun)
-4. **Pilot UAT** 3 cawangan (C) — dokumentasi isu
+3. **`npm run verify:go-live`** ✓ + **`npm run verify:am`** ✓ + **`npm run verify:production`** (selepas deploy) + **`npm run build`** ✓
+4. **Pilot UAT** 3 cawangan (C) — `docs/GO_LIVE_CHECKLIST.md` Fasa 3
 5. **Isi GPS cawangan** + data master (B)
 6. Rollout 36 cawangan (D)
 
@@ -160,6 +162,7 @@ Taip salah satu:
 | Item | Lokasi |
 |------|--------|
 | Checklist penuh | `docs/GO_LIVE_CHECKLIST.md` |
+| UAT Area Manager | `docs/UAT_AM.md` |
 | Deploy | `docs/DEPLOYMENT.md` |
 | Env | `.env.example` |
 | Login CSV | `csv_import/login_users_generated.csv` |

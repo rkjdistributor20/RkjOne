@@ -9,7 +9,7 @@
     "lint": "eslint",
     "seed:users": "node scripts/seed-auth-users.mjs",
     "verify:go-live": "node scripts/verify-go-live.mjs",
-    "verify:am": "node scripts/verify-area-managers.mjs",
+    "verify:production": "node scripts/verify-production.mjs",
     "setup:storage": "node scripts/setup-storage.mjs",
     "finish:go-live": "node scripts/finish-go-live.mjs",
     "deploy:env": "node scripts/push-vercel-env.mjs",

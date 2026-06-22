@@ -64,9 +64,25 @@ import {
   moduleTabsTriggerClass,
 } from '@/components/shared/module-ui';
 
+import type { Profile } from '@/types/database';
+
+export type ServerInventoryProfile = Pick<
+  Profile,
+  'role' | 'branch_id' | 'region_id' | 'full_name'
+>;
+
+interface AreaManagerInventoryDashboardProps {
+  serverProfile: ServerInventoryProfile;
+  deployCommit?: string;
+}
+
 /** Inventori AM — tiada dropdown jenis lokasi (ALL) atau UUID; cawangan + grid Buka sahaja */
-export function AreaManagerInventoryDashboard() {
-  const profile = useAuthStore((s) => s.profile);
+export function AreaManagerInventoryDashboard({
+  serverProfile,
+  deployCommit,
+}: AreaManagerInventoryDashboardProps) {
+  const clientProfile = useAuthStore((s) => s.profile);
+  const profile = clientProfile ?? serverProfile;
   const showBranchPicker = profile ? needsBranchPicker(profile) : false;
   const canCrossBranchTransfer = profile
     ? canAccessBranchKioskTransferTab(profile.role)
@@ -74,7 +90,9 @@ export function AreaManagerInventoryDashboard() {
 
   const [locations, setLocations] = useState<InventoryLocation[]>([]);
   const [selectedLocationId, setSelectedLocationId] = useState('');
-  const [selectedBranchId, setSelectedBranchId] = useState(profile?.branch_id ?? '');
+  const [selectedBranchId, setSelectedBranchId] = useState(
+    serverProfile.branch_id ?? ''
+  );
   const [stockItems, setStockItems] = useState<StockItemOption[]>([]);
   const [balances, setBalances] = useState<InventoryBalanceRow[]>([]);
   const [movements, setMovements] = useState<StockMovementRow[]>([]);
@@ -171,6 +189,8 @@ export function AreaManagerInventoryDashboard() {
       </ModuleLayout>
     );
   }
+
+  const deployHint = deployCommit ? ` · ${deployCommit}` : '';
 
   const stockAccess = getInventoryStockUiAccess(profile.role, selectedLocation?.location_type);
   const orderMaker = canSetRotiProductionDate(profile.role);
@@ -468,7 +488,7 @@ export function AreaManagerInventoryDashboard() {
     <ModuleLayout data-am-inventory="v2">
       <ModuleHeader
         title="Inventori Kawasan"
-        description="Stok kiosk cawangan dalam kawasan anda — terima, pindah, kira & lupus"
+        description={`Stok kiosk cawangan dalam kawasan anda — terima, pindah, kira & lupus${deployHint}`}
         icon={Package}
         badges={
           dashboardView === 'location' && selectedLocationId ? (

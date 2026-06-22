@@ -15,11 +15,24 @@ export default async function InventoryPage() {
     redirect('/login');
   }
 
+  const deployCommit =
+    process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? undefined;
+
   if (profile.role === 'AREA_MANAGER') {
     const { AreaManagerInventoryDashboard } = await import(
       '@/components/inventory/area-manager-inventory-dashboard'
     );
-    return <AreaManagerInventoryDashboard />;
+    return (
+      <AreaManagerInventoryDashboard
+        serverProfile={{
+          role: profile.role,
+          branch_id: profile.branch_id,
+          region_id: profile.region_id,
+          full_name: profile.full_name,
+        }}
+        deployCommit={deployCommit}
+      />
+    );
   }
 
   const { InventoryDashboard } = await import('@/components/inventory/inventory-dashboard');
