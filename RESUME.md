@@ -2,10 +2,10 @@
 
 > **Buka fail ini bila buka semula projek.** Kemaskini tarikh bila selesai satu fasa.
 
-**Tarikh kemaskini:** 22 Jun 2025 (verify login 13/13, production `2a45a08`)  
+**Tarikh kemaskini:** 22 Jun 2025 (legal entities + HQ Distributor, production `cbce588`)  
 **Branch:** `master` (sync GitHub + Vercel)  
 **Status LIVE:** https://rkj-one.vercel.app  
-**Supabase:** `mtygxueknokcihofdttl` · migration sehingga **00066**
+**Supabase:** `mtygxueknokcihofdttl` · migration sehingga **00069**
 
 ---
 
@@ -13,6 +13,7 @@
 
 | Commit | Kandungan |
 |--------|-----------|
+| `cbce588` | 3 syarikat undang-undang · AM RKJ Distributor · HQ Distributor |
 | `2a45a08` | verify:login 13 peranan + fix embed region `/profile` |
 | `35af016` | Profil HR terperinci — IC, alamat, kecemasan |
 | `058fb2b` | Fix `/profile` crash (Rules of Hooks) |
@@ -20,7 +21,7 @@
 
 ### Modul siap
 - **Dashboard HQ/AM/Staf** — identiti Roti Kaya Junus (emas · hitam · tradisi 1975)
-- **Profil HR** — `/profile` IC, alamat, kecemasan, bar % lengkap, gambar muka + AI ingatkan
+- **Profil HR** — `/profile` IC, alamat, kecemasan, 3 syarikat (RKJ · RKJ Distributor · RKJ Manufacturing)
 - **Dashboard AM** — AI insight, jualan h/m/b per cawangan, KPI syif & kehadiran
 - **Jadual staf** — Syif → Jadual Mingguan, terbit sebelum Ahad, reminder harian
 - **Tetapan staf** — tambah/edit, auto username `sxxx@rkj.com`, semak password
@@ -30,7 +31,7 @@
 ### Verify (automatik)
 - `npm run verify:login` — **13/13** peranan ✓ (auto-baiki password + profil)
 - `npm run verify:go-live` — **19/19** ✓
-- `npm run verify:production` — **6/6** ✓ · deploy `2a45a08`
+- `npm run verify:production` — **6/6** ✓ · deploy `cbce588`
 
 ---
 
