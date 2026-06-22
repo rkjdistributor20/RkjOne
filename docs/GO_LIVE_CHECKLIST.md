@@ -66,6 +66,7 @@ Cipta dalam Supabase Storage:
 - [ ] `delivery-proof` (private)
 - [ ] `bank-slips` (private)
 - [ ] `receipts` (private)
+- [ ] `profile-avatars` (public — gambar profil pengguna)
 
 ### 1.5 Cipta login semua pengguna
 

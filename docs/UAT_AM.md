@@ -39,12 +39,20 @@ Tandakan `[ ]` → `[x]` bila lulus.
 
 ### 2. Papan Pemuka
 
+- [ ] Hero **emas/hitam RKJ** — logo, nama kawasan, tarikh hari ini
 - [ ] Tajuk / data **kawasan sendiri sahaja** (bukan 36 cawangan)
-- [ ] **Panel Bantuan AI** — insight stok, jualan, syif, jadual staf
+- [ ] **Panel Bantuan AI** (tema emas) — insight stok, jualan, syif, jadual staf
 - [ ] KPI jualan **harian / mingguan / bulanan** per kawasan
 - [ ] Jadual prestasi cawangan — toggle Harian / Mingguan / Bulanan
 - [ ] Grid kiosk — bilangan cawangan match jadual atas
 - [ ] Tiada angka stok HQ / kilang
+
+### 2a. Profil pengguna
+
+- [ ] Klik avatar/nama sidebar → `/profile`
+- [ ] Boleh edit nama & telefon
+- [ ] Upload gambar muka (JPG/PNG/WebP)
+- [ ] **Peringatan AI** muncul jika tiada gambar (boleh terus guna sistem)
 
 ### 2b. Jadual Staf Mingguan (Syif)
 

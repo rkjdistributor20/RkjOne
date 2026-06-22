@@ -264,7 +264,7 @@ try {
   }
 
   console.log('\n4. Storage buckets');
-  const bucketNames = ['delivery-proof', 'bank-slips', 'receipts'];
+  const bucketNames = ['delivery-proof', 'bank-slips', 'receipts', 'profile-avatars'];
   for (const name of bucketNames) {
     const res = await fetch(`${url.replace(/\/$/, '')}/storage/v1/bucket/${name}`, {
       headers: {
