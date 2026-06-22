@@ -9,12 +9,14 @@ Sistem jualan & inventori baharu RKJ One sudah LIVE.
 
 📋 CARA GUNA (HARI PERTAMA)
 1. Login dengan email staf (sxxx@rkj.com)
-2. Inventori — semak stok roti & bahan
-3. POS — Buka Syif (masukkan tunai permulaan)
-4. Jual seperti biasa (tunai / QR)
-5. Petang — Tutup Syif & kira tunai
+2. Kata laluan sementara — AM akan beri (WhatsApp peribadi)
+3. Sistem minta TUKAR password pada login pertama — pilih password sendiri
+4. Inventori — semak stok roti & bahan
+5. POS — Buka Syif (masukkan tunai permulaan)
+6. Jual seperti biasa (tunai / QR)
+7. Petang — Tutup Syif & kira tunai
 
-⚠️ Kata laluan sementara akan ditukar — ikut arahan AM jika diminta.
+⚠️ Jangan kongsi password dalam group awam.
 
 🆘 MASALAH?
 • Login gagal / stok kosong → hubungi Area Manager kawasan

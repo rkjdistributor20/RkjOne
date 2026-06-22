@@ -79,8 +79,11 @@
 - [ ] Supabase Auth Dashboard — **signup OFF** — panduan [`docs/SUPABASE_AUTH_SETUP.md`](docs/SUPABASE_AUTH_SETUP.md)
   - Site URL: `https://rkj-one.vercel.app`
   - Redirect: `https://rkj-one.vercel.app/auth/callback`
-- [ ] **Tukar password** — `npm run rotate:passwords -- --password "..." --confirm` (bukan `RkjOne@2025`)
-- [ ] UAT AM pantas — Safuan / Hakim / Yati ([`docs/UAT_AM.md`](docs/UAT_AM.md)) — *verify:am lulus; UAT browser belum*
+- [x] **Tukar password** — `npm run go-live:passwords` *(76 akaun · must_change_password=YA)*
+  - Kata laluan: `csv_import/.go-live-temp-password.txt` *(local, jangan commit)*
+  - Eksport AM: `csv_import/go_live_credentials_export.csv`
+  - Panduan edar: [`docs/GO_LIVE_CREDENTIALS_HANDOFF.md`](docs/GO_LIVE_CREDENTIALS_HANDOFF.md)
+- [ ] UAT AM pantas — Safuan / Hakim / Yati — login dengan kata laluan dari `.go-live-temp-password.txt`
 - [ ] WhatsApp SOP + bookmark URL — salin [`docs/WHATSAPP_GO_LIVE.txt`](docs/WHATSAPP_GO_LIVE.txt)
 - [ ] Hari H: staf buka syif · jual · tutup syif · review dashboard petang
 
@@ -111,7 +114,8 @@ Password sementara: **`RkjOne@2025`** (wajib tukar)
 | WhatsApp go-live | `docs/WHATSAPP_GO_LIVE.txt` |
 | Legal entities code | `lib/brand/legal-entities.ts` |
 | Setup Auth Supabase | `docs/SUPABASE_AUTH_SETUP.md` |
-| Putar password | `npm run rotate:passwords -- --dry-run` |
+| Putar password | `npm run go-live:passwords` |
+| Edar kredensial AM | `docs/GO_LIVE_CREDENTIALS_HANDOFF.md` |
 | Verify go-live 36 | `npm run verify:go-live-36` |
 
 ---

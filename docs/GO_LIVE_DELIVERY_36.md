@@ -1,7 +1,7 @@
 # Delivery Go-Live — 36 Cawangan
 
 **Auto-jana:** `npm run verify:delivery`  
-**Aliran:** Kilang → **HQ Distributor** → Fleet → Kiosk → POS
+**Aliran:** Kilang → **HQ Distributor** → Logistik → Kiosk → POS
 
 Tandakan `[x]` bila delivery selesai & staf sahkan stok.
 

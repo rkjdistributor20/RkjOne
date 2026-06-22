@@ -9,11 +9,25 @@ import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { loadProjectEnv, ROOT as PROJECT_ROOT } from './lib/load-env.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.join(__dirname, '..');
+const ROOT = PROJECT_ROOT;
 const PRODUCTION_URL = process.env.PRODUCTION_URL ?? 'https://rkj-one.vercel.app';
 const PROJECT_REF = 'mtygxueknokcihofdttl';
+const GO_LIVE_PASSWORD_FILE = path.join(ROOT, 'csv_import', '.go-live-temp-password.txt');
+const DEFAULT_UAT_PASSWORD = 'RkjOne@2025';
+
+function readGoLivePassword() {
+  if (process.env.GO_LIVE_PASSWORD?.trim()) return process.env.GO_LIVE_PASSWORD.trim();
+  if (!fs.existsSync(GO_LIVE_PASSWORD_FILE)) return DEFAULT_UAT_PASSWORD;
+  const line = fs
+    .readFileSync(GO_LIVE_PASSWORD_FILE, 'utf8')
+    .split('\n')
+    .map((l) => l.trim())
+    .find((l) => l && !l.startsWith('#'));
+  return line || DEFAULT_UAT_PASSWORD;
+}
 
 function loadEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return {};
@@ -36,7 +50,7 @@ function loadEnvFile(filePath) {
   return out;
 }
 
-const env = { ...loadEnvFile(path.join(ROOT, '.env.local')), ...process.env };
+const env = loadProjectEnv();
 const url = env.NEXT_PUBLIC_SUPABASE_URL;
 const anonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY;
@@ -88,10 +102,11 @@ async function mainAuth() {
   }
 
   console.log('\n3. Login production (Safuan AM)');
+  const safuanPassword = readGoLivePassword();
   const anon = createClient(url, anonKey);
   const { data: loginData, error: loginErr } = await anon.auth.signInWithPassword({
     email: 'safuan@rkj.com',
-    password: 'RkjOne@2025',
+    password: safuanPassword,
   });
   if (loginErr) {
     fail(`Login safuan@rkj.com — ${loginErr.message}`);
@@ -243,7 +258,7 @@ function buildDeliveryMarkdown(rows) {
   let md = `# Delivery Go-Live — 36 Cawangan
 
 **Auto-jana:** \`npm run verify:delivery\`  
-**Aliran:** Kilang → **HQ Distributor** → Fleet → Kiosk → POS
+**Aliran:** Kilang → **HQ Distributor** → Logistik → Kiosk → POS
 
 Tandakan \`[x]\` bila delivery selesai & staf sahkan stok.
 

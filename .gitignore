@@ -7,6 +7,9 @@ Thumbs.db
 .env.local
 .env.*.local
 csv_import/staff_credentials_backfill.csv
+csv_import/.go-live-temp-password.txt
+csv_import/go_live_credentials_export.csv
+csv_import/password_rotation_*.csv
 
 # Node / Next.js
 node_modules/
