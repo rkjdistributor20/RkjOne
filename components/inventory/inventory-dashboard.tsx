@@ -81,12 +81,8 @@ export function InventoryDashboard() {
   const kioskOnlyScope = isAreaManager || isStaff;
   const canViewOverview = profile ? !isStaff : false;
   const canCrossBranchTransfer = profile ? canAccessBranchKioskTransferTab(profile.role) : false;
-  const defaultLocType: LocationType | 'ALL' =
-    profile && (isAreaManagerRole(profile.role) || profile.role === 'STAFF')
-      ? 'BRANCH_KIOSK'
-      : 'ALL';
 
-  const [locationType, setLocationType] = useState<LocationType | 'ALL'>(defaultLocType);
+  const [locationType, setLocationType] = useState<LocationType | 'ALL'>('BRANCH_KIOSK');
   const [locations, setLocations] = useState<InventoryLocation[]>([]);
   const [selectedLocationId, setSelectedLocationId] = useState<string>('');
   const [selectedBranchId, setSelectedBranchId] = useState(profile?.branch_id ?? '');
@@ -98,7 +94,7 @@ export function InventoryDashboard() {
   const [locationsLoading, setLocationsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('balances');
   const [dashboardView, setDashboardView] = useState<'overview' | 'location' | 'branch-transfer'>(
-    canViewOverview ? 'overview' : 'location'
+    'location'
   );
 
   const branchId = showBranchPicker
@@ -178,8 +174,17 @@ export function InventoryDashboard() {
   }, [branchId, locations]);
 
   useEffect(() => {
-    if (kioskOnlyScope) setLocationType('BRANCH_KIOSK');
-  }, [kioskOnlyScope]);
+    if (!profile) return;
+    if (isAreaManagerRole(profile.role)) {
+      setLocationType('BRANCH_KIOSK');
+      setDashboardView('location');
+      return;
+    }
+    if (profile.role !== 'STAFF') {
+      setLocationType('ALL');
+      setDashboardView('overview');
+    }
+  }, [profile]);
 
   useEffect(() => {
     loadLocations();
@@ -190,10 +195,12 @@ export function InventoryDashboard() {
   }, [loadData]);
 
   const selectedLocation = locations.find((l) => l.id === selectedLocationId);
+  const kioskLocations = locations.filter((l) => l.location_type === 'BRANCH_KIOSK');
+  const transferLocations = isAreaManager ? kioskLocations : locations;
   const locationSelectValue =
     boundSelectValue(
       selectedLocationId,
-      locations.map((l) => l.id)
+      (isAreaManager ? kioskLocations : locations).map((l) => l.id)
     ) ?? '';
 
   if (!profile) {
@@ -333,9 +340,11 @@ export function InventoryDashboard() {
           className="space-y-4"
         >
           <TabsList className={moduleTabsListClass}>
-            <TabsTrigger value="overview" className={moduleTabsTriggerClass}>
-              <LayoutDashboard className="h-4 w-4" /> Ringkasan
-            </TabsTrigger>
+            {canViewOverview && !isAreaManager && (
+              <TabsTrigger value="overview" className={moduleTabsTriggerClass}>
+                <LayoutDashboard className="h-4 w-4" /> Ringkasan
+              </TabsTrigger>
+            )}
             <TabsTrigger value="location" className={moduleTabsTriggerClass}>
               <MapPinned className="h-4 w-4" /> Detail Lokasi
             </TabsTrigger>
@@ -347,7 +356,7 @@ export function InventoryDashboard() {
           </TabsList>
 
           <TabsContent value="overview" className="mt-0 space-y-6">
-            {showBranchPicker && (
+            {!isAreaManager && showBranchPicker && (
               <BranchScopeSelect
                 value={selectedBranchId}
                 onChange={(id) => {
@@ -397,6 +406,10 @@ export function InventoryDashboard() {
   );
 
   function renderLocationPanel() {
+    if (isAreaManager) {
+      return renderAreaManagerLocationPanel();
+    }
+
     return (
       <>
       {showBranchPicker && (
@@ -406,15 +419,8 @@ export function InventoryDashboard() {
             setSelectedBranchId(id);
             setSelectedLocationId('');
           }}
-          allowAll={profile?.role === 'AREA_MANAGER'}
-          allLabel="Semua kiosk kawasan saya"
+          allowAll={false}
         />
-      )}
-
-      {kioskOnlyScope && isAreaManager && (
-        <p className="text-xs text-muted-foreground -mt-1">
-          Hanya cawangan dalam kawasan anda — pilih kiosk untuk urus stok
-        </p>
       )}
 
       {needsBranchSelection ? (
@@ -467,8 +473,75 @@ export function InventoryDashboard() {
             )}
           </div>
 
+          {renderLocationDetail()}
+        </>
+      )}
+      </>
+    );
+  }
+
+  function renderAreaManagerLocationPanel() {
+    return (
+      <>
+        {showBranchPicker && (
+          <BranchScopeSelect
+            value={selectedBranchId}
+            onChange={(id) => {
+              setSelectedBranchId(id);
+              setSelectedLocationId('');
+            }}
+            allowAll
+            allLabel="Semua kiosk kawasan saya"
+          />
+        )}
+
+        <p className="text-xs text-muted-foreground -mt-1">
+          Kiosk cawangan sahaja — tiada Kilang, Gudang HQ, atau Armada
+        </p>
+
+        <div className="flex flex-wrap gap-3">
+          {branchId && selectedLocation ? (
+            <div className="flex min-h-9 w-full max-w-md items-center rounded-md border bg-muted/30 px-3 text-sm">
+              <span className="font-medium">{formatLocationLabel(selectedLocation)}</span>
+            </div>
+          ) : (
+            <Select
+              value={locationSelectValue}
+              onValueChange={(v) => v && setSelectedLocationId(v)}
+              disabled={locationsLoading || kioskLocations.length === 0}
+            >
+              <SelectTrigger className="w-full max-w-md">
+                <SelectValue placeholder="Pilih kiosk cawangan">
+                  {selectedLocation ? formatLocationLabel(selectedLocation) : undefined}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {kioskLocations.map((loc) => (
+                  <SelectItem key={loc.id} value={loc.id}>
+                    {formatLocationLabel(loc)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+
+        {renderLocationDetail()}
+      </>
+    );
+  }
+
+  function renderLocationDetail() {
+    return (
+      <>
           {locationsLoading ? (
             <ModuleLoading rows={1} />
+          ) : kioskLocations.length === 0 && isAreaManager ? (
+            <EmptyState
+              icon={Package}
+              title="Tiada kiosk cawangan"
+              description="Tiada lokasi kiosk dalam kawasan anda. Hubungi admin HQ jika cawangan tiada kiosk."
+            />
           ) : locations.length === 0 ? (
             <EmptyState
               icon={Package}
@@ -597,7 +670,8 @@ export function InventoryDashboard() {
                   <TabsContent value="transfer" className="mt-4">
                     {stockAccess?.canTransfer ? (
                       <TransferPanel
-                      locations={locations}
+                      locations={transferLocations}
+                      kioskOnly={isAreaManager}
                       stockItems={stockItems}
                       transfers={transfers}
                       currentLocationId={selectedLocationId}
@@ -674,8 +748,6 @@ export function InventoryDashboard() {
               )}
             </>
           )}
-        </>
-      )}
       </>
     );
   }

@@ -31,6 +31,8 @@ interface TransferPanelProps {
   transfers: StockTransferRow[];
   currentLocationId: string;
   orderInPacks?: boolean;
+  /** AM / kiosk — hanya pindahan antara cawangan, tiada pemandu/kenderaan HQ */
+  kioskOnly?: boolean;
   onCreate: (payload: {
     from_location_id: string;
     to_location_id: string;
@@ -59,6 +61,7 @@ export function TransferPanel({
   transfers,
   currentLocationId,
   orderInPacks = false,
+  kioskOnly = false,
   onCreate,
   onDispatch,
   onComplete,
@@ -153,7 +156,7 @@ export function TransferPanel({
           )}
         </div>
         <div className="space-y-2">
-          <Label>Ke (cawangan / kenderaan)</Label>
+          <Label>{kioskOnly ? 'Ke cawangan' : 'Ke (cawangan / kenderaan)'}</Label>
           <Select value={toSelectValue ?? ''} onValueChange={(v) => v && setToId(v)}>
             <SelectTrigger>
               <SelectValue placeholder="Pilih destinasi">
@@ -167,6 +170,7 @@ export function TransferPanel({
             </SelectContent>
           </Select>
         </div>
+        {!kioskOnly && (
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
             <Label>Pemandu</Label>
@@ -199,6 +203,7 @@ export function TransferPanel({
             </Select>
           </div>
         </div>
+        )}
         <div className="space-y-1">
           <Label>Nota</Label>
           <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
