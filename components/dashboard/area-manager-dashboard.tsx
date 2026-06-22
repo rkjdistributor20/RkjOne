@@ -15,6 +15,7 @@ import type { BranchMetricsRow } from '@/lib/dashboard/am-branch-metrics';
 import type { AmInsight, AmInsightsSummary } from '@/lib/dashboard/am-insights';
 import type { AreaManagerContext } from '@/lib/dashboard/queries';
 import { COMPANY } from '@/lib/brand/company';
+import { getLegalEntityByCode, AREA_MANAGER_EMPLOYER_CODE } from '@/lib/brand/legal-entities';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
@@ -81,13 +82,15 @@ export function AreaManagerDashboard({
   const totalClockedIn = branchMetrics.reduce((n, b) => n + b.staff_clocked_in_today, 0);
   const openShifts = branchMetrics.filter((b) => b.shift_open).length;
 
+  const amEmployer = getLegalEntityByCode(AREA_MANAGER_EMPLOYER_CODE);
+
   return (
     <ModuleLayout>
       <DashboardHero
         variant="premium"
-        eyebrow={`${COMPANY.systemName} · Pengurus Kawasan`}
+        eyebrow={`${amEmployer?.legalName ?? 'RKJ Distributor Sdn Bhd'} · Pengurus Kawasan`}
         title="Papan Pemuka Kawasan"
-        subtitle={`Rumusan jualan harian, mingguan & bulanan · ${context.branchCount} cawangan · AI proactive untuk staf & operasi kiosk`}
+        subtitle={`Mengurus staf & cawangan ${COMPANY.name} · ${context.branchCount} cawangan · AI proactive untuk operasi kiosk`}
         badges={
           <>
             <HeroBadge>{regionLabel}</HeroBadge>

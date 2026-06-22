@@ -18,6 +18,7 @@ import type {
   InventoryOverviewResponse,
   LocationType,
 } from '@/lib/inventory/types';
+import { HQ_DISTRIBUTOR_LABEL } from '@/lib/brand/legal-entities';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -80,7 +81,7 @@ export function InventorySupplyChainPanel({
   if (!data?.nodes.length) {
     return (
       <p className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-        Tiada data rantaian bekalan. Pastikan lokasi Kilang, Gudang HQ & kiosk telah disediakan.
+        Tiada data rantaian bekalan. Pastikan lokasi Kilang, {HQ_DISTRIBUTOR_LABEL} & kiosk telah disediakan.
       </p>
     );
   }

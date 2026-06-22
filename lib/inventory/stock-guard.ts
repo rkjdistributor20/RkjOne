@@ -13,6 +13,7 @@ import {
   type StockMutationOperation,
 } from '@/lib/auth/stock-access';
 import { resolveScopedBranches } from '@/lib/auth/branch-scope';
+import { HQ_DISTRIBUTOR_LABEL } from '@/lib/brand/legal-entities';
 
 type LocationRow = {
   id: string;
@@ -76,7 +77,7 @@ async function assertLocationAccess(
       )
     ) {
       if (isHqLocationType(location.location_type)) {
-        deny('Stok Gudang HQ dikawal oleh HQ — Pengurus Kawasan urus kiosk kawasan sahaja');
+        deny(`Stok ${HQ_DISTRIBUTOR_LABEL} dikawal oleh HQ — Pengurus Kawasan urus kiosk kawasan sahaja`);
       }
       deny('Lokasi di luar kawasan anda');
     }
@@ -84,14 +85,14 @@ async function assertLocationAccess(
       operation !== 'write_off' &&
       isHqLocationType(location.location_type)
     ) {
-      deny('Pengurus Kawasan tidak urus stok masuk/keluar Gudang HQ');
+      deny(`Pengurus Kawasan tidak urus stok masuk/keluar ${HQ_DISTRIBUTOR_LABEL}`);
     }
     return;
   }
 
   if (isOperationManagerRole(role)) {
     if (!isKioskLocationType(location.location_type)) {
-      deny('Pengurus Operasi urus stok kiosk cawangan sahaja — bukan Kilang/Gudang HQ');
+      deny(`Pengurus Operasi urus stok kiosk cawangan sahaja — bukan Kilang/${HQ_DISTRIBUTOR_LABEL}`);
     }
     return;
   }
@@ -147,13 +148,13 @@ export async function assertTransferMutationAllowed(
   if (operation === 'transfer_create') {
     await assertLocationAccess(supabase, profile, from, operation);
     if (isHqLocationType(from.location_type) && !canManageHqStockInOut(profile.role)) {
-      deny('Hanya HQ boleh keluarkan stok dari Gudang HQ');
+      deny(`Hanya HQ boleh keluarkan stok dari ${HQ_DISTRIBUTOR_LABEL}`);
     }
     if (
       isHqLocationType(to.location_type) &&
       !canManageHqStockInOut(profile.role)
     ) {
-      deny('Hanya HQ urus stok masuk Gudang HQ');
+      deny(`Hanya HQ urus stok masuk ${HQ_DISTRIBUTOR_LABEL}`);
     }
     return;
   }
@@ -161,7 +162,7 @@ export async function assertTransferMutationAllowed(
   if (operation === 'transfer_dispatch') {
     await assertLocationAccess(supabase, profile, from, operation);
     if (isHqLocationType(from.location_type) && !canManageHqStockInOut(profile.role)) {
-      deny('Hanya HQ boleh hantar stok dari Gudang HQ');
+      deny(`Hanya HQ boleh hantar stok dari ${HQ_DISTRIBUTOR_LABEL}`);
     }
     return;
   }
@@ -203,10 +204,10 @@ export async function assertTransferCreateAllowed(
   await assertLocationAccess(supabase, profile, to, 'transfer_create');
 
   if (isHqLocationType(from.location_type) && !canManageHqStockInOut(profile.role)) {
-    deny('Hanya HQ boleh keluarkan stok dari Gudang HQ / kilang');
+    deny(`Hanya HQ boleh keluarkan stok dari ${HQ_DISTRIBUTOR_LABEL} / kilang`);
   }
   if (isHqLocationType(to.location_type) && !canManageHqStockInOut(profile.role)) {
-    deny('Hanya HQ urus stok masuk Gudang HQ / kilang');
+    deny(`Hanya HQ urus stok masuk ${HQ_DISTRIBUTOR_LABEL} / kilang`);
   }
 }
 

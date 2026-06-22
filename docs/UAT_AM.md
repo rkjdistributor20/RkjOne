@@ -11,11 +11,13 @@ Hard refresh: **Ctrl+Shift+R** atau buka **Incognito** sebelum mula.
 
 ## Akaun & skop
 
-| AM | Email | Kawasan | Bil. cawangan |
-|----|-------|---------|---------------|
-| Safuan | safuan@rkj.com | Utara | 12 |
-| Hakim | hakim@rkj.com | Tengah | 10 |
-| Yati | yati@rkj.com | Selatan | 14 |
+| AM | Email | Kawasan | Bil. cawangan | Syarikat majikan |
+|----|-------|---------|---------------|------------------|
+| Safuan | safuan@rkj.com | Utara | 12 | RKJ Distributor Sdn Bhd |
+| Hakim | hakim@rkj.com | Tengah | 10 | RKJ Distributor Sdn Bhd |
+| Yati | yati@rkj.com | Selatan | 14 | RKJ Distributor Sdn Bhd |
+
+**Tanggungjawab operasi:** staf jualan & cawangan kiosk di bawah **Roti Kaya Junus** (bukan syarikat majikan AM).
 
 Cawangan pilot (contoh untuk uji Buka stok):
 
@@ -35,7 +37,7 @@ Tandakan `[ ]` → `[x]` bila lulus.
 
 - [ ] Login berjaya
 - [ ] Sidebar **hanya** menu AM: Papan Pemuka, Inventori, Syif, Kelulusan, Tetapan
-- [ ] **Tiada** Kilang, Gudang HQ, Fleet, POS (URL `/pos`, `/fleet` → blocked / redirect)
+- [ ] **Tiada** Kilang, HQ Distributor, Fleet, POS (URL `/pos`, `/fleet` → blocked / redirect)
 
 ### 2. Papan Pemuka
 
@@ -48,6 +50,9 @@ Tandakan `[ ]` → `[x]` bila lulus.
 - [ ] Tiada angka stok HQ / kilang
 
 ### 2a. Profil HR (`/profile`)
+
+- [ ] **Syarikat majikan:** RKJ Distributor Sdn Bhd
+- [ ] **Tanggungjawab operasi:** Roti Kaya Junus (staf & cawangan)
 
 - [ ] Klik avatar/nama sidebar → halaman profil load
 - [ ] **Bar kelengkapan HR** — % naik bila medan wajib diisi

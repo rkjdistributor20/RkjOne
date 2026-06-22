@@ -7,6 +7,7 @@ import {
   assertCanManagePersonnel,
   assertUserTargetInScope,
 } from '@/lib/settings/personnel-access';
+import { resolveLegalEntityIdForRole } from '@/lib/settings/legal-entity';
 
 export async function PATCH(
   request: Request,
@@ -31,11 +32,20 @@ export async function PATCH(
       if (body.branch_id !== undefined) updates.branch_id = body.branch_id;
       if (body.region_id !== undefined) updates.region_id = body.region_id;
     }
-    updates.updated_at = new Date().toISOString();
 
     const client = isSettingsAdmin(profile.role)
       ? await createServiceClient()
       : await createClient();
+
+    if (body.role !== undefined && isSettingsAdmin(profile.role)) {
+      updates.legal_entity_id = await resolveLegalEntityIdForRole(
+        client as SupabaseClient,
+        profile.organization_id,
+        body.role
+      );
+    }
+
+    updates.updated_at = new Date().toISOString();
 
     const { data, error } = await (client as SupabaseClient)
       .from('profiles')

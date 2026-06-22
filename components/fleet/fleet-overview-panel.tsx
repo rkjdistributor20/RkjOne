@@ -8,6 +8,7 @@ import { fetchInventoryOverview } from '@/lib/inventory/api';
 import type { DriverWorkScheduleEntry } from '@/lib/production/types';
 import type { InventoryOverviewResponse } from '@/lib/inventory/types';
 import { MAX_STOPS_PER_INSTRUCTION } from '@/lib/production/route-optimizer';
+import { HQ_DISTRIBUTOR_LABEL } from '@/lib/brand/legal-entities';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -64,7 +65,7 @@ export function FleetOverviewPanel() {
         />
         <StatCard
           icon={Warehouse}
-          label="Gudang HQ"
+          label={HQ_DISTRIBUTOR_LABEL}
           value={nodes.find((n) => n.location_type === 'HQ_WAREHOUSE')?.location_count ?? 0}
           hint="cross-dock stok"
         />
@@ -95,7 +96,7 @@ export function FleetOverviewPanel() {
         <CardContent className="space-y-3">
           {byDriver.size === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Tiada arahan aktif. Rancang laluan dari Gudang HQ selepas order kilang.
+              Tiada arahan aktif. Rancang laluan dari {HQ_DISTRIBUTOR_LABEL} selepas order kilang.
             </p>
           ) : (
             [...byDriver.entries()].map(([driverId, entries]) => {

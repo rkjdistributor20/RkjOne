@@ -42,6 +42,11 @@ import {
 } from '@/components/ui/select';
 import { StaffCredentialsCard } from '@/components/settings/staff-credentials-card';
 import { cn } from '@/lib/utils';
+import {
+  DEFAULT_SALES_LEGAL_ENTITY_CODE,
+  LEGAL_ENTITIES,
+  type LegalEntityCode,
+} from '@/lib/brand/legal-entities';
 
 const WEEKDAY_PRESETS = [5, 6, 7] as const;
 
@@ -90,6 +95,9 @@ export function AddStaffDialog({
   const [staffCode, setStaffCode] = useState('');
   const [fullName, setFullName] = useState('');
   const [branchId, setBranchId] = useState('');
+  const [legalEntityCode, setLegalEntityCode] = useState<LegalEntityCode>(
+    DEFAULT_SALES_LEGAL_ENTITY_CODE
+  );
   const [workerType, setWorkerType] = useState<WorkerType>('FOREIGN');
   const [shiftHours, setShiftHours] = useState('');
   const [shiftsPerWeek, setShiftsPerWeek] = useState(String(DEFAULT_SHIFTS_PER_WEEK));
@@ -149,6 +157,7 @@ export function AddStaffDialog({
     setStaffCode('');
     setFullName('');
     setBranchId('');
+    setLegalEntityCode(DEFAULT_SALES_LEGAL_ENTITY_CODE);
     setWorkerType('FOREIGN');
     setShiftHours('');
     setShiftsPerWeek(String(DEFAULT_SHIFTS_PER_WEEK));
@@ -159,6 +168,7 @@ export function AddStaffDialog({
 
     setStaffCode(suggestNextStaffCode(existingStaffCodes));
     setBranchId(resolveDefaultBranch(branches, defaultBranchId));
+    setLegalEntityCode(DEFAULT_SALES_LEGAL_ENTITY_CODE);
     setWorkerType('FOREIGN');
     setShiftsPerWeek(String(DEFAULT_SHIFTS_PER_WEEK));
 
@@ -185,6 +195,7 @@ export function AddStaffDialog({
         full_name: fullName.trim(),
         branch_id: branchId,
         worker_type: workerType,
+        legal_entity_code: legalEntityCode,
         ...(workerType === 'FOREIGN'
           ? {
               shift_hours: Number(shiftHours),
@@ -316,6 +327,29 @@ export function AddStaffDialog({
                   Kawasan: {selectedBranch.region_name}
                 </p>
               )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Syarikat Majikan</Label>
+              <Select
+                value={legalEntityCode}
+                onValueChange={(v) => v && setLegalEntityCode(v as LegalEntityCode)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {LEGAL_ENTITIES.map((entity) => (
+                    <SelectItem key={entity.code} value={entity.code}>
+                      {entity.legalName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Staf jualan kiosk — lalai Roti Kaya Junus. Tiga syarikat kumpulan RKJ, pemilik
+                sama.
+              </p>
             </div>
           </section>
 

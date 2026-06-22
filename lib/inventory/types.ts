@@ -1,3 +1,5 @@
+import { HQ_DISTRIBUTOR_LABEL } from '@/lib/brand/legal-entities';
+
 export type LocationType =
   | 'FACTORY'
   | 'HQ_WAREHOUSE'
@@ -146,7 +148,7 @@ export interface CountItemInput {
 
 export const LOCATION_TYPE_LABELS: Record<LocationType, string> = {
   FACTORY: 'Kilang',
-  HQ_WAREHOUSE: 'Gudang HQ',
+  HQ_WAREHOUSE: HQ_DISTRIBUTOR_LABEL,
   FLEET_VEHICLE: 'Kenderaan',
   BRANCH_KIOSK: 'Kiosk Cawangan',
 };

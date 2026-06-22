@@ -32,6 +32,7 @@ export const COMPANY = {
     '4 menu POS: Roti Kaya · Kacang · Kelapa · Benggali',
     'Stok inventory: Roti, Bahan (Kaya/Butter), Packaging (plastik)',
     '36 cawangan kiosk · Utara · Tengah · Selatan',
+    'Satu sistem — Roti Kaya Junus · RKJ Distributor (HQ Distributor) · RKJ Manufacturing',
   ],
 } as const;
 

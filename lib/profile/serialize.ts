@@ -1,6 +1,7 @@
 import { computeProfileCompletion } from '@/lib/profile/completion';
 import { formatIcDisplay } from '@/lib/profile/fields';
 import { profileNeedsAvatar } from '@/lib/profile/requirements';
+import { operatingLegalEntityForRole } from '@/lib/brand/legal-entities';
 
 export type ProfileStaffInfo = {
   staff_code: string;
@@ -8,6 +9,19 @@ export type ProfileStaffInfo = {
   bank_name: string | null;
   account_holder: string | null;
   account_number_masked: string | null;
+  legal_entity?: {
+    code: string;
+    name: string;
+    legal_name: string;
+    scope: string | null;
+  } | null;
+} | null;
+
+export type ProfileLegalEntityInfo = {
+  code: string;
+  name: string;
+  legal_name: string;
+  scope: string | null;
 } | null;
 
 export type ProfileMe = {
@@ -41,6 +55,8 @@ export type ProfileMe = {
   missing_fields: string[];
   branch?: { branch_code: string; branch_name: string } | null;
   region?: { region_code: string; region_name: string } | null;
+  legal_entity?: ProfileLegalEntityInfo;
+  operating_legal_entity?: ProfileLegalEntityInfo;
   staff?: ProfileStaffInfo;
 };
 
@@ -49,6 +65,18 @@ function maskAccountNumber(num: string | null | undefined): string | null {
   const d = num.replace(/\s/g, '');
   if (d.length <= 4) return '****';
   return `****${d.slice(-4)}`;
+}
+
+function parseLegalEntity(raw: unknown): ProfileLegalEntityInfo {
+  if (!raw || typeof raw !== 'object') return null;
+  const row = raw as Record<string, unknown>;
+  if (!row.code) return null;
+  return {
+    code: row.code as string,
+    name: row.name as string,
+    legal_name: row.legal_name as string,
+    scope: (row.scope as string | null) ?? null,
+  };
 }
 
 export function serializeProfileMe(
@@ -61,6 +89,18 @@ export function serializeProfileMe(
     ? { region_code: regionRaw.code, region_name: regionRaw.name }
     : null;
   const ic = (row.ic_number as string | null) ?? null;
+  const profileLegalEntity = parseLegalEntity(row.legal_entity);
+  const staffLegalEntity = parseLegalEntity(staff?.legal_entity);
+  const legal_entity = profileLegalEntity ?? staffLegalEntity;
+  const operatingDef = operatingLegalEntityForRole(row.role as string);
+  const operating_legal_entity = operatingDef
+    ? {
+        code: operatingDef.code,
+        name: operatingDef.name,
+        legal_name: operatingDef.legalName,
+        scope: operatingDef.scope,
+      }
+    : null;
 
   const completion = computeProfileCompletion({
     full_name: row.full_name as string,
@@ -109,6 +149,8 @@ export function serializeProfileMe(
     missing_fields: completion.missingRequired,
     branch,
     region,
+    legal_entity,
+    operating_legal_entity,
     staff: staff
       ? {
           staff_code: staff.staff_code as string,
@@ -116,6 +158,7 @@ export function serializeProfileMe(
           bank_name: (staff.bank_name as string | null) ?? null,
           account_holder: (staff.account_holder as string | null) ?? null,
           account_number_masked: maskAccountNumber(staff.account_number as string | null),
+          legal_entity: staffLegalEntity,
         }
       : null,
   };

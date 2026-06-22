@@ -164,6 +164,7 @@ export async function createStaffMember(payload: {
   worker_type: 'LOCAL' | 'FOREIGN';
   shift_hours?: number;
   shifts_per_week?: number;
+  legal_entity_code?: string;
 }) {
   return fetchJson<{
     staff: unknown;
@@ -194,6 +195,7 @@ export type StaffDetailResponse = {
     on_hold: boolean;
     profile_id: string | null;
     branch?: { branch_code: string; branch_name: string };
+    legal_entity?: { code: string; name: string; legal_name: string; scope: string | null } | null;
   };
   portal: { login_email: string; portal_password: string; updated_at?: string } | null;
   login: {

@@ -40,6 +40,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import {
+  DEFAULT_SALES_LEGAL_ENTITY_CODE,
+  LEGAL_ENTITIES,
+  type LegalEntityCode,
+} from '@/lib/brand/legal-entities';
 
 interface EditStaffDialogProps {
   staffId: string | null;
@@ -63,6 +68,9 @@ export function EditStaffDialog({
   const [staffCode, setStaffCode] = useState('');
   const [fullName, setFullName] = useState('');
   const [branchId, setBranchId] = useState('');
+  const [legalEntityCode, setLegalEntityCode] = useState<LegalEntityCode>(
+    DEFAULT_SALES_LEGAL_ENTITY_CODE
+  );
   const [status, setStatus] = useState('ACTIVE');
   const [workerType, setWorkerType] = useState<WorkerType>('FOREIGN');
   const [shiftHours, setShiftHours] = useState('');
@@ -95,6 +103,9 @@ export function EditStaffDialog({
         setStaffCode(s.staff_code);
         setFullName(s.full_name);
         setBranchId(s.branch_id);
+        setLegalEntityCode(
+          (s.legal_entity?.code as LegalEntityCode | undefined) ?? DEFAULT_SALES_LEGAL_ENTITY_CODE
+        );
         setStatus(s.status);
         setWorkerType(s.worker_type ?? 'FOREIGN');
         setShiftHours(s.shift_hours != null ? String(s.shift_hours) : '');
@@ -133,6 +144,7 @@ export function EditStaffDialog({
       const res = await updateStaffMember(staffId, {
         full_name: fullName.trim(),
         branch_id: branchId,
+        legal_entity_code: legalEntityCode,
         status,
         worker_type: workerType,
         bank_name: bankName || null,
@@ -292,6 +304,24 @@ export function EditStaffDialog({
                     {branches.map((b) => (
                       <SelectItem key={b.id} value={b.id}>
                         {b.branch_code} — {b.branch_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label>Syarikat Majikan</Label>
+                <Select
+                  value={legalEntityCode}
+                  onValueChange={(v) => v && setLegalEntityCode(v as LegalEntityCode)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {LEGAL_ENTITIES.map((entity) => (
+                      <SelectItem key={entity.code} value={entity.code}>
+                        {entity.legalName}
                       </SelectItem>
                     ))}
                   </SelectContent>

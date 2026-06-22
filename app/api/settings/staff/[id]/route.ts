@@ -12,6 +12,7 @@ import {
   loadStaffProfileMeta,
   provisionStaffPortalAccount,
 } from '@/lib/settings/staff-auth';
+import { resolveLegalEntityId } from '@/lib/settings/legal-entity';
 import {
   computeForeignWeeklyPay,
   computeLocalMonthlyPay,
@@ -73,8 +74,9 @@ export async function GET(
         `
         id, staff_code, full_name, status, branch_id, region_id, worker_type,
         weekly_amount, monthly_amount, shift_hours, shifts_per_week,
-        bank_name, account_number, account_holder, remarks, on_hold, profile_id,
-        branch:branches(branch_code, branch_name)
+        bank_name, account_number, account_holder, remarks, on_hold, profile_id, legal_entity_id,
+        branch:branches(branch_code, branch_name),
+        legal_entity:legal_entities(code, name, legal_name, scope)
       `
       )
       .eq('id', id)
@@ -126,7 +128,7 @@ export async function PATCH(
 
     const { data: existing } = await supabase
       .from('staff')
-      .select('id, staff_code, profile_id, branch_id, worker_type, full_name')
+      .select('id, staff_code, profile_id, branch_id, region_id, worker_type, full_name, legal_entity_id')
       .eq('id', id)
       .single();
 
@@ -135,8 +137,10 @@ export async function PATCH(
       staff_code: string;
       profile_id: string | null;
       branch_id: string | null;
+      region_id: string | null;
       worker_type: 'LOCAL' | 'FOREIGN' | null;
       full_name: string;
+      legal_entity_id: string | null;
     } | null;
 
     if (!existingRow) {
@@ -152,6 +156,14 @@ export async function PATCH(
     if (body.bank_name != null) updates.bank_name = body.bank_name;
     if (body.account_number != null) updates.account_number = body.account_number;
     if (body.account_holder != null) updates.account_holder = body.account_holder;
+
+    if (body.legal_entity_code != null) {
+      updates.legal_entity_id = await resolveLegalEntityId(
+        supabase,
+        profile.organization_id,
+        body.legal_entity_code
+      );
+    }
 
     if (body.branch_id != null) {
       const branchId = await assertBranchInPersonnelScope(
@@ -197,13 +209,14 @@ export async function PATCH(
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
-    if (existingRow.profile_id && (updates.full_name || updates.branch_id)) {
+    if (existingRow.profile_id && (updates.full_name || updates.branch_id || updates.legal_entity_id)) {
       await (service as SupabaseClient)
         .from('profiles')
         .update({
           ...(updates.full_name ? { full_name: updates.full_name as string } : {}),
           ...(updates.branch_id ? { branch_id: updates.branch_id as string } : {}),
           ...(updates.region_id ? { region_id: updates.region_id as string } : {}),
+          ...(updates.legal_entity_id ? { legal_entity_id: updates.legal_entity_id as string } : {}),
         })
         .eq('id', existingRow.profile_id);
     }
@@ -211,13 +224,19 @@ export async function PATCH(
     let portal = await loadStaffPortalCredentials(service, id);
 
     if (body.create_portal_account && !portal) {
+      const legalEntityId =
+        (updates.legal_entity_id as string | undefined) ??
+        existingRow.legal_entity_id ??
+        (await resolveLegalEntityId(supabase, profile.organization_id, undefined));
+
       const created = await provisionStaffPortalAccount(service, {
         staffId: id,
         staffCode: existingRow.staff_code,
         fullName: (updates.full_name as string) ?? existingRow.full_name,
         branchId: (updates.branch_id as string) ?? existingRow.branch_id!,
-        regionId: (updates.region_id as string) ?? null,
+        regionId: (updates.region_id as string) ?? existingRow.region_id,
         organizationId: profile.organization_id,
+        legalEntityId,
         createdBy: profile.id,
       });
       portal = {

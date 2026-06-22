@@ -43,6 +43,7 @@ import {
 } from '@/components/ui/select';
 import { SectionCard } from '@/components/shared/module-ui';
 import { BRAND_COLORS, COMPANY } from '@/lib/brand/company';
+import { LEGAL_ENTITIES, LEGAL_ENTITY_GROUP_NOTE, AREA_MANAGER_OPERATING_SCOPE } from '@/lib/brand/legal-entities';
 
 function initials(name: string) {
   return name
@@ -546,9 +547,70 @@ export function ProfileSettingsForm() {
           }
           description={`Rekod ${COMPANY.name} — dikemaskini oleh pengurus / HQ`}
         >
+          <div
+            className="mb-4 rounded-xl border px-4 py-3 text-sm"
+            style={{
+              borderColor: `${BRAND_COLORS.gold}55`,
+              backgroundColor: `${BRAND_COLORS.goldLight}88`,
+            }}
+          >
+            <p className="font-medium text-foreground">Maklumat Syarikat · Satu Pemilik</p>
+            <p className="mt-1 text-muted-foreground">{LEGAL_ENTITY_GROUP_NOTE}</p>
+          </div>
+
+          <div className="mb-4 grid gap-2 sm:grid-cols-3">
+            {LEGAL_ENTITIES.map((entity) => {
+              const isEmployer = profile.legal_entity?.code === entity.code;
+              const isOperating = profile.operating_legal_entity?.code === entity.code;
+              const active = isEmployer || isOperating;
+              return (
+                <div
+                  key={entity.code}
+                  className="rounded-lg border px-3 py-2.5 text-sm"
+                  style={
+                    active
+                      ? {
+                          borderColor: BRAND_COLORS.gold,
+                          backgroundColor: `${BRAND_COLORS.goldLight}66`,
+                        }
+                      : undefined
+                  }
+                >
+                  <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                    {isEmployer
+                      ? 'Syarikat majikan'
+                      : isOperating
+                        ? 'Operasi diurus'
+                        : 'Entiti kumpulan'}
+                  </p>
+                  <p className="mt-1 font-semibold">{entity.legalName}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{entity.scope}</p>
+                </div>
+              );
+            })}
+          </div>
+
           <dl className="grid gap-3 text-sm sm:grid-cols-2">
+            <div className="rounded-lg border bg-muted/20 px-3 py-2.5 sm:col-span-2">
+              <dt className="text-xs text-muted-foreground">Syarikat Majikan</dt>
+              <dd className="font-medium">
+                {profile.legal_entity?.legal_name ?? profile.legal_entity?.name ?? COMPANY.name}
+              </dd>
+              {profile.legal_entity?.scope && (
+                <dd className="mt-1 text-xs text-muted-foreground">{profile.legal_entity.scope}</dd>
+              )}
+            </div>
+            {profile.operating_legal_entity && (
+              <div className="rounded-lg border bg-muted/20 px-3 py-2.5 sm:col-span-2">
+                <dt className="text-xs text-muted-foreground">Tanggungjawab Operasi</dt>
+                <dd className="font-medium">{profile.operating_legal_entity.legal_name}</dd>
+                <dd className="mt-1 text-xs text-muted-foreground">
+                  {AREA_MANAGER_OPERATING_SCOPE}
+                </dd>
+              </div>
+            )}
             <div className="rounded-lg border bg-muted/20 px-3 py-2.5">
-              <dt className="text-xs text-muted-foreground">Syarikat</dt>
+              <dt className="text-xs text-muted-foreground">Jenama</dt>
               <dd className="font-medium">{COMPANY.name}</dd>
             </div>
             <div className="rounded-lg border bg-muted/20 px-3 py-2.5">

@@ -27,6 +27,7 @@ import { fetchProductionCalendar } from '@/lib/production/api';
 import type { PublishedProductionDate } from '@/lib/production/types';
 import { HqFactoryOrderPanel } from '@/components/warehouse/hq-factory-order-panel';
 import { COMPANY } from '@/lib/brand/company';
+import { HQ_DISTRIBUTOR_LABEL } from '@/lib/brand/legal-entities';
 import { labelFor, TRANSFER_STATUS_LABELS } from '@/lib/ui/labels';
 import {
   ModuleLayout,
@@ -93,7 +94,7 @@ export function WarehouseDashboard() {
       }
       setStockItems(items.items);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Gagal memuatkan gudang HQ');
+      toast.error(err instanceof Error ? err.message : `Gagal memuatkan ${HQ_DISTRIBUTOR_LABEL}`);
     } finally {
       setLoading(false);
     }
@@ -108,7 +109,7 @@ export function WarehouseDashboard() {
   return (
     <ModuleLayout>
       <ModuleHeader
-        title="Gudang HQ"
+        title={HQ_DISTRIBUTOR_LABEL}
         description={`${COMPANY.hq} — order per cawangan · cross-dock terus ke kiosk · driver sahkan`}
         icon={Warehouse}
       />
@@ -119,7 +120,7 @@ export function WarehouseDashboard() {
         <EmptyState
           icon={Warehouse}
           title="Lokasi HQ tidak dijumpai"
-          description="Hubungi pentadbir sistem untuk konfigurasi lokasi gudang HQ."
+          description={`Hubungi pentadbir sistem untuk konfigurasi lokasi ${HQ_DISTRIBUTOR_LABEL}.`}
         />
       ) : (
         <>
@@ -145,7 +146,7 @@ export function WarehouseDashboard() {
 
           {!canManageHq && (
             <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-              Paparan sahaja — Gudang HQ tidak menyimpan stok; pre-order dihantar terus ke cawangan
+              Paparan sahaja — {HQ_DISTRIBUTOR_LABEL} tidak menyimpan stok; pre-order dihantar terus ke cawangan
               selepas kilang sahkan.
               {canOrder && ' Anda boleh hantar order per cawangan di tab Order Kilang.'}
             </p>
@@ -181,7 +182,7 @@ export function WarehouseDashboard() {
                 <EmptyState
                   icon={Package}
                   title="Tiada stok simpanan di HQ"
-                  description="Gudang HQ cross-dock — stok dari kilang dihantar terus ke cawangan selepas order disahkan."
+                  description={`${HQ_DISTRIBUTOR_LABEL} cross-dock — stok dari kilang dihantar terus ke cawangan selepas order disahkan.`}
                 />
               ) : (
                 <>

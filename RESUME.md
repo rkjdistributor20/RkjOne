@@ -2,7 +2,7 @@
 
 > **Buka fail ini bila buka semula projek.** Kemaskini tarikh bila selesai satu fasa.
 
-**Tarikh kemaskini:** 22 Jun 2025 (profil HR terperinci, production `35af016`)  
+**Tarikh kemaskini:** 22 Jun 2025 (verify login 13/13, production `2a45a08`)  
 **Branch:** `master` (sync GitHub + Vercel)  
 **Status LIVE:** https://rkj-one.vercel.app  
 **Supabase:** `mtygxueknokcihofdttl` · migration sehingga **00066**
@@ -13,11 +13,10 @@
 
 | Commit | Kandungan |
 |--------|-----------|
-| `35af016` | Profil HR terperinci — IC, alamat, kecemasan, bar kelengkapan |
+| `2a45a08` | verify:login 13 peranan + fix embed region `/profile` |
+| `35af016` | Profil HR terperinci — IC, alamat, kecemasan |
 | `058fb2b` | Fix `/profile` crash (Rules of Hooks) |
-| `cc02779` | Dashboard jenama RKJ — hero emas/hitam, 4 menu POS |
-| `46a9168` | Profil — upload gambar, peringatan AI |
-| `966522a` | AM urus staf — auto login, kredensial |
+| `cc02779` | Dashboard jenama RKJ emas/hitam |
 
 ### Modul siap
 - **Dashboard HQ/AM/Staf** — identiti Roti Kaya Junus (emas · hitam · tradisi 1975)
@@ -30,9 +29,8 @@
 
 ### Verify (automatik)
 - `npm run verify:login` — **13/13** peranan ✓ (auto-baiki password + profil)
-- `npm run verify:am` — **lulus** ✓
-- `npm run verify:production` — **6/6** ✓ · deploy `35af016`
-- `npm run verify:roster` — migration + RPC ✓
+- `npm run verify:go-live` — **19/19** ✓
+- `npm run verify:production` — **6/6** ✓ · deploy `2a45a08`
 
 ---
 

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { createDeliveryOrder, optimizeRoutePreview } from '@/lib/fleet/api';
 import type { InventoryLocation, StockItemOption } from '@/lib/inventory/types';
+import { HQ_DISTRIBUTOR_LABEL } from '@/lib/brand/legal-entities';
 import { HQ_FACTORY_ORDER_SECTIONS } from '@/lib/production/hq-order-format';
 import {
   buildManualDeliveryLegs,
@@ -190,7 +191,7 @@ export function CreateDeliveryDialog({
       nodes.push({ icon: Factory, label: 'Kilang', sub: formatLocationNode(factory) });
     }
     if (hq) {
-      nodes.push({ icon: Warehouse, label: 'Gudang HQ', sub: 'Cross-dock & agregat' });
+      nodes.push({ icon: Warehouse, label: HQ_DISTRIBUTOR_LABEL, sub: 'Cross-dock & agregat' });
     }
     if (fleetSlot || selectedVehicle) {
       nodes.push({
@@ -351,7 +352,7 @@ export function CreateDeliveryDialog({
 
   async function handleCreate() {
     if (!hq?.id || !driverId || !vehicleId) {
-      toast.error('Sila pilih pemandu dan pastikan Gudang HQ wujud');
+      toast.error(`Sila pilih pemandu dan pastikan ${HQ_DISTRIBUTOR_LABEL} wujud`);
       return;
     }
 
@@ -364,7 +365,7 @@ export function CreateDeliveryDialog({
     const originId = stockOrigin === 'FROM_FACTORY' ? factory?.id : hq.id;
     if (!originId) {
       toast.error(
-        stockOrigin === 'FROM_FACTORY' ? 'Lokasi kilang tidak dijumpai' : 'Gudang HQ tidak dijumpai'
+        stockOrigin === 'FROM_FACTORY' ? 'Lokasi kilang tidak dijumpai' : `${HQ_DISTRIBUTOR_LABEL} tidak dijumpai`
       );
       return;
     }
@@ -402,7 +403,7 @@ export function CreateDeliveryDialog({
         ai_route_summary: aiSummary ?? undefined,
         notes:
           stockOrigin === 'FROM_HQ'
-            ? `Penghantaran manual — ${instructions.length} arahan · stok dari Gudang HQ${aiSummary ? ' · AI' : ''}`
+            ? `Penghantaran manual — ${instructions.length} arahan · stok dari ${HQ_DISTRIBUTOR_LABEL}${aiSummary ? ' · AI' : ''}`
             : `Penghantaran manual — ${instructions.length} arahan · stok dari Kilang${aiSummary ? ' · AI' : ''}`,
         legs,
       });
@@ -514,7 +515,7 @@ export function CreateDeliveryDialog({
                   Dari Kilang (production baharu → HQ → armada)
                 </SelectItem>
                 <SelectItem value="FROM_HQ">
-                  Dari Gudang HQ (stok sedia ada → armada)
+                  Dari {HQ_DISTRIBUTOR_LABEL} (stok sedia ada → armada)
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -807,7 +808,7 @@ export function CreateDeliveryDialog({
                 <strong>{instructions.length} arahan</strong> ke{' '}
                 {new Set(instructions.map((r) => r.destId).filter(Boolean)).size} cawangan melalui{' '}
                 {formatDriverName(selectedDriver)}
-                {stockOrigin === 'FROM_FACTORY' ? ' (via Kilang & HQ)' : ' (dari Gudang HQ)'}.
+                {stockOrigin === 'FROM_FACTORY' ? ' (via Kilang & HQ)' : ` (dari ${HQ_DISTRIBUTOR_LABEL})`}.
               </p>
               <ul className="mt-2 space-y-0.5 text-xs text-emerald-900/80">
                 {instructions.map((row, idx) => {

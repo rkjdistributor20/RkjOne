@@ -1,5 +1,6 @@
 import type { UserRole } from '@/types/enums';
 import type { LocationType } from '@/types/enums';
+import { HQ_DISTRIBUTOR_LABEL } from '@/lib/brand/legal-entities';
 
 export type StockMutationOperation =
   | 'receive'
@@ -174,7 +175,7 @@ export function getInventoryStockUiAccess(
       canCrossBranchTransfer: true,
       readOnlyHint: kiosk
         ? 'Stok masuk kiosk: terima pindahan HQ di tab Pindah → Terima di Kiosk. Pindah antara cawangan kawasan: tab Pindah Cawangan.'
-        : 'Pengurus Kawasan urus stok kiosk kawasan sahaja — bukan Gudang HQ.',
+        : `Pengurus Kawasan urus stok kiosk kawasan sahaja — bukan ${HQ_DISTRIBUTOR_LABEL}.`,
     };
   }
 

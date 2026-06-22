@@ -14,6 +14,7 @@ import {
 import { fetchLocations, fetchStockItems } from '@/lib/inventory/api';
 import type { DeliveryLeg, DeliveryOrder, FleetDriver, FleetStatusLog, FleetVehicle } from '@/lib/fleet/types';
 import { LEG_TYPE_LABELS } from '@/lib/fleet/types';
+import { HQ_DISTRIBUTOR_LABEL } from '@/lib/brand/legal-entities';
 import type { InventoryLocation, StockItemOption } from '@/lib/inventory/types';
 import { useAuthStore } from '@/stores/auth-store';
 import {
@@ -144,7 +145,7 @@ export function FleetDashboard() {
     <ModuleLayout>
       <ModuleHeader
         title="Pengurusan Armada"
-        description="Selaras Kilang · Gudang HQ · Armada · Kiosk — DO digabung per driver (max 20 hentian/arahan)"
+        description={`Selaras Kilang · ${HQ_DISTRIBUTOR_LABEL} · Armada · Kiosk — DO digabung per driver (max 20 hentian/arahan)`}
         icon={Truck}
         badges={
           <>
@@ -204,7 +205,7 @@ export function FleetDashboard() {
               <EmptyState
                 icon={Package}
                 title="Tiada pesanan manual"
-                description="Aliran utama: Gudang HQ → rancang laluan → driver terima arahan gabungan. DO manual untuk kes khas."
+                description={`Aliran utama: ${HQ_DISTRIBUTOR_LABEL} → rancang laluan → driver terima arahan gabungan. DO manual untuk kes khas.`}
                 action={
                   <PrimaryActionButton onClick={() => setCreateOpen(true)}>
                     <Plus className="mr-2 h-4 w-4" />

@@ -49,7 +49,8 @@ export const PROFILE_SELECT = `
   emergency_contact_name, emergency_contact_phone, emergency_contact_relation,
   profile_completed_at, created_at, last_login_at,
   branch:branches(branch_code, branch_name),
-  region:regions!profiles_region_id_fkey(code, name)
+  region:regions!profiles_region_id_fkey(code, name),
+  legal_entity:legal_entities(code, name, legal_name, scope)
 `;
 
 export function normalizeIcNumber(raw: string): string {

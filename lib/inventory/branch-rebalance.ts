@@ -4,6 +4,7 @@ import {
   HQ_STOCK_ITEM_CODES,
 } from '@/lib/stock/catalog';
 import { isRotiBatchExpired, computeExpiresOn } from '@/lib/stock/expiry';
+import { HQ_DISTRIBUTOR_LABEL } from '@/lib/brand/legal-entities';
 
 export function isRotiItemCode(code: string): boolean {
   return (HQ_ROTI_ITEM_CODES as readonly string[]).includes(code);
@@ -70,7 +71,7 @@ export function validateRebalancePlan(
       ok: false,
       message:
         mode === 'hq-kiosk'
-          ? 'Masukkan stok dari Gudang HQ'
+          ? `Masukkan stok dari ${HQ_DISTRIBUTOR_LABEL}`
           : 'Tambah sekurang-kurangnya satu cawangan ambil (pickup)',
     };
   }

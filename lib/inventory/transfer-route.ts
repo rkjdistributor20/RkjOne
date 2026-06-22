@@ -1,4 +1,5 @@
 import type { LocationType } from '@/lib/inventory/types';
+import { HQ_DISTRIBUTOR_LABEL } from '@/lib/brand/legal-entities';
 
 export type TransferRouteMode = 'kiosk-kiosk' | 'hq-kiosk';
 
@@ -32,7 +33,7 @@ export function routeModeFromTransfer(
 }
 
 export function locationTypeLabel(type: LocationType | string): string {
-  if (type === 'HQ_WAREHOUSE') return 'Gudang HQ';
+  if (type === 'HQ_WAREHOUSE') return HQ_DISTRIBUTOR_LABEL;
   if (type === 'BRANCH_KIOSK') return 'Kiosk';
   return type;
 }

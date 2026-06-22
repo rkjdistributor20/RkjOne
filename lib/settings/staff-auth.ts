@@ -32,6 +32,7 @@ type ProvisionInput = {
   branchId: string;
   regionId: string | null;
   organizationId: string;
+  legalEntityId: string | null;
   createdBy: string;
 };
 
@@ -81,6 +82,7 @@ export async function provisionStaffPortalAccount(
     branch_id: input.branchId,
     region_id: input.regionId,
     employee_code: input.staffCode,
+    legal_entity_id: input.legalEntityId,
     status: 'ACTIVE',
     must_change_password: true,
   }).eq('id', userId);

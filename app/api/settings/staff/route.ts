@@ -9,6 +9,7 @@ import {
   loadPersonnelScope,
 } from '@/lib/settings/personnel-access';
 import { provisionStaffPortalAccount } from '@/lib/settings/staff-auth';
+import { resolveLegalEntityId } from '@/lib/settings/legal-entity';
 import {
   computeForeignWeeklyPay,
   computeLocalMonthlyPay,
@@ -158,6 +159,12 @@ export async function POST(request: Request) {
     const regionId =
       (branch as { region_id: string } | null)?.region_id ?? profile.region_id;
 
+    const legalEntityId = await resolveLegalEntityId(
+      supabase,
+      profile.organization_id,
+      body.legal_entity_code
+    );
+
     const { data, error } = await (supabase as SupabaseClient)
       .from('staff')
       .insert({
@@ -171,6 +178,7 @@ export async function POST(request: Request) {
         monthly_amount: monthlyAmount,
         shift_hours: shiftHours,
         shifts_per_week: shiftsPerWeek,
+        legal_entity_id: legalEntityId,
         status: 'ACTIVE',
       })
       .select(
@@ -190,6 +198,7 @@ export async function POST(request: Request) {
         branchId,
         regionId,
         organizationId: profile.organization_id,
+        legalEntityId,
         createdBy: profile.id,
       });
     } catch (authError) {

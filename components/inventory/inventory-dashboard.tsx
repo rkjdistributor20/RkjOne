@@ -39,6 +39,7 @@ import type {
   LocationType,
 } from '@/lib/inventory/types';
 import { LOCATION_TYPE_LABELS } from '@/lib/inventory/types';
+import { HQ_DISTRIBUTOR_LABEL } from '@/lib/brand/legal-entities';
 import { useAuthStore } from '@/stores/auth-store';
 import { needsBranchPicker } from '@/lib/auth/branch-scope';
 import { getInventoryStockUiAccess, canSetRotiProductionDate, isAreaManagerRole, isStaffRole, canAccessBranchKioskTransferTab } from '@/lib/auth/stock-access';
@@ -326,7 +327,7 @@ export function InventoryDashboard() {
     <ModuleLayout>
       <ModuleHeader
         title="Inventori"
-        description="Kilang → Gudang HQ → Armada → Kiosk · 9 item stok rasmi selaras di seluruh rantaian"
+        description={`Kilang → ${HQ_DISTRIBUTOR_LABEL} → Armada → Kiosk · 9 item stok rasmi selaras di seluruh rantaian`}
         icon={Package}
         badges={
           dashboardView === 'location' ? (

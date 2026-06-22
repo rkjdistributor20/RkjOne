@@ -1,3 +1,5 @@
+import { HQ_DISTRIBUTOR_LABEL } from '@/lib/brand/legal-entities';
+
 export type DeliveryLegType =
   | 'FACTORY_TO_HQ'
   | 'HQ_TO_VEHICLE'
@@ -106,8 +108,8 @@ export interface PodPayload {
 }
 
 export const LEG_TYPE_LABELS: Record<DeliveryLegType, string> = {
-  FACTORY_TO_HQ: 'Kilang → Gudang HQ',
-  HQ_TO_VEHICLE: 'Gudang HQ → Kenderaan',
+  FACTORY_TO_HQ: `Kilang → ${HQ_DISTRIBUTOR_LABEL}`,
+  HQ_TO_VEHICLE: `${HQ_DISTRIBUTOR_LABEL} → Kenderaan`,
   VEHICLE_TO_VEHICLE: 'Kenderaan → Kenderaan',
   VEHICLE_TO_BRANCH: 'Kenderaan → Cawangan',
 };

@@ -9,6 +9,7 @@ import {
 } from '@/lib/settings/api';
 import type { SettingsStockPlanning, SettingsUpcomingHoliday } from '@/lib/settings/types';
 import { formatHolidayDate, formatHolidayType } from '@/lib/production/holiday-labels';
+import { HQ_DISTRIBUTOR_LABEL } from '@/lib/brand/legal-entities';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -95,7 +96,7 @@ export function StockPlanningSettingsPanel({ canEdit }: StockPlanningSettingsPan
         <div className="mb-4 flex items-start gap-3">
           <TrendingUp className="mt-0.5 h-5 w-5 text-violet-600" />
           <div>
-            <h3 className="font-semibold">Ramalan Order Gudang HQ</h3>
+            <h3 className="font-semibold">Ramalan Order {HQ_DISTRIBUTOR_LABEL}</h3>
             <p className="mt-1 text-sm text-muted-foreground">
               Kawal berapa lama stok perlu dikekalkan selepas terima stok baharu, dan buffer
               keselamatan per kiosk. Cadangan AI di Order Kilang guna nilai ini bersama kalendar

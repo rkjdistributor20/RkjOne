@@ -12,7 +12,10 @@ import {
 async function loadStaffForProfile(supabase: SupabaseClient, profileId: string) {
   const { data } = await supabase
     .from('staff')
-    .select('staff_code, worker_type, bank_name, account_number, account_holder')
+    .select(`
+      staff_code, worker_type, bank_name, account_number, account_holder,
+      legal_entity:legal_entities(code, name, legal_name, scope)
+    `)
     .eq('profile_id', profileId)
     .maybeSingle();
   return data as Record<string, unknown> | null;
