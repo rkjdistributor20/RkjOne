@@ -47,15 +47,15 @@ export function ProfileAvatarReminder() {
   return (
     <div
       role="status"
-      className="border-b border-violet-200/80 bg-gradient-to-r from-violet-50 via-white to-amber-50/50 px-4 py-3 md:px-6"
+      className="border-b border-[#E5A812]/30 bg-gradient-to-r from-[#FFF4D6]/80 via-white to-[#FAFAFA] px-4 py-3 md:px-6"
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-600 text-white shadow-sm">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#E5A812] text-[#141414] shadow-sm">
             <Sparkles className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-wider text-violet-700">
+            <p className="text-xs font-semibold uppercase tracking-wider text-primary">
               Peringatan AI · Gambar Profil
             </p>
             <p className="mt-0.5 text-sm text-foreground/90">{message}</p>
@@ -65,7 +65,7 @@ export function ProfileAvatarReminder() {
           href="/profile"
           className={cn(
             buttonVariants({ size: 'sm' }),
-            'shrink-0 bg-violet-600 text-white hover:bg-violet-700'
+            'shrink-0 bg-[#E5A812] text-[#141414] hover:bg-[#F0C030]'
           )}
         >
           Muat Naik Gambar Muka

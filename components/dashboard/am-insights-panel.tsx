@@ -10,6 +10,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import type { AmInsight, AmInsightsSummary } from '@/lib/dashboard/am-insights';
+import { BRAND_COLORS } from '@/lib/brand/company';
 import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -57,17 +58,29 @@ interface AmInsightsPanelProps {
 
 export function AmInsightsPanel({ insights, summary }: AmInsightsPanelProps) {
   return (
-    <section className="overflow-hidden rounded-2xl border border-violet-200/80 bg-gradient-to-br from-violet-50 via-white to-amber-50/40 shadow-sm">
-      <div className="flex flex-col gap-4 border-b border-violet-100/80 px-5 py-4 sm:flex-row sm:items-start sm:justify-between">
+    <section
+      className="overflow-hidden rounded-2xl border shadow-sm"
+      style={{
+        borderColor: `${BRAND_COLORS.gold}44`,
+        background: `linear-gradient(to bottom right, ${BRAND_COLORS.goldLight}88, white, ${BRAND_COLORS.cream})`,
+      }}
+    >
+      <div
+        className="flex flex-col gap-4 border-b px-5 py-4 sm:flex-row sm:items-start sm:justify-between"
+        style={{ borderColor: `${BRAND_COLORS.gold}33` }}
+      >
         <div className="flex gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white shadow-md">
+          <div
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[#141414] shadow-md"
+            style={{ backgroundColor: BRAND_COLORS.gold }}
+          >
             <Sparkles className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-violet-700">
+            <p className="text-xs font-semibold uppercase tracking-wider text-primary">
               Bantuan AI Pengurus Kawasan
             </p>
-            <h2 className="text-lg font-bold text-foreground">{summary.headline}</h2>
+            <h2 className="text-lg font-bold text-[#141414]">{summary.headline}</h2>
             <p className="mt-0.5 text-sm text-muted-foreground">
               Analisis automatik jualan, stok, syif & kehadiran staf — tindakan disyorkan ikut
               keutamaan.
@@ -89,7 +102,7 @@ export function AmInsightsPanel({ insights, summary }: AmInsightsPanelProps) {
         </div>
       </div>
 
-      <ul className="divide-y divide-violet-100/60">
+      <ul className="divide-y" style={{ borderColor: `${BRAND_COLORS.gold}22` }}>
         {insights.map((item) => {
           const style = SEVERITY_STYLES[item.severity];
           const Icon = style.icon;
@@ -121,7 +134,7 @@ export function AmInsightsPanel({ insights, summary }: AmInsightsPanelProps) {
                   href={item.action_href}
                   className={cn(
                     buttonVariants({ size: 'sm', variant: 'outline' }),
-                    'shrink-0 gap-1 self-start border-violet-200 bg-white/80'
+                    'shrink-0 gap-1 self-start border-primary/30 bg-white/90 hover:bg-[#FFF4D6]/50'
                   )}
                 >
                   {item.action_label}
@@ -133,8 +146,14 @@ export function AmInsightsPanel({ insights, summary }: AmInsightsPanelProps) {
         })}
       </ul>
 
-      <div className="flex items-center gap-2 border-t border-violet-100/80 bg-violet-50/30 px-5 py-2.5 text-xs text-muted-foreground">
-        <TrendingUp className="h-3.5 w-3.5 text-violet-600" />
+      <div
+        className="flex items-center gap-2 border-t px-5 py-2.5 text-xs text-muted-foreground"
+        style={{
+          borderColor: `${BRAND_COLORS.gold}33`,
+          backgroundColor: `${BRAND_COLORS.goldLight}55`,
+        }}
+      >
+        <TrendingUp className="h-3.5 w-3.5 text-primary" />
         AI rule-based — dikemas kini setiap kali papan pemuka dimuatkan
       </div>
     </section>

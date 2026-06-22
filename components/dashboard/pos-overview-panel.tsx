@@ -1,17 +1,11 @@
 import Link from 'next/link';
 import { Monitor, Store, Receipt } from 'lucide-react';
 import type { PosOverview } from '@/lib/dashboard/queries';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { labelFor, PAYMENT_METHOD_LABELS } from '@/lib/ui/labels';
+import { SectionCard } from '@/components/shared/module-ui';
 
 function formatRM(amount: number) {
   return `RM ${amount.toLocaleString('ms-MY', { minimumFractionDigits: 2 })}`;
@@ -29,25 +23,21 @@ export function PosOverviewPanel({ overview }: { overview: PosOverview }) {
     overview.transactions_today > 0 || overview.open_shifts > 0;
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-start justify-between gap-4">
-        <div>
-          <CardTitle className="flex items-center gap-2">
-            <Monitor className="h-5 w-5 text-primary" />
-            POS Hari Ini
-          </CardTitle>
-          <CardDescription>
-            Jualan langsung dari kaunter tunai — disegerakkan ke papan pemuka
-          </CardDescription>
-        </div>
-        <Link
-          href="/pos"
-          className={cn(buttonVariants({ size: 'sm' }), 'shrink-0')}
-        >
+    <SectionCard
+      title={
+        <span className="flex items-center gap-2">
+          <Monitor className="h-5 w-5 text-primary" />
+          POS Hari Ini
+        </span>
+      }
+      description="Jualan langsung dari kaunter tunai — disegerakkan ke papan pemuka"
+      action={
+        <Link href="/pos" className={cn(buttonVariants({ size: 'sm' }), 'shrink-0')}>
           Buka POS
         </Link>
-      </CardHeader>
-      <CardContent className="space-y-4">
+      }
+    >
+      <div className="space-y-4">
         <div className="flex flex-wrap gap-3">
           <Badge variant="secondary" className="gap-1 px-3 py-1">
             <Receipt className="h-3.5 w-3.5" />
@@ -144,7 +134,7 @@ export function PosOverviewPanel({ overview }: { overview: PosOverview }) {
             </p>
           )
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </SectionCard>
   );
 }

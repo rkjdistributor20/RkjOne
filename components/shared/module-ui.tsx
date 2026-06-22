@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 import { BRAND_COLORS } from '@/lib/brand/company';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import type { ComponentProps } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 
 /** Wrapper konsisten untuk semua halaman modul */
 export function ModuleLayout({
@@ -74,7 +74,7 @@ export function ModuleHeader({
   );
 }
 
-/** Kad KPI ringkas */
+/** Kad KPI ringkas — aksen emas RKJ */
 export function KpiCard({
   title,
   value,
@@ -91,30 +91,38 @@ export function KpiCard({
   className?: string;
 }) {
   const tones = {
-    default: 'text-primary bg-primary/10',
-    warning: 'text-orange-600 bg-orange-50',
-    danger: 'text-red-600 bg-red-50',
-    success: 'text-emerald-700 bg-emerald-50',
+    default: { icon: 'text-primary bg-primary/10', accent: BRAND_COLORS.gold },
+    warning: { icon: 'text-orange-600 bg-orange-50', accent: '#EA580C' },
+    danger: { icon: 'text-red-600 bg-red-50', accent: '#DC2626' },
+    success: { icon: 'text-emerald-700 bg-emerald-50', accent: '#059669' },
   };
+  const tone = tones[variant];
 
   return (
     <div
       className={cn(
-        'rounded-xl border bg-card p-4 shadow-sm transition-shadow hover:shadow-md',
+        'relative overflow-hidden rounded-xl border bg-card p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md',
         className
       )}
+      style={{ borderColor: `${BRAND_COLORS.gold}33` }}
     >
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      <div
+        className="absolute inset-x-0 top-0 h-1 opacity-90"
+        style={{ backgroundColor: tone.accent }}
+      />
+      <div className="flex items-start justify-between gap-2 pt-1">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           {title}
         </p>
         {Icon && (
-          <div className={cn('rounded-lg p-2', tones[variant])}>
+          <div className={cn('rounded-lg p-2', tone.icon)}>
             <Icon className="h-4 w-4" />
           </div>
         )}
       </div>
-      <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight">{value}</p>
+      <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-[#141414]">
+        {value}
+      </p>
       {description && (
         <p className="mt-1 text-xs text-muted-foreground">{description}</p>
       )}
@@ -168,18 +176,27 @@ export function SectionCard({
   className,
   action,
 }: {
-  title?: string;
+  title?: ReactNode;
   description?: string;
   children: React.ReactNode;
   className?: string;
   action?: React.ReactNode;
 }) {
   return (
-    <div className={cn('rounded-xl border bg-card shadow-sm', className)}>
+    <div
+      className={cn('overflow-hidden rounded-xl border bg-card shadow-sm', className)}
+      style={{ borderColor: `${BRAND_COLORS.gold}33` }}
+    >
       {(title || action) && (
-        <div className="flex items-start justify-between gap-3 border-b px-4 py-3 md:px-5">
+        <div
+          className="flex items-start justify-between gap-3 border-b px-4 py-3.5 md:px-5"
+          style={{
+            borderColor: `${BRAND_COLORS.gold}22`,
+            background: `linear-gradient(to right, ${BRAND_COLORS.goldLight}40, transparent)`,
+          }}
+        >
           <div>
-            {title && <h3 className="font-semibold">{title}</h3>}
+            {title && <h3 className="font-semibold text-[#141414]">{title}</h3>}
             {description && (
               <p className="text-xs text-muted-foreground">{description}</p>
             )}

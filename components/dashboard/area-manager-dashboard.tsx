@@ -14,7 +14,7 @@ import type { KioskBranchOverviewRow, KioskOverviewSummary } from '@/lib/invento
 import type { BranchMetricsRow } from '@/lib/dashboard/am-branch-metrics';
 import type { AmInsight, AmInsightsSummary } from '@/lib/dashboard/am-insights';
 import type { AreaManagerContext } from '@/lib/dashboard/queries';
-import { Badge } from '@/components/ui/badge';
+import { COMPANY } from '@/lib/brand/company';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
@@ -24,6 +24,12 @@ import {
   SectionCard,
   formatRM,
 } from '@/components/shared/module-ui';
+import {
+  DashboardHero,
+  HeroBadge,
+  QuickActionGrid,
+  DashboardAlert,
+} from '@/components/dashboard/dashboard-brand-ui';
 import { AmInsightsPanel } from '@/components/dashboard/am-insights-panel';
 import { AmBranchPerformanceTable } from '@/components/dashboard/am-branch-performance-table';
 
@@ -75,51 +81,34 @@ export function AreaManagerDashboard({
   const totalClockedIn = branchMetrics.reduce((n, b) => n + b.staff_clocked_in_today, 0);
   const openShifts = branchMetrics.filter((b) => b.shift_open).length;
 
-  const today = new Date().toLocaleDateString('ms-MY', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
-
   return (
     <ModuleLayout>
-      <div className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-slate-900 via-slate-800 to-violet-950 px-6 py-6 text-white shadow-lg">
-        <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-violet-500/20 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-8 left-1/3 h-32 w-32 rounded-full bg-amber-400/10 blur-2xl" />
-        <div className="relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              <Badge className="border-violet-400/40 bg-violet-500/20 text-violet-100 hover:bg-violet-500/30">
-                {regionLabel}
-              </Badge>
-              <Badge variant="outline" className="border-white/20 text-white/80">
-                {context.branchCount} cawangan
-              </Badge>
-              {insightsSummary.critical > 0 && (
-                <Badge variant="destructive" className="gap-1">
+      <DashboardHero
+        variant="premium"
+        eyebrow={`${COMPANY.systemName} · Pengurus Kawasan`}
+        title="Papan Pemuka Kawasan"
+        subtitle={`Rumusan jualan harian, mingguan & bulanan · ${context.branchCount} cawangan · AI proactive untuk staf & operasi kiosk`}
+        badges={
+          <>
+            <HeroBadge>{regionLabel}</HeroBadge>
+            <HeroBadge tone="outline">{context.branchCount} cawangan</HeroBadge>
+            {insightsSummary.critical > 0 && (
+              <HeroBadge tone="danger">
+                <span className="inline-flex items-center gap-1">
                   <AlertTriangle className="h-3 w-3" />
                   {insightsSummary.critical} kritikal
-                </Badge>
-              )}
-            </div>
-            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
-              Papan Pemuka Pengurus Kawasan
-            </h1>
-            <p className="mt-1 max-w-xl text-sm text-white/70">
-              Rumusan jualan harian, mingguan & bulanan · AI proactive untuk staf & cawangan
-            </p>
-            <p className="mt-2 flex items-center gap-1.5 text-xs text-white/50">
-              <CalendarDays className="h-3.5 w-3.5" />
-              {today}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
+                </span>
+              </HeroBadge>
+            )}
+          </>
+        }
+        actions={
+          <>
             <Link
               href="/inventory"
               className={cn(
                 buttonVariants({ size: 'sm' }),
-                'bg-white text-slate-900 hover:bg-white/90'
+                'bg-[#E5A812] text-[#141414] shadow-md hover:bg-[#F0C030]'
               )}
             >
               <Package className="mr-1.5 h-4 w-4" />
@@ -134,14 +123,14 @@ export function AreaManagerDashboard({
             >
               Kelulusan
             </Link>
-          </div>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {statsUnavailable && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <DashboardAlert>
           Statistik kawasan tidak dapat dimuatkan. Cuba muat semula halaman.
-        </div>
+        </DashboardAlert>
       )}
 
       <AmInsightsPanel insights={insights} summary={insightsSummary} />
@@ -213,24 +202,40 @@ export function AreaManagerDashboard({
         title="Tindakan Pantas"
         description="Urus kiosk, staf, dan kelulusan dalam kawasan sahaja"
       >
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            { label: 'Jadual Staf Mingguan', href: '/shifts?tab=roster', icon: CalendarDays },
-            { label: 'Inventori Kiosk', href: '/inventory', icon: Package },
-            { label: 'Syif & Kehadiran', href: '/shifts', icon: Store },
-            { label: 'Kelulusan Tertunda', href: '/approvals', icon: CheckCircle2 },
-            { label: 'Laporan Jualan', href: '/reports', icon: Sparkles },
-          ].map((action) => (
-            <Link
-              key={action.href}
-              href={action.href}
-              className="flex items-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium transition-colors hover:border-primary/30 hover:bg-muted"
-            >
-              <action.icon className="h-4 w-4 text-primary" />
-              {action.label}
-            </Link>
-          ))}
-        </div>
+        <QuickActionGrid
+          actions={[
+            {
+              label: 'Jadual Staf Mingguan',
+              href: '/shifts?tab=roster',
+              icon: CalendarDays,
+              description: 'Sediakan minggu depan',
+            },
+            {
+              label: 'Inventori Kiosk',
+              href: '/inventory',
+              icon: Package,
+              description: 'Stok & pemindahan',
+            },
+            {
+              label: 'Syif & Kehadiran',
+              href: '/shifts',
+              icon: Store,
+              description: 'Clock-in staf',
+            },
+            {
+              label: 'Kelulusan Tertunda',
+              href: '/approvals',
+              icon: CheckCircle2,
+              description: 'Tindakan pengurus',
+            },
+            {
+              label: 'Laporan Jualan',
+              href: '/reports',
+              icon: Sparkles,
+              description: 'Analisis kawasan',
+            },
+          ]}
+        />
       </SectionCard>
     </ModuleLayout>
   );
