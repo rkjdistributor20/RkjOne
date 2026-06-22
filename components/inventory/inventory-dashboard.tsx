@@ -42,6 +42,7 @@ import { useAuthStore } from '@/stores/auth-store';
 import { needsBranchPicker } from '@/lib/auth/branch-scope';
 import { getInventoryStockUiAccess, canSetRotiProductionDate, isAreaManagerRole, isStaffRole, canAccessBranchKioskTransferTab } from '@/lib/auth/stock-access';
 import { formatBranchDestination } from '@/lib/fleet/display-labels';
+import { boundSelectValue } from '@/lib/ui/select-utils';
 import { BranchTransferPanel } from '@/components/inventory/branch-transfer-panel';
 import { BranchScopeSelect } from '@/components/shared/branch-scope-select';
 import { KioskOverviewPanel } from '@/components/inventory/kiosk-overview-panel';
@@ -104,17 +105,28 @@ export function InventoryDashboard() {
     ? selectedBranchId || undefined
     : profile?.branch_id ?? undefined;
 
+  const effectiveLocationFilter = kioskOnlyScope
+    ? ('BRANCH_KIOSK' as LocationType)
+    : locationType === 'ALL'
+      ? undefined
+      : locationType;
+
   const loadLocations = useCallback(async () => {
     setLocationsLoading(true);
     try {
-      const type = locationType === 'ALL' ? undefined : locationType;
-      const { locations: locs } = await fetchLocations(type, branchId);
-      setLocations(locs);
-      if (locs.length && !locs.find((l) => l.id === selectedLocationId)) {
-        setSelectedLocationId(locs[0].id);
-      } else if (!locs.length) {
-        setSelectedLocationId('');
-      }
+      const { locations: locs } = await fetchLocations(
+        effectiveLocationFilter,
+        branchId
+      );
+      const kioskLocs = kioskOnlyScope
+        ? locs.filter((l) => l.location_type === 'BRANCH_KIOSK')
+        : locs;
+      setLocations(kioskLocs);
+      setSelectedLocationId((prev) => {
+        if (!kioskLocs.length) return '';
+        if (kioskLocs.some((l) => l.id === prev)) return prev;
+        return kioskLocs[0].id;
+      });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Gagal memuatkan lokasi');
       setLocations([]);
@@ -122,7 +134,7 @@ export function InventoryDashboard() {
     } finally {
       setLocationsLoading(false);
     }
-  }, [locationType, branchId, selectedLocationId]);
+  }, [effectiveLocationFilter, branchId, kioskOnlyScope]);
 
   const loadData = useCallback(async () => {
     if (!selectedLocationId || dashboardView !== 'location') {
@@ -166,10 +178,8 @@ export function InventoryDashboard() {
   }, [branchId, locations]);
 
   useEffect(() => {
-    if (kioskOnlyScope && locationType !== 'BRANCH_KIOSK') {
-      setLocationType('BRANCH_KIOSK');
-    }
-  }, [kioskOnlyScope, locationType]);
+    if (kioskOnlyScope) setLocationType('BRANCH_KIOSK');
+  }, [kioskOnlyScope]);
 
   useEffect(() => {
     loadLocations();
@@ -180,6 +190,19 @@ export function InventoryDashboard() {
   }, [loadData]);
 
   const selectedLocation = locations.find((l) => l.id === selectedLocationId);
+  const locationSelectValue =
+    boundSelectValue(
+      selectedLocationId,
+      locations.map((l) => l.id)
+    ) ?? '';
+
+  if (!profile) {
+    return (
+      <ModuleLayout>
+        <ModuleLoading />
+      </ModuleLayout>
+    );
+  }
   const stockAccess = profile
     ? getInventoryStockUiAccess(profile.role, selectedLocation?.location_type)
     : null;
@@ -327,7 +350,10 @@ export function InventoryDashboard() {
             {showBranchPicker && (
               <BranchScopeSelect
                 value={selectedBranchId}
-                onChange={setSelectedBranchId}
+                onChange={(id) => {
+                  setSelectedBranchId(id);
+                  setSelectedLocationId('');
+                }}
                 allowAll={profile?.role === 'AREA_MANAGER'}
                 allLabel="Semua kiosk kawasan saya"
               />
@@ -376,10 +402,19 @@ export function InventoryDashboard() {
       {showBranchPicker && (
         <BranchScopeSelect
           value={selectedBranchId}
-          onChange={setSelectedBranchId}
+          onChange={(id) => {
+            setSelectedBranchId(id);
+            setSelectedLocationId('');
+          }}
           allowAll={profile?.role === 'AREA_MANAGER'}
           allLabel="Semua kiosk kawasan saya"
         />
+      )}
+
+      {kioskOnlyScope && isAreaManager && (
+        <p className="text-xs text-muted-foreground -mt-1">
+          Hanya cawangan dalam kawasan anda — pilih kiosk untuk urus stok
+        </p>
       )}
 
       {needsBranchSelection ? (
@@ -406,27 +441,30 @@ export function InventoryDashboard() {
               </Select>
             )}
 
-            <Select
-              value={
-                locations.some((l) => l.id === selectedLocationId)
-                  ? selectedLocationId
-                  : undefined
-              }
-              onValueChange={(v) => v && setSelectedLocationId(v)}
-            >
-              <SelectTrigger className="w-full max-w-md">
-                <SelectValue placeholder="Pilih kiosk cawangan">
-                  {selectedLocation ? formatLocationLabel(selectedLocation) : undefined}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {locations.map((loc) => (
-                  <SelectItem key={loc.id} value={loc.id}>
-                    {formatLocationLabel(loc)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {kioskOnlyScope && branchId && selectedLocation ? (
+              <div className="flex min-h-9 w-full max-w-md items-center rounded-md border bg-muted/30 px-3 text-sm">
+                <span className="font-medium">{formatLocationLabel(selectedLocation)}</span>
+              </div>
+            ) : (
+              <Select
+                value={locationSelectValue}
+                onValueChange={(v) => v && setSelectedLocationId(v)}
+                disabled={locationsLoading || locations.length === 0}
+              >
+                <SelectTrigger className="w-full max-w-md">
+                  <SelectValue placeholder="Pilih kiosk cawangan">
+                    {selectedLocation ? formatLocationLabel(selectedLocation) : undefined}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {locations.map((loc) => (
+                    <SelectItem key={loc.id} value={loc.id}>
+                      {formatLocationLabel(loc)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           {locationsLoading ? (
@@ -443,17 +481,22 @@ export function InventoryDashboard() {
               title="Pilih lokasi"
               description="Pilih lokasi inventori dari senarai di atas."
             />
+          ) : !selectedLocation ? (
+            <ModuleLoading rows={2} />
           ) : (
             <>
               {selectedLocation && (
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-base">{selectedLocation.name}</CardTitle>
+                    <CardTitle className="text-base">
+                      {formatLocationLabel(selectedLocation)}
+                    </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2 text-sm text-muted-foreground">
                     <p>
                       {LOCATION_TYPE_LABELS[selectedLocation.location_type]}
-                      {authBranch && ` · ${authBranch.branch_name}`}
+                      {selectedLocation.branch?.branch_name &&
+                        ` · ${selectedLocation.branch.branch_code} — ${selectedLocation.branch.branch_name}`}
                     </p>
                     {stockAccess?.readOnlyHint && (
                       <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-950">
@@ -480,7 +523,12 @@ export function InventoryDashboard() {
               {loading ? (
                 <Skeleton className="h-64 w-full" />
               ) : (
-                <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+                <Tabs
+                  key={selectedLocationId}
+                  value={activeTab}
+                  onValueChange={setActiveTab}
+                  className="space-y-4"
+                >
                   <TabsList className={moduleTabsListClass}>
                     <TabsTrigger value="balances" className={moduleTabsTriggerClass}>
                       <Package className="h-4 w-4" /> Baki

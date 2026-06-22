@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { boundSelectValue } from '@/lib/ui/select-utils';
 
 export interface ScopedBranchOption {
   id: string;
@@ -58,7 +59,20 @@ export function BranchScopeSelect({
     load();
   }, [load]);
 
+  useEffect(() => {
+    if (loading || !value || branches.length === 0) return;
+    if (!branches.some((b) => b.id === value)) {
+      onChange(allowAll ? '' : branches[0].id);
+    }
+  }, [branches, value, loading, allowAll, onChange]);
+
   const selected = branches.find((b) => b.id === value);
+  const branchOptionIds = branches.map((b) => b.id);
+  const selectValue = value
+    ? boundSelectValue(value, branchOptionIds)
+    : allowAll
+      ? '__all__'
+      : undefined;
   const managerHint =
     selected?.manager_name && selected?.region_name
       ? `${selected.region_name} · ${selected.manager_name}`
@@ -68,7 +82,7 @@ export function BranchScopeSelect({
     <div className={className}>
       {label && <Label className="mb-1.5 block text-sm">{label}</Label>}
       <Select
-        value={value || (allowAll ? '__all__' : '')}
+        value={selectValue ?? ''}
         onValueChange={(v) => {
           if (v === '__all__') onChange('');
           else if (v) onChange(v);

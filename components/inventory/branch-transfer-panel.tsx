@@ -80,6 +80,7 @@ import {
   rotiExpiryStatusLabel,
   type RotiBatchAtLocation,
 } from '@/lib/stock/expiry';
+import { boundSelectValue } from '@/lib/ui/select-utils';
 
 const REASON_PRESETS = [
   { id: 'old_stock', label: 'Habiskan stok lama di cawangan asal' },
@@ -451,6 +452,9 @@ function BranchSelect({
     });
   }, [kiosks, search, excludeIds, value]);
 
+  const kioskIds = kiosks.map((k) => k.id);
+  const selectValue = boundSelectValue(value, kioskIds) ?? '';
+
   return (
     <div className="space-y-1.5">
       <div className="relative">
@@ -462,7 +466,7 @@ function BranchSelect({
           onChange={(e) => setSearch(e.target.value)}
         />
       </div>
-      <Select value={value} onValueChange={(v) => onChange(v ?? '')}>
+      <Select value={selectValue} onValueChange={(v) => onChange(v ?? '')}>
         <SelectTrigger>
           <SelectValue placeholder={placeholder}>
             {selected ? formatBranchDestination(selected) : undefined}

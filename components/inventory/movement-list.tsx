@@ -1,6 +1,8 @@
 'use client';
 
 import type { StockMovementRow } from '@/lib/inventory/types';
+import { MOVEMENT_TYPE_LABELS, labelFor } from '@/lib/ui/labels';
+import { displayLabel } from '@/lib/ui/select-utils';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
@@ -33,7 +35,12 @@ export function MovementList({ movements }: MovementListProps) {
         {movements.map((m) => (
           <div key={m.id} className="flex items-center justify-between rounded-lg border p-3 text-sm">
             <div>
-              <p className="font-medium">{m.stock_item.name}</p>
+              <p className="font-medium">
+                {displayLabel(
+                  m.stock_item?.name,
+                  m.stock_item?.item_code ?? 'Item stok'
+                )}
+              </p>
               <p className="text-xs text-muted-foreground">
                 {new Date(m.created_at).toLocaleString('ms-MY')}
                 {m.created_by_profile?.full_name &&
@@ -46,7 +53,7 @@ export function MovementList({ movements }: MovementListProps) {
                 {Number(m.quantity).toLocaleString()} {m.unit}
               </p>
               <Badge className={TYPE_COLORS[m.movement_type] ?? ''}>
-                {m.movement_type.replace('_', ' ')}
+                {labelFor(MOVEMENT_TYPE_LABELS, m.movement_type, m.movement_type.replace('_', ' '))}
               </Badge>
             </div>
           </div>

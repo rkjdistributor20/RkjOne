@@ -38,6 +38,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { boundSelectValue } from '@/lib/ui/select-utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -123,6 +124,17 @@ export function ShiftManagement() {
     profile?.role ?? ''
   );
 
+  const staffSelectValue = boundSelectValue(
+    newShift.staff_id,
+    staff.map((s) => s.id)
+  );
+  const templateSelectValue = boundSelectValue(
+    newShift.template_id,
+    templates.map((t) => t.id)
+  );
+  const selectedStaffMember = staff.find((s) => s.id === newShift.staff_id);
+  const selectedTemplate = templates.find((t) => t.id === newShift.template_id);
+
   return (
     <ModuleLayout>
       <ModuleHeader
@@ -170,11 +182,13 @@ export function ShiftManagement() {
                   <div className="space-y-1">
                     <Label>Staf</Label>
                     <Select
-                      value={newShift.staff_id}
+                      value={staffSelectValue ?? ''}
                       onValueChange={(v) => v && setNewShift({ ...newShift, staff_id: v })}
                     >
                       <SelectTrigger className="w-[200px]">
-                        <SelectValue placeholder="Pilih staf" />
+                        <SelectValue placeholder="Pilih staf">
+                          {selectedStaffMember?.full_name}
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         {staff.map((s) => (
@@ -188,11 +202,13 @@ export function ShiftManagement() {
                   <div className="space-y-1">
                     <Label>Template</Label>
                     <Select
-                      value={newShift.template_id}
+                      value={templateSelectValue ?? ''}
                       onValueChange={(v) => setNewShift({ ...newShift, template_id: v ?? '' })}
                     >
                       <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="Pilihan" />
+                        <SelectValue placeholder="Pilihan">
+                          {selectedTemplate?.name}
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         {templates.map((t) => (

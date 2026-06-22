@@ -22,6 +22,7 @@ import {
 import { formatExpiryDate } from '@/lib/stock/expiry';
 import { formatStockQuantity } from '@/lib/stock/catalog';
 import { labelFor, TRANSFER_STATUS_LABELS } from '@/lib/ui/labels';
+import { boundSelectValue, displayLabel } from '@/lib/ui/select-utils';
 import { StockLineForm } from '@/components/inventory/stock-line-form';
 
 interface TransferPanelProps {
@@ -84,6 +85,12 @@ export function TransferPanel({
   }, [loadDrivers, loadVehicles]);
 
   const otherLocations = locations.filter((l) => l.id !== fromId);
+
+  useEffect(() => {
+    if (toId && !otherLocations.some((l) => l.id === toId)) {
+      setToId('');
+    }
+  }, [fromId, toId, otherLocations]);
   const toLocation = locations.find((l) => l.id === toId);
   const fromLocation = locations.find((l) => l.id === fromId);
   const orderToKiosk = toLocation?.location_type === 'BRANCH_KIOSK';
@@ -107,6 +114,14 @@ export function TransferPanel({
     return `${LOCATION_TYPE_LABELS[loc.location_type]} — ${loc.name}`;
   }
 
+  const locationIds = locations.map((l) => l.id);
+  const fromSelectValue = boundSelectValue(fromId, locationIds);
+  const toSelectValue = boundSelectValue(toId, otherLocations.map((l) => l.id));
+  const driverSelectValue = boundSelectValue(driverId, drivers.map((d) => d.id));
+  const vehicleSelectValue = boundSelectValue(vehicleId, vehicles.map((v) => v.id));
+  const selectedDriver = drivers.find((d) => d.id === driverId);
+  const selectedVehicle = vehicles.find((v) => v.id === vehicleId);
+
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <div className="space-y-4">
@@ -118,19 +133,33 @@ export function TransferPanel({
         </div>
         <div className="space-y-2">
           <Label>Dari</Label>
-          <Select value={fromId} onValueChange={(v) => v && setFromId(v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {locations.map((l) => (
-                <SelectItem key={l.id} value={l.id}>{locationLabel(l)}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {locations.length <= 1 && fromLocation ? (
+            <div className="flex min-h-9 w-full max-w-md items-center rounded-md border bg-muted/30 px-3 text-sm">
+              <span className="font-medium">{locationLabel(fromLocation)}</span>
+            </div>
+          ) : (
+            <Select value={fromSelectValue ?? ''} onValueChange={(v) => v && setFromId(v)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Pilih lokasi asal">
+                  {fromLocation ? locationLabel(fromLocation) : undefined}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {locations.map((l) => (
+                  <SelectItem key={l.id} value={l.id}>{locationLabel(l)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
         <div className="space-y-2">
           <Label>Ke (cawangan / kenderaan)</Label>
-          <Select value={toId} onValueChange={(v) => v && setToId(v)}>
-            <SelectTrigger><SelectValue placeholder="Pilih destinasi" /></SelectTrigger>
+          <Select value={toSelectValue ?? ''} onValueChange={(v) => v && setToId(v)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Pilih destinasi">
+                {toLocation ? locationLabel(toLocation) : undefined}
+              </SelectValue>
+            </SelectTrigger>
             <SelectContent>
               {otherLocations.map((l) => (
                 <SelectItem key={l.id} value={l.id}>{locationLabel(l)}</SelectItem>
@@ -141,8 +170,12 @@ export function TransferPanel({
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
             <Label>Pemandu</Label>
-            <Select value={driverId} onValueChange={(v) => setDriverId(v ?? '')}>
-              <SelectTrigger><SelectValue placeholder="Pilihan" /></SelectTrigger>
+            <Select value={driverSelectValue ?? ''} onValueChange={(v) => setDriverId(v ?? '')}>
+              <SelectTrigger>
+                <SelectValue placeholder="Pilihan">
+                  {selectedDriver?.full_name}
+                </SelectValue>
+              </SelectTrigger>
               <SelectContent>
                 {drivers.map((d) => (
                   <SelectItem key={d.id} value={d.id}>{d.full_name}</SelectItem>
@@ -152,8 +185,12 @@ export function TransferPanel({
           </div>
           <div className="space-y-1">
             <Label>Kenderaan</Label>
-            <Select value={vehicleId} onValueChange={(v) => setVehicleId(v ?? '')}>
-              <SelectTrigger><SelectValue placeholder="Pilihan" /></SelectTrigger>
+            <Select value={vehicleSelectValue ?? ''} onValueChange={(v) => setVehicleId(v ?? '')}>
+              <SelectTrigger>
+                <SelectValue placeholder="Pilihan">
+                  {selectedVehicle?.vehicle_type}
+                </SelectValue>
+              </SelectTrigger>
               <SelectContent>
                 {vehicles.map((v) => (
                   <SelectItem key={v.id} value={v.id}>{v.vehicle_type}</SelectItem>
@@ -208,7 +245,8 @@ export function TransferPanel({
                 <div>
                   <p className="font-medium">{t.transfer_number}</p>
                   <p className="text-xs text-muted-foreground">
-                    {t.from_location.name} → {t.to_location.name}
+                    {displayLabel(t.from_location?.name, 'Lokasi asal')} →{' '}
+                    {displayLabel(t.to_location?.name, 'Lokasi destinasi')}
                   </p>
                 </div>
                 <Badge variant={t.status === 'IN_TRANSIT' ? 'default' : 'outline'}>
@@ -219,7 +257,7 @@ export function TransferPanel({
                 <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground">
                   {t.stock_transfer_items.map((i, idx) => (
                     <li key={idx}>
-                      {i.stock_item.name}:{' '}
+                      {displayLabel(i.stock_item?.name, i.stock_item?.item_code ?? 'Item')}:{' '}
                       {formatStockQuantity(Number(i.quantity), i.unit, {
                         item_code: i.stock_item.item_code,
                       })}

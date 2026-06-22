@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { boundSelectValue } from '@/lib/ui/select-utils';
 
 type FormMode = 'receive' | 'adjust' | 'count' | 'writeoff';
 
@@ -112,12 +113,12 @@ export function StockLineForm({
 
   useEffect(() => {
     if (!stockItems.length) return;
-    setLines((prev) => {
-      if (prev.some((l) => stockItems.some((s) => s.id === l.stock_item_id))) {
-        return prev;
-      }
-      return [{ stock_item_id: stockItems[0].id, quantity: '' }];
-    });
+    setLines((prev) =>
+      prev.map((l) => {
+        if (l.stock_item_id && stockItems.some((s) => s.id === l.stock_item_id)) return l;
+        return { ...l, stock_item_id: stockItems[0].id };
+      })
+    );
   }, [stockItems]);
 
   function addLine() {
@@ -254,6 +255,11 @@ export function StockLineForm({
     return 'Kuantiti';
   }
 
+  function stockItemLabel(si: StockItemOption): string {
+    const cat = getStockByCode(si.item_code);
+    return cat ? `${si.name} · ${cat.conversion_text}` : si.name;
+  }
+
   return (
     <form onSubmit={handleSubmit} className="max-w-lg space-y-4">
       {requireRotiProductionDate && mode === 'receive' && (
@@ -307,27 +313,31 @@ export function StockLineForm({
         const showProdDate =
           requireRotiProductionDate && mode === 'receive' && isRotiLine(line.stock_item_id);
 
+        const itemSelectValue = boundSelectValue(
+          line.stock_item_id,
+          stockItems.map((s) => s.id)
+        );
+
         return (
           <div key={idx} className="flex flex-wrap gap-2 rounded-lg border p-3">
             <div className="min-w-[200px] flex-1 space-y-1">
               <Label>Item Stok</Label>
               <Select
-                value={line.stock_item_id}
+                value={itemSelectValue ?? ''}
                 onValueChange={(v) => v && updateLine(idx, 'stock_item_id', v)}
+                disabled={stockItems.length === 0}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Pilih item" />
+                  <SelectValue placeholder="Pilih item">
+                    {item ? stockItemLabel(item) : undefined}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {stockItems.map((si) => {
-                    const cat = getStockByCode(si.item_code);
-                    return (
-                      <SelectItem key={si.id} value={si.id}>
-                        {si.name}
-                        {cat ? ` · ${cat.conversion_text}` : ''}
-                      </SelectItem>
-                    );
-                  })}
+                  {stockItems.map((si) => (
+                    <SelectItem key={si.id} value={si.id}>
+                      {stockItemLabel(si)}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               {def && (

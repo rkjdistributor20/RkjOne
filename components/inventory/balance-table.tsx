@@ -3,6 +3,7 @@
 import type { InventoryBalanceRow } from '@/lib/inventory/types';
 import { groupBalancesByCategory } from '@/lib/inventory/balance-utils';
 import { formatStockQuantity } from '@/lib/stock/catalog';
+import { displayLabel } from '@/lib/ui/select-utils';
 import { Badge } from '@/components/ui/badge';
 import {
   Table,
@@ -44,7 +45,9 @@ function BalanceRows({
     <>
       {balances.map((b) => (
         <TableRow key={b.id}>
-          <TableCell className="font-medium">{b.stock_item.name}</TableCell>
+          <TableCell className="font-medium">
+            {displayLabel(b.stock_item?.name, b.stock_item?.item_code ?? 'Item stok')}
+          </TableCell>
           <TableCell className="font-mono text-xs text-muted-foreground">
             {b.stock_item.item_code}
           </TableCell>
