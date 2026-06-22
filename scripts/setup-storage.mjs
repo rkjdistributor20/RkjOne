@@ -51,6 +51,7 @@ const BUCKETS = [
   { name: 'delivery-proof', public: false },
   { name: 'bank-slips', public: false },
   { name: 'receipts', public: false },
+  { name: 'profile-avatars', public: true },
 ];
 
 async function ensureBucket({ name, public: isPublic }) {

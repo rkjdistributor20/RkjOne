@@ -10,6 +10,7 @@ export const AREA_MANAGER_ALLOWED_PATHS = [
   '/approvals',
   '/settings',
   '/change-password',
+  '/profile',
 ] as const;
 
 export function isAreaManagerRole(role: string): role is 'AREA_MANAGER' {

@@ -91,6 +91,9 @@ export function getVisibleNavItems(
 }
 
 export function getNavLabelForPath(pathname: string): string {
+  if (pathname === '/profile' || pathname.startsWith('/profile/')) {
+    return 'Profil Saya';
+  }
   const exact = NAV_ITEMS.find((item) => item.href === pathname);
   if (exact) return exact.label;
   const prefix = NAV_ITEMS.find(

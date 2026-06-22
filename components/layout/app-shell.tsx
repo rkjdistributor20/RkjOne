@@ -18,6 +18,7 @@ import {
   Settings,
   LogOut,
   Menu,
+  UserCircle2,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -25,7 +26,7 @@ import { COMPANY } from '@/lib/brand/company';
 import { BrandLogo } from '@/components/brand/brand-logo';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { createClient } from '@/lib/supabase/client';
 import { getVisibleNavItems, getNavLabelForPath } from '@/lib/auth/permissions';
@@ -33,6 +34,7 @@ import { isAreaManagerRole } from '@/lib/auth/area-manager-access';
 import { ROLE_LABELS } from '@/types/enums';
 import { useAuthStore } from '@/stores/auth-store';
 import { AreaManagerRouteGuard } from '@/components/layout/area-manager-route-guard';
+import { ProfileAvatarReminder } from '@/components/profile/profile-avatar-reminder';
 
 const ICONS: Record<string, LucideIcon> = {
   LayoutDashboard,
@@ -116,9 +118,20 @@ function UserFooter({ onLogout }: { onLogout: () => void }) {
 
   return (
     <div className="border-t border-sidebar-border p-4">
-      <div className="flex items-center gap-3">
+      <Link
+        href="/profile"
+        className="flex items-center gap-3 rounded-xl p-1 transition-colors hover:bg-sidebar-accent/60"
+      >
         <Avatar className="h-9 w-9 ring-2 ring-sidebar-primary/30">
-          <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-xs font-bold">
+          {profile?.avatar_url ? (
+            <AvatarImage src={profile.avatar_url} alt={profile.full_name} />
+          ) : null}
+          <AvatarFallback
+            className={cn(
+              'bg-sidebar-primary text-sidebar-primary-foreground text-xs font-bold',
+              !profile?.avatar_url && 'ring-2 ring-amber-400 ring-offset-1 ring-offset-sidebar'
+            )}
+          >
             {initials}
           </AvatarFallback>
         </Avatar>
@@ -130,7 +143,8 @@ function UserFooter({ onLogout }: { onLogout: () => void }) {
             {profile ? ROLE_LABELS[profile.role] : ''}
           </p>
         </div>
-      </div>
+        <UserCircle2 className="h-4 w-4 shrink-0 text-sidebar-foreground/50" />
+      </Link>
       {branch && (
         <Badge
           variant="outline"
@@ -214,6 +228,8 @@ export function AppShell({ children }: AppShellProps) {
             )}
           </div>
         </header>
+
+        <ProfileAvatarReminder />
 
         <main className="flex-1 overflow-y-auto bg-muted/20 p-4 md:p-6">{children}</main>
       </div>
