@@ -1,9 +1,11 @@
 # ⏸ Sambung Di Sini — RKJ One ERP
 
+> **🔔 INGATKAN BUKA NANTI:** Go-live **36 cawangan** siap teknikal. Langkah seterusnya → Supabase Auth OFF · tukar password · staf buka syif. Baca bahagian **Belum manual** di bawah.
+
 > **Buka fail ini bila buka semula projek.** Kemaskini tarikh bila selesai satu fasa.
 
 **Tarikh kemaskini:** 22 Jun 2025 (sesi: legal entities · HQ Distributor · go-live 36)  
-**Branch:** `master` · commit terkini **`94c7076`** (sync GitHub + Vercel)  
+**Branch:** `master` · commit terkini **`9ec7f7e`** (sync GitHub + Vercel)  
 **Production:** https://rkj-one.vercel.app  
 **Supabase:** `mtygxueknokcihofdttl` · migrations **00001–00069**
 

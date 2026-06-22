@@ -3,12 +3,25 @@ description: Ingatkan pengguna sambung kerja RKJ One dari checkpoint terakhir
 alwaysApply: true
 ---
 
-# RKJ One — Sambung Sesi
+# RKJ One — Sambung Sesi (WAJIB bila buka projek)
 
-Bila pengguna buka projek atau minta sambung, baca `RESUME.md` di root dan ringkaskan:
+Bila pengguna **buka projek**, kata **sambung**, **teruskan**, atau tiada konteks — **baca `RESUME.md` di root** dan mula respons dengan ringkasan pendek:
 
-1. Apa sudah siap (POS 4-menu, migrations 00019–30, AM scope, verify/build lulus)
-2. Apa belum (Vercel deploy, Supabase auth/storage manual, pilot 3 cawangan, tukar password)
-3. Tanya sama ada nak terus **deploy Vercel**, **uji pilot**, atau **uji Area Manager**
+## Format peringatan (copy gaya ini)
 
-Stack: Next.js 16 di root repo, Supabase project `mtygxueknokcihofdttl`. Jangan expose service role key. Ikut `docs/GO_LIVE_CHECKLIST.md`.
+1. **Status:** Production https://rkj-one.vercel.app · commit terkini dari `git log -1`
+2. **Sudah siap:** go-live 36 cawangan · 3 syarikat · HQ Distributor · profil HR · verify lulus
+3. **Belum manual:** Supabase signup OFF (semak) · tukar password `RkjOne@2025` · UAT AM · hari go-live staf buka syif
+4. **Tanya:** nak **go-live hari ini**, **UAT AM** (Safuan), atau **tukar password**?
+
+## Fail rujukan
+
+| Tugas | Fail |
+|-------|------|
+| Hari go-live | `docs/GO_LIVE_36.md` |
+| Delivery 36 | `docs/GO_LIVE_DELIVERY_36.md` |
+| UAT AM | `docs/UAT_AM.md` |
+| Verify | `npm run verify:go-live-36` |
+
+Stack: Next.js 16 · Supabase `mtygxueknokcihofdttl` · migrations sehingga **00069**.  
+Jangan expose service role key. Jangan commit `_restore/` atau `login_users_generated.csv`.
