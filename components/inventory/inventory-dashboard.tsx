@@ -62,6 +62,7 @@ import { BalanceTable } from '@/components/inventory/balance-table';
 import { MovementList } from '@/components/inventory/movement-list';
 import { StockLineForm } from '@/components/inventory/stock-line-form';
 import { TransferPanel } from '@/components/inventory/transfer-panel';
+import { AreaManagerInventoryShell } from '@/components/inventory/area-manager-inventory-shell';
 import {
   ModuleLayout,
   ModuleHeader,
@@ -312,6 +313,38 @@ export function InventoryDashboard() {
 
   const needsBranchSelection = false;
 
+  if (isAreaManager) {
+    return (
+      <ModuleLayout>
+        <ModuleHeader
+          title="Inventori Kawasan"
+          description="Stok kiosk cawangan dalam kawasan anda — terima, pindah, kira & lupus"
+          icon={Package}
+          badges={
+            dashboardView === 'location' && selectedLocationId ? (
+              <>
+                {criticalCount > 0 && (
+                  <Badge variant="destructive">{criticalCount} Kritikal</Badge>
+                )}
+                {lowCount > 0 && (
+                  <Badge variant="secondary">{lowCount} Stok Rendah</Badge>
+                )}
+              </>
+            ) : null
+          }
+        />
+
+        <AreaManagerInventoryShell
+          view={dashboardView === 'branch-transfer' ? 'branch-transfer' : 'location'}
+          onViewChange={(v) => setDashboardView(v)}
+          showBranchTransfer={canCrossBranchTransfer}
+          locationPanel={renderAreaManagerLocationPanel()}
+          branchTransferPanel={<BranchTransferPanel />}
+        />
+      </ModuleLayout>
+    );
+  }
+
   return (
     <ModuleLayout>
       <ModuleHeader
@@ -411,10 +444,6 @@ export function InventoryDashboard() {
   );
 
   function renderLocationPanel() {
-    if (isAreaManager) {
-      return renderAreaManagerLocationPanel();
-    }
-
     return (
       <>
       {showBranchPicker && (
@@ -433,7 +462,7 @@ export function InventoryDashboard() {
       ) : (
         <>
           <div className="flex flex-wrap gap-3">
-            {!kioskOnlyScope && !isAreaManager && (
+            {!kioskOnlyScope && (
               <Select
                 value={locationType}
                 onValueChange={(v) => setLocationType(v as LocationType | 'ALL')}
