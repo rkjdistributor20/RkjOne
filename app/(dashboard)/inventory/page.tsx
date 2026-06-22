@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getCurrentProfile } from '@/lib/auth/session';
+import { AREA_MANAGER_INVENTORY_PATH } from '@/lib/auth/area-manager-access';
 import { InventoryDashboard } from '@/components/inventory/inventory-dashboard';
 
 export const dynamic = 'force-dynamic';
@@ -12,7 +13,7 @@ export default async function InventoryPage() {
   }
 
   if (profile.role === 'AREA_MANAGER') {
-    redirect('/inventory/kawasan');
+    redirect(AREA_MANAGER_INVENTORY_PATH);
   }
 
   return <InventoryDashboard />;

@@ -1,9 +1,11 @@
 import type { UserRole } from '@/types/enums';
 
 /** Laluan sidebar & halaman yang memang urusan Pengurus Kawasan */
+export const AREA_MANAGER_INVENTORY_PATH = '/inventory/kawasan';
+
 export const AREA_MANAGER_ALLOWED_PATHS = [
   '/dashboard',
-  '/inventory/kawasan',
+  AREA_MANAGER_INVENTORY_PATH,
   '/shifts',
   '/approvals',
   '/settings',

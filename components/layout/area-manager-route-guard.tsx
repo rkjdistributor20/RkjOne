@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
+  AREA_MANAGER_INVENTORY_PATH,
   isAreaManagerAllowedPath,
   isAreaManagerRole,
 } from '@/lib/auth/area-manager-access';
@@ -20,9 +21,9 @@ export function AreaManagerRouteGuard() {
 
     if (
       pathname === '/inventory' ||
-      (pathname.startsWith('/inventory/') && !pathname.startsWith('/inventory/kawasan'))
+      (pathname.startsWith('/inventory/') && !pathname.startsWith(AREA_MANAGER_INVENTORY_PATH))
     ) {
-      router.replace('/inventory/kawasan');
+      router.replace(AREA_MANAGER_INVENTORY_PATH);
       return;
     }
 

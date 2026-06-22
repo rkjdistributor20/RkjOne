@@ -59,13 +59,30 @@ export async function updateSession(request: NextRequest) {
   if (user && !isPublicRoute && !isChangePasswordRoute) {
     const { data: profile } = await (supabase as SupabaseClient)
       .from('profiles')
-      .select('must_change_password')
+      .select('must_change_password, role')
       .eq('id', user.id)
       .maybeSingle();
 
-    if ((profile as { must_change_password?: boolean } | null)?.must_change_password) {
+    const profileRow = profile as {
+      must_change_password?: boolean;
+      role?: string;
+    } | null;
+
+    if (profileRow?.must_change_password) {
       const url = request.nextUrl.clone();
       url.pathname = CHANGE_PASSWORD_PATH;
+      return NextResponse.redirect(url);
+    }
+
+    if (profileRow?.role === 'AREA_MANAGER' && pathname === '/inventory') {
+      const url = request.nextUrl.clone();
+      url.pathname = '/inventory/kawasan';
+      return NextResponse.redirect(url);
+    }
+
+    if (profileRow?.role !== 'AREA_MANAGER' && pathname.startsWith('/inventory/kawasan')) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/inventory';
       return NextResponse.redirect(url);
     }
   }

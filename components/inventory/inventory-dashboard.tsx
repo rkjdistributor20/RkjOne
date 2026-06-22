@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
@@ -41,7 +41,8 @@ import type {
 import { LOCATION_TYPE_LABELS } from '@/lib/inventory/types';
 import { useAuthStore } from '@/stores/auth-store';
 import { needsBranchPicker } from '@/lib/auth/branch-scope';
-import { getInventoryStockUiAccess, canSetRotiProductionDate, isStaffRole, canAccessBranchKioskTransferTab } from '@/lib/auth/stock-access';
+import { AREA_MANAGER_INVENTORY_PATH } from '@/lib/auth/area-manager-access';
+import { getInventoryStockUiAccess, canSetRotiProductionDate, isAreaManagerRole, isStaffRole, canAccessBranchKioskTransferTab } from '@/lib/auth/stock-access';
 import { formatBranchDestination } from '@/lib/fleet/display-labels';
 import { boundSelectValue } from '@/lib/ui/select-utils';
 import { BranchTransferPanel } from '@/components/inventory/branch-transfer-panel';
@@ -193,9 +194,15 @@ export function InventoryDashboard() {
     loadData();
   }, [loadData]);
 
+  useLayoutEffect(() => {
+    if (profile?.role === 'AREA_MANAGER') {
+      router.replace(AREA_MANAGER_INVENTORY_PATH);
+    }
+  }, [profile, router]);
+
   useEffect(() => {
     if (profile?.role === 'AREA_MANAGER') {
-      router.replace('/inventory/kawasan');
+      router.replace(AREA_MANAGER_INVENTORY_PATH);
     }
   }, [profile, router]);
 
@@ -211,7 +218,7 @@ export function InventoryDashboard() {
     );
   }
 
-  if (profile.role === 'AREA_MANAGER') {
+  if (isAreaManagerRole(profile.role)) {
     return (
       <ModuleLayout>
         <ModuleLoading />

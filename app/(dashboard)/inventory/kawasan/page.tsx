@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getCurrentProfile } from '@/lib/auth/session';
+import { AREA_MANAGER_INVENTORY_PATH } from '@/lib/auth/area-manager-access';
 import { AreaManagerInventoryDashboard } from '@/components/inventory/area-manager-inventory-dashboard';
 
 export const dynamic = 'force-dynamic';
