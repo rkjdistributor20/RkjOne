@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import type { DashboardStats } from '@/types/database';
+import { fetchKioskOverviewForBranches } from '@/lib/inventory/kiosk-overview-data';
 
 export async function getDashboardStats(
   orgId: string,
@@ -41,7 +42,7 @@ export async function getDashboardStats(
   const weekStartStr = weekStart.toISOString().slice(0, 10);
   const monthStart = `${today.slice(0, 8)}01`;
 
-  const [todayRes, weekRes, monthRes, approvalsRes, cashRes] = await Promise.all([
+  const [todayRes, weekRes, monthRes, approvalsRes, kioskOverview] = await Promise.all([
     supabase
       .from('pos_daily_summaries')
       .select('total_sales')
@@ -66,12 +67,7 @@ export async function getDashboardStats(
       .eq('organization_id', orgId)
       .eq('status', 'PENDING')
       .in('branch_id', branchIds),
-    supabase
-      .from('finance_collections')
-      .select('amount')
-      .eq('organization_id', orgId)
-      .eq('status', 'PENDING')
-      .in('branch_id', branchIds),
+    fetchKioskOverviewForBranches(supabase, orgId, branchIds),
   ]);
 
   const sum = (rows: Array<{ total_sales?: number }> | null) =>
@@ -83,12 +79,9 @@ export async function getDashboardStats(
     sales_this_week: sum(weekRes.data as Array<{ total_sales: number }> | null),
     sales_this_month: sum(monthRes.data as Array<{ total_sales: number }> | null),
     pending_approvals: approvalsRes.count ?? 0,
-    critical_stock_count: 0,
-    low_stock_count: 0,
-    outstanding_cash: (cashRes.data ?? []).reduce(
-      (n, r) => n + Number((r as { amount: number }).amount ?? 0),
-      0
-    ),
+    critical_stock_count: kioskOverview.summary.critical,
+    low_stock_count: kioskOverview.summary.low,
+    outstanding_cash: 0,
   };
 }
 
@@ -142,7 +135,8 @@ type RecentTransactionRow = {
 
 export async function getPosOverview(
   orgId: string,
-  branchIds: string[] | null = null
+  branchIds: string[] | null = null,
+  options?: { includeAllBranches?: boolean }
 ): Promise<PosOverview> {
   const supabase = await createClient();
   const today = new Date().toISOString().slice(0, 10);
@@ -223,9 +217,11 @@ export async function getPosOverview(
   });
 
   return {
-    branches: branchSummaries
-      .filter((b) => b.total_sales > 0 || b.transaction_count > 0 || b.shift_open)
-      .sort((a, b) => b.total_sales - a.total_sales),
+    branches: options?.includeAllBranches
+      ? branchSummaries.sort((a, b) => a.branch_code.localeCompare(b.branch_code))
+      : branchSummaries
+          .filter((b) => b.total_sales > 0 || b.transaction_count > 0 || b.shift_open)
+          .sort((a, b) => b.total_sales - a.total_sales),
     open_shifts: openShiftBranches.size,
     transactions_today: branchSummaries.reduce(
       (n, b) => n + b.transaction_count,
@@ -307,3 +303,34 @@ export async function getFleetOverview(orgId: string): Promise<FleetOverview> {
     in_transit: orders.filter((o) => o.status === 'IN_TRANSIT').length,
   };
 }
+
+export type AreaManagerContext = {
+  regionName: string | null;
+  branchCount: number;
+};
+
+export async function getAreaManagerDashboardContext(
+  orgId: string,
+  regionId: string | null,
+  branchIds: string[] | null
+): Promise<AreaManagerContext> {
+  const supabase = await createClient();
+  let regionName: string | null = null;
+
+  if (regionId) {
+    const { data } = await supabase
+      .from('regions')
+      .select('name')
+      .eq('organization_id', orgId)
+      .eq('id', regionId)
+      .maybeSingle();
+    regionName = (data as { name: string } | null)?.name ?? null;
+  }
+
+  return {
+    regionName,
+    branchCount: branchIds?.length ?? 0,
+  };
+}
+
+export { fetchKioskOverviewForBranches };

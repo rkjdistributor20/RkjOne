@@ -19,10 +19,17 @@ import {
 import { getCurrentProfile } from '@/lib/auth/session';
 import { resolveScopedBranches } from '@/lib/auth/branch-scope';
 import { createClient } from '@/lib/supabase/server';
-import { getDashboardStats, getFleetOverview, getPosOverview } from '@/lib/dashboard/queries';
+import {
+  getDashboardStats,
+  getFleetOverview,
+  getPosOverview,
+  getAreaManagerDashboardContext,
+  fetchKioskOverviewForBranches,
+} from '@/lib/dashboard/queries';
 import { PageHeader, BrandStatsStrip } from '@/components/brand/page-header';
 import { COMPANY } from '@/lib/brand/company';
 import { PosOverviewPanel } from '@/components/dashboard/pos-overview-panel';
+import { AreaManagerDashboard } from '@/components/dashboard/area-manager-dashboard';
 import { labelFor, FLEET_VEHICLE_STATUS_LABELS } from '@/lib/ui/labels';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -44,43 +51,53 @@ export default async function DashboardPage() {
   const scope = await resolveScopedBranches(supabase, profile);
   const isAreaManager = profile.role === 'AREA_MANAGER';
 
+  if (isAreaManager) {
+    const branchIds = scope.branchIds ?? [];
+    const [stats, posOverview, kioskOverview, context] = await Promise.all([
+      getDashboardStats(profile.organization_id, branchIds),
+      getPosOverview(profile.organization_id, branchIds, { includeAllBranches: true }),
+      fetchKioskOverviewForBranches(supabase, profile.organization_id, branchIds),
+      getAreaManagerDashboardContext(
+        profile.organization_id,
+        profile.region_id,
+        branchIds
+      ),
+    ]);
+
+    return (
+      <AreaManagerDashboard
+        stats={stats}
+        posOverview={posOverview}
+        kioskOverview={kioskOverview}
+        context={context}
+      />
+    );
+  }
+
   const [stats, posOverview, fleetOverview] = await Promise.all([
     getDashboardStats(profile.organization_id, scope.branchIds),
     getPosOverview(profile.organization_id, scope.branchIds),
-    isAreaManager
-      ? Promise.resolve({ pending_deliveries: 0, in_transit: 0, vehicles: [] })
-      : getFleetOverview(profile.organization_id),
+    getFleetOverview(profile.organization_id),
   ]);
 
   const statsUnavailable = stats === null;
 
-  const quickActions = isAreaManager
-    ? [
-        { label: 'Inventori Kiosk', href: '/inventory' },
-        { label: 'Syif & Kehadiran', href: '/shifts' },
-        { label: 'Kelulusan Tertunda', href: '/approvals' },
-        { label: 'Staf & Pengguna', href: '/settings?tab=staff' },
-      ]
-    : [
-        { label: 'Buka Syif POS', href: '/pos' },
-        { label: 'Inventori', href: '/inventory' },
-        { label: 'Lihat Laporan', href: '/reports' },
-        { label: 'Kelulusan Tertunda', href: '/approvals' },
-      ];
+  const quickActions = [
+    { label: 'Buka Syif POS', href: '/pos' },
+    { label: 'Inventori', href: '/inventory' },
+    { label: 'Lihat Laporan', href: '/reports' },
+    { label: 'Kelulusan Tertunda', href: '/approvals' },
+  ];
 
   return (
     <ModuleLayout>
       <PageHeader
         badge={COMPANY.systemName}
         title="Papan Pemuka"
-        description={
-          isAreaManager
-            ? 'Ringkasan jualan, stok kiosk, dan kelulusan dalam kawasan anda'
-            : `Ringkasan operasi ${COMPANY.name} — ${COMPANY.tagline}`
-        }
+        description={`Ringkasan operasi ${COMPANY.name} — ${COMPANY.tagline}`}
       />
 
-      {!isAreaManager && <BrandStatsStrip />}
+      <BrandStatsStrip />
 
       {statsUnavailable && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -89,7 +106,7 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      <KpiGrid cols={isAreaManager ? 3 : 4}>
+      <KpiGrid cols={4}>
         <KpiCard
           title="Jualan Hari Ini"
           value={statsUnavailable ? '—' : formatRM(stats!.sales_today ?? 0)}
@@ -105,14 +122,12 @@ export default async function DashboardPage() {
           value={statsUnavailable ? '—' : formatRM(stats!.sales_this_month ?? 0)}
           icon={TrendingUp}
         />
-        {!isAreaManager && (
-          <KpiCard
-            title="Tunai Tertunggak"
-            value={statsUnavailable ? '—' : formatRM(stats!.outstanding_cash ?? 0)}
-            icon={Banknote}
-            variant="warning"
-          />
-        )}
+        <KpiCard
+          title="Tunai Tertunggak"
+          value={statsUnavailable ? '—' : formatRM(stats!.outstanding_cash ?? 0)}
+          icon={Banknote}
+          variant="warning"
+        />
       </KpiGrid>
 
       <KpiGrid cols={3}>
@@ -138,10 +153,9 @@ export default async function DashboardPage() {
         />
       </KpiGrid>
 
-      <div className={cn('grid gap-4', !isAreaManager && 'lg:grid-cols-2')}>
+      <div className="grid gap-4 lg:grid-cols-2">
         <PosOverviewPanel overview={posOverview} />
 
-        {!isAreaManager && (
         <Card>
           <CardHeader className="flex flex-row items-start justify-between gap-4">
             <div>
@@ -176,13 +190,9 @@ export default async function DashboardPage() {
             )}
           </CardContent>
         </Card>
-        )}
       </div>
 
-      <SectionCard
-        title="Tindakan Pantas"
-        description={isAreaManager ? 'Urus kiosk, staf, dan kelulusan kawasan' : 'Tugasan biasa harian'}
-      >
+      <SectionCard title="Tindakan Pantas" description="Tugasan biasa harian">
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {quickActions.map((action) => (
             <Link
