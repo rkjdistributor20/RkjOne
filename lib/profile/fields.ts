@@ -49,7 +49,7 @@ export const PROFILE_SELECT = `
   emergency_contact_name, emergency_contact_phone, emergency_contact_relation,
   profile_completed_at, created_at, last_login_at,
   branch:branches(branch_code, branch_name),
-  region:regions(region_code, region_name)
+  region:regions!profiles_region_id_fkey(code, name)
 `;
 
 export function normalizeIcNumber(raw: string): string {

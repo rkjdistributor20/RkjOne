@@ -12,6 +12,7 @@
     "reset:am-passwords": "node scripts/reset-am-passwords.mjs",
     "verify:go-live": "node scripts/verify-go-live.mjs",
     "verify:am": "node scripts/verify-area-managers.mjs",
+    "verify:login": "node scripts/verify-login-all-roles.mjs",
     "verify:production": "node scripts/verify-production.mjs",
     "verify:roster": "node scripts/verify-roster.mjs",
     "setup:storage": "node scripts/setup-storage.mjs",

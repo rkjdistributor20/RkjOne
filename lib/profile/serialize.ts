@@ -56,7 +56,10 @@ export function serializeProfileMe(
   staff?: Record<string, unknown> | null
 ): ProfileMe {
   const branch = row.branch as { branch_code: string; branch_name: string } | null;
-  const region = row.region as { region_code: string; region_name: string } | null;
+  const regionRaw = row.region as { code: string; name: string } | null;
+  const region = regionRaw
+    ? { region_code: regionRaw.code, region_name: regionRaw.name }
+    : null;
   const ic = (row.ic_number as string | null) ?? null;
 
   const completion = computeProfileCompletion({

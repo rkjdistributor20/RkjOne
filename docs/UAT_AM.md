@@ -113,4 +113,4 @@ Tandakan `[ ]` → `[x]` bila lulus.
 
 ---
 
-*Semakan automatik: `npm run verify:am` · `npm run verify:go-live`*
+*Semakan automatik: `npm run verify:login` · `npm run verify:am` · `npm run verify:go-live`*

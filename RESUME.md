@@ -29,7 +29,7 @@
 - **Backfill** — 54 staf aktif ada kredensial (`npm run backfill:staff-credentials`)
 
 ### Verify (automatik)
-- `npm run verify:go-live` — **18/18** ✓ (termasuk bucket `profile-avatars`)
+- `npm run verify:login` — **13/13** peranan ✓ (auto-baiki password + profil)
 - `npm run verify:am` — **lulus** ✓
 - `npm run verify:production` — **6/6** ✓ · deploy `35af016`
 - `npm run verify:roster` — migration + RPC ✓
