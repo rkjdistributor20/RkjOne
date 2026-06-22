@@ -5,6 +5,9 @@ import { resolveScopedBranches, applyBranchIdsFilter } from '@/lib/auth/branch-s
 
 const ORG_LOCATION_TYPES = ['FACTORY', 'HQ_WAREHOUSE', 'FLEET_VEHICLE'] as const;
 
+/** Peranan ini hanya lihat kiosk dalam kawasan — bukan Kilang / Gudang HQ / Armada */
+const KIOSK_ONLY_ROLES = new Set(['AREA_MANAGER', 'STAFF']);
+
 export async function GET(request: Request) {
   const profile = await getCurrentProfile();
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -66,7 +69,14 @@ export async function GET(request: Request) {
       .order('name');
     if (type) orgQuery = orgQuery.eq('location_type', type);
 
-    const [branchRes, orgRes] = await Promise.all([branchQuery, orgQuery]);
+    const includeOrgLocations = !KIOSK_ONLY_ROLES.has(profile.role);
+
+    const [branchRes, orgRes] = await Promise.all([
+      branchQuery,
+      includeOrgLocations
+        ? orgQuery
+        : Promise.resolve({ data: [] as unknown[], error: null }),
+    ]);
     if (branchRes.error) {
       return NextResponse.json({ error: branchRes.error.message }, { status: 500 });
     }

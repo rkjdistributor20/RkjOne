@@ -40,10 +40,13 @@ const NODE_COLORS: Record<LocationType, string> = {
 
 interface InventorySupplyChainPanelProps {
   onSelectLocation?: (locationId: string, locationType: LocationType) => void;
+  /** AM / staf — papar rantaian tanpa drill-down ke Kilang/HQ */
+  kioskOnly?: boolean;
 }
 
 export function InventorySupplyChainPanel({
   onSelectLocation,
+  kioskOnly = false,
 }: InventorySupplyChainPanelProps) {
   const [data, setData] = useState<InventoryOverviewResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -132,7 +135,11 @@ export function InventorySupplyChainPanel({
           <div className="flex flex-wrap items-stretch justify-center gap-2 md:gap-3">
             {data.nodes.map((node, idx) => (
               <div key={node.location_type} className="flex items-center gap-2 md:gap-3">
-                <NodeCard node={node} onSelectLocation={onSelectLocation} />
+                <NodeCard
+                  node={node}
+                  kioskOnly={kioskOnly}
+                  onSelectLocation={onSelectLocation}
+                />
                 {idx < data.nodes.length - 1 && (
                   <ArrowRight className="hidden h-5 w-5 shrink-0 text-muted-foreground/60 sm:block" />
                 )}
@@ -142,10 +149,20 @@ export function InventorySupplyChainPanel({
         </CardContent>
       </Card>
 
-      {data.nodes.some((n) => n.locations.length > 0 && n.location_type !== 'BRANCH_KIOSK') && (
+      {data.nodes.some(
+        (n) =>
+          n.locations.length > 0 &&
+          n.location_type !== 'BRANCH_KIOSK' &&
+          !kioskOnly
+      ) && (
         <div className="grid gap-3 md:grid-cols-2">
           {data.nodes
-            .filter((n) => n.location_type !== 'BRANCH_KIOSK' && n.locations.length > 0)
+            .filter(
+              (n) =>
+                n.location_type !== 'BRANCH_KIOSK' &&
+                n.locations.length > 0 &&
+                !kioskOnly
+            )
             .map((node) => (
               <Card key={node.location_type} className="shadow-sm">
                 <CardHeader className="pb-2">
@@ -218,14 +235,18 @@ function KpiCard({
 
 function NodeCard({
   node,
+  kioskOnly,
   onSelectLocation,
 }: {
   node: InventoryOverviewNode;
+  kioskOnly?: boolean;
   onSelectLocation?: (locationId: string, locationType: LocationType) => void;
 }) {
   const Icon = NODE_ICONS[node.location_type];
   const color = NODE_COLORS[node.location_type];
   const hasAlert = node.low_count > 0 || node.critical_count > 0;
+  const canDrillDown =
+    !kioskOnly || node.location_type === 'BRANCH_KIOSK';
 
   const primaryLoc = node.locations[0];
 
@@ -235,11 +256,11 @@ function NodeCard({
       className={cn(
         'min-w-[140px] flex-1 rounded-xl border-2 p-4 text-left transition-all hover:shadow-md sm:min-w-[160px]',
         color,
-        primaryLoc && onSelectLocation && 'cursor-pointer',
-        !primaryLoc && 'opacity-80'
+        primaryLoc && onSelectLocation && canDrillDown && 'cursor-pointer',
+        (!primaryLoc || !canDrillDown) && 'cursor-default opacity-90'
       )}
       onClick={() => {
-        if (primaryLoc && onSelectLocation) {
+        if (primaryLoc && onSelectLocation && canDrillDown) {
           onSelectLocation(primaryLoc.id, node.location_type);
         }
       }}

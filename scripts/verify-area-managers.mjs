@@ -1,0 +1,193 @@
+/**
+ * Semakan skop Area Manager — profil, kebenaran, lokasi kiosk
+ * Usage: npm run verify:am
+ */
+import { createClient } from '@supabase/supabase-js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.join(__dirname, '..');
+
+function loadEnvFile(filePath) {
+  if (!fs.existsSync(filePath)) return {};
+  const out = {};
+  for (const line of fs.readFileSync(filePath, 'utf8').split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
+    if (eq === -1) continue;
+    const key = trimmed.slice(0, eq).trim();
+    let val = trimmed.slice(eq + 1).trim();
+    if (
+      (val.startsWith('"') && val.endsWith('"')) ||
+      (val.startsWith("'") && val.endsWith("'"))
+    ) {
+      val = val.slice(1, -1);
+    }
+    out[key] = val;
+  }
+  return out;
+}
+
+const env = { ...loadEnvFile(path.join(ROOT, '.env.local')), ...process.env };
+const url = env.NEXT_PUBLIC_SUPABASE_URL;
+const key = env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!url || !key) {
+  console.error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+  process.exit(1);
+}
+
+const sb = createClient(url, key);
+
+const AM_ACCOUNTS = [
+  { email: 'safuan@rkj.com', region: 'UTARA', expectedBranches: 12 },
+  { email: 'hakim@rkj.com', region: 'TENGAH', expectedBranches: 10 },
+  { email: 'yati@rkj.com', region: 'SELATAN', expectedBranches: 14 },
+];
+
+const REQUIRED_AM_PERMISSIONS = [
+  ['stock_kiosk', 'VIEW_AREA'],
+  ['shift', 'VIEW_AREA'],
+  ['approval', 'FULL'],
+  ['reports', 'VIEW'],
+];
+
+const FORBIDDEN_AM_PERMISSIONS = [
+  ['stock_hq', 'NONE'],
+  ['payroll', 'NONE'],
+];
+
+console.log('\n=== UAT Area Manager — Semakan Automatik ===\n');
+
+let failed = 0;
+
+const { data: regions } = await sb.from('regions').select('id, code, name');
+const regionById = new Map((regions ?? []).map((r) => [r.id, r]));
+
+const { data: branches } = await sb.from('branches').select('id, branch_code, branch_name, region_id');
+const branchesByRegion = new Map();
+for (const b of branches ?? []) {
+  const code = regionById.get(b.region_id)?.code ?? '?';
+  if (!branchesByRegion.has(code)) branchesByRegion.set(code, []);
+  branchesByRegion.get(code).push(b);
+}
+
+const { data: permRows } = await sb
+  .from('role_permissions')
+  .select('module, permission')
+  .eq('role', 'AREA_MANAGER');
+
+const permMap = new Map((permRows ?? []).map((r) => [r.module, r.permission]));
+
+console.log('1. Kebenaran peranan AREA_MANAGER');
+for (const [mod, perm] of REQUIRED_AM_PERMISSIONS) {
+  const got = permMap.get(mod);
+  const ok = got === perm;
+  console.log(`  ${ok ? '✓' : '✗'} ${mod} = ${got ?? 'TIADA'} (jangka: ${perm})`);
+  if (!ok) failed++;
+}
+for (const [mod, perm] of FORBIDDEN_AM_PERMISSIONS) {
+  const got = permMap.get(mod) ?? 'TIADA';
+  const ok = got === perm;
+  console.log(`  ${ok ? '✓' : '✗'} ${mod} = ${got} (jangka: ${perm} — tiada HQ)`);
+  if (!ok) failed++;
+}
+
+console.log('\n2. Profil & skop cawangan');
+
+const emails = AM_ACCOUNTS.map((a) => a.email);
+const { data: profiles } = await sb
+  .from('profiles')
+  .select('id, email, full_name, role, region_id')
+  .in('email', emails);
+
+const { data: kioskLocs } = await sb
+  .from('inventory_locations')
+  .select('id, branch_id, name')
+  .eq('location_type', 'BRANCH_KIOSK')
+  .eq('is_active', true);
+
+for (const acc of AM_ACCOUNTS) {
+  const p = profiles?.find((x) => x.email === acc.email);
+  if (!p) {
+    console.log(`  ✗ ${acc.email} — profil tiada`);
+    failed++;
+    continue;
+  }
+  const region = regionById.get(p.region_id);
+  const regionCode = region?.code ?? '?';
+  const branchCount = (branches ?? []).filter((b) => b.region_id === p.region_id).length;
+  const kioskCount = (kioskLocs ?? []).filter((loc) => {
+    const br = branches?.find((b) => b.id === loc.branch_id);
+    return br?.region_id === p.region_id;
+  }).length;
+
+  const ok =
+    p.role === 'AREA_MANAGER' &&
+    regionCode === acc.region &&
+    branchCount === acc.expectedBranches &&
+    kioskCount >= acc.expectedBranches - 1; // toleransi 1 kiosk belum di-sync
+
+  console.log(`  ${ok ? '✓' : '✗'} ${acc.email} (${p.full_name})`);
+  console.log(`     Kawasan: ${regionCode} · ${branchCount} cawangan · ${kioskCount} kiosk`);
+  if (!ok) failed++;
+}
+
+console.log('\n3. Contoh cawangan pilot UAT');
+const pilot = {
+  UTARA: 'BR008 — RNR Simpang Pulai Arah Utara',
+  TENGAH: 'BR015 — RNR Tapah Utara',
+  SELATAN: 'BR024 — RNR Rawang Arah Utara',
+};
+for (const [code, label] of Object.entries(pilot)) {
+  const brCode = label.split(' ')[0];
+  const br = (branches ?? []).find((b) => b.branch_code === brCode);
+  const reg = br ? regionById.get(br.region_id)?.code : '?';
+  const ok = reg === code;
+  console.log(`  ${ok ? '✓' : '✗'} ${label} → ${reg}`);
+  if (!ok) failed++;
+}
+
+console.log('\n4. Semak RPC pindahan (migration 00058+)');
+const { error: rpcErr } = await sb.rpc('create_stock_transfer', {
+  p_from_location_id: '00000000-0000-0000-0000-000000000001',
+  p_to_location_id: '00000000-0000-0000-0000-000000000002',
+  p_items: '[]',
+});
+const rpcExists =
+  !rpcErr?.message?.includes('Could not find the function') &&
+  !rpcErr?.message?.includes('schema cache');
+console.log(`  ${rpcExists ? '✓' : '✗'} RPC create_stock_transfer wujud`);
+if (!rpcExists) failed++;
+
+console.log('\n5. Lokasi kiosk hilang (ikut kawasan)');
+for (const code of ['UTARA', 'TENGAH', 'SELATAN']) {
+  const regionId = regions?.find((r) => r.code === code)?.id;
+  const regionBranches = (branches ?? []).filter((b) => b.region_id === regionId);
+  const missing = regionBranches.filter((b) => {
+    return !(kioskLocs ?? []).some((loc) => loc.branch_id === b.id);
+  });
+  if (missing.length) {
+    console.log(`  ⚠ ${code}: ${missing.length} cawangan tiada lokasi kiosk:`);
+    for (const m of missing) {
+      console.log(`     - ${m.branch_code}`);
+    }
+  } else {
+    console.log(`  ✓ ${code}: semua cawangan ada kiosk`);
+  }
+}
+
+console.log('\n=== Ringkasan ===');
+if (failed) {
+  console.log(`  Gagal: ${failed} — betulkan sebelum UAT manual\n`);
+  process.exit(1);
+}
+
+console.log('  Semua semakan AM lulus ✓');
+console.log('\n  Seterusnya (manual di browser):');
+console.log('  → https://rkj-one.vercel.app');
+console.log('  → Login safuan@rkj.com / RkjOne@2025');
+console.log('  → Inventori → Pindah Cawangan → Tetapan Staf\n');

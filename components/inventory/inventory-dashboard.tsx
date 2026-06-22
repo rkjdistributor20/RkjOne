@@ -77,6 +77,7 @@ export function InventoryDashboard() {
   const showBranchPicker = profile ? needsBranchPicker(profile) : false;
   const isStaff = profile ? isStaffRole(profile.role) : false;
   const isAreaManager = profile ? isAreaManagerRole(profile.role) : false;
+  const kioskOnlyScope = isAreaManager || isStaff;
   const canViewOverview = profile ? !isStaff : false;
   const canCrossBranchTransfer = profile ? canAccessBranchKioskTransferTab(profile.role) : false;
   const defaultLocType: LocationType | 'ALL' =
@@ -165,6 +166,12 @@ export function InventoryDashboard() {
   }, [branchId, locations]);
 
   useEffect(() => {
+    if (kioskOnlyScope && locationType !== 'BRANCH_KIOSK') {
+      setLocationType('BRANCH_KIOSK');
+    }
+  }, [kioskOnlyScope, locationType]);
+
+  useEffect(() => {
     loadLocations();
   }, [loadLocations]);
 
@@ -196,6 +203,10 @@ export function InventoryDashboard() {
   }
 
   function handleSupplyChainSelect(locationId: string, locationType: LocationType) {
+    if (kioskOnlyScope && locationType !== 'BRANCH_KIOSK') {
+      toast.message('Hanya kiosk cawangan dalam kawasan anda boleh diurus');
+      return;
+    }
     setLocationType(locationType);
     setSelectedLocationId(locationId);
     setDashboardView('location');
@@ -317,7 +328,10 @@ export function InventoryDashboard() {
                 allLabel="Semua kiosk kawasan saya"
               />
             )}
-            <InventorySupplyChainPanel onSelectLocation={handleSupplyChainSelect} />
+            <InventorySupplyChainPanel
+              kioskOnly={kioskOnlyScope}
+              onSelectLocation={handleSupplyChainSelect}
+            />
             {showKioskGrid && (
               <div className="space-y-3">
                 <div>
@@ -367,29 +381,37 @@ export function InventoryDashboard() {
       ) : (
         <>
           <div className="flex flex-wrap gap-3">
-            <Select
-              value={locationType}
-              onValueChange={(v) => setLocationType(v as LocationType | 'ALL')}
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Jenis lokasi" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">Semua Jenis</SelectItem>
-                {(Object.keys(LOCATION_TYPE_LABELS) as LocationType[]).map((t) => (
-                  <SelectItem key={t} value={t}>
-                    {LOCATION_TYPE_LABELS[t]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {!kioskOnlyScope && (
+              <Select
+                value={locationType}
+                onValueChange={(v) => setLocationType(v as LocationType | 'ALL')}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Jenis lokasi" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">Semua Jenis</SelectItem>
+                  {(Object.keys(LOCATION_TYPE_LABELS) as LocationType[]).map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {LOCATION_TYPE_LABELS[t]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
 
             <Select
-              value={selectedLocationId || undefined}
+              value={
+                locations.some((l) => l.id === selectedLocationId)
+                  ? selectedLocationId
+                  : undefined
+              }
               onValueChange={(v) => v && setSelectedLocationId(v)}
             >
               <SelectTrigger className="w-full max-w-md">
-                <SelectValue placeholder="Pilih lokasi" />
+                <SelectValue placeholder="Pilih kiosk cawangan">
+                  {selectedLocation ? formatLocationLabel(selectedLocation) : undefined}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {locations.map((loc) => (
