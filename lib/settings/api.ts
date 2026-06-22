@@ -165,10 +165,66 @@ export async function createStaffMember(payload: {
   shift_hours?: number;
   shifts_per_week?: number;
 }) {
-  return fetchJson<{ staff: unknown }>('/api/settings/staff', {
+  return fetchJson<{
+    staff: unknown;
+    portal?: { login_email: string; portal_password: string };
+    message?: string;
+  }>('/api/settings/staff', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
+}
+
+export type StaffDetailResponse = {
+  staff: {
+    id: string;
+    staff_code: string;
+    full_name: string;
+    status: string;
+    branch_id: string;
+    worker_type: 'LOCAL' | 'FOREIGN' | null;
+    weekly_amount: number | null;
+    monthly_amount: number | null;
+    shift_hours: number | null;
+    shifts_per_week: number | null;
+    bank_name: string | null;
+    account_number: string | null;
+    account_holder: string | null;
+    remarks: string | null;
+    on_hold: boolean;
+    profile_id: string | null;
+    branch?: { branch_code: string; branch_name: string };
+  };
+  portal: { login_email: string; portal_password: string; updated_at?: string } | null;
+  login: {
+    must_change_password: boolean;
+    last_login_at: string | null;
+    status: string;
+  } | null;
+};
+
+export async function fetchStaffDetail(id: string) {
+  return fetchJson<StaffDetailResponse>(`/api/settings/staff/${id}`);
+}
+
+export async function updateStaffMember(
+  id: string,
+  payload: Record<string, unknown>
+) {
+  return fetchJson<{ staff: unknown; portal?: { login_email: string; portal_password: string } }>(
+    `/api/settings/staff/${id}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
+export async function resetStaffPortalPassword(id: string) {
+  return fetchJson<{
+    portal: { login_email: string; portal_password: string };
+    message: string;
+  }>(`/api/settings/staff/${id}/reset-password`, { method: 'POST' });
 }
 
 export async function deleteStaffMember(id: string) {

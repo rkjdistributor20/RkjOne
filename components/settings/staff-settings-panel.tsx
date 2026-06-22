@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Plus, Trash2, Users, Store } from 'lucide-react';
+import { Plus, Trash2, Users, Store, Pencil } from 'lucide-react';
 import { fetchStaffGrouped } from '@/lib/staff/api';
 import { deleteStaffMember } from '@/lib/settings/api';
 import { inferWorkerType, staffPayDisplay } from '@/lib/payroll/staff-pay-rates';
 import { WorkerTypeBadge } from '@/components/payroll/worker-type-badge';
 import { AddStaffDialog } from '@/components/settings/add-staff-dialog';
+import { EditStaffDialog } from '@/components/settings/edit-staff-dialog';
 import type { SettingsBranchGroup } from '@/lib/settings/types';
 import type { StaffMemberRow, StaffRegionGroup } from '@/lib/staff/types';
 import { BranchScopeSelect } from '@/components/shared/branch-scope-select';
@@ -38,6 +39,7 @@ export function StaffSettingsPanel({
   const [groups, setGroups] = useState<StaffRegionGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [addOpen, setAddOpen] = useState(false);
+  const [editStaffId, setEditStaffId] = useState<string | null>(null);
 
   const pickerVisible = profile ? needsBranchPicker(profile) : false;
 
@@ -125,8 +127,10 @@ export function StaffSettingsPanel({
       </div>
 
       <p className="rounded-md border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-950">
-        Staf kiosk berdaarkan sebagai <strong>pekerja asing</strong> — gaji mingguan
-        ikut kadar shift. Gunakan borang tambah staf untuk daftar pekerja baharu.
+        Staf kiosk berdaftar sebagai <strong>pekerja asing</strong> — gaji mingguan ikut kadar
+        shift. Sistem auto-cipta <strong>username (email)</strong> &amp; <strong>kata laluan</strong>{' '}
+        — staf mesti tukar password pada log masuk pertama. Pengurus boleh edit &amp; semak
+        kredensial dalam skop cawangan masing-masing.
       </p>
 
       {groups.length === 0 ? (
@@ -190,14 +194,25 @@ export function StaffSettingsPanel({
                                 </Badge>
                               )}
                               {canManage && (
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-7 w-7 text-destructive"
-                                  onClick={() => handleDelete(s.id, s.full_name)}
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
+                                <>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-7 w-7"
+                                    onClick={() => setEditStaffId(s.id)}
+                                    title="Edit staf"
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-7 w-7 text-destructive"
+                                    onClick={() => handleDelete(s.id, s.full_name)}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </>
                               )}
                             </div>
                           </div>
@@ -213,14 +228,23 @@ export function StaffSettingsPanel({
       )}
 
       {canManage && (
-        <AddStaffDialog
-          open={addOpen}
-          onOpenChange={setAddOpen}
-          branches={allBranches}
-          existingStaffCodes={existingStaffCodes}
-          defaultBranchId={defaultBranchForAdd}
-          onSuccess={handleAddSuccess}
-        />
+        <>
+          <AddStaffDialog
+            open={addOpen}
+            onOpenChange={setAddOpen}
+            branches={allBranches}
+            existingStaffCodes={existingStaffCodes}
+            defaultBranchId={defaultBranchForAdd}
+            onSuccess={handleAddSuccess}
+          />
+          <EditStaffDialog
+            staffId={editStaffId}
+            open={Boolean(editStaffId)}
+            onOpenChange={(open) => !open && setEditStaffId(null)}
+            branches={allBranches}
+            onSuccess={handleAddSuccess}
+          />
+        </>
       )}
     </div>
   );

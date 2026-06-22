@@ -40,6 +40,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { StaffCredentialsCard } from '@/components/settings/staff-credentials-card';
 import { cn } from '@/lib/utils';
 
 const WEEKDAY_PRESETS = [5, 6, 7] as const;
@@ -95,6 +96,12 @@ export function AddStaffDialog({
   const [payrollRules, setPayrollRules] = useState<PayrollRule[]>([]);
   const [rulesLoading, setRulesLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [createdCredentials, setCreatedCredentials] = useState<{
+    name: string;
+    code: string;
+    email: string;
+    password: string;
+  } | null>(null);
 
   const foreignTiers = useMemo(
     () => getForeignShiftTiers(payrollRules),
@@ -173,7 +180,7 @@ export function AddStaffDialog({
 
     setSaving(true);
     try {
-      await createStaffMember({
+      const res = await createStaffMember({
         staff_code: staffCode.trim(),
         full_name: fullName.trim(),
         branch_id: branchId,
@@ -185,6 +192,14 @@ export function AddStaffDialog({
             }
           : {}),
       });
+      if (res.portal) {
+        setCreatedCredentials({
+          name: fullName.trim(),
+          code: staffCode.trim(),
+          email: res.portal.login_email,
+          password: res.portal.portal_password,
+        });
+      }
       toast.success(`Staf ${fullName.trim()} (${staffCode.trim()}) berjaya didaftarkan`);
       onOpenChange(false);
       resetForm();
@@ -199,6 +214,7 @@ export function AddStaffDialog({
   const selectedBranch = branches.find((b) => b.id === branchId);
 
   return (
+    <>
     <Dialog
       open={open}
       onOpenChange={(next) => {
@@ -487,5 +503,32 @@ export function AddStaffDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <Dialog
+      open={Boolean(createdCredentials)}
+      onOpenChange={(open) => !open && setCreatedCredentials(null)}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Akaun Login Staf Dicipta</DialogTitle>
+          <DialogDescription>
+            {createdCredentials?.name} ({createdCredentials?.code}) — kongsi kredensial ini
+            kepada staf. Mesti tukar kata laluan pada log masuk pertama.
+          </DialogDescription>
+        </DialogHeader>
+        {createdCredentials && (
+          <StaffCredentialsCard
+            loginEmail={createdCredentials.email}
+            password={createdCredentials.password}
+            mustChangePassword
+            compact
+          />
+        )}
+        <DialogFooter>
+          <Button onClick={() => setCreatedCredentials(null)}>Faham</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
