@@ -2,10 +2,10 @@
 
 > **Buka fail ini bila buka semula projek.** Kemaskini tarikh bila selesai satu fasa.
 
-**Tarikh kemaskini:** 21 Jun 2025 (sesi rehat)  
+**Tarikh kemaskini:** 21 Jun 2025 (AM dashboard + inventori kiosk siap)  
 **Branch:** `master` (sync dengan GitHub + Vercel)  
 **Status LIVE:** https://rkj-one.vercel.app  
-**Supabase:** `mtygxueknokcihofdttl` · migration sehingga **00060**
+**Supabase:** `mtygxueknokcihofdttl` · migration sehingga **00061**
 
 ---
 
@@ -29,11 +29,20 @@ Ramalan/Order HQ → Kilang (production) → Cross-dock Gudang HQ
 ### Platform
 | Platform | Status |
 |----------|--------|
-| **GitHub** `rkjdistributor20/RkjOne` | `master` commit `c989922` |
+| **GitHub** `rkjdistributor20/RkjOne` | `master` commit `b893e8c` |
 | **Vercel** | Auto-deploy dari `master` |
-| **Supabase DB** | Migration **00001–00060** applied |
+| **Supabase DB** | Migration **00001–00061** applied |
 
-### Commit terkini (Fleet + Inventori)
+### Commit terkini (Area Manager)
+| Commit | Kandungan |
+|--------|-----------|
+| `b893e8c` | Buang dropdown **ALL + UUID** inventori AM — grid Buka sahaja |
+| `65b7152` | Inventori AM: **kiosk cawangan sahaja** — buang Kilang/HQ/Armada |
+| `d04b6f5` | Dashboard AM khusus kawasan |
+| `9314ee1` | Fix paparan UUID inventori |
+| `e8fd06f` | Sidebar AM 5 menu + route guard |
+
+### Commit terdahulu (Fleet + Inventori)
 | Commit | Kandungan |
 |--------|-----------|
 | `c989922` | DO manual: tambah/padam pukal **+1/+3/+5/Isi 10** arahan |
@@ -48,7 +57,7 @@ Ramalan/Order HQ → Kilang (production) → Cross-dock Gudang HQ
 - **Pindah Cawangan** — OM (semua) / AM (kawasan); max 10 cawangan; ambil=hantar; pratonton laluan kiosk↔kiosk / HQ→kiosk
 - **Production HQ** — order kilang, laluan driver, pecah max 20 hentian, optimize AI
 - **Fleet** — DO manual max 10 arahan; panel driver GPS + Susun AI; manifest harian
-- **AM scope** — cawangan/staf ikut region
+- **AM scope** — dashboard/inventori/sidebar **kiosk kawasan sahaja**; `npm run verify:am` lulus
 - **Tetapan Admin** — produk, cawangan ON/OFF, ambang stok, pengguna
 - **Auth** — tukar kata laluan wajib `/change-password`
 - **80 akaun** seed + profiles
@@ -126,11 +135,12 @@ npm run dev
 
 ## 📋 Prioriti bila sambung sesi
 
-1. **Auth Supabase** (A) — 5 min, impak besar
-2. **`npm run verify:go-live`** + **`npm run build`**
-3. **Pilot UAT** 3 cawangan (C) — dokumentasi isu
-4. **Isi GPS cawangan** + data master (B)
-5. Rollout 36 cawangan (D)
+1. **UAT manual AM** — Safuan, Hakim, Yati di production (Ctrl+F5)
+2. **Auth Supabase** (A) — 5 min, impak besar
+3. **`npm run verify:go-live`** ✓ + **`npm run verify:am`** ✓ + **`npm run build`** ✓ (21 Jun)
+4. **Pilot UAT** 3 cawangan (C) — dokumentasi isu
+5. **Isi GPS cawangan** + data master (B)
+6. Rollout 36 cawangan (D)
 
 ---
 
