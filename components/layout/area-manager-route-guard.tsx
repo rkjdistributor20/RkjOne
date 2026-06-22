@@ -4,7 +4,6 @@ import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
-  AREA_MANAGER_INVENTORY_PATH,
   isAreaManagerAllowedPath,
   isAreaManagerRole,
 } from '@/lib/auth/area-manager-access';
@@ -18,15 +17,6 @@ export function AreaManagerRouteGuard() {
 
   useEffect(() => {
     if (!profile || !isAreaManagerRole(profile.role)) return;
-
-    if (
-      pathname === '/inventory' ||
-      (pathname.startsWith('/inventory/') && !pathname.startsWith(AREA_MANAGER_INVENTORY_PATH))
-    ) {
-      router.replace(AREA_MANAGER_INVENTORY_PATH);
-      return;
-    }
-
     if (isAreaManagerAllowedPath(pathname)) return;
 
     toast.message('Halaman ini urusan HQ — anda dihalakan ke papan pemuka');

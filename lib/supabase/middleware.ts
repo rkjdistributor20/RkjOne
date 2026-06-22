@@ -74,13 +74,7 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(url);
     }
 
-    if (profileRow?.role === 'AREA_MANAGER' && pathname === '/inventory') {
-      const url = request.nextUrl.clone();
-      url.pathname = '/inventory/kawasan';
-      return NextResponse.redirect(url);
-    }
-
-    if (profileRow?.role !== 'AREA_MANAGER' && pathname.startsWith('/inventory/kawasan')) {
+    if (pathname === '/inventory/kawasan') {
       const url = request.nextUrl.clone();
       url.pathname = '/inventory';
       return NextResponse.redirect(url);

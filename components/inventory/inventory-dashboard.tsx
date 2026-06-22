@@ -41,7 +41,6 @@ import type {
 import { LOCATION_TYPE_LABELS } from '@/lib/inventory/types';
 import { useAuthStore } from '@/stores/auth-store';
 import { needsBranchPicker } from '@/lib/auth/branch-scope';
-import { AREA_MANAGER_INVENTORY_PATH } from '@/lib/auth/area-manager-access';
 import { getInventoryStockUiAccess, canSetRotiProductionDate, isAreaManagerRole, isStaffRole, canAccessBranchKioskTransferTab } from '@/lib/auth/stock-access';
 import { formatBranchDestination } from '@/lib/fleet/display-labels';
 import { boundSelectValue } from '@/lib/ui/select-utils';
@@ -196,13 +195,13 @@ export function InventoryDashboard() {
 
   useLayoutEffect(() => {
     if (profile?.role === 'AREA_MANAGER') {
-      router.replace(AREA_MANAGER_INVENTORY_PATH);
+      router.refresh();
     }
   }, [profile, router]);
 
   useEffect(() => {
     if (profile?.role === 'AREA_MANAGER') {
-      router.replace(AREA_MANAGER_INVENTORY_PATH);
+      router.refresh();
     }
   }, [profile, router]);
 

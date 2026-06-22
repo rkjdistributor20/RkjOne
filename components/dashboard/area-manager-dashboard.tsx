@@ -170,7 +170,7 @@ export function AreaManagerDashboard({
                   <tr key={b.branch_id} className="border-b last:border-0">
                     <td className="px-3 py-2">
                       <Link
-                        href="/inventory/kawasan"
+                        href="/inventory"
                         className="font-medium hover:text-primary hover:underline"
                       >
                         {b.branch_code} — {b.branch_name}
@@ -210,7 +210,7 @@ export function AreaManagerDashboard({
             <p className="mt-3 text-sm text-violet-800">
               {kioskOverview.summary.pending} pindahan HQ dalam perjalanan ke kiosk kawasan
               anda — urus di{' '}
-              <Link href="/inventory/kawasan" className="font-medium underline">
+              <Link href="/inventory" className="font-medium underline">
                 Inventori
               </Link>
             </p>
@@ -250,7 +250,7 @@ export function AreaManagerDashboard({
                     </p>
                   </div>
                   <Link
-                    href="/inventory/kawasan"
+                    href="/inventory"
                     className={cn(buttonVariants({ size: 'sm', variant: 'outline' }), 'shrink-0 gap-1')}
                   >
                     Inventori
@@ -269,7 +269,7 @@ export function AreaManagerDashboard({
       >
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            { label: 'Inventori Kiosk', href: '/inventory/kawasan', icon: Package },
+            { label: 'Inventori Kiosk', href: '/inventory', icon: Package },
             { label: 'Syif & Kehadiran', href: '/shifts', icon: Store },
             { label: 'Kelulusan Tertunda', href: '/approvals', icon: CheckCircle2 },
             { label: 'Staf Kawasan', href: '/settings?tab=staff', icon: Users },

@@ -1,8 +1,9 @@
 # UAT Area Manager — Checklist Manual
 
-**URL AM:** https://rkj-one.vercel.app/inventory/kawasan  
+**URL AM:** https://rkj-one.vercel.app/inventory (server auto pilih UI AM)  
 **Kata laluan (sementara):** `RkjOne@2025` — tukar selepas UAT  
-**Deploy commit:** route `/inventory/kawasan` — tiada dropdown ALL/UUID HQ
+
+**Semak betul:** tajuk **Inventori Kawasan** + badge header **Pengurus Kawasan** (bukan "36 cawangan")
 
 Hard refresh: **Ctrl+Shift+R** atau buka **Incognito** sebelum mula.
 
