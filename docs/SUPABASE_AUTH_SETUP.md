@@ -58,34 +58,23 @@ Bahagian Auth patut tunjuk:
 
 ---
 
-## 6. Tukar kata laluan (selepas UAT)
+## 6. Tukar kata laluan (go-live)
 
-**Dry-run** (senarai pengguna tanpa ubah):
+**Automatik (disyorkan):**
+
+```bash
+npm run go-live:passwords
+```
+
+- Password → `csv_import/.go-live-temp-password.txt` (gitignored)
+- Eksport AM → `csv_import/go_live_credentials_export.csv`
+- Panduan edar → [`GO_LIVE_CREDENTIALS_HANDOFF.md`](./GO_LIVE_CREDENTIALS_HANDOFF.md)
+
+**Manual / semula:**
 
 ```bash
 npm run rotate:passwords -- --dry-run
-```
-
-**Putar semua akaun** (wajib `--confirm`):
-
-```bash
-npm run rotate:passwords -- --password "KataLaluanBaruAnda2025!" --confirm
-```
-
-- Minimum 10 aksara · **bukan** `RkjOne@2025`
-- Set `must_change_password=true` — pengguna diminta tukar pada login pertama
-- Log email (tanpa password): `csv_import/password_rotation_YYYY-MM-DD.csv`
-
-**Hanya staf kiosk:**
-
-```bash
-npm run rotate:passwords -- --password "..." --confirm --role STAFF
-```
-
-**Kecuali owner semasa UAT:**
-
-```bash
-npm run rotate:passwords -- --password "..." --confirm --skip matisa@rkj.com
+npm run rotate:passwords -- --password "..." --confirm
 ```
 
 ---

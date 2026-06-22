@@ -1,12 +1,12 @@
 # ⏸ Sambung Di Sini — RKJ One ERP
 
-> **🔔 INGATKAN BUKA NANTI:** Go-live **36 cawangan** siap teknikal. Langkah seterusnya → Supabase Auth OFF · tukar password · staf buka syif. Baca bahagian **Belum manual** di bawah.
+> **🔔 INGATKAN BUKA NANTI:** Password production **sudah diputar** (76 akaun). Buka `csv_import/.go-live-temp-password.txt` untuk login. Seterusnya → UAT AM Safuan · Supabase signup OFF · WhatsApp ke cawangan · hari H buka syif.
 
 > **Buka fail ini bila buka semula projek.** Kemaskini tarikh bila selesai satu fasa.
 
-**Tarikh kemaskini:** 22 Jun 2025 (sesi: Logistik label · legal entities · go-live 36)  
-**Branch:** `master` · commit terkini **`1319f08`** (Logistik UI · sync GitHub + Vercel)  
-**Production:** https://rkj-one.vercel.app  
+**Tarikh kemaskini:** 22 Jun 2025 (sesi tamat — rehat)  
+**Branch:** `master` · commit terkini **`4b3ef58`** (go-live passwords · sync GitHub + Vercel)  
+**Production:** https://rkj-one.vercel.app · deploy **`1319f08`**+ (Logistik UI)  
 **Supabase:** `mtygxueknokcihofdttl` · migrations **00001–00069**
 
 ---
@@ -28,78 +28,77 @@
 
 ---
 
-## ✅ Siap hari ini (22 Jun 2025)
+## ✅ Siap sesi ini (22 Jun 2025)
 
-### Commits utama (urutan)
+### Commits utama (urutan terkini)
 
 | Commit | Kandungan |
 |--------|-----------|
-| `1319f08` | Label UI **Armada → Logistik** (sidebar, dashboard, inventori, laporan) |
+| `4b3ef58` | `npm run go-live:passwords` · eksport kredensial AM · gitignore secrets |
+| `8ea6cfe` | Script rotate password · panduan Supabase Auth |
+| `ff12ac6` | WhatsApp SOP · GO_LIVE_36 verify ticked |
+| `1319f08` | Label UI **Armada → Logistik** |
 | `569446b` | Peringatan buka projek — RESUME + cursor rule |
-| `94c7076` | Go-live 36 · verify auth & delivery · GO_LIVE_36/DELIVERY_36 |
-| `8672aa2` | verify:am — majikan AM RKJ Distributor + legal_entities |
-| `cbce588` | 3 syarikat undang-undang · AM RKJ Dist · label HQ Distributor |
-| `2a45a08` | verify:login 13/13 · fix embed region profil |
+| `94c7076` | Go-live 36 · verify auth & delivery |
 
 ### Migration DB (di-push Supabase)
 
 | Migration | Kandungan |
 |-----------|-----------|
-| **00067** | Jadual `legal_entities` · 3 syarikat · `legal_entity_id` profil/staf |
-| **00068** | AM majikan = RKJ Distributor · urus operasi Roti Kaya Junus |
-| **00069** | Skop syarikat + HQ Distributor (ganti label Gudang HQ) |
+| **00067** | Jadual `legal_entities` · 3 syarikat |
+| **00068** | AM majikan = RKJ Distributor |
+| **00069** | Skop syarikat + HQ Distributor |
 
-### Tiga syarikat undang-undang
+### Modul / UI / skrip siap
 
-1. **Roti Kaya Junus** — staf jualan kiosk (36 cawangan)
-2. **RKJ Distributor Sdn Bhd** — pengedaran, fleet, AM, **HQ Distributor**
-3. **Roti Kaya Junus Manufacturing Sdn Bhd** — kilang · gudang kilang
-
-### Modul / UI siap
-
-- Profil HR — 3 syarikat, AM: majikan + tanggungjawab operasi
-- Tetapan staf — dropdown syarikat majikan (lalai RKJ untuk staf jualan)
-- Sidebar / fleet / inventori — **HQ Distributor** · modul fleet dipaparkan sebagai **Logistik**
-- Dashboard AM — header RKJ Distributor · Pengurus Kawasan
+- **Logistik** — sidebar, dashboard, inventori, laporan (bukan Armada)
+- **HQ Distributor** — ganti label Gudang HQ
+- 3 syarikat undang-undang · profil HR · tetapan staf
+- `npm run go-live:passwords` — jana + putar + eksport CSV AM
+- `npm run verify:go-live-36` — auth + delivery 36
 
 ### Verify automatik (semua lulus terakhir)
 
 | Perintah | Hasil |
 |----------|--------|
 | `verify:go-live` | **19/19** |
-| `verify:login` | **13/13** peranan |
-| `verify:production` | **6/6** |
-| `verify:am` | 12+10+14 cawangan · 3 AM · legal entities |
-| `verify:go-live-36` | Auth ✓ · **36/36 kiosk + stok** |
+| `verify:production` | **6/6** · commit `1319f08`+ |
+| `verify:am` | 12+10+14 · legal entities |
+| `verify:go-live-36` | Auth ✓ · Safuan login OK · **36/36 stok** |
+
+> ⚠️ **Jangan** jalankan `npm run verify:login` — boleh reset password ke `RkjOne@2025`.
+
+### Password production (SUDAH DIJALANKAN)
+
+| Item | Lokasi |
+|------|--------|
+| Kata laluan sementara | `csv_import/.go-live-temp-password.txt` *(local, gitignored)* |
+| Eksport email staf/pengurus | `csv_import/go_live_credentials_export.csv` *(gitignored)* |
+| Panduan edar AM | [`docs/GO_LIVE_CREDENTIALS_HANDOFF.md`](docs/GO_LIVE_CREDENTIALS_HANDOFF.md) |
+| Akaun diputar | **76** · `must_change_password=true` |
+| Dilangkau | 4 akaun legacy `@rkjone.com` |
 
 ---
 
-## ⚠️ Belum — manual owner (hari go-live)
+## ⚠️ Belum — bila sambung semula
 
-- [ ] Supabase Auth Dashboard — **signup OFF** — panduan [`docs/SUPABASE_AUTH_SETUP.md`](docs/SUPABASE_AUTH_SETUP.md)
-  - Site URL: `https://rkj-one.vercel.app`
-  - Redirect: `https://rkj-one.vercel.app/auth/callback`
-- [x] **Tukar password** — `npm run go-live:passwords` *(76 akaun · must_change_password=YA)*
-  - Kata laluan: `csv_import/.go-live-temp-password.txt` *(local, jangan commit)*
-  - Eksport AM: `csv_import/go_live_credentials_export.csv`
-  - Panduan edar: [`docs/GO_LIVE_CREDENTIALS_HANDOFF.md`](docs/GO_LIVE_CREDENTIALS_HANDOFF.md)
-- [ ] UAT AM pantas — Safuan / Hakim / Yati — login dengan kata laluan dari `.go-live-temp-password.txt`
-- [ ] WhatsApp SOP + bookmark URL — salin [`docs/WHATSAPP_GO_LIVE.txt`](docs/WHATSAPP_GO_LIVE.txt)
-- [ ] Hari H: staf buka syif · jual · tutup syif · review dashboard petang
-
-> Stok permulaan: **36/36 kiosk ada baki** (`npm run verify:delivery`)
+- [ ] **Baca password** — `csv_import/.go-live-temp-password.txt`
+- [ ] **UAT AM** — Safuan → Hakim → Yati ([`docs/UAT_AM.md`](docs/UAT_AM.md))
+- [ ] **Supabase Auth** — signup OFF ([`docs/SUPABASE_AUTH_SETUP.md`](docs/SUPABASE_AUTH_SETUP.md))
+- [ ] **WhatsApp** — [`docs/WHATSAPP_GO_LIVE.txt`](docs/WHATSAPP_GO_LIVE.txt) + edar CSV ke 3 AM
+- [ ] **Hari H** — 36 cawangan buka syif · POS · tutup syif ([`docs/GO_LIVE_36.md`](docs/GO_LIVE_36.md))
 
 ---
 
-## 🔐 Akaun ujian
+## 🔐 Login (selepas go-live:passwords)
 
-Password sementara: **`RkjOne@2025`** (wajib tukar)
+| Peranan | Email | Password |
+|---------|-------|----------|
+| Owner | matisa@rkj.com | dari `.go-live-temp-password.txt` |
+| AM | safuan / hakim / yati @rkj.com | sama · login pertama wajib tukar |
+| Staf | s001@rkj.com … s057@rkj.com | sama · edar melalui AM |
 
-| Peranan | Email |
-|---------|-------|
-| Owner | matisa@rkj.com |
-| AM Utara / Tengah / Selatan | safuan / hakim / yati @rkj.com |
-| Staf contoh | s001@rkj.com · s052@rkj.com |
+~~`RkjOne@2025`~~ — **tidak sah** selepas putar password.
 
 ---
 
@@ -107,24 +106,20 @@ Password sementara: **`RkjOne@2025`** (wajib tukar)
 
 | Item | Lokasi |
 |------|--------|
-| Go-live 36 | `docs/GO_LIVE_36.md` |
-| Delivery 36 + CSV | `docs/GO_LIVE_DELIVERY_36.md` · `csv_import/go_live_delivery_36.csv` |
-| Setup teknikal | `docs/GO_LIVE_CHECKLIST.md` |
+| Hari go-live | `docs/GO_LIVE_36.md` |
 | UAT AM | `docs/UAT_AM.md` |
-| WhatsApp go-live | `docs/WHATSAPP_GO_LIVE.txt` |
-| Legal entities code | `lib/brand/legal-entities.ts` |
-| Setup Auth Supabase | `docs/SUPABASE_AUTH_SETUP.md` |
-| Putar password | `npm run go-live:passwords` |
+| Auth Supabase | `docs/SUPABASE_AUTH_SETUP.md` |
+| WhatsApp cawangan | `docs/WHATSAPP_GO_LIVE.txt` |
 | Edar kredensial AM | `docs/GO_LIVE_CREDENTIALS_HANDOFF.md` |
-| Verify go-live 36 | `npm run verify:go-live-36` |
+| Verify | `npm run verify:go-live-36` |
+| Putar semula password | `npm run go-live:passwords` |
 
 ---
 
 ## 🔄 Sambung sesi — tanya AI
 
-1. **Go-live hari ini** — ikut `GO_LIVE_36.md`
-2. **UAT AM** — Safuan dahulu
-3. **Tukar password** production — script / manual Supabase
-4. **Deploy** — sudah LIVE; commit baru auto Vercel
+1. **UAT AM** — Safuan dahulu (Incognito + password dari fail local)
+2. **Go-live hari H** — ikut `GO_LIVE_36.md`
+3. **Edar WhatsApp + CSV** ke 3 AM
 
-**Jangan commit:** `_restore/` · `csv_import/login_users_generated.csv` (local/regenerated)
+**Jangan commit:** `_restore/` · `csv_import/login_users_generated.csv` · `csv_import/.go-live-temp-password.txt` · `csv_import/go_live_credentials_export.csv`

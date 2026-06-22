@@ -1,7 +1,7 @@
 # UAT Area Manager — Checklist Manual
 
 **URL AM:** https://rkj-one.vercel.app/inventory (server auto pilih UI AM)  
-**Kata laluan (sementara):** `RkjOne@2025` — tukar selepas UAT  
+**Kata laluan (sementara):** lihat `csv_import/.go-live-temp-password.txt` (local) — **bukan** `RkjOne@2025` selepas go-live:passwords  
 
 **Semak betul:** tajuk **Inventori Kawasan** + badge header **Pengurus Kawasan** (bukan "36 cawangan")
 
