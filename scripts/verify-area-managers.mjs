@@ -101,8 +101,15 @@ console.log('\n2. Profil & skop cawangan');
 const emails = AM_ACCOUNTS.map((a) => a.email);
 const { data: profiles } = await sb
   .from('profiles')
-  .select('id, email, full_name, role, region_id')
+  .select('id, email, full_name, role, region_id, legal_entity_id, legal_entity:legal_entities(code, legal_name)')
   .in('email', emails);
+
+const { data: legalEntities } = await sb
+  .from('legal_entities')
+  .select('id, code, legal_name')
+  .order('sort_order');
+
+const entityById = new Map((legalEntities ?? []).map((e) => [e.id, e]));
 
 const { data: kioskLocs } = await sb
   .from('inventory_locations')
@@ -131,9 +138,18 @@ for (const acc of AM_ACCOUNTS) {
     branchCount === acc.expectedBranches &&
     kioskCount >= acc.expectedBranches - 1; // toleransi 1 kiosk belum di-sync
 
-  console.log(`  ${ok ? '✓' : '✗'} ${acc.email} (${p.full_name})`);
+  const employerCode =
+    p.legal_entity?.code ??
+    entityById.get(p.legal_entity_id)?.code ??
+    '?';
+  const employerOk = employerCode === 'RKJ_DIST';
+
+  console.log(`  ${ok && employerOk ? '✓' : '✗'} ${acc.email} (${p.full_name})`);
   console.log(`     Kawasan: ${regionCode} · ${branchCount} cawangan · ${kioskCount} kiosk`);
-  if (!ok) failed++;
+  console.log(
+    `     Majikan: ${p.legal_entity?.legal_name ?? entityById.get(p.legal_entity_id)?.legal_name ?? '?'} (${employerCode})`
+  );
+  if (!ok || !employerOk) failed++;
 }
 
 console.log('\n3. Contoh cawangan pilot UAT');
@@ -180,6 +196,34 @@ for (const code of ['UTARA', 'TENGAH', 'SELATAN']) {
   }
 }
 
+console.log('\n6. Syarikat undang-undang (legal_entities)');
+const expectedEntities = ['RKJ', 'RKJ_DIST', 'RKJ_MFG'];
+for (const code of expectedEntities) {
+  const row = (legalEntities ?? []).find((e) => e.code === code);
+  const ok = Boolean(row?.legal_name);
+  console.log(`  ${ok ? '✓' : '✗'} ${code} — ${row?.legal_name ?? 'TIADA'}`);
+  if (!ok) failed++;
+}
+
+const { count: rkjStaffCount } = await sb
+  .from('staff')
+  .select('id', { count: 'exact', head: true })
+  .eq('status', 'ACTIVE')
+  .not('legal_entity_id', 'is', null);
+const rkjEntity = (legalEntities ?? []).find((e) => e.code === 'RKJ');
+const { count: salesStaffRkj } = await sb
+  .from('staff')
+  .select('id', { count: 'exact', head: true })
+  .eq('status', 'ACTIVE')
+  .eq('legal_entity_id', rkjEntity?.id ?? '00000000-0000-0000-0000-000000000000');
+console.log(
+  `  ${(rkjStaffCount ?? 0) > 0 ? '✓' : '✗'} Staf aktif ada syarikat majikan (${rkjStaffCount ?? 0} rekod)`
+);
+console.log(
+  `  ${(salesStaffRkj ?? 0) > 0 ? '✓' : '✗'} Staf jualan bawah Roti Kaya Junus (${salesStaffRkj ?? 0} rekod)`
+);
+if ((rkjStaffCount ?? 0) === 0 || (salesStaffRkj ?? 0) === 0) failed++;
+
 console.log('\n=== Ringkasan ===');
 if (failed) {
   console.log(`  Gagal: ${failed} — betulkan sebelum UAT manual\n`);
@@ -190,4 +234,5 @@ console.log('  Semua semakan AM lulus ✓');
 console.log('\n  Seterusnya (manual di browser):');
 console.log('  → https://rkj-one.vercel.app');
 console.log('  → Login safuan@rkj.com / RkjOne@2025');
+console.log('  → /profile (RKJ Distributor · operasi Roti Kaya Junus)');
 console.log('  → Inventori → Pindah Cawangan → Tetapan Staf\n');
