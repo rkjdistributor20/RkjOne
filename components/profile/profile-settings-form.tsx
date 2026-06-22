@@ -84,6 +84,14 @@ export function ProfileSettingsForm() {
     };
   }, [syncStore]);
 
+  const avatarSrc = previewUrl ?? profile?.avatar_url ?? undefined;
+  const needsAvatar = profile?.needs_avatar ?? true;
+
+  const aiReminder = useMemo(() => {
+    if (!profile?.id || !needsAvatar) return null;
+    return pickAvatarReminderMessage(avatarReminderSeed('/profile', profile.id));
+  }, [profile?.id, needsAvatar]);
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
@@ -140,24 +148,35 @@ export function ProfileSettingsForm() {
     );
   }
 
-  const avatarSrc = previewUrl ?? profile?.avatar_url ?? undefined;
-  const needsAvatar = profile?.needs_avatar ?? true;
-
-  const aiReminder = useMemo(() => {
-    if (!profile?.id || !needsAvatar) return null;
-    return pickAvatarReminderMessage(avatarReminderSeed('/profile', profile.id));
-  }, [profile?.id, needsAvatar]);
+  if (!profile) {
+    return (
+      <div className="mx-auto max-w-md rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center">
+        <p className="font-semibold text-destructive">Profil tidak dapat dimuatkan</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Sila muat semula halaman atau log masuk semula.
+        </p>
+        <Button
+          type="button"
+          className="mt-4"
+          variant="outline"
+          onClick={() => window.location.reload()}
+        >
+          Muat semula
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       {aiReminder && (
-        <div className="rounded-xl border border-violet-200/80 bg-gradient-to-br from-violet-50 via-white to-amber-50/40 p-4">
+        <div className="rounded-xl border border-[#E5A812]/30 bg-gradient-to-br from-[#FFF4D6]/80 via-white to-[#FAFAFA] p-4">
           <div className="flex gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-600 text-white">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#E5A812] text-[#141414]">
               <Sparkles className="h-4 w-4" />
             </div>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-violet-700">
+              <p className="text-xs font-semibold uppercase tracking-wider text-primary">
                 RKJ One AI
               </p>
               <p className="mt-1 text-sm text-muted-foreground">{aiReminder}</p>
