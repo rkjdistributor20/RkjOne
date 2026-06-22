@@ -39,7 +39,7 @@ Programmer boleh import CSV dari folder `csv_import/` ke Supabase.
 - Driver hanya boleh lihat delivery sendiri.
 
 ## 5. Flow operasi
-Factory → HQ Warehouse → Driver / Driver Transfer → Kiosk → Customer
+Factory → HQ Distributor → Driver / Driver Transfer → Kiosk → Customer
 
 ## 6. Go Live
 
@@ -52,9 +52,14 @@ npm run seed:users              # cipta login
 .\scripts\go-live.ps1           # Windows — automasi penuh
 ```
 
-Pilot 3 cawangan:
-- Gombak
-- Dengkil Utara
-- Simpang Pulai Utara
+Pilot — **go-live terus 36 cawangan** (lihat **[docs/GO_LIVE_36.md](docs/GO_LIVE_36.md)**).
 
-Selepas stabil, rollout ke semua 36 cawangan.
+```bash
+npm run verify:go-live          # semak DB 36 cawangan
+npm run verify:login            # semak 13 peranan
+npm run bundle:migrations       # SQL manual jika db push gagal
+npm run seed:users              # cipta login
+.\scripts\go-live.ps1           # Windows — automasi penuh
+```
+
+**Hari go-live:** Utara 12 + Tengah 10 + Selatan 14 = **36 kiosk serentak**.

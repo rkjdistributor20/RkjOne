@@ -1,6 +1,8 @@
 # RKJ One — Senarai Semak Go-Live
 
-Panduan lengkap untuk siapkan sistem RKJ One supaya syarikat boleh guna — dari setup teknikal hingga pilot 3 cawangan.
+Panduan lengkap untuk siapkan sistem RKJ One — **go-live terus 36 cawangan** (pilot optional).
+
+> **Keputusan semasa:** Operasi sebenar serentak 36 kiosk — rujuk **[GO_LIVE_36.md](./GO_LIVE_36.md)** untuk checklist hari go-live.
 
 ---
 
@@ -85,7 +87,7 @@ Senarai penuh: `csv_import/login_users_generated.csv`
 npm run verify:go-live
 ```
 
-Semua item **✓** = asas OK. Selesaikan **✗** sebelum pilot.
+Semua item **✓** = asas OK. Selesaikan **✗** sebelum go-live 36 cawangan.
 
 ### 1.7 Deploy Vercel
 
@@ -130,14 +132,16 @@ Rujuk juga: [ADMIN_SETUP_GUIDE.md](../ADMIN_SETUP_GUIDE.md)
 
 ---
 
-## Fasa 3: Ujian Operasi (Pilot)
+## Fasa 3: Go-Live Operasi Sebenar (36 cawangan)
 
-**Cawangan pilot (14 hari):** Gombak · Dengkil Utara · Simpang Pulai Utara
+**Checklist hari go-live:** [`GO_LIVE_36.md`](./GO_LIVE_36.md)
+
+Semua **36 kiosk** (Utara 12 · Tengah 10 · Selatan 14) operasi POS serentak — **tiada fasa pilot wajib**.
 
 ### 3.1 Aliran bekalan stok
 
 ```
-Kilang → Gudang HQ → Fleet Delivery → Kiosk → POS Jualan
+Kilang → HQ Distributor → Fleet Delivery → Kiosk → POS Jualan
 ```
 
 | # | Langkah | Modul | Semak |
@@ -147,7 +151,7 @@ Kilang → Gudang HQ → Fleet Delivery → Kiosk → POS Jualan
 | 3 | Dispatch → Complete delivery | Fleet | Stok masuk kiosk |
 | 4 | Semak baki kiosk | Inventory / POS bar | Roti, Kaya (kg), Butter (kg), Plastik (pack) |
 
-### 3.2 Ujian POS (setiap cawangan pilot)
+### 3.2 Ujian POS (setiap cawangan — 36 kiosk)
 
 | # | Langkah | Semak |
 |---|---------|-------|
@@ -172,14 +176,19 @@ Kilang → Gudang HQ → Fleet Delivery → Kiosk → POS Jualan
 
 ---
 
-## Fasa 4: Go-Live Penuh (36 cawangan)
+## Fasa 4: Stabilisasi (minggu pertama)
 
-- [ ] Pilot 14 hari stabil — tiada isu stok/harga/login
-- [ ] SOP bertulis: buka syif, delivery, tutup syif, hubungi HQ
-- [ ] Tablet/komputer kiosk — bookmark URL production
-- [ ] Semua staf tukar kata laluan dari `RkjOne@2025`
+- [ ] ≥ 30/36 cawangan buka syif setiap hari (hari 1–7)
+- [ ] SOP bertulis: buka syif, delivery, tutup syif, hubungi HQ — edarkan ke 36 cawangan
+- [ ] Tablet/komputer kiosk — bookmark `https://rkj-one.vercel.app`
+- [ ] **Semua** staf & pengurus tukar kata laluan dari `RkjOne@2025`
 - [ ] Backup Supabase diaktifkan
-- [ ] Rollout ikut kawasan (Utara → Tengah → Selatan)
+- [ ] Profil HR staf dilengkapkan (`/profile`)
+- [ ] Review mingguan: Mat Isa + 3 AM + Ibrahim
+
+### Pilot 14 hari (optional — tidak dipilih)
+
+Jika perlu rollback ke ujian terhad: [`PILOT_14_UTARA.md`](./PILOT_14_UTARA.md)
 
 ---
 

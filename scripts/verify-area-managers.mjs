@@ -7,6 +7,11 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+const PILOT_UTARA_CODES = [
+  'BR001', 'BR002', 'BR003', 'BR004', 'BR005', 'BR006',
+  'BR007', 'BR008', 'BR009', 'BR010', 'BR011', 'BR012',
+];
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
 
@@ -152,19 +157,21 @@ for (const acc of AM_ACCOUNTS) {
   if (!ok || !employerOk) failed++;
 }
 
-console.log('\n3. Contoh cawangan pilot UAT');
-const pilot = {
-  UTARA: 'BR008 — RNR Simpang Pulai Arah Utara',
-  TENGAH: 'BR015 — RNR Tapah Utara',
-  SELATAN: 'BR024 — RNR Rawang Arah Utara',
-};
-for (const [code, label] of Object.entries(pilot)) {
-  const brCode = label.split(' ')[0];
-  const br = (branches ?? []).find((b) => b.branch_code === brCode);
+console.log('\n3. Pilot 14 hari — 12 cawangan Utara (Safuan)');
+const utaraRegionId = regions?.find((r) => r.code === 'UTARA')?.id;
+for (const code of PILOT_UTARA_CODES) {
+  const br = (branches ?? []).find((b) => b.branch_code === code);
   const reg = br ? regionById.get(br.region_id)?.code : '?';
-  const ok = reg === code;
-  console.log(`  ${ok ? '✓' : '✗'} ${label} → ${reg}`);
+  const ok = reg === 'UTARA';
+  const label = br ? `${code} — ${br.branch_name}` : code;
+  console.log(`  ${ok ? '✓' : '✗'} ${label}`);
   if (!ok) failed++;
+}
+if ((branches ?? []).filter((b) => b.region_id === utaraRegionId).length !== 12) {
+  console.log('  ✗ Bilangan cawangan Utara bukan 12');
+  failed++;
+} else {
+  console.log('  ✓ Jumlah cawangan Utara = 12');
 }
 
 console.log('\n4. Semak RPC pindahan (migration 00058+)');

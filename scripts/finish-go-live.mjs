@@ -60,8 +60,9 @@ console.log('C) Uji login pertama');
 console.log('   matisa@rkj.com / RkjOne@2025 → akan diminta tukar kata laluan');
 console.log('   Area Manager: safuan@rkj.com, hakim@rkj.com, yati@rkj.com\n');
 
-console.log('D) Pilot 14 hari — Gombak, Dengkil Utara, Simpang Pulai Utara');
-console.log(`   Supabase project: ${supabaseRef}`);
-console.log('   Rujuk: docs/GO_LIVE_CHECKLIST.md\n');
+console.log('D) Go-live 36 cawangan — operasi sebenar serentak');
+console.log('   Utara 12 (Safuan) + Tengah 10 (Hakim) + Selatan 14 (Yati)');
+console.log('   Rujuk: docs/GO_LIVE_36.md');
+console.log(`   Supabase project: ${supabaseRef}\n`);
 
 console.log('==> Sistem siap deploy. Jalankan langkah A & B di atas.\n');

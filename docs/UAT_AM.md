@@ -19,7 +19,9 @@ Hard refresh: **Ctrl+Shift+R** atau buka **Incognito** sebelum mula.
 
 **Tanggungjawab operasi:** staf jualan & cawangan kiosk di bawah **Roti Kaya Junus** (bukan syarikat majikan AM).
 
-Cawangan pilot (contoh untuk uji Buka stok):
+**Pilot 14 hari:** semua **12 cawangan Utara** (BR001–BR012) — rujuk [`PILOT_14_UTARA.md`](./PILOT_14_UTARA.md)
+
+Cawangan contoh untuk uji Buka stok (satu daripada 12 pilot):
 
 | Cawangan | Kod | Kawasan |
 |----------|-----|---------|
@@ -114,7 +116,7 @@ Tandakan `[ ]` → `[x]` bila lulus.
    - Redirect URLs: production + `http://localhost:3000/auth/callback`
    - **Enable email signup = OFF**
 2. **Tukar kata laluan** semua akaun ujian
-3. Teruskan **UAT pilot 3 cawangan** — `docs/GO_LIVE_CHECKLIST.md` Fasa 3
+3. Selepas go-live — **`docs/GO_LIVE_36.md`** (36 cawangan serentak)
 
 ---
 

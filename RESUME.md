@@ -2,81 +2,69 @@
 
 > **Buka fail ini bila buka semula projek.** Kemaskini tarikh bila selesai satu fasa.
 
-**Tarikh kemaskini:** 22 Jun 2025 (legal entities + HQ Distributor, production `cbce588`)  
+**Tarikh kemaskini:** 22 Jun 2025 (go-live terus **36 cawangan**)  
 **Branch:** `master` (sync GitHub + Vercel)  
 **Status LIVE:** https://rkj-one.vercel.app  
 **Supabase:** `mtygxueknokcihofdttl` · migration sehingga **00069**
 
 ---
 
-## ✅ Sudah siap (sesi terkini)
+## 🚀 Keputusan go-live
 
-| Commit | Kandungan |
-|--------|-----------|
-| `cbce588` | 3 syarikat undang-undang · AM RKJ Distributor · HQ Distributor |
-| `2a45a08` | verify:login 13 peranan + fix embed region `/profile` |
-| `35af016` | Profil HR terperinci — IC, alamat, kecemasan |
-| `058fb2b` | Fix `/profile` crash (Rules of Hooks) |
-| `cc02779` | Dashboard jenama RKJ emas/hitam |
+**Go-live terus 36 cawangan** — tiada pilot wajib.  
+Checklist hari go-live: **[`docs/GO_LIVE_36.md`](docs/GO_LIVE_36.md)**
 
-### Modul siap
-- **Dashboard HQ/AM/Staf** — identiti Roti Kaya Junus (emas · hitam · tradisi 1975)
-- **Profil HR** — `/profile` IC, alamat, kecemasan, 3 syarikat (RKJ · RKJ Distributor · RKJ Manufacturing)
-- **Dashboard AM** — AI insight, jualan h/m/b per cawangan, KPI syif & kehadiran
-- **Jadual staf** — Syif → Jadual Mingguan, terbit sebelum Ahad, reminder harian
-- **Tetapan staf** — tambah/edit, auto username `sxxx@rkj.com`, semak password
-- **Inventori Kawasan** — kiosk sahaja, 1 dropdown
-- **Backfill** — 54 staf aktif ada kredensial (`npm run backfill:staff-credentials`)
-
-### Verify (automatik)
-- `npm run verify:login` — **13/13** peranan ✓ (auto-baiki password + profil)
-- `npm run verify:go-live` — **19/19** ✓
-- `npm run verify:production` — **6/6** ✓ · deploy `cbce588`
+| Kawasan | AM | Cawangan |
+|---------|-----|----------|
+| Utara | Safuan | 12 |
+| Tengah | Hakim | 10 |
+| Selatan | Yati | 14 |
 
 ---
 
-## ⚠️ Belum — WAJIB sebelum 36 cawangan
+## ✅ Sudah siap (teknikal)
 
-### A. Manual IT (~30 min)
-- [ ] Supabase Auth — signup OFF, Site URL production
-- [ ] Tukar kata laluan dari `RkjOne@2025`
-- [ ] `npm run build` lulus
+| Verify | Hasil |
+|--------|--------|
+| `verify:go-live` | **19/19** |
+| `verify:login` | **13/13** |
+| `verify:production` | **6/6** |
+| `verify:am` | 36 cawangan + 3 AM + legal entities |
 
-### B. UAT manual AM
-- [ ] Safuan → Hakim → Yati ikut **`docs/UAT_AM.md`** (~15 min/orang)
-- [ ] Hard refresh / Incognito — pastikan **Inventori Kawasan** bukan UI HQ
-- [ ] Semak dashboard AM — hero emas/hitam + panel AI
-- [ ] Semak profil HR — `/profile` isi IC, alamat, kecemasan, bar % lengkap
-
-### C. Pilot 14 hari (3 cawangan)
-Gombak · Dengkil Utara · Simpang Pulai Utara — `docs/GO_LIVE_CHECKLIST.md` Fasa 3
+Modul: POS 4 menu · Inventori · Syif · AM · Profil HR · 3 syarikat · HQ Distributor
 
 ---
 
-## 🔐 Akaun ujian
+## ⚠️ WAJIB sebelum hari go-live
 
-| Peranan | Email | Password |
-|---------|-------|----------|
-| AM Utara | safuan@rkj.com | RkjOne@2025 |
-| AM Tengah | hakim@rkj.com | RkjOne@2025 |
-| AM Selatan | yati@rkj.com | RkjOne@2025 |
-| Staf contoh | s001@rkj.com | RkjOne@2025 |
+### IT (~30 min)
+- [ ] Supabase Auth — signup **OFF**, Site URL = `https://rkj-one.vercel.app`
+- [ ] Tukar kata laluan owner/AM/HQ dari `RkjOne@2025`
+- [ ] Delivery stok ke **36 kiosk** (HQ Distributor → fleet)
 
----
-
-## 📋 Prioriti bila sambung
-
-1. **UAT manual AM** — `docs/UAT_AM.md` (Safuan dahulu)
-2. **Supabase Auth** (A) — signup OFF, Site URL
-3. **Pilot 3 cawangan**
-4. Rollout 36 cawangan
+### Operasi (hari go-live)
+- [ ] 3 AM brief staf — login, buka syif, POS
+- [ ] Bookmark URL di setiap tablet/PC kiosk
+- [ ] SOP 1 muka surat edarkan WhatsApp
 
 ---
 
-## Rujukan
+## 🔐 Akaun penting
 
-| Item | Lokasi |
-|------|--------|
-| UAT AM | `docs/UAT_AM.md` |
-| Go-live | `docs/GO_LIVE_CHECKLIST.md` |
-| Kredensial staf (local) | `csv_import/staff_credentials_backfill.csv` |
+| Peranan | Email | Password (sementara) |
+|---------|-------|----------------------|
+| Owner | matisa@rkj.com | RkjOne@2025 → **tukar** |
+| AM Utara/Tengah/Selatan | safuan / hakim / yati @rkj.com | tukar |
+| Staf kiosk | s001@rkj.com, … | tukar |
+
+---
+
+## 📋 Rujukan
+
+| Item | Fail |
+|------|------|
+| **Go-live 36** | `docs/GO_LIVE_36.md` |
+| **Delivery 36** | `docs/GO_LIVE_DELIVERY_36.md` · `npm run verify:delivery` |
+| Setup teknikal | `docs/GO_LIVE_CHECKLIST.md` |
+| UAT AM (pantas) | `docs/UAT_AM.md` |
+| Pilot (optional) | `docs/PILOT_14_UTARA.md` |
