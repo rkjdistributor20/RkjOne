@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "seed:users": "node scripts/seed-auth-users.mjs",
+    "backfill:staff-credentials": "node scripts/backfill-staff-credentials.mjs",
     "verify:go-live": "node scripts/verify-go-live.mjs",
     "verify:production": "node scripts/verify-production.mjs",
     "verify:roster": "node scripts/verify-roster.mjs",
