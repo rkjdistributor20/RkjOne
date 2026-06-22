@@ -2,65 +2,88 @@ import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { getCurrentProfile } from '@/lib/auth/session';
-import { profileNeedsAvatar } from '@/lib/profile/requirements';
+import { PROFILE_SELECT } from '@/lib/profile/fields';
+import {
+  buildProfileUpdates,
+  completionTimestamp,
+  serializeProfileMe,
+} from '@/lib/profile/serialize';
 
-function serializeProfile(row: Record<string, unknown>) {
-  const branch = row.branch as { branch_code: string; branch_name: string } | null;
-  return {
-    id: row.id,
-    full_name: row.full_name,
-    email: row.email,
-    phone: row.phone,
-    avatar_url: row.avatar_url,
-    role: row.role,
-    employee_code: row.employee_code,
-    must_change_password: row.must_change_password,
-    needs_avatar: profileNeedsAvatar(row as { avatar_url: string | null }),
-    branch,
-  };
+async function loadStaffForProfile(supabase: SupabaseClient, profileId: string) {
+  const { data } = await supabase
+    .from('staff')
+    .select('staff_code, worker_type, bank_name, account_number, account_holder')
+    .eq('profile_id', profileId)
+    .maybeSingle();
+  return data as Record<string, unknown> | null;
+}
+
+async function fetchProfileRow(supabase: SupabaseClient, profileId: string) {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select(PROFILE_SELECT)
+    .eq('id', profileId)
+    .single();
+  if (error) throw new Error(error.message);
+  return data as Record<string, unknown>;
 }
 
 export async function GET() {
   const profile = await getCurrentProfile();
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  return NextResponse.json({ profile: serializeProfile(profile as unknown as Record<string, unknown>) });
+  const supabase = await createClient();
+  try {
+    const [row, staff] = await Promise.all([
+      fetchProfileRow(supabase as SupabaseClient, profile.id),
+      loadStaffForProfile(supabase as SupabaseClient, profile.id),
+    ]);
+    return NextResponse.json({ profile: serializeProfileMe(row, staff) });
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Gagal muat profil' },
+      { status: 400 }
+    );
+  }
 }
 
 export async function PATCH(request: Request) {
   const profile = await getCurrentProfile();
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const body = await request.json();
-  const fullName = body.full_name != null ? String(body.full_name).trim() : undefined;
-  const phone = body.phone !== undefined ? (body.phone ? String(body.phone).trim() : null) : undefined;
-
-  if (fullName !== undefined && fullName.length < 2) {
-    return NextResponse.json({ error: 'Nama mesti sekurang-kurangnya 2 aksara' }, { status: 400 });
-  }
-
-  const updates: Record<string, string | null> = {};
-  if (fullName !== undefined) updates.full_name = fullName;
-  if (phone !== undefined) updates.phone = phone;
-
+  const body = await request.json().catch(() => ({}));
+  const { updates, error: buildError } = buildProfileUpdates(body);
+  if (buildError) return NextResponse.json({ error: buildError }, { status: 400 });
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: 'Tiada perubahan' }, { status: 400 });
   }
 
   const supabase = await createClient();
-  const { data, error } = await (supabase as SupabaseClient)
+  const { data: patched, error } = await (supabase as SupabaseClient)
     .from('profiles')
     .update(updates)
     .eq('id', profile.id)
-    .select(
-      `
-      id, full_name, email, phone, avatar_url, role, employee_code, must_change_password,
-      branch:branches(branch_code, branch_name)
-    `
-    )
+    .select(PROFILE_SELECT)
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
-  return NextResponse.json({ profile: serializeProfile(data as Record<string, unknown>) });
+  const row = patched as Record<string, unknown>;
+  const completedAt = completionTimestamp(row);
+  if (completedAt && !row.profile_completed_at) {
+    await (supabase as SupabaseClient)
+      .from('profiles')
+      .update({ profile_completed_at: completedAt })
+      .eq('id', profile.id);
+    row.profile_completed_at = completedAt;
+  } else if (!completedAt && row.profile_completed_at) {
+    await (supabase as SupabaseClient)
+      .from('profiles')
+      .update({ profile_completed_at: null })
+      .eq('id', profile.id);
+    row.profile_completed_at = null;
+  }
+
+  const staff = await loadStaffForProfile(supabase as SupabaseClient, profile.id);
+  return NextResponse.json({ profile: serializeProfileMe(row, staff) });
 }

@@ -1,15 +1,7 @@
-export type ProfileMe = {
-  id: string;
-  full_name: string;
-  email: string | null;
-  phone: string | null;
-  avatar_url: string | null;
-  role: string;
-  employee_code: string | null;
-  must_change_password: boolean;
-  needs_avatar: boolean;
-  branch?: { branch_code: string; branch_name: string } | null;
-};
+import type { ProfileDetailsPayload } from '@/lib/profile/fields';
+import type { ProfileMe } from '@/lib/profile/serialize';
+
+export type { ProfileMe };
 
 export async function fetchMyProfile(): Promise<ProfileMe> {
   const res = await fetch('/api/profile');
@@ -18,10 +10,7 @@ export async function fetchMyProfile(): Promise<ProfileMe> {
   return data.profile;
 }
 
-export async function updateMyProfile(payload: {
-  full_name?: string;
-  phone?: string | null;
-}) {
+export async function updateMyProfile(payload: ProfileDetailsPayload) {
   const res = await fetch('/api/profile', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
