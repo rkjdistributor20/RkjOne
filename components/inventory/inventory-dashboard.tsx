@@ -120,8 +120,13 @@ export function InventoryDashboard() {
       setLocations(kioskLocs);
       setSelectedLocationId((prev) => {
         if (!kioskLocs.length) return '';
+        if (isAreaManager && !branchId) return '';
+        if (branchId) {
+          const kiosk = kioskLocs.find((l) => l.branch_id === branchId);
+          if (kiosk) return kiosk.id;
+        }
         if (kioskLocs.some((l) => l.id === prev)) return prev;
-        return kioskLocs[0].id;
+        return isAreaManager ? '' : kioskLocs[0].id;
       });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Gagal memuatkan lokasi');
@@ -130,7 +135,7 @@ export function InventoryDashboard() {
     } finally {
       setLocationsLoading(false);
     }
-  }, [effectiveLocationFilter, branchId, kioskOnlyScope]);
+  }, [effectiveLocationFilter, branchId, kioskOnlyScope, isAreaManager]);
 
   const loadData = useCallback(async () => {
     if (!selectedLocationId || dashboardView !== 'location') {
@@ -428,7 +433,7 @@ export function InventoryDashboard() {
       ) : (
         <>
           <div className="flex flex-wrap gap-3">
-            {!kioskOnlyScope && (
+            {!kioskOnlyScope && !isAreaManager && (
               <Select
                 value={locationType}
                 onValueChange={(v) => setLocationType(v as LocationType | 'ALL')}
@@ -481,6 +486,8 @@ export function InventoryDashboard() {
   }
 
   function renderAreaManagerLocationPanel() {
+    const branchChosen = Boolean(selectedBranchId);
+
     return (
       <>
         {showBranchPicker && (
@@ -495,38 +502,28 @@ export function InventoryDashboard() {
           />
         )}
 
-        <p className="text-xs text-muted-foreground -mt-1">
-          Kiosk cawangan sahaja — tiada Kilang, Gudang HQ, atau Armada
-        </p>
-
-        <div className="flex flex-wrap gap-3">
-          {branchId && selectedLocation ? (
-            <div className="flex min-h-9 w-full max-w-md items-center rounded-md border bg-muted/30 px-3 text-sm">
-              <span className="font-medium">{formatLocationLabel(selectedLocation)}</span>
-            </div>
-          ) : (
-            <Select
-              value={locationSelectValue}
-              onValueChange={(v) => v && setSelectedLocationId(v)}
-              disabled={locationsLoading || kioskLocations.length === 0}
-            >
-              <SelectTrigger className="w-full max-w-md">
-                <SelectValue placeholder="Pilih kiosk cawangan">
-                  {selectedLocation ? formatLocationLabel(selectedLocation) : undefined}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {kioskLocations.map((loc) => (
-                  <SelectItem key={loc.id} value={loc.id}>
-                    {formatLocationLabel(loc)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-        </div>
-
-        {renderLocationDetail()}
+        {!branchChosen ? (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Pilih cawangan dari senarai atas, atau klik <strong>Buka</strong> pada grid
+              di bawah untuk urus stok kiosk.
+            </p>
+            <KioskOverviewPanel
+              branchId={undefined}
+              onSelectBranch={handleOverviewSelect}
+            />
+          </div>
+        ) : (
+          <>
+            {selectedLocation && (
+              <p className="text-sm">
+                <span className="text-muted-foreground">Kiosk: </span>
+                <span className="font-medium">{formatLocationLabel(selectedLocation)}</span>
+              </p>
+            )}
+            {renderLocationDetail()}
+          </>
+        )}
       </>
     );
   }
