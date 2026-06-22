@@ -275,6 +275,18 @@ try {
     if (res.ok) pass(`Bucket "${name}"`, 'Wujud');
     else fail(`Bucket "${name}"`, 'Tiada — jalankan: npm run setup:storage');
   }
+
+  const { error: profileColErr } = await supabase
+    .from('profiles')
+    .select('ic_number, profile_completed_at')
+    .limit(1);
+  if (profileColErr?.message?.includes('does not exist')) {
+    fail('Profil HR (migration 00066)', 'Jalankan: npm run db:push');
+  } else if (profileColErr) {
+    warn('Profil HR', profileColErr.message);
+  } else {
+    pass('Profil HR (migration 00066)', 'Medan IC & kelengkapan wujud');
+  }
 } catch (err) {
   fail('Sambungan Supabase', err instanceof Error ? err.message : String(err));
 }

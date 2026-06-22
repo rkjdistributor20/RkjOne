@@ -2,10 +2,10 @@
 
 > **Buka fail ini bila buka semula projek.** Kemaskini tarikh bila selesai satu fasa.
 
-**Tarikh kemaskini:** 22 Jun 2025 (profil + dashboard jenama RKJ, production cc02779)  
+**Tarikh kemaskini:** 22 Jun 2025 (profil HR terperinci, production `35af016`)  
 **Branch:** `master` (sync GitHub + Vercel)  
 **Status LIVE:** https://rkj-one.vercel.app  
-**Supabase:** `mtygxueknokcihofdttl` · migration sehingga **00065**
+**Supabase:** `mtygxueknokcihofdttl` · migration sehingga **00066**
 
 ---
 
@@ -13,15 +13,15 @@
 
 | Commit | Kandungan |
 |--------|-----------|
-| `cc02779` | Dashboard jenama RKJ — hero emas/hitam, 4 menu POS, KPI, AI panel |
-| `46a9168` | Profil pengguna — edit profil, upload gambar, peringatan AI |
-| `00ec2a6` | Skrip `backfill:staff-credentials` + gitignore CSV |
-| `966522a` | AM urus staf — auto login, edit, semak kredensial |
-| `375d0b5` | Dashboard AM AI + jadual mingguan staf + reminder |
+| `35af016` | Profil HR terperinci — IC, alamat, kecemasan, bar kelengkapan |
+| `058fb2b` | Fix `/profile` crash (Rules of Hooks) |
+| `cc02779` | Dashboard jenama RKJ — hero emas/hitam, 4 menu POS |
+| `46a9168` | Profil — upload gambar, peringatan AI |
+| `966522a` | AM urus staf — auto login, kredensial |
 
 ### Modul siap
 - **Dashboard HQ/AM/Staf** — identiti Roti Kaya Junus (emas · hitam · tradisi 1975)
-- **Profil** — `/profile` edit nama/telefon, upload gambar muka, AI ingatkan (tanpa halang akses)
+- **Profil HR** — `/profile` IC, alamat, kecemasan, bar % lengkap, gambar muka + AI ingatkan
 - **Dashboard AM** — AI insight, jualan h/m/b per cawangan, KPI syif & kehadiran
 - **Jadual staf** — Syif → Jadual Mingguan, terbit sebelum Ahad, reminder harian
 - **Tetapan staf** — tambah/edit, auto username `sxxx@rkj.com`, semak password
@@ -31,7 +31,7 @@
 ### Verify (automatik)
 - `npm run verify:go-live` — **18/18** ✓ (termasuk bucket `profile-avatars`)
 - `npm run verify:am` — **lulus** ✓
-- `npm run verify:production` — **6/6** ✓ · deploy `cc02779`
+- `npm run verify:production` — **6/6** ✓ · deploy `35af016`
 - `npm run verify:roster` — migration + RPC ✓
 
 ---
@@ -47,7 +47,7 @@
 - [ ] Safuan → Hakim → Yati ikut **`docs/UAT_AM.md`** (~15 min/orang)
 - [ ] Hard refresh / Incognito — pastikan **Inventori Kawasan** bukan UI HQ
 - [ ] Semak dashboard AM — hero emas/hitam + panel AI
-- [ ] Semak profil — `/profile` upload gambar, peringatan AI
+- [ ] Semak profil HR — `/profile` isi IC, alamat, kecemasan, bar % lengkap
 
 ### C. Pilot 14 hari (3 cawangan)
 Gombak · Dengkil Utara · Simpang Pulai Utara — `docs/GO_LIVE_CHECKLIST.md` Fasa 3

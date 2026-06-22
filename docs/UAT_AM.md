@@ -47,12 +47,17 @@ Tandakan `[ ]` → `[x]` bila lulus.
 - [ ] Grid kiosk — bilangan cawangan match jadual atas
 - [ ] Tiada angka stok HQ / kilang
 
-### 2a. Profil pengguna
+### 2a. Profil HR (`/profile`)
 
-- [ ] Klik avatar/nama sidebar → `/profile`
-- [ ] Boleh edit nama & telefon
-- [ ] Upload gambar muka (JPG/PNG/WebP)
-- [ ] **Peringatan AI** muncul jika tiada gambar (boleh terus guna sistem)
+- [ ] Klik avatar/nama sidebar → halaman profil load
+- [ ] **Bar kelengkapan HR** — % naik bila medan wajib diisi
+- [ ] **Maklumat peribadi** — IC, tarikh lahir, jantina, warganegara
+- [ ] **Alamat** — telefon, alamat, bandar, negeri, poskod
+- [ ] **Hubungan kecemasan** — nama, telefon, hubungan
+- [ ] Upload **gambar muka** (JPG/PNG/WebP)
+- [ ] **Maklumat pekerjaan** — cawangan/kawasan read-only betul
+- [ ] Simpan → badge **Lengkap** bila semua medan wajib (*) siap
+- [ ] Peringatan AI jika gambar/profil belum lengkap (boleh terus guna sistem)
 
 ### 2b. Jadual Staf Mingguan (Syif)
 
