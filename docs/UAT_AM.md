@@ -39,7 +39,7 @@ Tandakan `[ ]` → `[x]` bila lulus.
 
 - [ ] Login berjaya
 - [ ] Sidebar **hanya** menu AM: Papan Pemuka, Inventori, Syif, Kelulusan, Tetapan
-- [ ] **Tiada** Kilang, HQ Distributor, Fleet, POS (URL `/pos`, `/fleet` → blocked / redirect)
+- [ ] **Tiada** Kilang, HQ Distributor, Logistik, POS (URL `/pos`, `/fleet` → blocked / redirect)
 
 ### 2. Papan Pemuka
 

@@ -15,11 +15,11 @@
 
 ## Sebelum hari go-live (IT — ~1 jam)
 
-- [ ] `npm run verify:go-live-36` — Auth + senarai delivery 36 cawangan
-- [ ] `npm run verify:go-live` — **19/19** lulus
-- [ ] `npm run verify:login` — **13/13** lulus
-- [ ] `npm run verify:production` — deploy commit terkini
-- [ ] Supabase Auth — **signup OFF**, Site URL = `https://rkj-one.vercel.app`
+- [x] `npm run verify:go-live-36` — Auth + senarai delivery 36 cawangan *(22 Jun 2025)*
+- [x] `npm run verify:go-live` — **19/19** lulus
+- [x] `npm run verify:login` — **13/13** lulus
+- [x] `npm run verify:production` — deploy **`1319f08`** (Logistik UI)
+- [ ] Supabase Auth — **signup OFF**, Site URL = `https://rkj-one.vercel.app` *(verify automatik: signup blocked ✓ — semak manual Dashboard)*
 - [ ] Redirect: `https://rkj-one.vercel.app/auth/callback`
 - [ ] Backup Supabase diaktifkan (Dashboard → Settings → Database)
 
@@ -34,7 +34,7 @@
 
 ### Ibrahim (Operasi) + HQ Distributor
 
-- [ ] Delivery order / fleet — **stok ke 36 kiosk** (minimum: 4 roti + Kaya + Butter + plastik)
+- [ ] Delivery order / logistik — **stok ke 36 kiosk** (minimum: 4 roti + Kaya + Butter + plastik)
 - [ ] Pastikan setiap kiosk ada baki > 0 sebelum staf buka syif
 
 ### Muhammad (Kilang)

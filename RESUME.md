@@ -4,8 +4,8 @@
 
 > **Buka fail ini bila buka semula projek.** Kemaskini tarikh bila selesai satu fasa.
 
-**Tarikh kemaskini:** 22 Jun 2025 (sesi: legal entities · HQ Distributor · go-live 36)  
-**Branch:** `master` · commit terkini **`9ec7f7e`** (sync GitHub + Vercel)  
+**Tarikh kemaskini:** 22 Jun 2025 (sesi: Logistik label · legal entities · go-live 36)  
+**Branch:** `master` · commit terkini **`1319f08`** (Logistik UI · sync GitHub + Vercel)  
 **Production:** https://rkj-one.vercel.app  
 **Supabase:** `mtygxueknokcihofdttl` · migrations **00001–00069**
 
@@ -34,6 +34,8 @@
 
 | Commit | Kandungan |
 |--------|-----------|
+| `1319f08` | Label UI **Armada → Logistik** (sidebar, dashboard, inventori, laporan) |
+| `569446b` | Peringatan buka projek — RESUME + cursor rule |
 | `94c7076` | Go-live 36 · verify auth & delivery · GO_LIVE_36/DELIVERY_36 |
 | `8672aa2` | verify:am — majikan AM RKJ Distributor + legal_entities |
 | `cbce588` | 3 syarikat undang-undang · AM RKJ Dist · label HQ Distributor |
@@ -57,7 +59,7 @@
 
 - Profil HR — 3 syarikat, AM: majikan + tanggungjawab operasi
 - Tetapan staf — dropdown syarikat majikan (lalai RKJ untuk staf jualan)
-- Sidebar / fleet / inventori — **HQ Distributor** (bukan Gudang HQ)
+- Sidebar / fleet / inventori — **HQ Distributor** · modul fleet dipaparkan sebagai **Logistik**
 - Dashboard AM — header RKJ Distributor · Pengurus Kawasan
 
 ### Verify automatik (semua lulus terakhir)
@@ -78,8 +80,8 @@
   - Site URL: `https://rkj-one.vercel.app`
   - Redirect: `https://rkj-one.vercel.app/auth/callback`
 - [ ] **Tukar password** semua pengguna dari `RkjOne@2025`
-- [ ] UAT AM pantas — Safuan / Hakim / Yati ([`docs/UAT_AM.md`](docs/UAT_AM.md))
-- [ ] WhatsApp SOP + bookmark URL ke 36 cawangan
+- [ ] UAT AM pantas — Safuan / Hakim / Yati ([`docs/UAT_AM.md`](docs/UAT_AM.md)) — *verify:am lulus; UAT browser belum*
+- [ ] WhatsApp SOP + bookmark URL — salin [`docs/WHATSAPP_GO_LIVE.txt`](docs/WHATSAPP_GO_LIVE.txt)
 - [ ] Hari H: staf buka syif · jual · tutup syif · review dashboard petang
 
 > Stok permulaan: **36/36 kiosk ada baki** (`npm run verify:delivery`)
@@ -106,6 +108,7 @@ Password sementara: **`RkjOne@2025`** (wajib tukar)
 | Delivery 36 + CSV | `docs/GO_LIVE_DELIVERY_36.md` · `csv_import/go_live_delivery_36.csv` |
 | Setup teknikal | `docs/GO_LIVE_CHECKLIST.md` |
 | UAT AM | `docs/UAT_AM.md` |
+| WhatsApp go-live | `docs/WHATSAPP_GO_LIVE.txt` |
 | Legal entities code | `lib/brand/legal-entities.ts` |
 | Verify go-live 36 | `npm run verify:go-live-36` |
 
