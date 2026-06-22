@@ -40,8 +40,17 @@ Tandakan `[ ]` → `[x]` bila lulus.
 ### 2. Papan Pemuka
 
 - [ ] Tajuk / data **kawasan sendiri sahaja** (bukan 36 cawangan)
+- [ ] **Panel Bantuan AI** — insight stok, jualan, syif, jadual staf
+- [ ] KPI jualan **harian / mingguan / bulanan** per kawasan
+- [ ] Jadual prestasi cawangan — toggle Harian / Mingguan / Bulanan
 - [ ] Grid kiosk — bilangan cawangan match jadual atas
 - [ ] Tiada angka stok HQ / kilang
+
+### 2b. Jadual Staf Mingguan (Syif)
+
+- [ ] Tab **Jadual Mingguan** — pilih cawangan → grid staf × 7 hari
+- [ ] Simpan draf & **Terbitkan** jadual minggu depan
+- [ ] Reminder AI / notifikasi jika jadual belum siap sebelum Ahad
 
 ### 3. Inventori → Detail Lokasi
 
@@ -64,7 +73,10 @@ Tandakan `[ ]` → `[x]` bila lulus.
 
 ### 6. Tetapan Staf
 
-- [ ] Boleh lihat / urus staf cawangan kawasan
+- [ ] Boleh **tambah staf** — popup kredensial login auto (email + password)
+- [ ] Boleh **edit staf** (pensel) — lihat username & kata laluan semasa
+- [ ] Staf baharu **mesti tukar password** pada log masuk pertama
+- [ ] Hanya staf **cawangan kawasan sendiri**
 - [ ] **Tidak** boleh urus pengguna HQ / kilang
 
 ---
