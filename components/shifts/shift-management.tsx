@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { Clock, Calendar, CheckCircle, Users } from 'lucide-react';
+import { Clock, Calendar, CheckCircle, Users, CalendarRange, UserCircle } from 'lucide-react';
 import {
   fetchShiftTemplates,
   fetchStaffShifts,
@@ -41,12 +42,22 @@ import {
 import { boundSelectValue } from '@/lib/ui/select-utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { WeeklyRosterPlanner } from '@/components/shifts/weekly-roster-planner';
+import { StaffSchedulePanel } from '@/components/shifts/staff-schedule-panel';
 
 export function ShiftManagement() {
+  const searchParams = useSearchParams();
+  const defaultTab = searchParams.get('tab') ?? undefined;
+  const urlBranch = searchParams.get('branch') ?? '';
+
   const profile = useAuthStore((s) => s.profile);
+  const isStaff = profile?.role === 'STAFF';
+  const canManageRoster =
+    profile &&
+    ['SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER', 'AREA_MANAGER'].includes(profile.role);
   const showBranchPicker = profile ? needsBranchPicker(profile) : false;
   const [selectedBranchId, setSelectedBranchId] = useState(
-    profile?.branch_id ?? ''
+    urlBranch || (profile?.branch_id ?? '')
   );
 
   const branchId = showBranchPicker ? selectedBranchId : profile?.branch_id ?? undefined;
@@ -135,6 +146,23 @@ export function ShiftManagement() {
   const selectedStaffMember = staff.find((s) => s.id === newShift.staff_id);
   const selectedTemplate = templates.find((t) => t.id === newShift.template_id);
 
+  const initialTab =
+    defaultTab ??
+    (isStaff ? 'my-schedule' : canManageRoster ? 'roster' : 'schedule');
+
+  if (isStaff) {
+    return (
+      <ModuleLayout>
+        <ModuleHeader
+          title="Jadual Syif Saya"
+          description="Lihat jadual mingguan yang ditetapkan pengurus kawasan"
+          icon={UserCircle}
+        />
+        <StaffSchedulePanel />
+      </ModuleLayout>
+    );
+  }
+
   return (
     <ModuleLayout>
       <ModuleHeader
@@ -156,10 +184,15 @@ export function ShiftManagement() {
       ) : loading ? (
         <ModuleLoading />
       ) : (
-        <Tabs defaultValue="schedule" className="space-y-4">
+        <Tabs defaultValue={initialTab} className="space-y-4">
           <TabsList className={moduleTabsListClass}>
+            {canManageRoster && (
+              <TabsTrigger value="roster" className="gap-1">
+                <CalendarRange className="h-4 w-4" /> Jadual Mingguan
+              </TabsTrigger>
+            )}
             <TabsTrigger value="schedule" className="gap-1">
-              <Calendar className="h-4 w-4" /> Jadual
+              <Calendar className="h-4 w-4" /> Syif
             </TabsTrigger>
             <TabsTrigger value="attendance" className="gap-1">
               <Clock className="h-4 w-4" /> Kehadiran
@@ -171,6 +204,19 @@ export function ShiftManagement() {
               Template
             </TabsTrigger>
           </TabsList>
+
+          {canManageRoster && (
+            <TabsContent value="roster" className="mt-4 space-y-4">
+              {showBranchPicker && !branchId ? (
+                <BranchRequiredPrompt message="Pilih cawangan untuk sediakan jadual staf mingguan." />
+              ) : branchId ? (
+                <WeeklyRosterPlanner
+                  branchId={branchId}
+                  initialWeek={searchParams.get('week') ?? undefined}
+                />
+              ) : null}
+            </TabsContent>
+          )}
 
           <TabsContent value="schedule" className="mt-4 space-y-6">
             <Card>

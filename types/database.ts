@@ -210,7 +210,9 @@ export interface Database {
         | 'PENDING_SHIFT'
         | 'PENDING_APPROVAL'
         | 'PENDING_BANK_IN'
-        | 'DELIVERY_STATUS';
+        | 'DELIVERY_STATUS'
+        | 'ROSTER_DUE'
+        | 'ROSTER_PUBLISHED';
     };
   };
 }

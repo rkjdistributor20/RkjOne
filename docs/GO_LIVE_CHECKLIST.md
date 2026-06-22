@@ -164,7 +164,7 @@ Kilang → Gudang HQ → Fleet Delivery → Kiosk → POS Jualan
 ### 3.3 Ujian peranan
 
 - [ ] **SUPER_ADMIN** — semua modul
-- [ ] **AREA_MANAGER** — cawangan kawasan sahaja
+- [ ] **AREA_MANAGER** — cawangan kawasan sahaja; inventori **1 dropdown** sahaja (tiada ALL/UUID) — rujuk `docs/UAT_AM.md`
 - [ ] **STAFF** — POS + inventory kiosk sendiri
 - [ ] **DRIVER** — fleet / delivery sendiri
 - [ ] **FINANCE** — kutipan & laporan (jika aktif)

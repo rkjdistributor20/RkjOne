@@ -26,6 +26,13 @@ import {
   getAreaManagerDashboardContext,
   fetchKioskOverviewForBranches,
 } from '@/lib/dashboard/queries';
+import { getAreaManagerBranchMetrics } from '@/lib/dashboard/am-branch-metrics';
+import { buildAreaManagerInsights } from '@/lib/dashboard/am-insights';
+import {
+  getRosterStatusForBranches,
+  syncRosterReminders,
+} from '@/lib/roster/queries';
+import { StaffSchedulePanel } from '@/components/shifts/staff-schedule-panel';
 import { PageHeader, BrandStatsStrip } from '@/components/brand/page-header';
 import { COMPANY } from '@/lib/brand/company';
 import { PosOverviewPanel } from '@/components/dashboard/pos-overview-panel';
@@ -53,24 +60,56 @@ export default async function DashboardPage() {
 
   if (isAreaManager) {
     const branchIds = scope.branchIds ?? [];
-    const [stats, posOverview, kioskOverview, context] = await Promise.all([
+    const [stats, kioskOverview, context, branchMetrics, rosterStatuses] = await Promise.all([
       getDashboardStats(profile.organization_id, branchIds),
-      getPosOverview(profile.organization_id, branchIds, { includeAllBranches: true }),
       fetchKioskOverviewForBranches(supabase, profile.organization_id, branchIds),
       getAreaManagerDashboardContext(
         profile.organization_id,
         profile.region_id,
         branchIds
       ),
+      getAreaManagerBranchMetrics(supabase, profile.organization_id, branchIds),
+      getRosterStatusForBranches(supabase, profile.organization_id, branchIds),
     ]);
+
+    await syncRosterReminders(
+      supabase,
+      profile.organization_id,
+      profile.id,
+      rosterStatuses
+    );
+
+    const { insights, summary: insightsSummary } = buildAreaManagerInsights({
+      stats,
+      kioskBranches: kioskOverview.branches,
+      kioskSummary: kioskOverview.summary,
+      branchMetrics,
+      regionName: context.regionName,
+      rosterStatuses,
+    });
 
     return (
       <AreaManagerDashboard
         stats={stats}
-        posOverview={posOverview}
         kioskOverview={kioskOverview}
+        branchMetrics={branchMetrics}
+        insights={insights}
+        insightsSummary={insightsSummary}
         context={context}
       />
+    );
+  }
+
+  if (profile.role === 'STAFF') {
+    return (
+      <ModuleLayout>
+        <PageHeader
+          badge="Staf Kiosk"
+          title="Papan Pemuka Staf"
+          description="Jadual syif dan maklumat harian anda"
+        />
+        <StaffSchedulePanel />
+      </ModuleLayout>
     );
   }
 

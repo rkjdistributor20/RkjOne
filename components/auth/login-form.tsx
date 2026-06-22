@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Flame, MapPin, Store } from 'lucide-react';
+import { Flame, MapPin, Store, CalendarDays, ArrowRight } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { mapAuthError, safeRedirectPath } from '@/lib/auth/errors';
 import { COMPANY, BRAND_COLORS } from '@/lib/brand/company';
@@ -17,6 +17,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { StaffSchedulePanel } from '@/components/shifts/staff-schedule-panel';
 
 export function LoginForm() {
   const searchParams = useSearchParams();
@@ -26,6 +27,8 @@ export function LoginForm() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [isStaffLogin, setIsStaffLogin] = useState(false);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -44,7 +47,25 @@ export function LoginForm() {
       return;
     }
 
+    const { data: authData } = await supabase.auth.getUser();
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', authData.user?.id ?? '')
+      .maybeSingle();
+
+    if ((profile as { role?: string } | null)?.role === 'STAFF') {
+      setIsStaffLogin(true);
+      setShowSchedule(true);
+      setLoading(false);
+      return;
+    }
+
     window.location.href = redirect;
+  }
+
+  function continueToApp() {
+    window.location.href = isStaffLogin ? '/dashboard' : redirect;
   }
 
   return (
@@ -145,6 +166,19 @@ export function LoginForm() {
             </div>
           </CardHeader>
           <CardContent>
+            {showSchedule ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <CalendarDays className="h-4 w-4 text-primary" />
+                  Jadual Syif Anda
+                </div>
+                <StaffSchedulePanel compact />
+                <Button type="button" className="w-full gap-1" size="lg" onClick={continueToApp}>
+                  Teruskan ke Portal
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
@@ -178,6 +212,7 @@ export function LoginForm() {
                 {loading ? 'Sedang log masuk…' : 'Log Masuk ke RKJ One'}
               </Button>
             </form>
+            )}
             <p className="mt-6 text-center text-xs text-muted-foreground">
               {COMPANY.name} · Sistem dalaman syarikat · {COMPANY.branchCount} cawangan
             </p>
