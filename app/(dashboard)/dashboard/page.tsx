@@ -42,24 +42,45 @@ export default async function DashboardPage() {
 
   const supabase = await createClient();
   const scope = await resolveScopedBranches(supabase, profile);
+  const isAreaManager = profile.role === 'AREA_MANAGER';
 
   const [stats, posOverview, fleetOverview] = await Promise.all([
     getDashboardStats(profile.organization_id, scope.branchIds),
     getPosOverview(profile.organization_id, scope.branchIds),
-    getFleetOverview(profile.organization_id),
+    isAreaManager
+      ? Promise.resolve({ pending_deliveries: 0, in_transit: 0, vehicles: [] })
+      : getFleetOverview(profile.organization_id),
   ]);
 
   const statsUnavailable = stats === null;
+
+  const quickActions = isAreaManager
+    ? [
+        { label: 'Inventori Kiosk', href: '/inventory' },
+        { label: 'Syif & Kehadiran', href: '/shifts' },
+        { label: 'Kelulusan Tertunda', href: '/approvals' },
+        { label: 'Staf & Pengguna', href: '/settings?tab=staff' },
+      ]
+    : [
+        { label: 'Buka Syif POS', href: '/pos' },
+        { label: 'Inventori', href: '/inventory' },
+        { label: 'Lihat Laporan', href: '/reports' },
+        { label: 'Kelulusan Tertunda', href: '/approvals' },
+      ];
 
   return (
     <ModuleLayout>
       <PageHeader
         badge={COMPANY.systemName}
         title="Papan Pemuka"
-        description={`Ringkasan operasi ${COMPANY.name} — ${COMPANY.tagline}`}
+        description={
+          isAreaManager
+            ? 'Ringkasan jualan, stok kiosk, dan kelulusan dalam kawasan anda'
+            : `Ringkasan operasi ${COMPANY.name} — ${COMPANY.tagline}`
+        }
       />
 
-      <BrandStatsStrip />
+      {!isAreaManager && <BrandStatsStrip />}
 
       {statsUnavailable && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -68,7 +89,7 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      <KpiGrid>
+      <KpiGrid cols={isAreaManager ? 3 : 4}>
         <KpiCard
           title="Jualan Hari Ini"
           value={statsUnavailable ? '—' : formatRM(stats!.sales_today ?? 0)}
@@ -84,12 +105,14 @@ export default async function DashboardPage() {
           value={statsUnavailable ? '—' : formatRM(stats!.sales_this_month ?? 0)}
           icon={TrendingUp}
         />
-        <KpiCard
-          title="Tunai Tertunggak"
-          value={statsUnavailable ? '—' : formatRM(stats!.outstanding_cash ?? 0)}
-          icon={Banknote}
-          variant="warning"
-        />
+        {!isAreaManager && (
+          <KpiCard
+            title="Tunai Tertunggak"
+            value={statsUnavailable ? '—' : formatRM(stats!.outstanding_cash ?? 0)}
+            icon={Banknote}
+            variant="warning"
+          />
+        )}
       </KpiGrid>
 
       <KpiGrid cols={3}>
@@ -115,9 +138,10 @@ export default async function DashboardPage() {
         />
       </KpiGrid>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className={cn('grid gap-4', !isAreaManager && 'lg:grid-cols-2')}>
         <PosOverviewPanel overview={posOverview} />
 
+        {!isAreaManager && (
         <Card>
           <CardHeader className="flex flex-row items-start justify-between gap-4">
             <div>
@@ -152,16 +176,15 @@ export default async function DashboardPage() {
             )}
           </CardContent>
         </Card>
+        )}
       </div>
 
-      <SectionCard title="Tindakan Pantas" description="Tugasan biasa harian">
+      <SectionCard
+        title="Tindakan Pantas"
+        description={isAreaManager ? 'Urus kiosk, staf, dan kelulusan kawasan' : 'Tugasan biasa harian'}
+      >
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            { label: 'Buka Syif POS', href: '/pos' },
-            { label: 'Inventori', href: '/inventory' },
-            { label: 'Lihat Laporan', href: '/reports' },
-            { label: 'Kelulusan Tertunda', href: '/approvals' },
-          ].map((action) => (
+          {quickActions.map((action) => (
             <Link
               key={action.href}
               href={action.href}

@@ -56,9 +56,22 @@ export async function GET(request: Request) {
     `
     )
     .eq('organization_id', profile.organization_id)
-    .in('location_type', ['FACTORY', 'HQ_WAREHOUSE', 'FLEET_VEHICLE', 'BRANCH_KIOSK'])
     .order('location_type')
     .order('name');
+
+  const kioskOnlyOverview =
+    profile.role === 'AREA_MANAGER' || profile.role === 'STAFF';
+
+  if (kioskOnlyOverview) {
+    locQuery = locQuery.eq('location_type', 'BRANCH_KIOSK');
+  } else {
+    locQuery = locQuery.in('location_type', [
+      'FACTORY',
+      'HQ_WAREHOUSE',
+      'FLEET_VEHICLE',
+      'BRANCH_KIOSK',
+    ]);
+  }
 
   if (scope.branchIds !== null) {
     locQuery = applyBranchIdsFilter(locQuery, 'branch_id', scope.branchIds);

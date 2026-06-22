@@ -1,5 +1,8 @@
 import type { PermissionLevel, PermissionModule, UserRole } from '@/types/enums';
 import { canAccessFactoryNav, canAccessHqWarehouseNav } from '@/lib/auth/stock-access';
+import {
+  filterNavForRole,
+} from '@/lib/auth/area-manager-access';
 
 const LEVEL_RANK: Record<PermissionLevel, number> = {
   NONE: 0,
@@ -67,7 +70,7 @@ export function getVisibleNavItems(
   role: UserRole,
   permissions: Map<string, PermissionLevel>
 ) {
-  return NAV_ITEMS.filter((item) => {
+  const items = NAV_ITEMS.filter((item) => {
     if (item.href === '/dashboard') return true;
     if (item.href === '/settings') {
       return isAdminRole(role) || role === 'AREA_MANAGER' || role === 'OPERATION_MANAGER';
@@ -83,6 +86,8 @@ export function getVisibleNavItems(
     }
     return canAccessModule(role, item.module, permissions);
   });
+
+  return filterNavForRole(role, items);
 }
 
 export function getNavLabelForPath(pathname: string): string {

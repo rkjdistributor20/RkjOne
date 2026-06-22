@@ -29,8 +29,10 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { createClient } from '@/lib/supabase/client';
 import { getVisibleNavItems, getNavLabelForPath } from '@/lib/auth/permissions';
+import { isAreaManagerRole } from '@/lib/auth/area-manager-access';
 import { ROLE_LABELS } from '@/types/enums';
 import { useAuthStore } from '@/stores/auth-store';
+import { AreaManagerRouteGuard } from '@/components/layout/area-manager-route-guard';
 
 const ICONS: Record<string, LucideIcon> = {
   LayoutDashboard,
@@ -168,6 +170,7 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <div className="flex min-h-screen bg-background">
+      <AreaManagerRouteGuard />
       <aside className="hidden w-64 shrink-0 bg-sidebar md:flex md:flex-col">
         <SidebarBrand />
         <div className="flex-1 overflow-y-auto py-4">
@@ -204,7 +207,11 @@ export function AppShell({ children }: AppShellProps) {
           </div>
 
           <div className="hidden items-center gap-2 sm:flex">
-            <Badge variant="secondary">{COMPANY.branchCount} cawangan</Badge>
+            {profile && isAreaManagerRole(profile.role) ? (
+              <Badge variant="secondary">Pengurus Kawasan</Badge>
+            ) : (
+              <Badge variant="secondary">{COMPANY.branchCount} cawangan</Badge>
+            )}
           </div>
         </header>
 

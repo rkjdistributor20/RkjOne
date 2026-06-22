@@ -281,7 +281,11 @@ export function InventoryDashboard() {
     <ModuleLayout>
       <ModuleHeader
         title="Inventori"
-        description="Kilang → Gudang HQ → Armada → Kiosk · 9 item stok rasmi selaras di seluruh rantaian"
+        description={
+          isAreaManager
+            ? 'Stok kiosk cawangan dalam kawasan anda — terima, pindah, kira & lupus'
+            : 'Kilang → Gudang HQ → Armada → Kiosk · 9 item stok rasmi selaras di seluruh rantaian'
+        }
         icon={Package}
         badges={
           dashboardView === 'location' ? (
@@ -328,10 +332,12 @@ export function InventoryDashboard() {
                 allLabel="Semua kiosk kawasan saya"
               />
             )}
-            <InventorySupplyChainPanel
-              kioskOnly={kioskOnlyScope}
-              onSelectLocation={handleSupplyChainSelect}
-            />
+            {!isAreaManager && (
+              <InventorySupplyChainPanel
+                kioskOnly={kioskOnlyScope}
+                onSelectLocation={handleSupplyChainSelect}
+              />
+            )}
             {showKioskGrid && (
               <div className="space-y-3">
                 <div>
