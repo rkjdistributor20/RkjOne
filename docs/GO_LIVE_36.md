@@ -22,6 +22,7 @@
 - [ ] Supabase Auth — **signup OFF**, Site URL = `https://rkj-one.vercel.app` *(verify automatik: signup blocked ✓ — semak manual Dashboard)*
 - [ ] Redirect: `https://rkj-one.vercel.app/auth/callback`
 - [ ] Backup Supabase diaktifkan (Dashboard → Settings → Database)
+- [ ] Panduan Auth: [`docs/SUPABASE_AUTH_SETUP.md`](./SUPABASE_AUTH_SETUP.md)
 
 ---
 

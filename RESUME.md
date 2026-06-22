@@ -76,10 +76,10 @@
 
 ## ⚠️ Belum — manual owner (hari go-live)
 
-- [ ] Supabase Auth Dashboard — **signup OFF** (semak manual walaupun verify lulus)
+- [ ] Supabase Auth Dashboard — **signup OFF** — panduan [`docs/SUPABASE_AUTH_SETUP.md`](docs/SUPABASE_AUTH_SETUP.md)
   - Site URL: `https://rkj-one.vercel.app`
   - Redirect: `https://rkj-one.vercel.app/auth/callback`
-- [ ] **Tukar password** semua pengguna dari `RkjOne@2025`
+- [ ] **Tukar password** — `npm run rotate:passwords -- --password "..." --confirm` (bukan `RkjOne@2025`)
 - [ ] UAT AM pantas — Safuan / Hakim / Yati ([`docs/UAT_AM.md`](docs/UAT_AM.md)) — *verify:am lulus; UAT browser belum*
 - [ ] WhatsApp SOP + bookmark URL — salin [`docs/WHATSAPP_GO_LIVE.txt`](docs/WHATSAPP_GO_LIVE.txt)
 - [ ] Hari H: staf buka syif · jual · tutup syif · review dashboard petang
@@ -110,6 +110,8 @@ Password sementara: **`RkjOne@2025`** (wajib tukar)
 | UAT AM | `docs/UAT_AM.md` |
 | WhatsApp go-live | `docs/WHATSAPP_GO_LIVE.txt` |
 | Legal entities code | `lib/brand/legal-entities.ts` |
+| Setup Auth Supabase | `docs/SUPABASE_AUTH_SETUP.md` |
+| Putar password | `npm run rotate:passwords -- --dry-run` |
 | Verify go-live 36 | `npm run verify:go-live-36` |
 
 ---
