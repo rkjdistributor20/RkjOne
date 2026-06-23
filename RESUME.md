@@ -1,13 +1,13 @@
 # ⏸ Sambung Di Sini — RKJ One ERP
 
-> **🔔 INGATKAN BUKA NANTI:** Dashboard owner 3 syarikat LIVE. Mat Isa guna **password baharu sendiri**. AM UAT → password dari `.go-live-temp-password.txt` · `npm run reset:am-uat` jika perlu.
+> **🔔 INGATKAN BUKA NANTI:** Payroll 3 syarikat + AI cadangan gaji LIVE. Mat Isa guna **password baharu sendiri**. AM UAT → password dari `.go-live-temp-password.txt` · `npm run reset:am-uat` jika perlu.
 
 > **Buka fail ini bila buka semula projek.** Kemaskini tarikh bila selesai satu fasa.
 
-**Tarikh kemaskini:** 23 Jun 2025 (sesi tamat — save checkpoint)  
-**Branch:** `master` · commit terkini **`053b36a`**  
-**Production:** https://rkj-one.vercel.app · deploy **`e8fe2be`**+ ✓  
-**Supabase:** `mtygxueknokcihofdttl` · migrations **00001–00069**
+**Tarikh kemaskini:** 21 Jun 2026 (payroll AI + payslip distribution)  
+**Branch:** `master` · commit terkini **`680b02a`**  
+**Production:** https://rkj-one.vercel.app · deploy **`680b02a`** ✓  
+**Supabase:** `mtygxueknokcihofdttl` · migrations **00001–00075**
 
 ---
 
@@ -33,27 +33,28 @@
 
 | Commit | Kandungan |
 |--------|-----------|
-| `053b36a` | `npm run reset:am-uat` — reset password AM dari fail go-live |
-| `e8fe2be` | Logo RKJ dikongsi — 3 syarikat (dashboard + profil HR) |
-| `d8c902b` | Dashboard owner — 3 syarikat · aliran kerja · jabatan |
-| `4b3ef58` | `go-live:passwords` · eksport kredensial AM |
-| `1319f08` | Label UI **Armada → Logistik** |
-| `00067–69` | 3 syarikat undang-undang · AM RKJ Distributor · HQ Distributor |
+| `680b02a` | AI cadangan gaji + hantar slip ke dashboard staf (3 syarikat) |
+| `72994ec` | Payroll pecah 3 syarikat + portal HR/gaji staf + payslip upload |
+| `0afab10` | Purge staf INACTIVE dari senarai HR |
+| `cf14962` | Mat Isa — profil pemilik kumpulan 3 syarikat |
+| `f7c5b98` | HR Syarikat transfer/edit/delete |
 
-### UI / skrip siap
+### Payroll & HR (21 Jun 2026)
 
-- **Dashboard Owner** — Manufacturing → Distributor → Retail · logo RKJ sama · jabatan
-- **Logistik** · **HQ Distributor** · profil HR 3 syarikat
-- `npm run go-live:passwords` · `npm run reset:am-uat` · `npm run verify:go-live-36`
+- **`/payroll` → tab 3 Syarikat** — pecahan RKJ / RKJ_DIST / RKJ_MFG
+- **Pembantu AI** — cadangan mingguan (asing) & bulanan (tempatan)
+- **Hantar slip** — satu klik ke dashboard semua staf · muat turun peribadi
+- **Dashboard staf** — panel HR & Gaji + slip di `/profile`
+- Migration **00074–00075** — `staff_payslips`, `report_type`, auto-distribute
 
-### Verify (23 Jun 2025)
+### Verify
 
 | Perintah | Hasil |
 |----------|--------|
-| `verify:production` | **6/6** |
-| `verify:go-live-36` | Auth ✓ · Safuan OK · **36/36 stok** |
-| `verify:go-live` | **19/19** |
-| `verify:am` | 12+10+14 cawangan |
+| `verify:production` | **6/6** · commit `680b02a` |
+| `verify:payroll` | Jalankan selepas deploy |
+| `verify:hr` | HR 3 syarikat |
+| `verify:go-live-36` | Auth · **36/36 stok** |
 
 ---
 
@@ -61,19 +62,17 @@
 
 | Peranan | Email | Password |
 |---------|-------|----------|
-| **Owner (Mat Isa)** | matisa@rkj.com | **Password baharu sendiri** *(sudah tukar pada login pertama)* |
-| **AM UAT** | safuan / hakim / yati @rkj.com | `csv_import/.go-live-temp-password.txt` → wajib tukar |
-| **Staf kiosk** | s001@ … s057@rkj.com | sama (edar melalui AM) |
-
-Reset AM jika login gagal: `npm run reset:am-uat`
+| **Owner (Mat Isa)** | matisa@rkj.com | **Password baharu sendiri** |
+| **HR** | mohdali@rkj.com | `.go-live-temp-password.txt` |
+| **AM UAT** | safuan / hakim / yati @rkj.com | sama → wajib tukar |
 
 ---
 
 ## ⚠️ Belum — bila sambung
 
+- [ ] **UAT Payroll** — HR jana cadangan AI → hantar slip → staf muat turun
 - [ ] **UAT AM** — Safuan → Hakim → Yati ([`docs/UAT_AM.md`](docs/UAT_AM.md))
 - [ ] **Supabase Auth** — signup OFF ([`docs/SUPABASE_AUTH_SETUP.md`](docs/SUPABASE_AUTH_SETUP.md))
-- [ ] **WhatsApp** — [`docs/WHATSAPP_GO_LIVE.txt`](docs/WHATSAPP_GO_LIVE.txt) + CSV ke 3 AM
 - [ ] **Hari H** — 36 cawangan buka syif ([`docs/GO_LIVE_36.md`](docs/GO_LIVE_36.md))
 
 ---
@@ -82,16 +81,15 @@ Reset AM jika login gagal: `npm run reset:am-uat`
 
 | Item | Lokasi |
 |------|--------|
-| UAT AM | `docs/UAT_AM.md` |
-| Hari go-live | `docs/GO_LIVE_36.md` |
-| Password AM | `npm run reset:am-uat` |
-| Verify | `npm run verify:go-live-36` |
-| Kredensial local | `csv_import/.go-live-temp-password.txt` *(jangan commit)* |
+| Payroll HR | `/payroll` → **3 Syarikat** → **Cadangan AI** |
+| Slip staf | Dashboard / `/profile` → **HR & Gaji Saya** |
+| Verify payroll | `npm run verify:payroll` |
+| Verify production | `npm run verify:production` |
 
 ---
 
 ## 🔄 Sambung sesi
 
-Kata **"sambung"** → AI baca fail ini · teruskan **UAT Safuan** atau **go-live hari H**.
+Kata **"sambung"** → AI baca fail ini · teruskan **UAT Payroll HR** atau **UAT AM**.
 
 **Jangan commit:** `_restore/` · `login_users_generated.csv` · fail password/kredensial gitignored

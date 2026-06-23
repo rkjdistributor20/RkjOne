@@ -22,6 +22,7 @@
     "verify:go-live-36": "node scripts/verify-go-live-36.mjs",
     "verify:roster": "node scripts/verify-roster.mjs",
     "verify:hr": "node scripts/verify-hr-module.mjs",
+    "verify:payroll": "node scripts/verify-payroll-module.mjs",
     "consolidate:group-owner": "node scripts/consolidate-group-owner.mjs --apply",
     "purge:inactive-staff": "node scripts/purge-inactive-staff.mjs --apply",
     "setup:storage": "node scripts/setup-storage.mjs",
