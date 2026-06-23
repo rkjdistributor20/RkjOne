@@ -27,6 +27,7 @@ import { ROLE_LABELS } from '@/types/enums';
 import { LegalEntityLogo } from '@/components/brand/legal-entity-logo';
 import { EditStaffDialog } from '@/components/settings/edit-staff-dialog';
 import type { AddStaffBranchOption } from '@/components/settings/add-staff-dialog';
+import { HrGroupOwnerSection } from '@/components/hr/hr-group-owner-section';
 import { HrProfileEditDialog } from '@/components/hr/hr-profile-edit-dialog';
 import { HrTransferDialog } from '@/components/hr/hr-transfer-dialog';
 import { Badge } from '@/components/ui/badge';
@@ -54,6 +55,9 @@ function roleLabel(role: HrStaffPerson['role']) {
 }
 
 function payLabel(person: HrStaffPerson) {
+  if (person.is_group_owner && person.total_monthly_amount != null) {
+    return `${formatRM(Number(person.total_monthly_amount))}/bulan (3 syarikat)`;
+  }
   if (person.monthly_amount != null) return `${formatRM(Number(person.monthly_amount))}/bulan`;
   if (person.weekly_amount != null) return `${formatRM(Number(person.weekly_amount))}/minggu`;
   return 'Gaji ikut struktur role';
@@ -77,7 +81,7 @@ function PersonRow({
   onDelete: (person: HrStaffPerson) => void;
 }) {
   const status = profileStatus(person);
-  const isProtected = person.role === 'SUPER_ADMIN';
+  const isProtected = person.role === 'SUPER_ADMIN' || person.is_group_owner;
 
   return (
     <div className="grid gap-3 rounded-lg border bg-background px-3 py-3 text-sm md:grid-cols-[minmax(180px,1.35fr)_minmax(150px,1fr)_minmax(130px,0.8fr)_minmax(150px,0.8fr)_auto] md:items-center">
@@ -133,6 +137,11 @@ function PersonRow({
                   {person.source === 'staff' ? 'Padam / nonaktifkan' : 'Nonaktifkan'}
                 </DropdownMenuItem>
               </>
+            )}
+            {person.is_group_owner && (
+              <DropdownMenuItem disabled className="text-xs text-muted-foreground">
+                Profil gabungan 3 syarikat — lihat seksyen Pemilik Kumpulan
+              </DropdownMenuItem>
             )}
           </DropdownMenuContent>
         </DropdownMenu>
@@ -361,6 +370,8 @@ export function CompanyHrDashboard({ data: initialData }: { data: HrDashboardDat
           </div>
         </div>
       </SectionCard>
+
+      <HrGroupOwnerSection owners={data.group_owners} />
 
       <div className="space-y-5">
         {data.companies.map((company) => (

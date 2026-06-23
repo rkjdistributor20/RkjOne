@@ -111,6 +111,27 @@ if (orgErr || !org) {
   (profileCount ?? 0) > 0
     ? pass('Rekod profil', String(profileCount))
     : flop('Rekod profil', '0');
+
+  const { data: ownerProfile } = await admin
+    .from('profiles')
+    .select('id, full_name, metadata')
+    .eq('organization_id', org.id)
+    .ilike('email', 'matisa@rkj.com')
+    .maybeSingle();
+
+  if (ownerProfile?.metadata?.group_owner === true) {
+    const { data: ownerStaff } = await admin
+      .from('staff')
+      .select('staff_code, monthly_amount, legal_entity:legal_entities(code)')
+      .eq('profile_id', ownerProfile.id);
+
+    const codes = (ownerStaff ?? []).map((s) => s.legal_entity?.code).filter(Boolean);
+    codes.length >= 3
+      ? pass('Pemilik kumpulan Mat Isa', `${ownerProfile.full_name} · ${codes.join(', ')} · RM${(ownerStaff ?? []).reduce((n, s) => n + Number(s.monthly_amount ?? 0), 0)}/bulan`)
+      : flop('Pemilik kumpulan Mat Isa', `hanya ${codes.length} syarikat: ${codes.join(', ')}`);
+  } else {
+    flop('Pemilik kumpulan Mat Isa', 'metadata group_owner tidak ditetapkan');
+  }
 }
 
 console.log('\n2. Login HR (Supabase Auth)');
