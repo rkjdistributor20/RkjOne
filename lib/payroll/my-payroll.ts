@@ -35,6 +35,9 @@ export type MyPaySlipRow = {
   legal_entity_name: string | null;
   created_at: string;
   download_url: string | null;
+  source: 'UPLOAD' | 'SYSTEM';
+  gross_pay: number | null;
+  net_pay: number | null;
 };
 
 export type MyPayrollHistoryRow = {
@@ -219,7 +222,7 @@ export async function getMyPayrollDashboard(
   const { data: payslipRows } = await supabase
     .from('staff_payslips')
     .select(
-      'id, period_label, period_start, period_end, file_name, storage_path, created_at, legal_entity:legal_entities(code, legal_name)'
+      'id, period_label, period_start, period_end, file_name, storage_path, created_at, source, gross_pay, net_pay, legal_entity:legal_entities(code, legal_name)'
     )
     .eq('profile_id', profileId)
     .order('created_at', { ascending: false })
@@ -239,6 +242,9 @@ export async function getMyPayrollDashboard(
       legal_entity_name: entity?.legal_name ?? null,
       created_at: p.created_at as string,
       download_url: null as string | null,
+      source: (p.source as 'UPLOAD' | 'SYSTEM') ?? 'UPLOAD',
+      gross_pay: p.gross_pay != null ? Number(p.gross_pay) : null,
+      net_pay: p.net_pay != null ? Number(p.net_pay) : null,
     };
   });
 

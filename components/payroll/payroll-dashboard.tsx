@@ -22,6 +22,7 @@ import {
 import { staffPayDisplay } from '@/lib/payroll/staff-pay-rates';
 import { WorkerTypeBadge, resolveWorkerType } from '@/components/payroll/worker-type-badge';
 import { CompanyPayrollSection } from '@/components/payroll/company-payroll-section';
+import { AiPayrollProposalSection } from '@/components/payroll/ai-payroll-proposal';
 import type {
   CommissionTier,
   PayrollLineItem,
@@ -169,7 +170,8 @@ export function PayrollDashboard() {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="companies" className="mt-4">
+          <TabsContent value="companies" className="mt-4 space-y-4">
+            <AiPayrollProposalSection />
             <CompanyPayrollSection />
           </TabsContent>
 

@@ -92,3 +92,30 @@ export async function uploadMyPayslip(form: FormData) {
   if (!res.ok) throw new Error(data.error ?? 'Upload gagal');
   return data;
 }
+
+export async function fetchAiPayrollProposal(periodType: 'WEEKLY' | 'MONTHLY' = 'WEEKLY') {
+  return fetchJson<{ proposal: import('./ai-proposal').AiPayrollProposal }>(
+    `/api/payroll/ai-proposal?period_type=${periodType}`
+  );
+}
+
+export async function distributePayslips(payload: {
+  period_type: 'WEEKLY' | 'MONTHLY';
+  period_start: string;
+  period_end: string;
+  period_label: string;
+  proposal: import('./ai-proposal').AiPayrollProposal;
+  create_payroll_run?: boolean;
+}) {
+  return fetchJson<{
+    distributed: number;
+    skipped: number;
+    errors: string[];
+    payslip_ids: string[];
+    payroll_run_id: string | null;
+    proposal_summary: string;
+  }>('/api/payroll/distribute-payslips', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}

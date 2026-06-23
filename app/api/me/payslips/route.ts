@@ -16,7 +16,7 @@ export async function GET() {
   const { data, error } = await (service as SupabaseClient)
     .from('staff_payslips')
     .select(
-      'id, period_label, period_start, period_end, file_name, storage_path, created_at, legal_entity:legal_entities(code, legal_name)'
+      'id, period_label, period_start, period_end, file_name, storage_path, created_at, source, gross_pay, net_pay, legal_entity:legal_entities(code, legal_name)'
     )
     .eq('profile_id', profile.id)
     .order('created_at', { ascending: false });
@@ -39,6 +39,9 @@ export async function GET() {
         legal_entity_name: entity?.legal_name ?? null,
         created_at: row.created_at,
         download_url: signed?.signedUrl ?? null,
+        source: (row.source as string) ?? 'UPLOAD',
+        gross_pay: row.gross_pay != null ? Number(row.gross_pay) : null,
+        net_pay: row.net_pay != null ? Number(row.net_pay) : null,
       };
     })
   );

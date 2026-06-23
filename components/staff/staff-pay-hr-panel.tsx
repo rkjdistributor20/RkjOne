@@ -1,6 +1,6 @@
 'use client';
 
-import { Building2, Download, FileUp, Wallet } from 'lucide-react';
+import { Building2, Download, FileUp, Sparkles, Wallet } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { fetchMyPayroll, uploadMyPayslip } from '@/lib/payroll/api';
@@ -94,7 +94,7 @@ export function StaffPayHrPanel({ compact = false }: { compact?: boolean }) {
   return (
     <SectionCard
       title="HR & Gaji Saya"
-      description="Maklumat majikan, struktur gaji auto (peraturan RKJ), sejarah payroll dan muat naik slip gaji."
+      description="Maklumat majikan 3 syarikat, gaji auto, slip dihantar HR dan muat turun untuk kegunaan peribadi."
       action={
         data.is_group_owner ? (
           <Badge className="bg-amber-500 hover:bg-amber-500">Pemilik 3 Syarikat</Badge>
@@ -208,10 +208,69 @@ export function StaffPayHrPanel({ compact = false }: { compact?: boolean }) {
           </div>
         )}
 
+        {(data.payslips.length > 0 || !compact) && (
+          <div className="rounded-lg border border-violet-200 bg-violet-50/40 p-4">
+            <p className="mb-3 flex items-center gap-2 text-sm font-semibold">
+              <Sparkles className="h-4 w-4 text-violet-600" />
+              Slip Gaji Saya
+            </p>
+            {data.payslips.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                Tiada slip lagi. HR akan hantar slip ke dashboard ini selepas pengesahan gaji.
+              </p>
+            ) : (
+              <div className="grid gap-2">
+                {data.payslips.map((slip) => (
+                  <div
+                    key={slip.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-white px-3 py-2 text-sm"
+                  >
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-medium">{slip.period_label}</p>
+                        {slip.source === 'SYSTEM' ? (
+                          <Badge className="bg-violet-600 hover:bg-violet-600 text-[10px]">
+                            Dihantar HR
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px]">
+                            Muat naik sendiri
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {slip.legal_entity_name ?? slip.legal_entity_code}
+                        {slip.net_pay != null ? ` · Bersih ${fmt(slip.net_pay)}` : ''}
+                      </p>
+                    </div>
+                    {slip.download_url ? (
+                      <a
+                        href={slip.download_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        download={slip.file_name}
+                        className="inline-flex h-8 items-center rounded-md border bg-background px-3 text-xs font-medium hover:bg-muted"
+                      >
+                        <Download className="mr-1 h-3.5 w-3.5" />
+                        Muat turun
+                      </a>
+                    ) : (
+                      <Button size="sm" variant="outline" disabled>
+                        Tiada fail
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {!compact && (
         <div className="rounded-lg border border-dashed p-4">
           <p className="mb-3 flex items-center gap-2 text-sm font-semibold">
             <FileUp className="h-4 w-4" />
-            Muat Naik Slip Gaji
+            Muat Naik Slip Tambahan (Pilihan)
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-2">
@@ -247,39 +306,27 @@ export function StaffPayHrPanel({ compact = false }: { compact?: boolean }) {
             </div>
           </div>
           <Button className="mt-3" size="sm" onClick={handleUpload} disabled={uploading}>
-            {uploading ? 'Memuat naik…' : 'Muat Naik'}
+            {uploading ? 'Memuat naik…' : 'Muat Naik Slip Tambahan'}
           </Button>
         </div>
+        )}
 
-        {data.payslips.length > 0 && (
-          <div>
-            <p className="mb-2 text-sm font-semibold">Slip Dimuat Naik</p>
-            <div className="grid gap-2">
-              {data.payslips.map((slip) => (
-                <div
+        {compact && data.payslips.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {data.payslips.slice(0, 3).map((slip) =>
+              slip.download_url ? (
+                <a
                   key={slip.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm"
+                  href={slip.download_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center rounded-md border px-2 py-1 text-xs hover:bg-muted"
                 >
-                  <div>
-                    <p className="font-medium">{slip.period_label}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {slip.legal_entity_name ?? slip.legal_entity_code} · {slip.file_name}
-                    </p>
-                  </div>
-                  {slip.download_url && (
-                    <a
-                      href={slip.download_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex h-8 items-center rounded-md border px-3 text-xs font-medium hover:bg-muted"
-                    >
-                      <Download className="mr-1 h-3.5 w-3.5" />
-                      Muat turun
-                    </a>
-                  )}
-                </div>
-              ))}
-            </div>
+                  <Download className="mr-1 h-3 w-3" />
+                  {slip.period_label}
+                </a>
+              ) : null
+            )}
           </div>
         )}
       </div>
