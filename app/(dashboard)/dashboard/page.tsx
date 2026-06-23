@@ -57,6 +57,7 @@ import {
   SectionCard,
   formatRM,
 } from '@/components/shared/module-ui';
+import { StaffPayHrPanel } from '@/components/staff/staff-pay-hr-panel';
 
 export default async function DashboardPage() {
   const profile = await getCurrentProfile();
@@ -124,6 +125,8 @@ export default async function DashboardPage() {
         />
 
         <BrandProductStrip compact />
+
+        <StaffPayHrPanel compact />
 
         <SectionCard
           title="Jadual Syif Saya"

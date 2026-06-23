@@ -4,6 +4,8 @@ import type {
   PayrollRun,
   PayrollStaffRow,
 } from './types';
+import type { CompanyPayrollDashboard } from './company-payroll';
+import type { MyPayrollDashboard } from './my-payroll';
 
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -57,4 +59,36 @@ export async function approvePayrollRun(runId: string) {
 
 export async function fetchPayrollStaff() {
   return fetchJson<{ staff: PayrollStaffRow[] }>('/api/payroll/staff');
+}
+
+export async function fetchCompanyPayroll() {
+  return fetchJson<CompanyPayrollDashboard>('/api/payroll/companies');
+}
+
+export async function generateWeeklyForeignReport(payload?: {
+  period_start?: string;
+  period_end?: string;
+  branch_id?: string;
+}) {
+  return fetchJson<{
+    result: Record<string, unknown>;
+    week: { period_start: string; period_end: string; label: string };
+    foreign_workers: number;
+    branch_report: Array<Record<string, unknown>>;
+    companies: Array<{ code: string; legal_name: string; foreign_count: number; weekly_total: number }>;
+  }>('/api/payroll/weekly-foreign', {
+    method: 'POST',
+    body: JSON.stringify(payload ?? {}),
+  });
+}
+
+export async function fetchMyPayroll() {
+  return fetchJson<{ payroll: MyPayrollDashboard }>('/api/me/payroll');
+}
+
+export async function uploadMyPayslip(form: FormData) {
+  const res = await fetch('/api/me/payslips', { method: 'POST', body: form });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? 'Upload gagal');
+  return data;
 }

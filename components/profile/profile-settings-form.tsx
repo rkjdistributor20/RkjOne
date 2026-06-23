@@ -42,6 +42,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { SectionCard } from '@/components/shared/module-ui';
+import { StaffPayHrPanel } from '@/components/staff/staff-pay-hr-panel';
 import { BRAND_COLORS, COMPANY } from '@/lib/brand/company';
 import { LEGAL_ENTITIES, LEGAL_ENTITY_GROUP_NOTE, AREA_MANAGER_OPERATING_SCOPE, SHARED_BRAND_LOGO_NOTE } from '@/lib/brand/legal-entities';
 import { LegalEntityLogo } from '@/components/brand/legal-entity-logo';
@@ -709,6 +710,8 @@ export function ProfileSettingsForm() {
           )}
         </div>
       </form>
+
+      <StaffPayHrPanel />
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 import { toast } from 'sonner';
-import { Wallet, FileText, Settings, Users } from 'lucide-react';
+import { Wallet, FileText, Settings, Users, Building2 } from 'lucide-react';
 import {
   ModuleLayout,
   ModuleHeader,
@@ -21,6 +21,7 @@ import {
 } from '@/lib/payroll/api';
 import { staffPayDisplay } from '@/lib/payroll/staff-pay-rates';
 import { WorkerTypeBadge, resolveWorkerType } from '@/components/payroll/worker-type-badge';
+import { CompanyPayrollSection } from '@/components/payroll/company-payroll-section';
 import type {
   CommissionTier,
   PayrollLineItem,
@@ -132,7 +133,7 @@ export function PayrollDashboard() {
     <ModuleLayout>
       <ModuleHeader
         title="Gaji & Komisyen"
-        description="Gaji shift asing · gaji tempatan + komisyen · EPF/SOCSO/EIS"
+        description="Pecahan 3 syarikat legal · gaji auto ikut peraturan · laporan mingguan pekerja asing"
         icon={Wallet}
         badges={
           <>
@@ -151,6 +152,9 @@ export function PayrollDashboard() {
       ) : (
         <Tabs defaultValue="runs" className="space-y-4">
           <TabsList className={moduleTabsListClass}>
+            <TabsTrigger value="companies" className={moduleTabsTriggerClass}>
+              <Building2 className="h-4 w-4" /> 3 Syarikat
+            </TabsTrigger>
             <TabsTrigger value="runs" className={moduleTabsTriggerClass}>
               <FileText className="h-4 w-4" /> Jana Gaji
             </TabsTrigger>
@@ -164,6 +168,10 @@ export function PayrollDashboard() {
               <Users className="h-4 w-4" /> Staf
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="companies" className="mt-4">
+            <CompanyPayrollSection />
+          </TabsContent>
 
           <TabsContent value="runs" className="mt-4 space-y-4">
             <Card>
