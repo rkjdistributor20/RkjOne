@@ -5,7 +5,7 @@
 > **Buka fail ini bila buka semula projek.** Kemaskini tarikh bila selesai satu fasa.
 
 **Tarikh kemaskini:** 22 Jun 2025 (dashboard owner 3 syarikat)  
-**Branch:** `master` · commit terkini *(selepas push)*  
+**Branch:** `master` · commit terkini **`d8c902b`** (dashboard owner 3 syarikat)
 **Production:** https://rkj-one.vercel.app · deploy **`1319f08`**+ (Logistik UI)  
 **Supabase:** `mtygxueknokcihofdttl` · migrations **00001–00069**
 
