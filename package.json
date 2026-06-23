@@ -21,6 +21,7 @@
     "verify:delivery": "node scripts/verify-go-live-36.mjs delivery",
     "verify:go-live-36": "node scripts/verify-go-live-36.mjs",
     "verify:roster": "node scripts/verify-roster.mjs",
+    "verify:hr": "node scripts/verify-hr-module.mjs",
     "setup:storage": "node scripts/setup-storage.mjs",
     "finish:go-live": "node scripts/finish-go-live.mjs",
     "deploy:env": "node scripts/push-vercel-env.mjs",
