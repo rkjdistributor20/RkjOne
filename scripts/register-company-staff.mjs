@@ -16,7 +16,7 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
 const DEFAULT_INPUT = path.join(ROOT, 'csv_import', 'rkj_company_staff_register.json');
-const DEFAULT_PASSWORD = 'RkjOne@2025';
+const DEFAULT_PASSWORD = 'RkjOne@2026';
 
 function argValue(name, fallback = null) {
   const idx = process.argv.indexOf(name);

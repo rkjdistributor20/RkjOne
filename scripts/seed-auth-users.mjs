@@ -17,7 +17,7 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
-const DEFAULT_PASSWORD = 'RkjOne@2025';
+const DEFAULT_PASSWORD = 'RkjOne@2026';
 
 const EXCLUDED_STAFF_CODES = new Set(['S015', 'S020', 'S045']);
 
