@@ -1,95 +1,77 @@
 # ⏸ Sambung Di Sini — RKJ One ERP
 
-> **🔔 INGATKAN BUKA NANTI:** Payroll 3 syarikat + AI cadangan gaji LIVE. Mat Isa guna **password baharu sendiri**. AM UAT → password dari `.go-live-temp-password.txt` · `npm run reset:am-uat` jika perlu.
+> **🔔 INGATKAN BUKA NANTI:** Payroll 3 syarikat + AI cadangan (edit sebelum sahkan) LIVE. Mat Isa guna **password baharu sendiri**.
 
 > **Buka fail ini bila buka semula projek.** Kemaskini tarikh bila selesai satu fasa.
 
-**Tarikh kemaskini:** 21 Jun 2026 (payroll AI + payslip distribution)  
-**Branch:** `master` · commit terkini **`680b02a`**  
-**Production:** https://rkj-one.vercel.app · deploy **`680b02a`** ✓  
+**Tarikh kemaskini:** 21 Jun 2026  
+**Branch:** `master` · commit terkini **`044d80f`**  
+**Production:** https://rkj-one.vercel.app  
 **Supabase:** `mtygxueknokcihofdttl` · migrations **00001–00075**
 
 ---
 
-## 🚀 Keputusan operasi
-
-| Item | Keputusan |
-|------|-----------|
-| Go-live | **Terus 36 cawangan** (tiada pilot wajib) |
-| Checklist hari H | [`docs/GO_LIVE_36.md`](docs/GO_LIVE_36.md) |
-| Delivery 36 | **36/36 stok OK** |
-
-| Kawasan | AM | Email | Cawangan |
-|---------|-----|-------|----------|
-| Utara | Safuan | safuan@rkj.com | 12 |
-| Tengah | Hakim | hakim@rkj.com | 10 |
-| Selatan | Yati | yati@rkj.com | 14 |
-
----
-
-## ✅ Siap (kumulatif sesi)
-
-### Commits terkini
+## ✅ Siap — Payroll & HR
 
 | Commit | Kandungan |
 |--------|-----------|
-| `680b02a` | AI cadangan gaji + hantar slip ke dashboard staf (3 syarikat) |
-| `72994ec` | Payroll pecah 3 syarikat + portal HR/gaji staf + payslip upload |
-| `0afab10` | Purge staf INACTIVE dari senarai HR |
-| `cf14962` | Mat Isa — profil pemilik kumpulan 3 syarikat |
-| `f7c5b98` | HR Syarikat transfer/edit/delete |
+| `044d80f` | Peraturan tempatan ikut syarikat + edit cadangan AI sebelum sahkan |
+| `680b02a` | AI cadangan gaji + hantar slip ke dashboard staf |
+| `72994ec` | Payroll 3 syarikat + portal HR/gaji staf |
 
-### Payroll & HR (21 Jun 2026)
+### Polisi gaji tempatan
 
-- **`/payroll` → tab 3 Syarikat** — pecahan RKJ / RKJ_DIST / RKJ_MFG
-- **Pembantu AI** — cadangan mingguan (asing) & bulanan (tempatan)
-- **Hantar slip** — satu klik ke dashboard semua staf · muat turun peribadi
-- **Dashboard staf** — panel HR & Gaji + slip di `/profile`
-- Migration **00074–00075** — `staff_payslips`, `report_type`, auto-distribute
+| Syarikat | Cara kira |
+|----------|-----------|
+| **RKJ** (Roti Kaya Junus) | Staf jualan: peraturan PR + komisen POS + EPF/SOCSO/EIS |
+| **RKJ_DIST** | Gaji bulanan rekod HR (`monthly_amount`) |
+| **RKJ_MFG** | Gaji bulanan rekod HR (`monthly_amount`) |
+| Pekerja asing (RKJ kiosk) | Mingguan PR001–PR005 + OT |
 
-### Verify
+### UAT Payroll (belum dijalankan manual)
+
+1. Login **mohdali@rkj.com** → `/payroll` → **3 Syarikat**
+2. **Cadangan Mingguan** → semak 56 pekerja asing RKJ
+3. **Cadangan Bulanan** → RKJ (3 tempatan jualan) vs DIST (13) vs MFG (17)
+4. **Edit** kasar/bersih jika perlu → **Sahkan & Hantar Slip**
+5. Login staf → Dashboard → **Slip Gaji Saya** → muat turun
+
+### Verify (21 Jun 2026)
 
 | Perintah | Hasil |
 |----------|--------|
-| `verify:production` | **6/6** · commit `680b02a` |
-| `verify:payroll` | Jalankan selepas deploy |
+| `verify:production` | **6/6** |
+| `verify:payroll` | **13/13** |
 | `verify:hr` | HR 3 syarikat |
-| `verify:go-live-36` | Auth · **36/36 stok** |
 
 ---
 
-## 🔐 Login
+## ⚠️ Belum
 
-| Peranan | Email | Password |
-|---------|-------|----------|
-| **Owner (Mat Isa)** | matisa@rkj.com | **Password baharu sendiri** |
-| **HR** | mohdali@rkj.com | `.go-live-temp-password.txt` |
-| **AM UAT** | safuan / hakim / yati @rkj.com | sama → wajib tukar |
-
----
-
-## ⚠️ Belum — bila sambung
-
-- [ ] **UAT Payroll** — HR jana cadangan AI → hantar slip → staf muat turun
+- [ ] **UAT Payroll** — jana & hantar slip pertama (0 rekord payslip setakat ini)
 - [ ] **UAT AM** — Safuan → Hakim → Yati ([`docs/UAT_AM.md`](docs/UAT_AM.md))
-- [ ] **Supabase Auth** — signup OFF ([`docs/SUPABASE_AUTH_SETUP.md`](docs/SUPABASE_AUTH_SETUP.md))
-- [ ] **Hari H** — 36 cawangan buka syif ([`docs/GO_LIVE_36.md`](docs/GO_LIVE_36.md))
+- [ ] **Hari H** — [`docs/GO_LIVE_36.md`](docs/GO_LIVE_36.md)
 
 ---
 
-## 📋 Rujukan pantas
+## 🔐 Login pantas
+
+| Peranan | Email |
+|---------|-------|
+| Owner | matisa@rkj.com |
+| HR | mohdali@rkj.com |
+| AM | safuan / hakim / yati @rkj.com |
+
+Password: `csv_import/.go-live-temp-password.txt` · `npm run reset:am-uat`
+
+---
+
+## 📋 Rujukan
 
 | Item | Lokasi |
 |------|--------|
 | Payroll HR | `/payroll` → **3 Syarikat** → **Cadangan AI** |
 | Slip staf | Dashboard / `/profile` → **HR & Gaji Saya** |
-| Verify payroll | `npm run verify:payroll` |
-| Verify production | `npm run verify:production` |
+| Verify | `npm run verify:payroll` |
 
----
-
-## 🔄 Sambung sesi
-
-Kata **"sambung"** → AI baca fail ini · teruskan **UAT Payroll HR** atau **UAT AM**.
-
-**Jangan commit:** `_restore/` · `login_users_generated.csv` · fail password/kredensial gitignored
+**Jangan commit:** `_restore/` · CSV kredensial · fail password

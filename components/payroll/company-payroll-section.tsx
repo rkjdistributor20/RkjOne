@@ -122,9 +122,9 @@ export function CompanyPayrollSection() {
             <CalendarRange className="h-4 w-4" />
             Laporan Mingguan Pekerja Asing (Auto)
           </CardTitle>
-          <p className="text-xs text-muted-foreground">
-            Jana payroll run minggu lepas ({week.label}) — gaji shift dikira auto ikut peraturan PR001–PR005.
-          </p>
+        <p className="text-xs text-muted-foreground">
+          RKJ: pekerja asing (mingguan) + staf jualan tempatan (peraturan PR). RKJ_DIST & RKJ_MFG: gaji bulanan rekod HR.
+        </p>
         </CardHeader>
         <CardContent className="flex flex-wrap items-center gap-3">
           <Button

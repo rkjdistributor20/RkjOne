@@ -195,6 +195,20 @@ try {
     .select('*', { count: 'exact', head: true });
 
   pass('Rekod payslip (jumlah)', String(payslipCount ?? 0));
+
+  const entityById = new Map((entities ?? []).map((e) => [e.id, e.code]));
+  let distMfgLocal = 0;
+  let distMfgMissingPay = 0;
+  for (const s of staffRows ?? []) {
+    const code = entityById.get(s.legal_entity_id);
+    if (code !== 'RKJ_DIST' && code !== 'RKJ_MFG') continue;
+    if (s.worker_type !== 'LOCAL') continue;
+    distMfgLocal += 1;
+    if (s.monthly_amount == null || Number(s.monthly_amount) <= 0) distMfgMissingPay += 1;
+  }
+  distMfgMissingPay === 0
+    ? pass('Gaji bulanan DIST/MFG tempatan', `${distMfgLocal} staf · semua ada rekod`)
+    : flop('Gaji bulanan DIST/MFG tempatan', `${distMfgMissingPay}/${distMfgLocal} tiada monthly_amount`);
 } catch (e) {
   flop('Pecahan gaji 3 syarikat', e.message);
 }
