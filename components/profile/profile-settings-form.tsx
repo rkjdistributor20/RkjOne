@@ -43,7 +43,8 @@ import {
 } from '@/components/ui/select';
 import { SectionCard } from '@/components/shared/module-ui';
 import { BRAND_COLORS, COMPANY } from '@/lib/brand/company';
-import { LEGAL_ENTITIES, LEGAL_ENTITY_GROUP_NOTE, AREA_MANAGER_OPERATING_SCOPE } from '@/lib/brand/legal-entities';
+import { LEGAL_ENTITIES, LEGAL_ENTITY_GROUP_NOTE, AREA_MANAGER_OPERATING_SCOPE, SHARED_BRAND_LOGO_NOTE } from '@/lib/brand/legal-entities';
+import { LegalEntityLogo } from '@/components/brand/legal-entity-logo';
 
 function initials(name: string) {
   return name
@@ -556,6 +557,10 @@ export function ProfileSettingsForm() {
           >
             <p className="font-medium text-foreground">Maklumat Syarikat · Satu Pemilik</p>
             <p className="mt-1 text-muted-foreground">{LEGAL_ENTITY_GROUP_NOTE}</p>
+            <p className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+              <LegalEntityLogo size={22} />
+              {SHARED_BRAND_LOGO_NOTE}
+            </p>
           </div>
 
           <div className="mb-4 grid gap-2 sm:grid-cols-3">
@@ -576,6 +581,9 @@ export function ProfileSettingsForm() {
                       : undefined
                   }
                 >
+                  <div className="flex items-start gap-2.5">
+                    <LegalEntityLogo size={36} />
+                    <div className="min-w-0 flex-1">
                   <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
                     {isEmployer
                       ? 'Syarikat majikan'
@@ -585,6 +593,8 @@ export function ProfileSettingsForm() {
                   </p>
                   <p className="mt-1 font-semibold">{entity.legalName}</p>
                   <p className="mt-1 text-xs text-muted-foreground">{entity.scope}</p>
+                    </div>
+                  </div>
                 </div>
               );
             })}

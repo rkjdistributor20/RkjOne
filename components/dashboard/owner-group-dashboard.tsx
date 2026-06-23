@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import {
   ArrowRight,
-  Building2,
   ChevronRight,
   Crown,
   Sparkles,
@@ -15,9 +14,10 @@ import {
 import type { DashboardStats } from '@/types/database';
 import type { FleetOverview, PosOverview } from '@/lib/dashboard/queries';
 import { COMPANY, BRAND_COLORS } from '@/lib/brand/company';
-import { LEGAL_ENTITY_GROUP_NOTE } from '@/lib/brand/legal-entities';
+import { LEGAL_ENTITY_GROUP_NOTE, SHARED_BRAND_LOGO_NOTE } from '@/lib/brand/legal-entities';
 import { LOGISTIK_DELIVERY_TITLE, LOGISTIK_LABEL } from '@/lib/fleet/logistics-label';
 import { labelFor, FLEET_VEHICLE_STATUS_LABELS } from '@/lib/ui/labels';
+import { LegalEntityLogo } from '@/components/brand/legal-entity-logo';
 import { buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -136,12 +136,7 @@ function CompanyBlockCard({ company }: { company: OwnerCompanyBlock }) {
             <h2 className="text-lg font-bold leading-tight text-[#141414]">{company.legalName}</h2>
             <p className="text-sm text-muted-foreground">{company.scope}</p>
           </div>
-          <div
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl shadow-inner"
-            style={{ backgroundColor: accent.iconBg, color: accent.iconColor }}
-          >
-            <Building2 className="h-6 w-6" strokeWidth={1.75} />
-          </div>
+          <LegalEntityLogo size={48} priority={company.step === 1} />
         </div>
         {company.highlights && company.highlights.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-1.5">
@@ -279,6 +274,10 @@ export function OwnerGroupDashboard({
             </h2>
             <p className="text-sm text-muted-foreground">
               Kilang menghasilkan → Distributor edar → Roti Kaya Junus jual di kiosk
+            </p>
+            <p className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+              <LegalEntityLogo size={20} />
+              {SHARED_BRAND_LOGO_NOTE}
             </p>
           </div>
         </div>

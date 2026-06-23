@@ -54,6 +54,10 @@ export const AREA_MANAGER_OPERATING_SCOPE =
 export const LEGAL_ENTITY_GROUP_NOTE =
   'Ketiga-tiga syarikat ini menjalankan perniagaan di bawah jenama Roti Kaya Junus dengan pemilik yang sama — urusan disatukan dalam RKJ One.';
 
+/** Logo rasmi RKJ — dipapar pada ketiga-tiga syarikat undang-undang */
+export const SHARED_BRAND_LOGO_NOTE =
+  'Logo rasmi Roti Kaya Junus dipakai oleh ketiga-tiga syarikat undang-undang kumpulan ini.';
+
 export function getLegalEntityByCode(code: string | null | undefined): LegalEntityDefinition | null {
   if (!code) return null;
   return LEGAL_ENTITIES.find((e) => e.code === code) ?? null;
