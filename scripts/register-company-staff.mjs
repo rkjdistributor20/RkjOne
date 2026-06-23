@@ -85,13 +85,14 @@ function metadataFor(row) {
   };
 }
 
-async function ensureAuthAndProfile(supabase, row, orgId, legalEntityId, regionId, branchId) {
-  if (!isEmail(row.email)) {
-    throw new Error(`${row.staff_code}: email tidak sah/kosong`);
-  }
+function staffLoginEmail(staffCode) {
+  return `${String(staffCode).trim().toLowerCase()}@rkj.com`;
+}
 
+async function ensureAuthAndProfile(supabase, row, orgId, legalEntityId, regionId, branchId) {
+  const email = staffLoginEmail(row.staff_code);
   const password = DEFAULT_PASSWORD;
-  const existing = await findUserByEmail(supabase, row.email);
+  const existing = await findUserByEmail(supabase, email);
   let userId;
 
   const userMeta = {
@@ -110,7 +111,7 @@ async function ensureAuthAndProfile(supabase, row, orgId, legalEntityId, regionI
     userId = existing.id;
   } else {
     const { data, error } = await supabase.auth.admin.createUser({
-      email: row.email,
+      email,
       password,
       email_confirm: true,
       user_metadata: userMeta,
@@ -125,7 +126,7 @@ async function ensureAuthAndProfile(supabase, row, orgId, legalEntityId, regionI
       organization_id: orgId,
       employee_code: row.staff_code,
       full_name: row.full_name,
-      email: row.email,
+      email,
       role: row.role,
       region_id: regionId,
       branch_id: branchId,
@@ -137,9 +138,8 @@ async function ensureAuthAndProfile(supabase, row, orgId, legalEntityId, regionI
       updated_at: new Date().toISOString(),
     })
     .eq('id', userId);
-
   if (profileError) throw profileError;
-  return { userId, password, mode: existing ? 'updated' : 'created' };
+  return { userId, password, email, mode: existing ? 'updated' : 'created' };
 }
 
 async function main() {
@@ -275,7 +275,7 @@ async function main() {
           {
             staff_id: staff.id,
             organization_id: org.id,
-            login_email: row.email,
+            login_email: auth.email,
             portal_password: auth.password,
             updated_at: new Date().toISOString(),
           },
@@ -289,7 +289,7 @@ async function main() {
       credentials.push({
         staff_code: row.staff_code,
         full_name: row.full_name,
-        email: row.email,
+        email: auth.email,
         role: row.role,
         legal_entity_code: row.legal_entity_code,
         password: auth.password,
