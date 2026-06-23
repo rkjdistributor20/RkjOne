@@ -49,9 +49,9 @@ if (!url || !key) {
 const sb = createClient(url, key);
 
 const AM_ACCOUNTS = [
-  { email: 'safuan@rkj.com', region: 'UTARA', expectedBranches: 12 },
-  { email: 'hakim@rkj.com', region: 'TENGAH', expectedBranches: 10 },
-  { email: 'yati@rkj.com', region: 'SELATAN', expectedBranches: 14 },
+  { email: 'dist009@rkj.com', region: 'UTARA', expectedBranches: 12, legacy: 'safuan@rkj.com' },
+  { email: 'dist001@rkj.com', region: 'TENGAH', expectedBranches: 10, legacy: 'hakim@rkj.com' },
+  { email: 'dist010@rkj.com', region: 'SELATAN', expectedBranches: 14, legacy: 'yati@rkj.com' },
 ];
 
 const REQUIRED_AM_PERMISSIONS = [
@@ -241,6 +241,6 @@ if (failed) {
 console.log('  Semua semakan AM lulus ✓');
 console.log('\n  Seterusnya (manual di browser):');
 console.log('  → https://rkj-one.vercel.app');
-console.log(`  → Login safuan@rkj.com / ${DEFAULT_PASSWORD}`);
+console.log(`  → Login dist009@rkj.com / ${DEFAULT_PASSWORD}`);
 console.log('  → /profile (RKJ Distributor · operasi Roti Kaya Junus)');
 console.log('  → Inventori → Pindah Cawangan → Tetapan Staf\n');

@@ -13,9 +13,11 @@ Hard refresh: **Ctrl+Shift+R** atau buka **Incognito** sebelum mula.
 
 | AM | Email | Kawasan | Bil. cawangan | Syarikat majikan |
 |----|-------|---------|---------------|------------------|
-| Safuan | safuan@rkj.com | Utara | 12 | RKJ Distributor Sdn Bhd |
-| Hakim | hakim@rkj.com | Tengah | 10 | RKJ Distributor Sdn Bhd |
-| Yati | yati@rkj.com | Selatan | 14 | RKJ Distributor Sdn Bhd |
+| Safuan | **dist009@rkj.com** | Utara | 12 | RKJ Distributor Sdn Bhd |
+| Fathur (Tengah) | **dist001@rkj.com** | Tengah | 10 | RKJ Distributor Sdn Bhd |
+| Yati | **dist010@rkj.com** | Selatan | 14 | RKJ Distributor Sdn Bhd |
+
+> **Legacy (jangan guna):** safuan@ / hakim@ / yati@rkj.com — INACTIVE atau tiada profil.
 
 **Tanggungjawab operasi:** staf jualan & cawangan kiosk di bawah **Roti Kaya Junus** (bukan syarikat majikan AM).
 
@@ -120,4 +122,4 @@ Tandakan `[ ]` → `[x]` bila lulus.
 
 ---
 
-*Semakan automatik: `npm run verify:login` · `npm run verify:am` · `npm run verify:go-live`*
+*Semakan automatik: `npm run verify:am` · `npm run uat:am` · `npm run verify:login`*

@@ -1,19 +1,20 @@
 /**
- * Reset kata laluan 3 AM untuk UAT.
+ * Reset kata laluan 3 AM aktif untuk UAT.
  *
  * Usage:
- *   npm run reset:am-passwords          → RkjOne@2025 (legacy)
- *   npm run reset:am-uat                → dari .go-live-temp-password.txt + wajib tukar
+ *   npm run reset:am-passwords          → RkjOne@2026
+ *   npm run reset:am-uat                → sama + wajib tukar password
  */
 import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { DEFAULT_PASSWORD } from './lib/default-password.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const LEGACY_PASSWORD = 'RkjOne@2025';
 const GO_LIVE_FILE = path.join(ROOT, 'csv_import', '.go-live-temp-password.txt');
-const AM_EMAILS = ['safuan@rkj.com', 'hakim@rkj.com', 'yati@rkj.com'];
+/** AM aktif (gantikan safuan/hakim/yati@rkj.com legacy) */
+const AM_EMAILS = ['dist009@rkj.com', 'dist001@rkj.com', 'dist010@rkj.com'];
 const useGoLive = process.argv.includes('--go-live');
 
 function loadEnv() {
@@ -29,20 +30,13 @@ function loadEnv() {
 }
 
 function readGoLivePassword() {
-  if (!fs.existsSync(GO_LIVE_FILE)) {
-    console.error(`✗ Fail tidak dijumpai: ${GO_LIVE_FILE}`);
-    process.exit(1);
-  }
+  if (!fs.existsSync(GO_LIVE_FILE)) return DEFAULT_PASSWORD;
   const line = fs
     .readFileSync(GO_LIVE_FILE, 'utf8')
     .split('\n')
     .map((l) => l.trim())
     .find((l) => l && !l.startsWith('#'));
-  if (!line) {
-    console.error('✗ Kata laluan kosong dalam fail go-live');
-    process.exit(1);
-  }
-  return line;
+  return line || DEFAULT_PASSWORD;
 }
 
 async function findUser(sb, email) {
@@ -57,10 +51,10 @@ async function findUser(sb, email) {
   return null;
 }
 
-const password = useGoLive ? readGoLivePassword() : LEGACY_PASSWORD;
+const password = readGoLivePassword();
 const mustChange = useGoLive;
 
-console.log(`\nReset AM UAT — ${useGoLive ? 'go-live password' : 'legacy RkjOne@2025'}\n`);
+console.log(`\nReset AM UAT — ${password.slice(0, 4)}***${mustChange ? ' · wajib tukar' : ''}\n`);
 
 const env = loadEnv();
 const sb = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
@@ -68,13 +62,13 @@ const sb = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_
 for (const email of AM_EMAILS) {
   const user = await findUser(sb, email);
   if (!user) {
-    console.log(`✗ ${email} — tidak dijumpai`);
+    console.log(`✗ ${email} — auth tiada`);
     continue;
   }
   await sb.auth.admin.updateUserById(user.id, { password, email_confirm: true });
   await sb
     .from('profiles')
-    .update({ must_change_password: mustChange })
+    .update({ must_change_password: mustChange, status: 'ACTIVE' })
     .eq('id', user.id);
   console.log(`✓ ${email} — reset OK${mustChange ? ' · wajib tukar password' : ''}`);
 }
