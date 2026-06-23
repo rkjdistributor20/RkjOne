@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Bot, Building2, Pencil, Plus, Sparkles, Trash2, Users } from 'lucide-react';
+import { Bot, Building2, Pencil, Plus, Search, Sparkles, Trash2, Users } from 'lucide-react';
 import {
   applyDashboardAdviceAll,
   createUser,
@@ -75,12 +75,25 @@ function groupByCompany(users: SettingsUser[]) {
 
 type Props = {
   users: SettingsUser[];
+  staffTotal?: number;
+  loginTotal?: number;
   branchGroups: SettingsBranchGroup[];
   creatableRoles: UserRole[];
   onRefresh: () => Promise<void>;
 };
 
-export function UsersAdminPanel({ users, branchGroups, creatableRoles, onRefresh }: Props) {
+function userRowKey(u: SettingsUser) {
+  return `${u.staff_code ?? 'none'}-${u.legal_entity_code ?? 'HQ'}-${u.id}`;
+}
+
+export function UsersAdminPanel({
+  users,
+  staffTotal,
+  loginTotal,
+  branchGroups,
+  creatableRoles,
+  onRefresh,
+}: Props) {
   const currentProfile = useAuthStore((s) => s.profile);
   const [addOpen, setAddOpen] = useState(false);
   const [editUser, setEditUser] = useState<SettingsUser | null>(null);
@@ -95,13 +108,39 @@ export function UsersAdminPanel({ users, branchGroups, creatableRoles, onRefresh
   const [status, setStatus] = useState('ACTIVE');
   const [dashboardProfile, setDashboardProfile] = useState<DashboardProfileId>('STAFF_KIOSK');
   const [dashboardReason, setDashboardReason] = useState('');
+  const [search, setSearch] = useState('');
 
   const allBranches = branchGroups.flatMap((g) =>
     g.branches.map((b) => ({ ...b, region_name: g.region_name }))
   );
-  const companies = useMemo(() => groupByCompany(users), [users]);
+
+  const filteredUsers = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return users;
+    return users.filter((u) => {
+      const hay = [
+        u.full_name,
+        u.email,
+        u.staff_code,
+        u.role,
+        u.legal_entity_code,
+        u.branch?.branch_code,
+        u.branch?.branch_name,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }, [users, search]);
+
+  const companies = useMemo(() => groupByCompany(filteredUsers), [filteredUsers]);
 
   function openEdit(u: SettingsUser) {
+    if (u.has_login === false || u.id.startsWith('staff:')) {
+      toast.error('Staf ini belum ada akaun login — cipta dari tab Staf');
+      return;
+    }
     setEditUser(u);
     setFullName(u.full_name);
     setEmail(u.email);
@@ -218,8 +257,20 @@ export function UsersAdminPanel({ users, branchGroups, creatableRoles, onRefresh
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant="outline" className="gap-1 tabular-nums">
           <Users className="h-3.5 w-3.5" />
-          {users.length} pengguna
+          {staffTotal ?? users.length} rekod staf
+          {loginTotal != null && loginTotal !== (staffTotal ?? users.length)
+            ? ` · ${loginTotal} akaun login`
+            : ''}
         </Badge>
+        <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
+          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Cari kod, nama, e-mel…"
+            className="h-8 pl-8 text-sm"
+          />
+        </div>
         <Button
           size="sm"
           variant="outline"
@@ -246,6 +297,12 @@ export function UsersAdminPanel({ users, branchGroups, creatableRoles, onRefresh
         </Button>
       </div>
 
+      {companies.length === 0 && (
+        <p className="text-sm text-muted-foreground">
+          {search ? 'Tiada padanan carian.' : 'Tiada rekod staf.'}
+        </p>
+      )}
+
       {companies.map((company) => (
         <Card key={company.code}>
           <CardHeader className="pb-2">
@@ -263,6 +320,7 @@ export function UsersAdminPanel({ users, branchGroups, creatableRoles, onRefresh
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground">
+                    <th className="p-2">Kod</th>
                     <th className="p-2">Nama</th>
                     <th className="p-2">Peranan</th>
                     <th className="p-2">Dashboard AI</th>
@@ -271,10 +329,20 @@ export function UsersAdminPanel({ users, branchGroups, creatableRoles, onRefresh
                 </thead>
                 <tbody>
                   {company.users.map((u) => (
-                    <tr key={u.id} className="border-b last:border-0">
+                    <tr key={userRowKey(u)} className="border-b last:border-0">
+                      <td className="p-2 font-mono text-xs text-muted-foreground">
+                        {u.staff_code ?? '—'}
+                      </td>
                       <td className="p-2">
                         <p className="font-medium">{u.full_name}</p>
-                        <p className="text-xs text-muted-foreground">{u.email}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {u.email || (u.has_login === false ? 'Belum ada login' : '—')}
+                        </p>
+                        {u.branch?.branch_code && (
+                          <p className="text-[10px] text-muted-foreground">
+                            {u.branch.branch_code} — {u.branch.branch_name}
+                          </p>
+                        )}
                       </td>
                       <td className="p-2">
                         <Badge variant="outline" className="font-normal">
@@ -297,11 +365,14 @@ export function UsersAdminPanel({ users, branchGroups, creatableRoles, onRefresh
                             size="icon"
                             variant="ghost"
                             className="h-7 w-7"
+                            disabled={u.has_login === false || u.id.startsWith('staff:')}
                             onClick={() => openEdit(u)}
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
-                          {u.id !== currentProfile?.id && (
+                          {u.id !== currentProfile?.id &&
+                            u.has_login !== false &&
+                            !u.id.startsWith('staff:') && (
                             <Button
                               size="icon"
                               variant="ghost"

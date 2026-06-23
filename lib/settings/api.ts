@@ -20,7 +20,12 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
 }
 
 export async function fetchSettingsUsers() {
-  return fetchJson<{ users: SettingsUser[]; total: number }>('/api/settings/users');
+  return fetchJson<{
+    users: SettingsUser[];
+    total: number;
+    staff_total?: number;
+    login_total?: number;
+  }>('/api/settings/users');
 }
 
 export async function fetchSettingsProducts() {

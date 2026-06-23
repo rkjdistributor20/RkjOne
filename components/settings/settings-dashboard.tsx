@@ -61,6 +61,8 @@ export function SettingsDashboard() {
   const [activeTab, setActiveTab] = useState(defaultTab);
 
   const [users, setUsers] = useState<SettingsUser[]>([]);
+  const [usersStaffTotal, setUsersStaffTotal] = useState<number | undefined>();
+  const [usersLoginTotal, setUsersLoginTotal] = useState<number | undefined>();
   const [products, setProducts] = useState<SettingsProduct[]>([]);
   const [branchGroups, setBranchGroups] = useState<SettingsBranchGroup[]>([]);
   const [regions, setRegions] = useState<SettingsRegion[]>([]);
@@ -87,7 +89,13 @@ export function SettingsDashboard() {
       }
 
       if (canManagePersonnel) {
-        tasks.push(fetchSettingsUsers().then((us) => setUsers(us.users)));
+        tasks.push(
+          fetchSettingsUsers().then((us) => {
+            setUsers(us.users);
+            setUsersStaffTotal(us.staff_total);
+            setUsersLoginTotal(us.login_total);
+          })
+        );
       }
 
       if (isAdmin) {
@@ -208,6 +216,8 @@ export function SettingsDashboard() {
             <TabsContent value="users" className="mt-4">
               <UsersSettingsPanel
                 users={users}
+                usersStaffTotal={usersStaffTotal}
+                usersLoginTotal={usersLoginTotal}
                 branchGroups={branchGroups}
                 isAdmin={isAdmin}
                 isAreaManager={isAreaManager}

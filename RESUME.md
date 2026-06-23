@@ -1,12 +1,12 @@
 # ⏸ Sambung Di Sini — RKJ One ERP
 
-> **🔔 SAVE CHECKPOINT 21 Jun 2026** — Payroll 3 syarikat + AI cadangan gaji + slip dashboard staf **LIVE** di production.
+> **🔔 SAVE CHECKPOINT 21 Jun 2026** — Tetapan pentadbir **Pengguna + AI dashboard** + Payroll 3 syarikat **LIVE** di production.
 
-> **Buka fail ini bila buka semula projek.** Kata **"sambung"** untuk teruskan UAT payroll atau UAT AM.
+> **Buka fail ini bila buka semula projek.** Kata **"sambung"** untuk teruskan UAT payroll, UAT AM, atau UAT cadangan dashboard AI.
 
 **Tarikh save:** 21 Jun 2026 (akhir sesi · **GO-LIVE DISAHKAN**)  
-**Branch:** `master` · commit terkini **`9de12b0`**  
-**Production:** https://rkj-one.vercel.app · deploy **`9de12b0`** ✓ · GitHub = Vercel ✓  
+**Branch:** `master` · commit terkini **`0c4e194`**  
+**Production:** https://rkj-one.vercel.app · deploy **`0c4e194`** (auto) · GitHub = Vercel ✓  
 **Supabase:** `mtygxueknokcihofdttl` · migrations **00001–00075** · DB **up to date** ✓
 
 ---
@@ -59,6 +59,15 @@
 - Migration **00075** — auto-distribute metadata, HR storage policy
 - **`npm run verify:payroll`** — 14/14 semakan (DIST/MFG 30/30 ada gaji rekod)
 
+### 6. Tetapan Pentadbir — Pengguna + AI Dashboard (`/settings?tab=users`)
+- Senarai staf **dikumpul ikut 3 syarikat** (RKJ · RKJ_DIST · RKJ_MFG) + HQ
+- **Edit** nama, peranan, cawangan, status, dashboard
+- **Cadangan AI** per pengguna — nilai jawatan + syarikat → profil dashboard sesuai
+- **Cadangan AI Semua** — apply pukal ke metadata `profiles`
+- Dashboard staf guna metadata (label + quick actions) — tiada maklumat tidak berkaitan
+
+**Profil dashboard:** Pemilik Kumpulan · Operasi HQ · HR · Kewangan · AM · Kiosk · Pengedaran · Kilang · Logistik · Maintenance
+
 ---
 
 ## Commits hari ini (urutan)
@@ -70,6 +79,8 @@
 | `91d412e` | Skrip `verify:payroll` + RESUME |
 | `044d80f` | Polisi gaji ikut syarikat + edit cadangan AI |
 | `7d2945d` | Verify DIST/MFG + RESUME checkpoint |
+| `0c4e194` | Admin edit pengguna + cadangan AI dashboard ikut syarikat |
+| *(next)* | Fix senarai pengguna — query FK + 89 rekod staf ikut syarikat |
 
 ---
 

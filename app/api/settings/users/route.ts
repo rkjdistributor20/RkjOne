@@ -12,27 +12,16 @@ import {
 } from '@/lib/settings/personnel-access';
 import { resolveLegalEntityIdForRole } from '@/lib/settings/legal-entity';
 import {
+  loadSettingsUsersForAdmin,
+  loadSettingsUsersFromProfiles,
+} from '@/lib/settings/users-list';
+import {
   adviseUserDashboard,
   dashboardMetadataPatch,
   mergeMetadata,
-  parseDashboardMetadata,
 } from '@/lib/settings/dashboard-advisor';
-import { isGroupOwnerMetadata } from '@/lib/hr/group-owner';
-import type { UserRole } from '@/types/enums';
 
-type ProfileRow = {
-  id: string;
-  full_name: string;
-  email: string;
-  role: string;
-  status: string;
-  branch_id: string | null;
-  region_id: string | null;
-  metadata: unknown;
-  branch: { branch_name: string; branch_code: string } | null;
-  region: { name: string; code: string } | null;
-  legal_entity: { code: string; legal_name: string } | null;
-};
+import type { UserRole } from '@/types/enums';
 
 export async function GET() {
   const profile = await getCurrentProfile();
@@ -59,51 +48,33 @@ export async function GET() {
   }
 
   const service = await createServiceClient();
-  let query = service
-    .from('profiles')
-    .select(
-      'id, full_name, email, role, status, branch_id, region_id, metadata, branch:branches(branch_name, branch_code), region:regions(name, code), legal_entity:legal_entities(code, legal_name)'
-    )
-    .eq('organization_id', profile.organization_id)
-    .eq('status', 'ACTIVE')
-    .order('full_name');
 
-  if (!isSettingsAdmin(profile.role)) {
-    query = query.eq('role', 'STAFF');
-    if (scope.branchIds !== null) {
-      if (scope.branchIds.length === 0) {
-        return NextResponse.json({ users: [], total: 0 });
-      }
-      query = query.in('branch_id', scope.branchIds);
+  try {
+    if (isSettingsAdmin(profile.role)) {
+      const { users, staff_total, login_total } = await loadSettingsUsersForAdmin(
+        service as SupabaseClient,
+        profile.organization_id
+      );
+      return NextResponse.json({
+        users,
+        total: users.length,
+        staff_total,
+        login_total,
+      });
     }
+
+    const users = await loadSettingsUsersFromProfiles(service as SupabaseClient, profile.organization_id, {
+      role: 'STAFF',
+      branchIds: scope.branchIds,
+    });
+
+    return NextResponse.json({ users, total: users.length });
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Gagal muat pengguna' },
+      { status: 500 }
+    );
   }
-
-  const { data, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-  const users = (data ?? []).map((row) => {
-    const r = row as ProfileRow;
-    const entity = Array.isArray(r.legal_entity) ? r.legal_entity[0] : r.legal_entity;
-    const dash = parseDashboardMetadata(r.metadata);
-    return {
-      id: r.id,
-      full_name: r.full_name,
-      email: r.email,
-      role: r.role,
-      status: r.status,
-      branch_id: r.branch_id,
-      region_id: r.region_id,
-      branch: r.branch,
-      region: r.region,
-      legal_entity_code: entity?.code ?? null,
-      legal_entity_name: entity?.legal_name ?? null,
-      dashboard_profile: dash.profile_id,
-      dashboard_label: dash.label,
-      dashboard_home: dash.home_path,
-      dashboard_ai_reason: dash.reason,
-    };
-  });
-  return NextResponse.json({ users, total: users.length });
 }
 
 export async function POST(request: Request) {

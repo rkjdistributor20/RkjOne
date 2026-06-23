@@ -1,5 +1,7 @@
 export interface SettingsUser {
   id: string;
+  staff_id?: string | null;
+  staff_code?: string | null;
   full_name: string;
   email: string;
   role: string;
@@ -10,6 +12,7 @@ export interface SettingsUser {
   legal_entity_code?: string | null;
   legal_entity_name?: string | null;
   status: string;
+  has_login?: boolean;
   dashboard_profile?: string | null;
   dashboard_label?: string | null;
   dashboard_home?: string | null;

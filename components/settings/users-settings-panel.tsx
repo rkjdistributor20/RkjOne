@@ -57,6 +57,10 @@ interface UsersSettingsPanelProps {
 
   users: SettingsUser[];
 
+  usersStaffTotal?: number;
+
+  usersLoginTotal?: number;
+
   branchGroups: SettingsBranchGroup[];
 
   isAdmin: boolean;
@@ -307,25 +311,22 @@ function statusBadge(status: string) {
 
 
 export function UsersSettingsPanel({
-
   users,
-
+  usersStaffTotal,
+  usersLoginTotal,
   branchGroups,
-
   isAdmin,
-
   isAreaManager,
-
   creatableRoles,
-
   onRefresh,
-
 }: UsersSettingsPanelProps) {
 
   if (isAdmin) {
     return (
       <UsersAdminPanel
         users={users}
+        staffTotal={usersStaffTotal}
+        loginTotal={usersLoginTotal}
         branchGroups={branchGroups}
         creatableRoles={creatableRoles}
         onRefresh={onRefresh}
