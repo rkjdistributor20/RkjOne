@@ -61,6 +61,10 @@ interface UsersSettingsPanelProps {
 
   usersLoginTotal?: number;
 
+  usersLoading?: boolean;
+
+  usersError?: string | null;
+
   branchGroups: SettingsBranchGroup[];
 
   isAdmin: boolean;
@@ -314,6 +318,8 @@ export function UsersSettingsPanel({
   users,
   usersStaffTotal,
   usersLoginTotal,
+  usersLoading,
+  usersError,
   branchGroups,
   isAdmin,
   isAreaManager,
@@ -327,6 +333,8 @@ export function UsersSettingsPanel({
         users={users}
         staffTotal={usersStaffTotal}
         loginTotal={usersLoginTotal}
+        loading={usersLoading}
+        loadError={usersError}
         branchGroups={branchGroups}
         creatableRoles={creatableRoles}
         onRefresh={onRefresh}

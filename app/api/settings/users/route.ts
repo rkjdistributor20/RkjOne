@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { getCurrentProfile } from '@/lib/auth/session';
 import { isSettingsAdmin } from '@/lib/settings/admin-auth';
 import {
@@ -47,12 +48,12 @@ export async function GET() {
     );
   }
 
-  const service = await createServiceClient();
-
   try {
+    const admin = createAdminClient();
+
     if (isSettingsAdmin(profile.role)) {
       const { users, staff_total, login_total } = await loadSettingsUsersForAdmin(
-        service as SupabaseClient,
+        admin,
         profile.organization_id
       );
       return NextResponse.json({
@@ -63,7 +64,7 @@ export async function GET() {
       });
     }
 
-    const users = await loadSettingsUsersFromProfiles(service as SupabaseClient, profile.organization_id, {
+    const users = await loadSettingsUsersFromProfiles(admin, profile.organization_id, {
       role: 'STAFF',
       branchIds: scope.branchIds,
     });

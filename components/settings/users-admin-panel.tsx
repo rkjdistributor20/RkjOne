@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Bot, Building2, Pencil, Plus, Search, Sparkles, Trash2, Users } from 'lucide-react';
+import { Bot, Building2, Pencil, Plus, RefreshCw, Search, Sparkles, Trash2, Users } from 'lucide-react';
 import {
   applyDashboardAdviceAll,
   createUser,
@@ -77,6 +77,8 @@ type Props = {
   users: SettingsUser[];
   staffTotal?: number;
   loginTotal?: number;
+  loading?: boolean;
+  loadError?: string | null;
   branchGroups: SettingsBranchGroup[];
   creatableRoles: UserRole[];
   onRefresh: () => Promise<void>;
@@ -90,6 +92,8 @@ export function UsersAdminPanel({
   users,
   staffTotal,
   loginTotal,
+  loading,
+  loadError,
   branchGroups,
   creatableRoles,
   onRefresh,
@@ -254,6 +258,12 @@ export function UsersAdminPanel({
         Edit manual sebelum simpan.
       </div>
 
+      {loadError && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+          Gagal muat senarai: {loadError}. Klik Muat Semula.
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant="outline" className="gap-1 tabular-nums">
           <Users className="h-3.5 w-3.5" />
@@ -271,6 +281,16 @@ export function UsersAdminPanel({
             className="h-8 pl-8 text-sm"
           />
         </div>
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-1.5"
+          disabled={loading}
+          onClick={() => void onRefresh()}
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+          Muat Semula
+        </Button>
         <Button
           size="sm"
           variant="outline"
@@ -297,10 +317,14 @@ export function UsersAdminPanel({
         </Button>
       </div>
 
-      {companies.length === 0 && (
+      {companies.length === 0 && !loading && (
         <p className="text-sm text-muted-foreground">
-          {search ? 'Tiada padanan carian.' : 'Tiada rekod staf.'}
+          {search ? 'Tiada padanan carian.' : loadError ? 'Senarai tidak dimuat.' : 'Tiada rekod staf.'}
         </p>
+      )}
+
+      {loading && users.length === 0 && (
+        <p className="text-sm text-muted-foreground">Memuatkan senarai staf…</p>
       )}
 
       {companies.map((company) => (

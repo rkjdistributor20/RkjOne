@@ -36,7 +36,17 @@ import {
   moduleTabsTriggerClass,
 } from '@/components/shared/module-ui';
 
-export function SettingsDashboard() {
+type InitialUsersPayload = {
+  users: SettingsUser[];
+  staff_total?: number;
+  login_total?: number;
+};
+
+type Props = {
+  initialUsers?: InitialUsersPayload;
+};
+
+export function SettingsDashboard({ initialUsers }: Props = {}) {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab');
   const profile = useAuthStore((s) => s.profile);
@@ -60,59 +70,85 @@ export function SettingsDashboard() {
             : 'products';
   const [activeTab, setActiveTab] = useState(defaultTab);
 
-  const [users, setUsers] = useState<SettingsUser[]>([]);
-  const [usersStaffTotal, setUsersStaffTotal] = useState<number | undefined>();
-  const [usersLoginTotal, setUsersLoginTotal] = useState<number | undefined>();
+  const [users, setUsers] = useState<SettingsUser[]>(initialUsers?.users ?? []);
+  const [usersStaffTotal, setUsersStaffTotal] = useState<number | undefined>(
+    initialUsers?.staff_total
+  );
+  const [usersLoginTotal, setUsersLoginTotal] = useState<number | undefined>(
+    initialUsers?.login_total
+  );
+  const [usersError, setUsersError] = useState<string | null>(null);
+  const [usersLoading, setUsersLoading] = useState(false);
   const [products, setProducts] = useState<SettingsProduct[]>([]);
   const [branchGroups, setBranchGroups] = useState<SettingsBranchGroup[]>([]);
   const [regions, setRegions] = useState<SettingsRegion[]>([]);
   const [stockItems, setStockItems] = useState<SettingsStockItem[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const loadUsers = useCallback(async () => {
+    if (!canManagePersonnel) return;
+    setUsersLoading(true);
+    setUsersError(null);
+    try {
+      const us = await fetchSettingsUsers();
+      setUsers(us.users);
+      setUsersStaffTotal(us.staff_total);
+      setUsersLoginTotal(us.login_total);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Gagal muat pengguna';
+      setUsersError(msg);
+      if (!initialUsers?.users.length) {
+        toast.error(msg);
+      }
+    } finally {
+      setUsersLoading(false);
+    }
+  }, [canManagePersonnel, initialUsers?.users.length]);
+
   const loadData = useCallback(async () => {
     if (!profile) return;
     setLoading(true);
-    try {
-      const tasks: Promise<void>[] = [];
+    const tasks: Array<Promise<unknown>> = [];
 
-      if (isAdmin || role === 'CEO_FACTORY' || role === 'OPERATION_MANAGER') {
-        tasks.push(
-          fetchSettingsProducts().then((pr) => setProducts(pr.products)),
-          fetchSettingsStockItems().then((st) => setStockItems(st.items))
-        );
-      }
-
-      if (canViewStaff || isAdmin) {
-        tasks.push(
-          fetchSettingsBranchesGrouped().then((g) => setBranchGroups(g.groups))
-        );
-      }
-
-      if (canManagePersonnel) {
-        tasks.push(
-          fetchSettingsUsers().then((us) => {
-            setUsers(us.users);
-            setUsersStaffTotal(us.staff_total);
-            setUsersLoginTotal(us.login_total);
-          })
-        );
-      }
-
-      if (isAdmin) {
-        tasks.push(fetchSettingsRegions().then((reg) => setRegions(reg.regions)));
-      }
-
-      await Promise.all(tasks);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Gagal memuatkan tetapan');
-    } finally {
-      setLoading(false);
+    if (isAdmin || role === 'CEO_FACTORY' || role === 'OPERATION_MANAGER') {
+      tasks.push(
+        fetchSettingsProducts().then((pr) => setProducts(pr.products)),
+        fetchSettingsStockItems().then((st) => setStockItems(st.items))
+      );
     }
-  }, [profile, isAdmin, canManagePersonnel, canViewStaff, role]);
+
+    if (canViewStaff || isAdmin) {
+      tasks.push(fetchSettingsBranchesGrouped().then((g) => setBranchGroups(g.groups)));
+    }
+
+    if (canManagePersonnel) {
+      tasks.push(loadUsers());
+    }
+
+    if (isAdmin) {
+      tasks.push(fetchSettingsRegions().then((reg) => setRegions(reg.regions)));
+    }
+
+    const results = await Promise.allSettled(tasks);
+    const failed = results.filter((r) => r.status === 'rejected');
+    if (failed.length > 0) {
+      const first = failed[0] as PromiseRejectedResult;
+      toast.error(
+        first.reason instanceof Error ? first.reason.message : 'Sebahagian tetapan gagal dimuat'
+      );
+    }
+    setLoading(false);
+  }, [profile, isAdmin, canManagePersonnel, canViewStaff, role, loadUsers]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    if (activeTab === 'users' && canManagePersonnel && users.length === 0 && !usersLoading) {
+      void loadUsers();
+    }
+  }, [activeTab, canManagePersonnel, users.length, usersLoading, loadUsers]);
 
   const canEditStock = isAdmin || role === 'CEO_FACTORY';
   const showCatalogTabs = isAdmin || role === 'OPERATION_MANAGER' || role === 'CEO_FACTORY';
@@ -212,17 +248,19 @@ export function SettingsDashboard() {
             </TabsContent>
           )}
 
-          {canManagePersonnel && profile && (
+          {canManagePersonnel && (
             <TabsContent value="users" className="mt-4">
               <UsersSettingsPanel
                 users={users}
                 usersStaffTotal={usersStaffTotal}
                 usersLoginTotal={usersLoginTotal}
+                usersLoading={usersLoading}
+                usersError={usersError}
                 branchGroups={branchGroups}
                 isAdmin={isAdmin}
                 isAreaManager={isAreaManager}
                 creatableRoles={creatableRoles}
-                onRefresh={loadData}
+                onRefresh={loadUsers}
               />
             </TabsContent>
           )}

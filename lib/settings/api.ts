@@ -11,11 +11,13 @@ import type {
 
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
+    credentials: 'same-origin',
+    cache: 'no-store',
     headers: { 'Content-Type': 'application/json' },
     ...options,
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error ?? 'Request failed');
+  if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
   return data;
 }
 
