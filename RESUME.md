@@ -4,8 +4,8 @@
 
 > **Buka fail ini bila buka semula projek.** Kemaskini tarikh bila selesai satu fasa.
 
-**Tarikh kemaskini:** 22 Jun 2025 (sesi tamat — rehat)  
-**Branch:** `master` · commit terkini **`4b3ef58`** (go-live passwords · sync GitHub + Vercel)  
+**Tarikh kemaskini:** 22 Jun 2025 (dashboard owner 3 syarikat)  
+**Branch:** `master` · commit terkini *(selepas push)*  
 **Production:** https://rkj-one.vercel.app · deploy **`1319f08`**+ (Logistik UI)  
 **Supabase:** `mtygxueknokcihofdttl` · migrations **00001–00069**
 
@@ -51,6 +51,7 @@
 
 ### Modul / UI / skrip siap
 
+- **Dashboard Owner** — 3 syarikat · aliran Kilang → Distributor → Jualan · jabatan per syarikat
 - **Logistik** — sidebar, dashboard, inventori, laporan (bukan Armada)
 - **HQ Distributor** — ganti label Gudang HQ
 - 3 syarikat undang-undang · profil HR · tetapan staf

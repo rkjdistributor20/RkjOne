@@ -37,6 +37,8 @@ import {
 } from '@/lib/fleet/logistics-label';
 import { PosOverviewPanel } from '@/components/dashboard/pos-overview-panel';
 import { AreaManagerDashboard } from '@/components/dashboard/area-manager-dashboard';
+import { OwnerGroupDashboard } from '@/components/dashboard/owner-group-dashboard';
+import { isOwnerDashboardRole } from '@/lib/dashboard/owner-company-structure';
 import {
   DashboardHero,
   BrandProductStrip,
@@ -156,6 +158,17 @@ export default async function DashboardPage() {
     getPosOverview(profile.organization_id, scope.branchIds),
     getFleetOverview(profile.organization_id),
   ]);
+
+  if (isOwnerDashboardRole(profile.role)) {
+    return (
+      <OwnerGroupDashboard
+        profileName={profile.full_name ?? 'Owner'}
+        stats={stats}
+        posOverview={posOverview}
+        fleetOverview={fleetOverview}
+      />
+    );
+  }
 
   const statsUnavailable = stats === null;
 
