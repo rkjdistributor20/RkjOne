@@ -5,7 +5,7 @@
 > **Buka fail ini bila buka semula projek.** Kata **"sambung"** untuk deploy semak, UAT browser manual, atau Hari H.
 
 **Tarikh save:** 21 Jun 2026 (rehat malam)  
-**Branch:** `master` · commit terkini *(selepas push sesi ini)*  
+**Branch:** `master` · commit terkini **`c859013`**  
 **Production:** https://rkj-one.vercel.app  
 **Supabase:** `mtygxueknokcihofdttl` · migrations **00001–00075** ✓
 
@@ -87,7 +87,7 @@ npm run reset:am-passwords             # reset 3 AM
 | `d39be67` | Email @rkj.com |
 | `ab936b9` | Password RkjOne@2026 |
 | `0c3fc44` | Verify scripts default-password |
-| *(sesi ini)* | UAT payroll + AM scripts + akaun AM dist00x |
+| `c859013` | UAT payroll + AM scripts · dist009/001/010 AM |
 
 ---
 
