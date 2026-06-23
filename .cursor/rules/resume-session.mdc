@@ -10,20 +10,19 @@ Bila pengguna **buka projek**, kata **sambung**, **teruskan**, atau tiada kontek
 ## Format peringatan (copy gaya ini)
 
 1. **Status:** Production https://rkj-one.vercel.app · commit terkini dari `git log -1`
-2. **Sudah siap:** go-live 36 · Logistik UI · HQ Distributor · password 76 akaun diputar · verify lulus
-3. **Belum manual:** UAT AM (Safuan) · Supabase signup OFF · WhatsApp + edar CSV AM · hari H buka syif
-4. **Password:** `csv_import/.go-live-temp-password.txt` (local) — **bukan** `RkjOne@2025`
+2. **Sudah siap:** dashboard owner 3 syarikat · Logistik · go-live 36 stok OK · verify lulus
+3. **Belum:** UAT AM Safuan · Supabase signup OFF · WhatsApp · hari H buka syif
+4. **Login:** Mat Isa = password sendiri · AM = `.go-live-temp-password.txt` · reset AM = `npm run reset:am-uat`
 5. **Tanya:** nak **UAT AM**, **go-live hari H**, atau **edar WhatsApp**?
 
 ## Fail rujukan
 
-| Tugas | Fail |
-|-------|------|
-| Hari go-live | `docs/GO_LIVE_36.md` |
+| Tugas | Fail / perintah |
+|-------|-----------------|
 | UAT AM | `docs/UAT_AM.md` |
-| Password / edar AM | `docs/GO_LIVE_CREDENTIALS_HANDOFF.md` |
+| Hari go-live | `docs/GO_LIVE_36.md` |
+| Reset AM | `npm run reset:am-uat` |
 | Verify | `npm run verify:go-live-36` |
 
-Stack: Next.js 16 · Supabase `mtygxueknokcihofdttl` · migrations sehingga **00069**.  
-Jangan expose service role key. Jangan commit secrets / `_restore/` / `login_users_generated.csv`.  
-Jangan jalankan `verify:login` (boleh reset password ke lama).
+Stack: Next.js 16 · Supabase `mtygxueknokcihofdttl` · migrations **00069**.  
+Jangan commit secrets / `_restore/` / `login_users_generated.csv`.
