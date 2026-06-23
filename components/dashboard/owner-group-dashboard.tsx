@@ -10,9 +10,12 @@ import {
   Banknote,
   Package,
   Truck,
+  Users,
+  ShieldCheck,
 } from 'lucide-react';
 import type { DashboardStats } from '@/types/database';
 import type { FleetOverview, PosOverview } from '@/lib/dashboard/queries';
+import type { HrDashboardData } from '@/lib/hr/company-hr';
 import { COMPANY, BRAND_COLORS } from '@/lib/brand/company';
 import { LEGAL_ENTITY_GROUP_NOTE, SHARED_BRAND_LOGO_NOTE } from '@/lib/brand/legal-entities';
 import { LOGISTIK_DELIVERY_TITLE, LOGISTIK_LABEL } from '@/lib/fleet/logistics-label';
@@ -47,6 +50,7 @@ type OwnerGroupDashboardProps = {
   stats: DashboardStats | null;
   posOverview: PosOverview;
   fleetOverview: FleetOverview;
+  hrData?: HrDashboardData | null;
 };
 
 function SupplyChainStrip() {
@@ -171,6 +175,7 @@ export function OwnerGroupDashboard({
   stats,
   posOverview,
   fleetOverview,
+  hrData,
 }: OwnerGroupDashboardProps) {
   const statsUnavailable = stats === null;
   const firstName = profileName.split(' ')[0] ?? 'Owner';
@@ -287,6 +292,55 @@ export function OwnerGroupDashboard({
           ))}
         </div>
       </section>
+
+
+      {hrData && (
+        <SectionCard
+          title="HR Syarikat Legal"
+          description="Semua staf dan pengguna dikumpulkan mengikut majikan legal masing-masing"
+          action={
+            <Link href="/hr" className={cn(buttonVariants({ size: 'sm' }), 'shrink-0')}>
+              <Users className="mr-1.5 h-4 w-4" />
+              Buka HR
+            </Link>
+          }
+        >
+          <div className="grid gap-3 md:grid-cols-3">
+            {hrData.companies.map((company) => (
+              <div key={company.id} className="rounded-xl border bg-background p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-foreground">{company.legal_name}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{company.code}</p>
+                  </div>
+                  <LegalEntityLogo size={34} />
+                </div>
+                <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
+                  <div className="rounded-lg bg-muted/40 px-2 py-2">
+                    <p className="text-lg font-bold tabular-nums">{company.summary.total}</p>
+                    <p className="text-muted-foreground">HR</p>
+                  </div>
+                  <div className="rounded-lg bg-muted/40 px-2 py-2">
+                    <p className="text-lg font-bold tabular-nums">{company.summary.branch_staff}</p>
+                    <p className="text-muted-foreground">Staf</p>
+                  </div>
+                  <div className="rounded-lg bg-muted/40 px-2 py-2">
+                    <p className="text-lg font-bold tabular-nums">{company.summary.profile_complete}</p>
+                    <p className="text-muted-foreground">Lengkap</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
+            <Badge variant="outline" className="gap-1">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              {hrData.summary.management_people} pengurusan
+            </Badge>
+            <Badge variant="outline">{hrData.summary.total_people} jumlah rekod HR</Badge>
+          </div>
+        </SectionCard>
+      )}
 
       <SectionCard
         title="Jabatan Kumpulan · HQ Pemilik"

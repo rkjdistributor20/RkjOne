@@ -124,6 +124,15 @@ export interface Database {
         Insert: Omit<ApprovalRequest, 'id' | 'created_at' | 'updated_at'>;
         Update: Partial<ApprovalRequest>;
       };
+      maintenance_reports: {
+        Row: MaintenanceReport;
+        Insert: Omit<MaintenanceReport, 'id' | 'created_at' | 'updated_at'> & {
+          id?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<MaintenanceReport>;
+      };
       org_stock_planning_settings: {
         Row: OrgStockPlanningSettings;
         Insert: Omit<OrgStockPlanningSettings, 'updated_at'> & { updated_at?: string };
@@ -285,6 +294,30 @@ export interface Profile {
   emergency_contact_relation: string | null;
   profile_completed_at: string | null;
   metadata: Json;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MaintenanceReport {
+  id: string;
+  organization_id: string;
+  report_number: string;
+  branch_id: string | null;
+  reported_by: string | null;
+  assigned_to: string | null;
+  report_type: 'MAINTENANCE' | 'STAFF_SHORTAGE' | 'EMERGENCY';
+  category: 'GENERAL' | 'ELECTRICAL' | 'PLUMBING' | 'EQUIPMENT' | 'SIGNAGE' | 'CLEANLINESS' | 'SAFETY' | 'STAFFING';
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+  status: 'NEW' | 'REVIEWING' | 'ASSIGNED' | 'IN_PROGRESS' | 'WAITING_PARTS' | 'RESOLVED' | 'CANCELLED';
+  title: string;
+  description: string;
+  substitute_required: boolean;
+  substitute_status: 'NOT_REQUIRED' | 'REQUESTED' | 'HANIF_ASSIGNED' | 'COVERED' | 'CANCELLED';
+  preferred_visit_date: string | null;
+  contact_name: string | null;
+  contact_phone: string | null;
+  manager_notes: string | null;
+  resolved_at: string | null;
   created_at: string;
   updated_at: string;
 }

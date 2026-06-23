@@ -8,15 +8,23 @@ export function isAreaManagerRole(role: string): boolean {
   return role === 'AREA_MANAGER';
 }
 
-/** Admin HQ + Pengurus Kawasan */
+export function isHrRole(role: string): boolean {
+  return role === 'HR';
+}
+
+/** Admin HQ, HR syarikat, atau Pengurus Kawasan */
+export function isOrgWidePersonnelRole(role: string): boolean {
+  return isSettingsAdmin(role) || isHrRole(role);
+}
+
 export function canManagePersonnel(role: string): boolean {
-  return isSettingsAdmin(role) || isAreaManagerRole(role);
+  return isOrgWidePersonnelRole(role) || isAreaManagerRole(role);
 }
 
 export function assertCanManagePersonnel(profile: Profile | null): Profile {
   if (!profile) throw new Error('Tidak dibenarkan');
   if (!canManagePersonnel(profile.role)) {
-    throw new Error('Hanya Admin HQ atau Pengurus Kawasan boleh urus staf/pengguna');
+    throw new Error('Hanya Admin HQ, HR Syarikat atau Pengurus Kawasan boleh urus staf/pengguna');
   }
   return profile;
 }
@@ -36,6 +44,7 @@ export function rolesCreatableBy(profile: Profile): UserRole[] {
       'DRIVER',
       'STAFF',
       'FINANCE',
+      'MAINTENANCE_MANAGER',
     ];
   }
   return [...AM_CREATABLE_USER_ROLES];
@@ -46,7 +55,7 @@ export async function assertBranchInPersonnelScope(
   profile: Profile,
   branchId: string | null | undefined
 ): Promise<string | null> {
-  if (isSettingsAdmin(profile.role)) {
+  if (isOrgWidePersonnelRole(profile.role)) {
     return branchId ?? null;
   }
 
@@ -73,7 +82,7 @@ export async function assertStaffTargetInScope(
   profile: Profile,
   staffId: string
 ): Promise<void> {
-  if (isSettingsAdmin(profile.role)) return;
+  if (isOrgWidePersonnelRole(profile.role)) return;
 
   const { data: row } = await supabase
     .from('staff')
@@ -91,7 +100,7 @@ export async function assertUserTargetInScope(
   profile: Profile,
   userId: string
 ): Promise<void> {
-  if (isSettingsAdmin(profile.role)) return;
+  if (isOrgWidePersonnelRole(profile.role)) return;
 
   const { data: row } = await supabase
     .from('profiles')

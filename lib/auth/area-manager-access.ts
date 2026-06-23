@@ -8,6 +8,7 @@ export const AREA_MANAGER_ALLOWED_PATHS = [
   AREA_MANAGER_INVENTORY_PATH,
   '/shifts',
   '/approvals',
+  '/maintenance',
   '/settings',
   '/change-password',
   '/profile',

@@ -19,6 +19,8 @@ import {
   LogOut,
   Menu,
   UserCircle2,
+  Wrench,
+  Users,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -50,6 +52,8 @@ const ICONS: Record<string, LucideIcon> = {
   Building2,
   CheckSquare,
   Settings,
+  Wrench,
+  Users,
 };
 
 interface AppShellProps {

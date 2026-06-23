@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { getCurrentProfile } from '@/lib/auth/session';
 import { resolveScopedBranches } from '@/lib/auth/branch-scope';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 import {
   getDashboardStats,
   getFleetOverview,
@@ -39,6 +39,7 @@ import { PosOverviewPanel } from '@/components/dashboard/pos-overview-panel';
 import { AreaManagerDashboard } from '@/components/dashboard/area-manager-dashboard';
 import { OwnerGroupDashboard } from '@/components/dashboard/owner-group-dashboard';
 import { isOwnerDashboardRole } from '@/lib/dashboard/owner-company-structure';
+import { getCompanyHrDashboard } from '@/lib/hr/company-hr';
 import {
   DashboardHero,
   BrandProductStrip,
@@ -160,12 +161,16 @@ export default async function DashboardPage() {
   ]);
 
   if (isOwnerDashboardRole(profile.role)) {
+    const service = await createServiceClient();
+    const hrData = await getCompanyHrDashboard(service, profile.organization_id);
+
     return (
       <OwnerGroupDashboard
         profileName={profile.full_name ?? 'Owner'}
         stats={stats}
         posOverview={posOverview}
         fleetOverview={fleetOverview}
+        hrData={hrData}
       />
     );
   }

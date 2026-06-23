@@ -4,6 +4,7 @@ import { inventoryRpc } from '@/lib/supabase/inventory-rpc';
 import { getCurrentProfile } from '@/lib/auth/session';
 import { resolveScopedBranches, applyBranchIdsFilter } from '@/lib/auth/branch-scope';
 import { assertSettingsAdmin, isSettingsAdmin } from '@/lib/settings/admin-auth';
+import { canManageHrPeople } from '@/lib/hr/hr-access';
 
 export async function GET(request: Request) {
   const profile = await getCurrentProfile();
@@ -12,7 +13,7 @@ export async function GET(request: Request) {
   const grouped = new URL(request.url).searchParams.get('grouped') === '1';
   const supabase = await createClient();
 
-  if (grouped && isSettingsAdmin(profile.role)) {
+  if (grouped && (isSettingsAdmin(profile.role) || canManageHrPeople(profile.role))) {
     const { data: regions, error: regionErr } = await supabase
       .from('regions')
       .select('id, code, name, manager_name')

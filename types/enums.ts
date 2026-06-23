@@ -11,6 +11,7 @@ export const USER_ROLES = [
   'DRIVER',
   'STAFF',
   'FINANCE',
+  'MAINTENANCE_MANAGER',
 ] as const;
 
 export type UserRole = (typeof USER_ROLES)[number];
@@ -26,6 +27,8 @@ export const PERMISSION_MODULES = [
   'reports',
   'user_management',
   'approval',
+  'maintenance',
+  'hr',
 ] as const;
 
 export type PermissionModule = (typeof PERMISSION_MODULES)[number];
@@ -63,6 +66,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   DRIVER: 'Pemandu',
   STAFF: 'Staf',
   FINANCE: 'Kewangan',
+  MAINTENANCE_MANAGER: 'Manager Maintenance',
 };
 
 export const MODULE_LABELS: Record<PermissionModule, string> = {
@@ -76,4 +80,6 @@ export const MODULE_LABELS: Record<PermissionModule, string> = {
   reports: 'Laporan',
   user_management: 'Pengguna',
   approval: 'Kelulusan',
+  maintenance: 'Maintenance',
+  hr: 'HR Syarikat',
 };

@@ -51,6 +51,8 @@ export const AREA_MANAGER_OPERATING_CODE: LegalEntityCode = 'RKJ';
 export const AREA_MANAGER_OPERATING_SCOPE =
   'Mengurus staf jualan dan cawangan kiosk di bawah syarikat Roti Kaya Junus';
 
+export const MAINTENANCE_MANAGER_EMPLOYER_CODE: LegalEntityCode = 'RKJ_DIST';
+
 export const LEGAL_ENTITY_GROUP_NOTE =
   'Ketiga-tiga syarikat ini menjalankan perniagaan di bawah jenama Roti Kaya Junus dengan pemilik yang sama — urusan disatukan dalam RKJ One.';
 
@@ -70,7 +72,7 @@ export function legalEntityLabel(code: string | null | undefined, legalName?: st
 }
 
 export function defaultLegalEntityCodeForRole(role: string): LegalEntityCode | null {
-  if (role === 'AREA_MANAGER' || role === 'DRIVER') return AREA_MANAGER_EMPLOYER_CODE;
+  if (role === 'AREA_MANAGER' || role === 'DRIVER' || role === 'MAINTENANCE_MANAGER') return AREA_MANAGER_EMPLOYER_CODE;
   if (role === 'CEO_FACTORY') return 'RKJ_MFG';
   if (role === 'STAFF') return DEFAULT_SALES_LEGAL_ENTITY_CODE;
   return null;

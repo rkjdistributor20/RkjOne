@@ -41,6 +41,14 @@ export function isAreaScopedRole(role: UserRole): boolean {
   return role === 'AREA_MANAGER' || role === 'STAFF' || role === 'DRIVER';
 }
 
+export function canAccessMaintenance(role: UserRole): boolean {
+  return ['SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER', 'MAINTENANCE_MANAGER', 'AREA_MANAGER', 'STAFF'].includes(role);
+}
+
+export function canAccessHr(role: UserRole): boolean {
+  return ['SUPER_ADMIN', 'ADMIN', 'HR'].includes(role);
+}
+
 export function buildPermissionMap(
   rows: Array<{ module: string; permission: PermissionLevel }>
 ): Map<string, PermissionLevel> {
@@ -62,9 +70,11 @@ export const NAV_ITEMS: Array<{
   { href: '/warehouse', label: HQ_DISTRIBUTOR_LABEL, module: 'stock_hq', icon: 'Warehouse' },
   { href: '/fleet', label: LOGISTIK_LABEL, module: 'fleet', icon: 'Truck' },
   { href: '/payroll', label: 'Gaji', module: 'payroll', icon: 'Wallet' },
+  { href: '/hr', label: 'HR Syarikat', module: 'hr', icon: 'Users' },
   { href: '/finance', label: 'Kewangan', module: 'finance', icon: 'Banknote' },
   { href: '/reports', label: 'Laporan', module: 'reports', icon: 'BarChart3' },
   { href: '/approvals', label: 'Kelulusan', module: 'approval', icon: 'CheckSquare' },
+  { href: '/maintenance', label: 'Maintenance', module: 'maintenance', icon: 'Wrench' },
   { href: '/settings', label: 'Tetapan', module: 'user_management', icon: 'Settings' },
 ];
 
@@ -76,6 +86,12 @@ export function getVisibleNavItems(
     if (item.href === '/dashboard') return true;
     if (item.href === '/settings') {
       return isAdminRole(role) || role === 'AREA_MANAGER' || role === 'OPERATION_MANAGER';
+    }
+    if (item.href === '/maintenance') {
+      return canAccessMaintenance(role);
+    }
+    if (item.href === '/hr') {
+      return canAccessHr(role);
     }
     if (item.href === '/factory') {
       return canAccessFactoryNav(role);
