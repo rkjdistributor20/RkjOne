@@ -7,6 +7,7 @@ import {
   inferWorkerType,
   staffPayDisplay,
 } from '@/lib/payroll/staff-pay-rates';
+import { usesRetailLocalPayRules } from '@/lib/payroll/local-pay-policy';
 import type { PayrollRule } from '@/lib/payroll/types';
 import { isGroupOwnerMetadata } from '@/lib/hr/group-owner';
 
@@ -81,9 +82,11 @@ function one<T>(v: T | T[] | null | undefined): T | null {
 
 function buildPayBreakdown(
   workerType: 'LOCAL' | 'FOREIGN',
+  legalEntityCode: string,
   rules: PayrollRule[],
   shiftHours: number | null,
-  shiftsPerWeek: number | null
+  shiftsPerWeek: number | null,
+  monthlyAmount: number | null
 ): Array<{ label: string; amount: number }> {
   if (workerType === 'FOREIGN' && shiftHours != null) {
     const pay = computeForeignWeeklyPay(rules, shiftHours, shiftsPerWeek ?? DEFAULT_SHIFTS_PER_WEEK);
@@ -96,10 +99,16 @@ function buildPayBreakdown(
     ];
   }
   if (workerType === 'LOCAL') {
-    return computeLocalMonthlyPay(rules).breakdown.map((b) => ({
-      label: b.component,
-      amount: b.amount,
-    }));
+    if (usesRetailLocalPayRules(legalEntityCode)) {
+      return computeLocalMonthlyPay(rules).breakdown.map((b) => ({
+        label: b.component,
+        amount: b.amount,
+      }));
+    }
+    if (monthlyAmount != null) {
+      return [{ label: 'Gaji bulanan (rekod syarikat)', amount: Number(monthlyAmount) }];
+    }
+    return [{ label: 'Gaji bulanan', amount: 0 }];
   }
   return [];
 }
@@ -139,9 +148,11 @@ export async function getMyPayrollDashboard(
     const workerType = inferWorkerType(row as Parameters<typeof inferWorkerType>[0]);
     const breakdown = buildPayBreakdown(
       workerType,
+      entity?.code ?? 'RKJ',
       rules,
       row.shift_hours != null ? Number(row.shift_hours) : null,
-      row.shifts_per_week
+      row.shifts_per_week,
+      row.monthly_amount != null ? Number(row.monthly_amount) : null
     );
 
     if (workerType === 'FOREIGN') {

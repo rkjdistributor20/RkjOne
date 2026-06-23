@@ -1,12 +1,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { type LegalEntityCode } from '@/lib/brand/legal-entities';
 import { getCompanyPayrollDashboard } from '@/lib/payroll/company-payroll';
-import { periodDays } from '@/lib/payroll/period-ranges';
+import {
+  computeFixedCompanyLocalPay,
+  computeRkjSalesLocalPay,
+  usesRetailLocalPayRules,
+} from '@/lib/payroll/local-pay-policy';
 import {
   computeForeignWeeklyPay,
-  computeLocalMonthlyPay,
   DEFAULT_SHIFTS_PER_WEEK,
-  inferWorkerType,
 } from '@/lib/payroll/staff-pay-rates';
 import type { PayrollRule, CommissionTier } from '@/lib/payroll/types';
 
@@ -33,6 +35,8 @@ export type PayrollProposalLine = {
   gross_pay: number;
   net_pay: number;
   pay_basis: string;
+  pay_model?: 'RETAIL_RULES' | 'FIXED_RECORD';
+  edited?: boolean;
   flags: string[];
 };
 
@@ -94,7 +98,7 @@ function buildNarrativeSummary(
   return (
     `Cadangan gaji ${cadence} ${periodLabel}: ${totals.staff_count} staf, jumlah bersih RM ${totals.net.toFixed(2)}. ` +
     `Pecahan syarikat — ${parts.join('; ')}. ` +
-    `Pembantu AI mengira ikut peraturan PR001–PR005 (asing) dan komponen bulanan tempatan (EPF/SOCSO/EIS).`
+    `Staf jualan RKJ ikut peraturan PR + komisen; RKJ Distributor & Manufacturing ikut gaji bulanan rekod.`
   );
 }
 
@@ -113,7 +117,7 @@ function buildInsights(companies: CompanyPayrollProposal[]): string[] {
         `${c.company_code}: ${noShifts.length} pekerja asing tiada shift diluluskan dalam tempoh — gaji mungkin RM 0.`
       );
     }
-    const locals = c.local_lines.filter((l) => l.commission > 0);
+    const locals = c.local_lines.filter((l) => l.commission > 0 && l.pay_model === 'RETAIL_RULES');
     if (locals.length > 0) {
       const commTotal = round2(locals.reduce((s, l) => s + l.commission, 0));
       insights.push(
@@ -181,11 +185,64 @@ async function loadSalesByStaff(
   return map;
 }
 
-function calcCommission(tiers: CommissionTier[], sales: number): number {
-  const match = tiers
-    .filter((t) => t.status === 'ACTIVE' && sales >= t.tier_from && (t.tier_to == null || sales <= t.tier_to))
-    .sort((a, b) => b.tier_from - a.tier_from)[0];
-  return match?.commission_amount ?? 0;
+function buildLocalLine(
+  staff: {
+    id: string;
+    staff_code: string;
+    full_name: string;
+    profile_id: string | null;
+    monthly_amount: number | null;
+    branch_name: string | null;
+  },
+  companyCode: LegalEntityCode,
+  rules: PayrollRule[],
+  tiers: CommissionTier[],
+  sales: number,
+  periodStart: string,
+  periodEnd: string
+): PayrollProposalLine {
+  const flags: string[] = [];
+  const pay = usesRetailLocalPayRules(companyCode)
+    ? computeRkjSalesLocalPay(rules, tiers, sales, periodStart, periodEnd)
+    : computeFixedCompanyLocalPay(companyCode, staff.monthly_amount, periodStart, periodEnd);
+
+  if (!usesRetailLocalPayRules(companyCode) && (staff.monthly_amount == null || staff.monthly_amount <= 0)) {
+    flags.push('Gaji bulanan rekod tiada — sila kemas kini di HR');
+  }
+
+  if (
+    usesRetailLocalPayRules(companyCode) &&
+    staff.monthly_amount != null &&
+    Math.abs(Number(staff.monthly_amount) - pay.gross_pay) > 50
+  ) {
+    flags.push(`Rekod staf RM ${Number(staff.monthly_amount).toFixed(2)} vs cadangan RM ${pay.gross_pay.toFixed(2)}`);
+  }
+
+  return {
+    staff_id: staff.id,
+    staff_code: staff.staff_code,
+    full_name: staff.full_name,
+    branch_name: staff.branch_name,
+    profile_id: staff.profile_id,
+    worker_type: 'LOCAL',
+    shift_hours: null,
+    shifts_in_period: 0,
+    ot_hours: 0,
+    basic_salary: pay.basic_salary,
+    attendance_allowance: pay.attendance_allowance,
+    shift_pay: pay.shift_pay,
+    ot_pay: pay.ot_pay,
+    commission: pay.commission,
+    epf: pay.epf,
+    socso: pay.socso,
+    eis: pay.eis,
+    gross_pay: pay.gross_pay,
+    net_pay: pay.net_pay,
+    pay_basis: pay.pay_basis,
+    pay_model: pay.pay_model,
+    edited: false,
+    flags,
+  };
 }
 
 function buildForeignLine(
@@ -266,64 +323,6 @@ function buildForeignLine(
     gross_pay: gross,
     net_pay: gross,
     pay_basis: payBasis,
-    flags,
-  };
-}
-
-function buildLocalLine(
-  staff: {
-    id: string;
-    staff_code: string;
-    full_name: string;
-    profile_id: string | null;
-    monthly_amount: number | null;
-    branch_name: string | null;
-  },
-  rules: PayrollRule[],
-  tiers: CommissionTier[],
-  sales: number,
-  periodStart: string,
-  periodEnd: string
-): PayrollProposalLine {
-  const flags: string[] = [];
-  const localPay = computeLocalMonthlyPay(rules);
-  const days = periodDays(periodStart, periodEnd);
-  const basicRule = localPay.breakdown.find((b) => b.component.includes('Pokok'));
-  const allowanceRule = localPay.breakdown.find((b) => b.component.includes('Elaun'));
-  const basic = round2((basicRule?.amount ?? 0) * (days / 30));
-  const allowance = allowanceRule?.amount ?? 0;
-  const commission = calcCommission(tiers, sales);
-  const gross = round2(basic + allowance + commission);
-  const epf = round2(gross * 0.11);
-  const socso = round2(Math.min(gross, 6000) * 0.005);
-  const eis = round2(gross * 0.002);
-  const net = round2(gross - epf - socso - eis);
-
-  if (staff.monthly_amount != null && Math.abs(Number(staff.monthly_amount) - gross) > 50) {
-    flags.push(`Rekod staf RM ${Number(staff.monthly_amount).toFixed(2)} vs cadangan RM ${gross.toFixed(2)}`);
-  }
-
-  return {
-    staff_id: staff.id,
-    staff_code: staff.staff_code,
-    full_name: staff.full_name,
-    branch_name: staff.branch_name,
-    profile_id: staff.profile_id,
-    worker_type: 'LOCAL',
-    shift_hours: null,
-    shifts_in_period: 0,
-    ot_hours: 0,
-    basic_salary: basic,
-    attendance_allowance: allowance,
-    shift_pay: 0,
-    ot_pay: 0,
-    commission,
-    epf,
-    socso,
-    eis,
-    gross_pay: gross,
-    net_pay: net,
-    pay_basis: `Gaji pokok + elaun + komisen (jualan RM ${sales.toFixed(2)})`,
     flags,
   };
 }
@@ -410,6 +409,7 @@ export async function generateAiPayrollProposal(
         local_lines.push(
           buildLocalLine(
             { ...base, monthly_amount: s.monthly_amount },
+            company.code,
             rules,
             tiers,
             salesMap.get(s.id) ?? 0,
@@ -479,4 +479,121 @@ export function companyForLine(
       c.foreign_lines.some((l) => l.staff_id === staffId) ||
       c.local_lines.some((l) => l.staff_id === staffId)
   );
+}
+
+function sumNet(lines: PayrollProposalLine[]) {
+  return round2(lines.reduce((s, l) => s + l.net_pay, 0));
+}
+
+function sumGross(lines: PayrollProposalLine[]) {
+  return round2(lines.reduce((s, l) => s + l.gross_pay, 0));
+}
+
+export function recalculateCompanyTotals(company: CompanyPayrollProposal): CompanyPayrollProposal {
+  const foreign_total_net = sumNet(company.foreign_lines);
+  const local_total_net = sumNet(company.local_lines);
+  return {
+    ...company,
+    foreign_total_net,
+    local_total_net,
+    total_net: round2(foreign_total_net + local_total_net),
+    total_gross: sumGross([...company.foreign_lines, ...company.local_lines]),
+  };
+}
+
+export function recalculateProposalTotals(proposal: AiPayrollProposal): AiPayrollProposal {
+  const companies = proposal.companies.map(recalculateCompanyTotals);
+  let foreignCount = 0;
+  let localCount = 0;
+  let gross = 0;
+  let net = 0;
+
+  for (const c of companies) {
+    foreignCount += c.foreign_lines.length;
+    localCount += c.local_lines.length;
+    gross += c.total_gross;
+    net += c.total_net;
+  }
+
+  return {
+    ...proposal,
+    companies,
+    totals: {
+      ...proposal.totals,
+      staff_count: foreignCount + localCount,
+      foreign_count: foreignCount,
+      local_count: localCount,
+      gross: round2(gross),
+      net: round2(net),
+    },
+  };
+}
+
+export function applyProposalLineNetEdit(line: PayrollProposalLine, netPay: number): PayrollProposalLine {
+  const net = round2(Math.max(0, netPay));
+  if (line.worker_type === 'FOREIGN') {
+    return {
+      ...line,
+      net_pay: net,
+      gross_pay: net,
+      shift_pay: round2(net - line.ot_pay),
+      edited: true,
+      pay_basis: `${line.pay_basis.replace(/ · disemak manual$/, '')} · disemak manual`,
+    };
+  }
+  const deductions = line.epf + line.socso + line.eis;
+  return {
+    ...line,
+    net_pay: net,
+    gross_pay: round2(net + deductions),
+    edited: true,
+    pay_basis: `${line.pay_basis.replace(/ · disemak manual$/, '')} · disemak manual`,
+  };
+}
+
+export function applyProposalLineGrossEdit(line: PayrollProposalLine, grossPay: number): PayrollProposalLine {
+  const gross = round2(Math.max(0, grossPay));
+  if (line.worker_type === 'FOREIGN') {
+    return applyProposalLineNetEdit(line, gross);
+  }
+  const epf = round2(gross * 0.11);
+  const socso = round2(Math.min(gross, 6000) * 0.005);
+  const eis = round2(gross * 0.002);
+  const net = round2(gross - epf - socso - eis);
+  return {
+    ...line,
+    gross_pay: gross,
+    net_pay: net,
+    epf,
+    socso,
+    eis,
+    basic_salary: line.pay_model === 'FIXED_RECORD' ? gross : line.basic_salary,
+    edited: true,
+    pay_basis: `${line.pay_basis.replace(/ · disemak manual$/, '')} · disemak manual`,
+  };
+}
+
+export function updateProposalLine(
+  proposal: AiPayrollProposal,
+  staffId: string,
+  field: 'net_pay' | 'gross_pay',
+  value: number
+): AiPayrollProposal {
+  const companies = proposal.companies.map((company) => {
+    const patch = (lines: PayrollProposalLine[]) =>
+      lines.map((line) => {
+        if (line.staff_id !== staffId) return line;
+        return field === 'net_pay'
+          ? applyProposalLineNetEdit(line, value)
+          : applyProposalLineGrossEdit(line, value);
+      });
+
+    return recalculateCompanyTotals({
+      ...company,
+      foreign_lines: patch(company.foreign_lines),
+      local_lines: patch(company.local_lines),
+    });
+  });
+
+  return recalculateProposalTotals({ ...proposal, companies });
 }

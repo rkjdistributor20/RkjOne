@@ -2,26 +2,71 @@
 
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
-import { Bot, Building2, Download, Send, Sparkles, Users } from 'lucide-react';
+import { Bot, Building2, Download, Pencil, Send, Sparkles, Users } from 'lucide-react';
 import {
   distributePayslips,
   fetchAiPayrollProposal,
 } from '@/lib/payroll/api';
-import type { AiPayrollProposal, ProposalPeriodType } from '@/lib/payroll/ai-proposal';
+import type { AiPayrollProposal, PayrollProposalLine, ProposalPeriodType } from '@/lib/payroll/ai-proposal';
+import { updateProposalLine } from '@/lib/payroll/ai-proposal';
 import { LegalEntityLogo } from '@/components/brand/legal-entity-logo';
 import { WorkerTypeBadge } from '@/components/payroll/worker-type-badge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatRM, KpiCard, KpiGrid } from '@/components/shared/module-ui';
+
+function EditableAmount({
+  value,
+  onCommit,
+}: {
+  value: number;
+  onCommit: (next: number) => void;
+}) {
+  const [draft, setDraft] = useState(String(value.toFixed(2)));
+  const [focused, setFocused] = useState(false);
+
+  function commit() {
+    const parsed = Number.parseFloat(draft.replace(',', '.'));
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      setDraft(value.toFixed(2));
+      return;
+    }
+    onCommit(Math.round(parsed * 100) / 100);
+  }
+
+  return (
+    <Input
+      className="h-8 w-[88px] px-2 text-xs tabular-nums"
+      value={focused ? draft : value.toFixed(2)}
+      onFocus={() => {
+        setFocused(true);
+        setDraft(value.toFixed(2));
+      }}
+      onBlur={() => {
+        setFocused(false);
+        commit();
+      }}
+      onChange={(e) => setDraft(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.currentTarget.blur();
+        }
+      }}
+    />
+  );
+}
 
 function ProposalTable({
   lines,
   workerLabel,
+  onEditLine,
 }: {
-  lines: AiPayrollProposal['companies'][0]['foreign_lines'];
+  lines: PayrollProposalLine[];
   workerLabel: string;
+  onEditLine: (staffId: string, field: 'net_pay' | 'gross_pay', value: number) => void;
 }) {
   if (lines.length === 0) {
     return <p className="text-xs text-muted-foreground">Tiada {workerLabel} dalam tempoh ini.</p>;
@@ -40,18 +85,47 @@ function ProposalTable({
         </thead>
         <tbody>
           {lines.map((line) => (
-            <tr key={line.staff_id} className="border-b">
+            <tr key={line.staff_id} className={`border-b ${line.edited ? 'bg-amber-50/60' : ''}`}>
               <td className="p-2">
-                <p className="font-medium">{line.full_name}</p>
-                <p className="text-muted-foreground">{line.staff_code}</p>
+                <div className="flex items-start gap-1.5">
+                  <div>
+                    <p className="font-medium">{line.full_name}</p>
+                    <p className="text-muted-foreground">{line.staff_code}</p>
+                    {line.pay_model === 'FIXED_RECORD' && (
+                      <Badge variant="outline" className="mt-1 text-[10px]">
+                        Rekod syarikat
+                      </Badge>
+                    )}
+                    {line.pay_model === 'RETAIL_RULES' && (
+                      <Badge variant="outline" className="mt-1 text-[10px]">
+                        Peraturan jualan RKJ
+                      </Badge>
+                    )}
+                    {line.edited && (
+                      <p className="mt-1 flex items-center gap-0.5 text-[10px] text-amber-700">
+                        <Pencil className="h-3 w-3" /> disemak manual
+                      </p>
+                    )}
+                  </div>
+                </div>
                 {line.flags.length > 0 && (
                   <p className="mt-1 text-[10px] text-amber-600">{line.flags[0]}</p>
                 )}
               </td>
               <td className="p-2">{line.branch_name ?? '—'}</td>
-              <td className="p-2 max-w-[180px] text-muted-foreground">{line.pay_basis}</td>
-              <td className="p-2 tabular-nums">{formatRM(line.gross_pay)}</td>
-              <td className="p-2 font-medium tabular-nums">{formatRM(line.net_pay)}</td>
+              <td className="p-2 max-w-[200px] text-muted-foreground">{line.pay_basis}</td>
+              <td className="p-2">
+                <EditableAmount
+                  value={line.gross_pay}
+                  onCommit={(v) => onEditLine(line.staff_id, 'gross_pay', v)}
+                />
+              </td>
+              <td className="p-2">
+                <EditableAmount
+                  value={line.net_pay}
+                  onCommit={(v) => onEditLine(line.staff_id, 'net_pay', v)}
+                />
+              </td>
             </tr>
           ))}
         </tbody>
@@ -84,6 +158,10 @@ export function AiPayrollProposalSection() {
     await loadProposal(type);
   }
 
+  function handleEditLine(staffId: string, field: 'net_pay' | 'gross_pay', value: number) {
+    setProposal((prev) => (prev ? updateProposalLine(prev, staffId, field, value) : prev));
+  }
+
   async function handleDistribute() {
     if (!proposal) return;
     setDistributing(true);
@@ -109,6 +187,15 @@ export function AiPayrollProposalSection() {
     }
   }
 
+  const editedCount =
+    proposal?.companies.reduce(
+      (n, c) =>
+        n +
+        c.foreign_lines.filter((l) => l.edited).length +
+        c.local_lines.filter((l) => l.edited).length,
+      0
+    ) ?? 0;
+
   return (
     <Card className="border-violet-200 bg-gradient-to-br from-violet-50/80 to-white">
       <CardHeader className="pb-2">
@@ -117,8 +204,9 @@ export function AiPayrollProposalSection() {
           Pembantu AI — Cadangan Gaji
         </CardTitle>
         <p className="text-xs text-muted-foreground">
-          AI menganalisis shift, peraturan PR001–PR005, komisen POS dan pecahkan ikut 3 syarikat.
-          Selepas semak, hantar slip terus ke dashboard semua staf.
+          Staf jualan <strong>Roti Kaya Junus</strong> ikut peraturan PR + komisen POS. Staf tempatan{' '}
+          <strong>RKJ Distributor</strong> & <strong>Manufacturing</strong> ikut gaji bulanan rekod HR.
+          Edit jumlah kasar/bersih sebelum sahkan.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -157,6 +245,11 @@ export function AiPayrollProposalSection() {
                   <li key={item}>{item}</li>
                 ))}
               </ul>
+              {editedCount > 0 && (
+                <p className="mt-2 text-xs font-medium text-amber-700">
+                  {editedCount} baris telah disemak manual — jumlah dikemas kini automatik.
+                </p>
+              )}
               {proposal.warnings.length > 0 && (
                 <div className="mt-2 rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">
                   {proposal.warnings.slice(0, 5).map((w) => (
@@ -196,7 +289,11 @@ export function AiPayrollProposalSection() {
                         <WorkerTypeBadge workerType="FOREIGN" />
                         Pekerja Asing — {formatRM(company.foreign_total_net)}
                       </p>
-                      <ProposalTable lines={company.foreign_lines} workerLabel="pekerja asing" />
+                      <ProposalTable
+                        lines={company.foreign_lines}
+                        workerLabel="pekerja asing"
+                        onEditLine={handleEditLine}
+                      />
                     </div>
                   )}
 
@@ -205,8 +302,22 @@ export function AiPayrollProposalSection() {
                       <p className="mb-2 flex items-center gap-2 text-sm font-semibold">
                         <WorkerTypeBadge workerType="LOCAL" />
                         Staf Tempatan — {formatRM(company.local_total_net)}
+                        {company.company_code === 'RKJ' && (
+                          <span className="text-xs font-normal text-muted-foreground">
+                            (peraturan jualan + komisen)
+                          </span>
+                        )}
+                        {company.company_code !== 'RKJ' && (
+                          <span className="text-xs font-normal text-muted-foreground">
+                            (gaji bulanan rekod syarikat)
+                          </span>
+                        )}
                       </p>
-                      <ProposalTable lines={company.local_lines} workerLabel="staf tempatan" />
+                      <ProposalTable
+                        lines={company.local_lines}
+                        workerLabel="staf tempatan"
+                        onEditLine={handleEditLine}
+                      />
                     </div>
                   )}
                 </TabsContent>
@@ -222,9 +333,9 @@ export function AiPayrollProposalSection() {
                 <Send className="mr-1.5 h-4 w-4" />
                 {distributing ? 'Menghantar slip…' : 'Sahkan & Hantar Slip ke Dashboard Staf'}
               </Button>
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <p className="flex items-center gap-1 text-xs text-muted-foreground">
                 <Download className="h-3.5 w-3.5" />
-                Staf boleh muat turun slip dari dashboard / profil mereka
+                Semak/edit jumlah di atas sebelum sahkan
               </p>
             </div>
           </>

@@ -7,6 +7,7 @@ import {
   inferWorkerType,
   staffPayDisplay,
 } from '@/lib/payroll/staff-pay-rates';
+import { usesRetailLocalPayRules } from '@/lib/payroll/local-pay-policy';
 import type { PayrollRule } from '@/lib/payroll/types';
 
 export type CompanyPayrollStaffRow = {
@@ -121,6 +122,7 @@ export async function getCompanyPayrollDashboard(
     if (!group) continue;
 
     const workerType = inferWorkerType(row);
+    const companyCode = (entity && 'code' in entity ? entity.code : group.code) as LegalEntityCode;
     let computedWeekly: number | null = null;
     let computedMonthly: number | null = null;
 
@@ -133,7 +135,11 @@ export async function getCompanyPayrollDashboard(
       computedWeekly = pay.weekly;
     }
     if (workerType === 'LOCAL') {
-      computedMonthly = computeLocalMonthlyPay(rules).total;
+      computedMonthly = usesRetailLocalPayRules(companyCode)
+        ? computeLocalMonthlyPay(rules).total
+        : row.monthly_amount != null
+          ? Number(row.monthly_amount)
+          : null;
     }
 
     const weeklyAmt =
