@@ -10,6 +10,7 @@
     "seed:users": "node scripts/seed-auth-users.mjs",
     "backfill:staff-credentials": "node scripts/backfill-staff-credentials.mjs",
     "reset:am-passwords": "node scripts/reset-am-passwords.mjs",
+    "reset:am-uat": "node scripts/reset-am-passwords.mjs --go-live",
     "rotate:passwords": "node scripts/rotate-production-passwords.mjs",
     "go-live:passwords": "node scripts/go-live-password-setup.mjs",
     "verify:go-live": "node scripts/verify-go-live.mjs",

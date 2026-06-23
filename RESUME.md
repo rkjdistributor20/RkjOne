@@ -4,9 +4,9 @@
 
 > **Buka fail ini bila buka semula projek.** Kemaskini tarikh bila selesai satu fasa.
 
-**Tarikh kemaskini:** 22 Jun 2025 (dashboard owner 3 syarikat)  
-**Branch:** `master` · commit terkini **`d8c902b`** (dashboard owner 3 syarikat)
-**Production:** https://rkj-one.vercel.app · deploy **`1319f08`**+ (Logistik UI)  
+**Tarikh kemaskini:** 23 Jun 2025 (logo 3 syarikat · AM UAT reset)  
+**Branch:** `master` · commit terkini **`e8fe2be`** (logo dikongsi 3 syarikat)  
+**Production:** https://rkj-one.vercel.app · deploy **`e8fe2be`** ✓
 **Supabase:** `mtygxueknokcihofdttl` · migrations **00001–00069**
 
 ---
@@ -34,7 +34,9 @@
 
 | Commit | Kandungan |
 |--------|-----------|
-| `4b3ef58` | `npm run go-live:passwords` · eksport kredensial AM · gitignore secrets |
+| `e8fe2be` | Logo RKJ dikongsi — 3 syarikat dashboard + profil HR |
+| `d8c902b` | Dashboard owner — 3 syarikat · aliran kerja · jabatan |
+| `4b3ef58` | `npm run go-live:passwords` · eksport kredensial AM |
 | `8ea6cfe` | Script rotate password · panduan Supabase Auth |
 | `ff12ac6` | WhatsApp SOP · GO_LIVE_36 verify ticked |
 | `1319f08` | Label UI **Armada → Logistik** |
@@ -65,9 +67,10 @@
 | `verify:go-live` | **19/19** |
 | `verify:production` | **6/6** · commit `1319f08`+ |
 | `verify:am` | 12+10+14 · legal entities |
-| `verify:go-live-36` | Auth ✓ · Safuan login OK · **36/36 stok** |
+| `verify:go-live-36` | Auth ✓ · Safuan login OK · **36/36 stok** *(23 Jun)* |
 
-> ⚠️ **Jangan** jalankan `npm run verify:login` — boleh reset password ke `RkjOne@2025`.
+> ⚠️ **Mat Isa** — jika sudah tukar password sendiri, guna password baharu (bukan fail go-live).  
+> **AM UAT reset:** `npm run reset:am-uat` — reset Safuan/Hakim/Yati ke password go-live.
 
 ### Password production (SUDAH DIJALANKAN)
 
@@ -84,7 +87,7 @@
 ## ⚠️ Belum — bila sambung semula
 
 - [ ] **Baca password** — `csv_import/.go-live-temp-password.txt`
-- [ ] **UAT AM** — Safuan → Hakim → Yati ([`docs/UAT_AM.md`](docs/UAT_AM.md))
+- [ ] **UAT AM** — Safuan → Hakim → Yati — password: `.go-live-temp-password.txt` · [`docs/UAT_AM.md`](docs/UAT_AM.md)
 - [ ] **Supabase Auth** — signup OFF ([`docs/SUPABASE_AUTH_SETUP.md`](docs/SUPABASE_AUTH_SETUP.md))
 - [ ] **WhatsApp** — [`docs/WHATSAPP_GO_LIVE.txt`](docs/WHATSAPP_GO_LIVE.txt) + edar CSV ke 3 AM
 - [ ] **Hari H** — 36 cawangan buka syif · POS · tutup syif ([`docs/GO_LIVE_36.md`](docs/GO_LIVE_36.md))
@@ -113,7 +116,7 @@
 | WhatsApp cawangan | `docs/WHATSAPP_GO_LIVE.txt` |
 | Edar kredensial AM | `docs/GO_LIVE_CREDENTIALS_HANDOFF.md` |
 | Verify | `npm run verify:go-live-36` |
-| Putar semula password | `npm run go-live:passwords` |
+| Reset AM UAT | `npm run reset:am-uat` |
 
 ---
 
