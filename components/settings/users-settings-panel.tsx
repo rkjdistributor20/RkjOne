@@ -1,20 +1,13 @@
 'use client';
 
-
-
 import { useMemo, useState } from 'react';
-
 import { toast } from 'sonner';
-
 import { Plus, Trash2, Users, Store, Building2 } from 'lucide-react';
-
 import { createUser, deleteUser } from '@/lib/settings/api';
-
 import type { SettingsBranchGroup, SettingsUser } from '@/lib/settings/types';
-
 import { ROLE_LABELS, type UserRole } from '@/types/enums';
-
 import { useAuthStore } from '@/stores/auth-store';
+import { UsersAdminPanel } from '@/components/settings/users-admin-panel';
 
 import { Button } from '@/components/ui/button';
 
@@ -329,6 +322,17 @@ export function UsersSettingsPanel({
 
 }: UsersSettingsPanelProps) {
 
+  if (isAdmin) {
+    return (
+      <UsersAdminPanel
+        users={users}
+        branchGroups={branchGroups}
+        creatableRoles={creatableRoles}
+        onRefresh={onRefresh}
+      />
+    );
+  }
+
   const currentProfile = useAuthStore((s) => s.profile);
 
   const [addOpen, setAddOpen] = useState(false);
@@ -456,55 +460,24 @@ export function UsersSettingsPanel({
     <div className="space-y-4">
 
       {isAreaManager && (
-
         <p className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-950">
-
           Pengurus Kawasan: urus akaun login <strong>Staf kiosk</strong> dalam kawasan anda sahaja.
-
         </p>
-
       )}
-
-
-
-      {isAdmin && (
-
-        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-
-          Senarai semua pengguna berdaftar dalam organisasi — boleh tambah dan padam.
-
-        </p>
-
-      )}
-
-
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-
         <Badge variant="outline" className="gap-1.5 font-normal tabular-nums">
-
           <Users className="h-3.5 w-3.5" />
-
           {users.length} pengguna
-
         </Badge>
-
         <Button
-
           size="sm"
-
           className="gap-1.5 bg-amber-500 hover:bg-amber-600"
-
           onClick={() => setAddOpen(true)}
-
         >
-
           <Plus className="h-4 w-4" />
-
           Tambah Pengguna
-
         </Button>
-
       </div>
 
 

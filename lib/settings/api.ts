@@ -151,6 +151,57 @@ export async function createUser(payload: {
   });
 }
 
+export async function updateUser(
+  id: string,
+  payload: {
+    full_name?: string;
+    role?: string;
+    status?: string;
+    branch_id?: string | null;
+    region_id?: string | null;
+    auto_dashboard?: boolean;
+    dashboard_profile?: string;
+    dashboard_label?: string;
+    dashboard_home?: string;
+    dashboard_ai_reason?: string;
+  }
+) {
+  return fetchJson<{ user: SettingsUser }>(`/api/settings/users/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function fetchDashboardAdvice(userId?: string) {
+  const q = userId ? `?user_id=${userId}` : '';
+  return fetchJson<{
+    count: number;
+    results: Array<{
+      user_id: string;
+      full_name: string;
+      role: string;
+      advice: {
+        profile_id: string;
+        label: string;
+        home_path: string;
+        module_labels: string[];
+        reason: string;
+        companies: string[];
+      };
+    }>;
+  }>(`/api/settings/users/dashboard-advice${q}`);
+}
+
+export async function applyDashboardAdviceAll() {
+  return fetchJson<{ count: number; applied: boolean; results: unknown[] }>(
+    '/api/settings/users/dashboard-advice',
+    {
+      method: 'POST',
+      body: JSON.stringify({ apply: true }),
+    }
+  );
+}
+
 export async function deleteUser(id: string) {
   return fetchJson<{ result: unknown }>(`/api/settings/users/${id}`, {
     method: 'DELETE',

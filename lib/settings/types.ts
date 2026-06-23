@@ -7,7 +7,13 @@ export interface SettingsUser {
   region_id: string | null;
   branch: { branch_name: string; branch_code: string } | null;
   region?: { name: string; code?: string } | null;
+  legal_entity_code?: string | null;
+  legal_entity_name?: string | null;
   status: string;
+  dashboard_profile?: string | null;
+  dashboard_label?: string | null;
+  dashboard_home?: string | null;
+  dashboard_ai_reason?: string | null;
 }
 
 export interface SettingsProduct {

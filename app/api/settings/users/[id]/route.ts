@@ -8,6 +8,13 @@ import {
   assertUserTargetInScope,
 } from '@/lib/settings/personnel-access';
 import { resolveLegalEntityIdForRole } from '@/lib/settings/legal-entity';
+import {
+  adviseUserDashboard,
+  dashboardMetadataPatch,
+  mergeMetadata,
+} from '@/lib/settings/dashboard-advisor';
+import { isGroupOwnerMetadata } from '@/lib/hr/group-owner';
+import type { UserRole } from '@/types/enums';
 
 export async function PATCH(
   request: Request,
@@ -37,12 +44,52 @@ export async function PATCH(
       ? await createServiceClient()
       : await createClient();
 
+    const { data: existing } = await (client as SupabaseClient)
+      .from('profiles')
+      .select('metadata, role, legal_entity:legal_entities(code)')
+      .eq('id', id)
+      .maybeSingle();
+
     if (body.role !== undefined && isSettingsAdmin(profile.role)) {
       updates.legal_entity_id = await resolveLegalEntityIdForRole(
         client as SupabaseClient,
         profile.organization_id,
         body.role
       );
+    }
+
+    if (body.dashboard_profile !== undefined && isSettingsAdmin(profile.role)) {
+      const meta = mergeMetadata(existing?.metadata, {
+        dashboard_profile: body.dashboard_profile,
+        dashboard_label: body.dashboard_label ?? null,
+        dashboard_home: body.dashboard_home ?? null,
+        dashboard_ai_reason: body.dashboard_ai_reason ?? 'Diset manual oleh pentadbir',
+        dashboard_ai_at: new Date().toISOString(),
+      });
+      updates.metadata = meta;
+    } else if (body.auto_dashboard === true && isSettingsAdmin(profile.role)) {
+      const entity = Array.isArray(existing?.legal_entity)
+        ? existing?.legal_entity[0]
+        : existing?.legal_entity;
+      const { data: staffRows } = await (client as SupabaseClient)
+        .from('staff')
+        .select('legal_entity:legal_entities(code), worker_type')
+        .eq('profile_id', id)
+        .eq('status', 'ACTIVE');
+      const employments = (staffRows ?? []).map((s) => {
+        const le = Array.isArray(s.legal_entity) ? s.legal_entity[0] : s.legal_entity;
+        return {
+          legal_entity_code: (le as { code: string } | null)?.code ?? 'RKJ',
+          worker_type: s.worker_type as string | null,
+        };
+      });
+      const advice = adviseUserDashboard({
+        role: (body.role ?? existing?.role ?? 'STAFF') as UserRole,
+        legal_entity_code: (entity as { code: string } | null)?.code ?? null,
+        staff_employments: employments,
+        is_group_owner: isGroupOwnerMetadata(existing?.metadata),
+      });
+      updates.metadata = mergeMetadata(existing?.metadata, dashboardMetadataPatch(advice));
     }
 
     updates.updated_at = new Date().toISOString();

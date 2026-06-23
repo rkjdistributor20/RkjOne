@@ -58,6 +58,7 @@ import {
   formatRM,
 } from '@/components/shared/module-ui';
 import { StaffPayHrPanel } from '@/components/staff/staff-pay-hr-panel';
+import { staffQuickActionsFromMetadata } from '@/lib/settings/dashboard-quick-actions';
 
 export default async function DashboardPage() {
   const profile = await getCurrentProfile();
@@ -113,12 +114,16 @@ export default async function DashboardPage() {
 
   if (profile.role === 'STAFF') {
     const firstName = profile.full_name?.split(' ')[0] ?? 'Staf';
+    const quickActions = staffQuickActionsFromMetadata(profile.metadata);
+    const dashMeta = profile.metadata as Record<string, unknown> | null;
+    const dashLabel =
+      typeof dashMeta?.dashboard_label === 'string' ? dashMeta.dashboard_label : 'Staf Kiosk';
 
     return (
       <ModuleLayout>
         <DashboardHero
           variant="warm"
-          eyebrow={`${COMPANY.name} · Staf Kiosk`}
+          eyebrow={`${COMPANY.name} · ${dashLabel}`}
           title={`Selamat bertugas, ${firstName}`}
           subtitle={`${COMPANY.taglineMs} — semak jadual syif dan maklumat harian anda di sini.`}
           showLogo
@@ -135,22 +140,14 @@ export default async function DashboardPage() {
           <StaffSchedulePanel />
         </SectionCard>
 
-        <SectionCard title="Pautan Pantas" description="Modul yang kerap digunakan staf kiosk">
+        <SectionCard title="Pautan Pantas" description="Modul dashboard anda">
           <QuickActionGrid
-            actions={[
-              {
-                label: 'Syif & Kehadiran',
-                href: '/shifts',
-                icon: Clock,
-                description: 'Clock-in / clock-out',
-              },
-              {
-                label: 'POS Kaunter',
-                href: '/pos',
-                icon: ShoppingCart,
-                description: 'Jualan harian',
-              },
-            ]}
+            actions={quickActions.map((a: { label: string; href: string; description: string }) => ({
+              label: a.label,
+              href: a.href,
+              icon: a.href === '/pos' ? ShoppingCart : Clock,
+              description: a.description,
+            }))}
           />
         </SectionCard>
       </ModuleLayout>
