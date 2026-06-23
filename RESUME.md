@@ -4,10 +4,26 @@
 
 > **Buka fail ini bila buka semula projek.** Kata **"sambung"** untuk teruskan UAT payroll atau UAT AM.
 
-**Tarikh save:** 21 Jun 2026 (akhir sesi)  
-**Branch:** `master` · commit terkini **`7d2945d`**  
-**Production:** https://rkj-one.vercel.app · deploy **`7d2945d`** ✓  
-**Supabase:** `mtygxueknokcihofdttl` · migrations **00001–00075** (00074–75 push ✓)
+**Tarikh save:** 21 Jun 2026 (akhir sesi · **GO-LIVE DISAHKAN**)  
+**Branch:** `master` · commit terkini **`9de12b0`**  
+**Production:** https://rkj-one.vercel.app · deploy **`9de12b0`** ✓ · GitHub = Vercel ✓  
+**Supabase:** `mtygxueknokcihofdttl` · migrations **00001–00075** · DB **up to date** ✓
+
+---
+
+## ✅ Go-Live — semakan akhir (21 Jun 2026)
+
+| Semakan | Hasil |
+|---------|--------|
+| `verify:production` | **6/6** · commit `9de12b0` |
+| `verify:go-live` | **19/19** |
+| `verify:go-live-36` | Auth ✓ · Safuan OK · **36/36 stok** |
+| `verify:payroll` | **14/14** |
+| `verify:hr` | **11/11** |
+| `db:push` | Remote database up to date |
+| Storage buckets | delivery-proof, bank-slips, receipts, profile-avatars, staff-payslips (migration) |
+
+**URL production:** https://rkj-one.vercel.app
 
 ---
 
