@@ -98,7 +98,7 @@ npm run verify:go-live
 
 - Signup disabled — admins create users via `npm run seed:users`
 - Profile auto-created via `handle_new_user()` trigger (`00010`)
-- Default password: `RkjOne@2025` — change on first login
+- Default password: `RkjOne@2026` — change on first login (see `RESUME.md`)
 
 See also:
 

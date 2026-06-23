@@ -35,7 +35,24 @@ npx vercel --prod
 
 Full checklist: [docs/GO_LIVE_CHECKLIST.md](./docs/GO_LIVE_CHECKLIST.md)  
 Deploy guide: [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md)  
-Resume session: [RESUME.md](./RESUME.md)
+Resume session: **[RESUME.md](./RESUME.md)** ← baca ini bila sambung
+
+**Production:** https://rkj-one.vercel.app · commit `0af1df4`
+
+### Verify / UAT (production)
+
+```powershell
+npm run verify:production
+npm run verify:payroll
+npm run verify:am
+npm run uat:am
+```
+
+### First login
+
+Default password: **`RkjOne@2026`** — email `{staffcode}@rkj.com` (contoh: `s001@rkj.com`, `dist009@rkj.com`)
+
+Owner: `matisa@rkj.com` · HR: `dist006@rkj.com` · AM: `dist009@` / `dist001@` / `dist010@rkj.com`
 
 ### Environment variables
 
@@ -45,12 +62,6 @@ Resume session: [RESUME.md](./RESUME.md)
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes (server only) |
 | `NEXT_PUBLIC_APP_URL` | Yes (auth redirects) |
-
-### First login
-
-Default password: `RkjOne@2025` — users are **required** to change password on first login.
-
-HQ admin: `matisa@rkj.com`
 
 ## Modules
 

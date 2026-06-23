@@ -1,0 +1,31 @@
+{
+  "updated": "2026-06-21",
+  "commit": "0af1df4",
+  "branch": "master",
+  "production_url": "https://rkj-one.vercel.app",
+  "supabase_project": "mtygxueknokcihofdttl",
+  "migrations": "00001-00075",
+  "default_password_ref": "RESUME.md or csv_import/.go-live-temp-password.txt (local)",
+  "email_format": "{staffcode}@rkj.com",
+  "payslips_distributed": 89,
+  "active_staff": 89,
+  "auth_users": 94,
+  "am_accounts": [
+    { "email": "dist009@rkj.com", "region": "UTARA", "kiosks": 12 },
+    { "email": "dist001@rkj.com", "region": "TENGAH", "kiosks": 10 },
+    { "email": "dist010@rkj.com", "region": "SELATAN", "kiosks": 14 }
+  ],
+  "verify_commands": [
+    "npm run verify:production",
+    "npm run verify:payroll",
+    "npm run verify:am",
+    "npm run uat:am"
+  ],
+  "resume_file": "RESUME.md",
+  "pending_manual": [
+    "UAT browser AM (docs/UAT_AM.md)",
+    "UAT browser payroll UI",
+    "Supabase signup OFF",
+    "GO_LIVE_36 hari H"
+  ]
+}

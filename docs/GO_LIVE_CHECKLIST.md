@@ -77,7 +77,7 @@ npm install
 npm run seed:users
 ```
 
-Kata laluan lalai: `RkjOne@2025` — **WAJIB tukar** selepas login pertama.
+Kata laluan lalai: **`RkjOne@2026`** — **WAJIB tukar** selepas login pertama (rujuk `RESUME.md`).
 
 Senarai penuh: `csv_import/login_users_generated.csv`
 

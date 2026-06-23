@@ -5,24 +5,58 @@ alwaysApply: true
 
 # RKJ One — Sambung Sesi (WAJIB bila buka projek)
 
-Bila pengguna **buka projek**, kata **sambung**, **teruskan**, atau tiada konteks — **baca `RESUME.md` di root** dan mula respons dengan ringkasan pendek:
+Bila pengguna **buka projek**, kata **sambung**, **teruskan**, atau tiada konteks — **baca `RESUME.md` di root** (atau `CHECKPOINT.json` untuk mesin) dan ringkaskan:
 
-## Format peringatan (copy gaya ini)
+## Checkpoint terakhir (21 Jun 2026)
 
-1. **Status:** Production https://rkj-one.vercel.app · commit terkini dari `git log -1`
-2. **Sudah siap:** dashboard owner 3 syarikat · Logistik · go-live 36 stok OK · verify lulus
-3. **Belum:** UAT AM Safuan · Supabase signup OFF · WhatsApp · hari H buka syif
-4. **Login:** Mat Isa = password sendiri · AM = `.go-live-temp-password.txt` · reset AM = `npm run reset:am-uat`
-5. **Tanya:** nak **UAT AM**, **go-live hari H**, atau **edar WhatsApp**?
+| Item | Nilai |
+|------|--------|
+| Production | https://rkj-one.vercel.app |
+| Commit | `0af1df4` (master, pushed) |
+| Supabase | `mtygxueknokcihofdttl` · migrations **00001–00075** |
+| Password | **`RkjOne@2026`** (94 auth users) |
+| Email staf | `{staffcode}@rkj.com` |
+| Payslip dihantar | **89** (UAT payroll siap) |
+| AM aktif | dist009@ (Utara) · dist001@ (Tengah) · dist010@ (Selatan) |
 
-## Fail rujukan
+## Sudah siap
 
-| Tugas | Fail / perintah |
-|-------|-----------------|
-| UAT AM | `docs/UAT_AM.md` |
-| Hari go-live | `docs/GO_LIVE_36.md` |
-| Reset AM | `npm run reset:am-uat` |
-| Verify | `npm run verify:go-live-36` |
+- POS 4-menu · payroll 3 syarikat + AI cadangan · 89 slip dihantar
+- Admin pengguna 89 staf · email @rkj.com · verify scripts 2026
+- UAT AM automatik lulus (`npm run uat:am`) · inventori skop kiosk
+- `verify:production` 6/6 · `verify:payroll` 14/14 · `verify:am` lulus
 
-Stack: Next.js 16 · Supabase `mtygxueknokcihofdttl` · migrations **00069**.  
-Jangan commit secrets / `_restore/` / `login_users_generated.csv`.
+## Belum (manual)
+
+- UAT browser AM — `docs/UAT_AM.md`
+- UAT browser payroll UI · staf muat turun slip
+- Supabase signup OFF · Hari H — `docs/GO_LIVE_36.md`
+
+## Login pantas
+
+| Peranan | Email |
+|---------|-------|
+| Owner | matisa@rkj.com |
+| HR | dist006@rkj.com |
+| AM Utara/Tengah/Selatan | dist009 / dist001 / dist010 @rkj.com |
+| Staf | s001@rkj.com |
+
+**Jangan guna:** safuan/hakim/yati@rkj.com (legacy INACTIVE)
+
+## Perintah verify / UAT
+
+```
+npm run verify:production
+npm run verify:payroll
+npm run verify:am
+npm run uat:am
+npm run uat:payroll:direct -- --both
+npm run reset:am-passwords
+```
+
+## Tanya pengguna
+
+Nak **UAT browser AM**, **go-live hari H**, atau **semak deploy**?
+
+Stack: Next.js 16 · Supabase `mtygxueknokcihofdttl`.  
+Jangan expose service role key. Jangan commit `_restore/`, `csv_import/*credentials*`, `.go-live-temp-password.txt`.
