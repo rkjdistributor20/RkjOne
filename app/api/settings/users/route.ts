@@ -55,6 +55,7 @@ export async function GET() {
       'id, full_name, email, role, status, branch_id, region_id, branch:branches(branch_name, branch_code), region:regions(name, code)'
     )
     .eq('organization_id', profile.organization_id)
+    .eq('status', 'ACTIVE')
     .order('full_name');
 
   if (!isSettingsAdmin(profile.role)) {

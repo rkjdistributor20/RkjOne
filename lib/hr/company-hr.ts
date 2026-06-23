@@ -176,11 +176,13 @@ export async function getCompanyHrDashboard(
       .from('staff')
       .select('id, staff_code, full_name, status, worker_type, weekly_amount, monthly_amount, legal_entity_id, on_hold, profile_id, branch:branches!staff_branch_id_fkey(branch_code, branch_name), region:regions!staff_region_id_fkey(name), profile:profiles!staff_profile_id_fkey(id, employee_code, full_name, email, phone, role, status, legal_entity_id, must_change_password, profile_completed_at, last_login_at)')
       .eq('organization_id', organizationId)
+      .eq('status', 'ACTIVE')
       .order('staff_code'),
     supabase
       .from('profiles')
       .select('id, employee_code, full_name, email, phone, role, status, legal_entity_id, metadata, branch:branches!profiles_branch_id_fkey(branch_code, branch_name), region:regions!profiles_region_id_fkey(name), must_change_password, profile_completed_at, last_login_at')
       .eq('organization_id', organizationId)
+      .eq('status', 'ACTIVE')
       .order('full_name'),
   ]);
 

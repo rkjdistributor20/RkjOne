@@ -23,6 +23,7 @@
     "verify:roster": "node scripts/verify-roster.mjs",
     "verify:hr": "node scripts/verify-hr-module.mjs",
     "consolidate:group-owner": "node scripts/consolidate-group-owner.mjs --apply",
+    "purge:inactive-staff": "node scripts/purge-inactive-staff.mjs --apply",
     "setup:storage": "node scripts/setup-storage.mjs",
     "finish:go-live": "node scripts/finish-go-live.mjs",
     "deploy:env": "node scripts/push-vercel-env.mjs",

@@ -61,6 +61,7 @@ export async function GET(request: Request) {
       'id, staff_code, full_name, status, branch_id, region_id, worker_type, weekly_amount, monthly_amount, shift_hours, shifts_per_week'
     )
     .eq('organization_id', profile.organization_id)
+    .eq('status', 'ACTIVE')
     .order('staff_code');
 
   if (scope.branchIds !== null) {
