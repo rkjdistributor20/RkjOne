@@ -406,7 +406,7 @@ export function UsersSettingsPanel({
 
       });
 
-      toast.success('Pengguna ditambah — kata laluan default: RkjOne@2025');
+      toast.success('Pengguna ditambah — kata laluan default: RkjOne@2026');
 
       setAddOpen(false);
 
@@ -735,7 +735,7 @@ export function UsersSettingsPanel({
 
             <p className="text-xs text-muted-foreground">
 
-              Kata laluan sementara: RkjOne@2025 — pengguna mesti tukar selepas login.
+              Kata laluan sementara: RkjOne@2026 — pengguna mesti tukar selepas login.
 
             </p>
 

@@ -20,7 +20,7 @@ import type { UserRole } from '../types/enums';
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PRODUCTION_URL = process.env.PRODUCTION_URL ?? 'https://rkj-one.vercel.app';
 const verifyOnly = process.argv.includes('--verify-only');
-const DEFAULT_PASSWORD = 'RkjOne@2025';
+const DEFAULT_PASSWORD = 'RkjOne@2026';
 const GO_LIVE_PASSWORD_FILE = path.join(ROOT, 'csv_import', '.go-live-temp-password.txt');
 
 function readPassword() {

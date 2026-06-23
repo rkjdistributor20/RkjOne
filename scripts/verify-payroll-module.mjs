@@ -7,19 +7,20 @@ import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import path from 'path';
 import { loadProjectEnv, ROOT } from './lib/load-env.mjs';
+import { DEFAULT_PASSWORD } from './lib/default-password.mjs';
 
 const PRODUCTION_URL = process.env.PRODUCTION_URL ?? 'https://rkj-one.vercel.app';
 const GO_LIVE_PASSWORD_FILE = path.join(ROOT, 'csv_import', '.go-live-temp-password.txt');
 
 function readGoLivePassword() {
   if (process.env.GO_LIVE_PASSWORD?.trim()) return process.env.GO_LIVE_PASSWORD.trim();
-  if (!fs.existsSync(GO_LIVE_PASSWORD_FILE)) return 'RkjOne@2025';
+  if (!fs.existsSync(GO_LIVE_PASSWORD_FILE)) return DEFAULT_PASSWORD;
   const line = fs
     .readFileSync(GO_LIVE_PASSWORD_FILE, 'utf8')
     .split('\n')
     .map((l) => l.trim())
     .find((l) => l && !l.startsWith('#'));
-  return line || 'RkjOne@2025';
+  return line || DEFAULT_PASSWORD;
 }
 
 function ok(label, detail) {

@@ -6,6 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { DEFAULT_PASSWORD } from './lib/default-password.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
@@ -102,7 +103,7 @@ if (rpcErr?.message?.includes('Roster plan not found') || rpcErr?.message?.inclu
 
 const { data: safuanAuth, error: authErr } = await admin.auth.signInWithPassword({
   email: 'safuan@rkj.com',
-  password: 'RkjOne@2025',
+  password: DEFAULT_PASSWORD,
 });
 
 if (authErr || !safuanAuth.session) {

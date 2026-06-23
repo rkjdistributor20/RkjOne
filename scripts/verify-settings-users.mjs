@@ -5,6 +5,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { loadProjectEnv } from './lib/load-env.mjs';
+import { DEFAULT_PASSWORD } from './lib/default-password.mjs';
 
 const PRODUCTION_URL = process.env.PRODUCTION_URL ?? 'https://rkj-one.vercel.app';
 const env = loadProjectEnv();
@@ -99,7 +100,7 @@ const { error: brokenErr } = await admin
 check(!!brokenErr, 'Query lama memang rosak (dijangka)', brokenErr?.message?.slice(0, 60));
 
 // 5. Login owner + API production
-const password = env.GO_LIVE_PASSWORD?.trim() || 'RkjOne@2025';
+const password = env.GO_LIVE_PASSWORD?.trim() || DEFAULT_PASSWORD;
 let signInResult = await anon.auth.signInWithPassword({
   email: 'matisa@rkj.com',
   password,

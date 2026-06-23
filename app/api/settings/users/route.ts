@@ -114,7 +114,7 @@ export async function POST(request: Request) {
     }
 
     const service = await createServiceClient();
-    const tempPassword = body.password ?? 'RkjOne@2025';
+    const tempPassword = body.password ?? 'RkjOne@2026';
 
     const { data: authData, error: authErr } = await service.auth.admin.createUser({
       email,

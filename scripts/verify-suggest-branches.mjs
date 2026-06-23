@@ -4,6 +4,7 @@
  */
 import fs from 'fs';
 import { createClient } from '@supabase/supabase-js';
+import { DEFAULT_PASSWORD } from './lib/default-password.mjs';
 
 const envText = fs.readFileSync('.env.local', 'utf8');
 for (const line of envText.split('\n')) {
@@ -41,7 +42,7 @@ let rpcClient = adminSb;
 if (userSb) {
   const { error: signErr } = await userSb.auth.signInWithPassword({
     email: 'ibrahim@rkj.com',
-    password: 'RkjOne@2025',
+    password: DEFAULT_PASSWORD,
   });
   if (signErr) {
     console.warn('Sign-in failed:', signErr.message, '— trying service role only');

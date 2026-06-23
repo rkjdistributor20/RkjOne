@@ -1,98 +1,64 @@
 # ⏸ Sambung Di Sini — RKJ One ERP
 
-> **🔔 SAVE CHECKPOINT 21 Jun 2026** — Tetapan pentadbir **Pengguna + AI dashboard** + Payroll 3 syarikat **LIVE** di production.
+> **🔔 SAVE CHECKPOINT 21 Jun 2026** — Production LIVE · email `@rkj.com` · kata laluan **`RkjOne@2026`**
 
-> **Buka fail ini bila buka semula projek.** Kata **"sambung"** untuk teruskan UAT payroll, UAT AM, atau UAT cadangan dashboard AI.
+> **Buka fail ini bila buka semula projek.** Kata **"sambung"** untuk teruskan UAT payroll, UAT AM, atau commit skrip verify.
 
-**Tarikh save:** 21 Jun 2026 (akhir sesi · **GO-LIVE DISAHKAN**)  
-**Branch:** `master` · commit terkini **`0c4e194`**  
-**Production:** https://rkj-one.vercel.app · deploy **`0c4e194`** (auto) · GitHub = Vercel ✓  
+**Tarikh save:** 21 Jun 2026 (akhir sesi)  
+**Branch:** `master` · commit terkini **`ab936b9`**  
+**Production:** https://rkj-one.vercel.app · deploy **`ab936b9`** ✓  
 **Supabase:** `mtygxueknokcihofdttl` · migrations **00001–00075** · DB **up to date** ✓
 
 ---
 
-## ✅ Go-Live — semakan akhir (21 Jun 2026)
+## ✅ Go-Live — semakan akhir
 
 | Semakan | Hasil |
 |---------|--------|
-| `verify:production` | **6/6** · commit `9de12b0` |
-| `verify:go-live` | **19/19** |
-| `verify:go-live-36` | Auth ✓ · Safuan OK · **36/36 stok** |
+| `verify:production` | **6/6** · commit `ab936b9` |
+| `verify:settings-users` | Staff embed + API 89 pengguna |
 | `verify:payroll` | **14/14** |
 | `verify:hr` | **11/11** |
-| `db:push` | Remote database up to date |
-| Storage buckets | delivery-proof, bank-slips, receipts, profile-avatars, staff-payslips (migration) |
+| Email staf | Semua `{staffcode}@rkj.com` |
+| Kata laluan | **94/94** auth → `RkjOne@2026` |
 
 **URL production:** https://rkj-one.vercel.app
 
 ---
 
-## 📦 Kerja siap hari ini (21 Jun 2026)
+## 📦 Kerja siap (sesi terkini)
 
-### 1. Payroll 3 Syarikat (`/payroll` → tab **3 Syarikat**)
-- Pecahan automatik **RKJ · RKJ_DIST · RKJ_MFG**
-- KPI mingguan (asing) & bulanan (tempatan) per syarikat
-- Laporan mingguan pekerja asing (auto PR001–PR005)
+### 1. Tetapan Pengguna — fix senarai kosong (`04b723d`, `ec9666b`)
+- Query FK betul (`lib/settings/users-list.ts`) — 89 staf aktif ikut 3 syarikat
+- Preload server-side · carian · kod staf · Muat Semula
+- `npm run verify:settings-users`
 
-### 2. Pembantu AI — Cadangan Gaji
-- **Cadangan Mingguan** — 56 pekerja asing RKJ (shift + OT)
-- **Cadangan Bulanan** — tempatan ikut polisi syarikat (lihat bawah)
-- **Edit kasar/bersih** dalam jadual sebelum sahkan
-- **Sahkan & Hantar Slip** → slip HTML ke dashboard semua staf
+### 2. Normalisasi email (`d39be67`)
+- 30 dikemas kini → `{staffcode}@rkj.com`
+- 3 kecuali (group owner `matisa@rkj.com`)
+- Skrip: `npm run normalize:staff-emails:apply`
 
-### 3. Portal Staf — HR & Gaji
-- Panel di **Dashboard staf** (compact) + **Profil** (penuh)
-- 3 syarikat kumpulan · slip **Dihantar HR** · muat turun peribadi
-- Muat naik slip tambahan (pilihan)
+### 3. Putar kata laluan production (`ab936b9`)
+- **94/94** auth users → `RkjOne@2026`
+- `scripts/lib/default-password.mjs` — sumber tunggal verify scripts
+- `csv_import/.go-live-temp-password.txt` (local, gitignored)
 
-### 4. Polisi gaji tempatan (kemaskini petang)
-
-| Syarikat | Staf tempatan | Cara kira |
-|----------|---------------|-----------|
-| **RKJ** (Roti Kaya Junus) | Staf **jualan kiosk** sahaja | Peraturan PR + komisen POS + EPF/SOCSO/EIS |
-| **RKJ Distributor** | 13 tempatan | `monthly_amount` rekod HR |
-| **RKJ Manufacturing** | 17 tempatan | `monthly_amount` rekod HR |
-| Pekerja asing | 56 (RKJ kiosk) | Mingguan PR001–PR005 + OT |
-
-### 5. Database & skrip
-- Migration **00074** — `staff_payslips`, `report_type` payroll_runs, bucket storage
-- Migration **00075** — auto-distribute metadata, HR storage policy
-- **`npm run verify:payroll`** — 14/14 semakan (DIST/MFG 30/30 ada gaji rekod)
-
-### 6. Tetapan Pentadbir — Pengguna + AI Dashboard (`/settings?tab=users`)
-- Senarai staf **dikumpul ikut 3 syarikat** (RKJ · RKJ_DIST · RKJ_MFG) + HQ
-- **Edit** nama, peranan, cawangan, status, dashboard
-- **Cadangan AI** per pengguna — nilai jawatan + syarikat → profil dashboard sesuai
-- **Cadangan AI Semua** — apply pukal ke metadata `profiles`
-- Dashboard staf guna metadata (label + quick actions) — tiada maklumat tidak berkaitan
-
-**Profil dashboard:** Pemilik Kumpulan · Operasi HQ · HR · Kewangan · AM · Kiosk · Pengedaran · Kilang · Logistik · Maintenance
+### 4. Admin Pengguna + AI Dashboard (`0c4e194`)
+- Edit pengguna · Cadangan AI · Cadangan AI Semua (88 profil)
+- Payroll 3 syarikat + portal slip staf (migrations 00074–00075)
 
 ---
 
-## Commits hari ini (urutan)
+## Commits (urutan)
 
 | Commit | Ringkasan |
 |--------|-----------|
-| `72994ec` | Payroll 3 syarikat + portal HR/gaji staf + payslip upload |
-| `680b02a` | AI cadangan gaji + hantar slip ke dashboard staf |
-| `91d412e` | Skrip `verify:payroll` + RESUME |
-| `044d80f` | Polisi gaji ikut syarikat + edit cadangan AI |
-| `7d2945d` | Verify DIST/MFG + RESUME checkpoint |
-| `0c4e194` | Admin edit pengguna + cadangan AI dashboard ikut syarikat |
-| *(next)* | Fix senarai pengguna — query FK + 89 rekod staf ikut syarikat |
-
----
-
-## Verify (21 Jun 2026 — lulus)
-
-| Perintah | Hasil |
-|----------|--------|
-| `npm run verify:production` | **6/6** |
-| `npm run verify:payroll` | **14/14** |
-| `npm run verify:hr` | HR 3 syarikat OK |
-| `npx tsc --noEmit` | Lulus |
-| `npm run build` | Lulus |
+| `0c4e194` | Admin edit pengguna + cadangan AI dashboard |
+| `04b723d` | Fix query FK senarai pengguna |
+| `ec9666b` | Preload staf + verify:settings-users |
+| `d39be67` | Normalisasi email @rkj.com |
+| `ab936b9` | Default password RkjOne@2026 + seed scripts |
+| *(uncommitted)* | Verify scripts guna default-password.mjs |
 
 ---
 
@@ -101,31 +67,33 @@
 | Item | Bilangan |
 |------|----------|
 | Staf aktif | 89 |
-| Staf dengan portal | 89 |
-| Pekerja asing (RKJ) | 56 |
-| Tempatan RKJ | 3 |
-| Tempatan RKJ_DIST | 13 |
-| Tempatan RKJ_MFG | 17 |
+| Auth users | 94 |
+| Email @rkj.com | Semua staf dengan login |
 | Payslip dihantar | **0** (UAT belum) |
+
+---
+
+## 🔐 Login (standard semasa)
+
+| Peranan | Email | Kata laluan |
+|---------|-------|-------------|
+| Owner | matisa@rkj.com | `RkjOne@2026` |
+| Admin DIST | dist011@rkj.com | `RkjOne@2026` |
+| HR DIST | dist006@rkj.com | `RkjOne@2026` |
+| Staf kiosk | s001@rkj.com … | `RkjOne@2026` |
+
+**Nota:** `must_change_password: true` selepas putar kata laluan.  
+**Jangan guna:** norashikin@rkj.com, mohdali@rkj.com, safuan@rkj.com (INACTIVE).
 
 ---
 
 ## ⚠️ Belum — bila sambung
 
-- [ ] **UAT Payroll HR** — jana cadangan → edit → hantar slip → staf muat turun
-- [ ] **UAT AM** — Safuan → Hakim → Yati ([`docs/UAT_AM.md`](docs/UAT_AM.md))
+- [ ] **Commit** skrip verify + default-password (jika diminta)
+- [ ] **UAT Payroll HR** — dist006@rkj.com → `/payroll` → Cadangan AI → Sahkan slip
+- [ ] **UAT AM** — akaun AM aktif perlu semak ([`docs/UAT_AM.md`](docs/UAT_AM.md))
 - [ ] **Supabase Auth** — signup OFF ([`docs/SUPABASE_AUTH_SETUP.md`](docs/SUPABASE_AUTH_SETUP.md))
 - [ ] **Hari H** — [`docs/GO_LIVE_36.md`](docs/GO_LIVE_36.md)
-
----
-
-## 🔐 Login
-
-| Peranan | Email | Nota |
-|---------|-------|------|
-| Owner | matisa@rkj.com | Password baharu sendiri |
-| HR | mohdali@rkj.com | `.go-live-temp-password.txt` |
-| AM UAT | safuan / hakim / yati @rkj.com | `npm run reset:am-uat` |
 
 ---
 
@@ -134,16 +102,16 @@
 | Fail | Sebab |
 |------|-------|
 | `_restore/` | Backup tempatan |
-| `csv_import/login_users_generated.csv` | Generated |
-| `csv_import/company_staff_credentials.csv` | Kredensial |
+| `csv_import/*credentials*` | Kredensial |
+| `csv_import/password_rotation_*.csv` | Log putar kata laluan |
 | `csv_import/.go-live-temp-password.txt` | Password |
 
 ---
 
 ## 🔄 Sambung sesi — pilih satu
 
-1. **UAT Payroll** — `mohdali@rkj.com` → `/payroll` → Cadangan AI → Sahkan slip
-2. **UAT AM** — `safuan@rkj.com` → `/inventory`
-3. **Deploy semak** — `npm run verify:production`
+1. **UAT Payroll** — `dist006@rkj.com` → `/payroll` → Cadangan AI → Hantar slip
+2. **UAT AM** — semak AM aktif → `/inventory`
+3. **Verify** — `npm run verify:settings-users` · `npm run verify:login` · `npm run verify:production`
 
 **Rujukan pantas:** Payroll HR → `/payroll` · Slip staf → Dashboard/`/profile` · Verify → `npm run verify:payroll`

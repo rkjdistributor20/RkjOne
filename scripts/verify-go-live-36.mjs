@@ -10,23 +10,23 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { loadProjectEnv, ROOT as PROJECT_ROOT } from './lib/load-env.mjs';
+import { DEFAULT_PASSWORD } from './lib/default-password.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = PROJECT_ROOT;
 const PRODUCTION_URL = process.env.PRODUCTION_URL ?? 'https://rkj-one.vercel.app';
 const PROJECT_REF = 'mtygxueknokcihofdttl';
 const GO_LIVE_PASSWORD_FILE = path.join(ROOT, 'csv_import', '.go-live-temp-password.txt');
-const DEFAULT_UAT_PASSWORD = 'RkjOne@2025';
 
 function readGoLivePassword() {
   if (process.env.GO_LIVE_PASSWORD?.trim()) return process.env.GO_LIVE_PASSWORD.trim();
-  if (!fs.existsSync(GO_LIVE_PASSWORD_FILE)) return DEFAULT_UAT_PASSWORD;
+  if (!fs.existsSync(GO_LIVE_PASSWORD_FILE)) return DEFAULT_PASSWORD;
   const line = fs
     .readFileSync(GO_LIVE_PASSWORD_FILE, 'utf8')
     .split('\n')
     .map((l) => l.trim())
     .find((l) => l && !l.startsWith('#'));
-  return line || DEFAULT_UAT_PASSWORD;
+  return line || DEFAULT_PASSWORD;
 }
 
 function loadEnvFile(filePath) {

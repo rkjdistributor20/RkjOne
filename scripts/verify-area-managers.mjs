@@ -6,6 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { DEFAULT_PASSWORD } from './lib/default-password.mjs';
 
 const PILOT_UTARA_CODES = [
   'BR001', 'BR002', 'BR003', 'BR004', 'BR005', 'BR006',
@@ -240,6 +241,6 @@ if (failed) {
 console.log('  Semua semakan AM lulus ✓');
 console.log('\n  Seterusnya (manual di browser):');
 console.log('  → https://rkj-one.vercel.app');
-console.log('  → Login safuan@rkj.com / RkjOne@2025');
+console.log(`  → Login safuan@rkj.com / ${DEFAULT_PASSWORD}`);
 console.log('  → /profile (RKJ Distributor · operasi Roti Kaya Junus)');
 console.log('  → Inventori → Pindah Cawangan → Tetapan Staf\n');
