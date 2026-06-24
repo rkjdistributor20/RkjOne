@@ -185,6 +185,27 @@ for (const agent of agents) {
     failed++;
   }
 
+  const posRes = await fetch(`${PRODUCTION_URL}/pos`, {
+    headers: { Cookie: c, Accept: 'text/html' },
+    redirect: 'manual',
+  });
+  const { count: activeOutlets } = await admin
+    .from('agent_outlets')
+    .select('*', { count: 'exact', head: true })
+    .eq('agent_account_id', agent.id)
+    .eq('subscription_active', true)
+    .eq('pos_enabled', true);
+  if ((activeOutlets ?? 0) > 0) {
+    if (posRes.status === 200) ok('Akses POS', 'terminal dibuka');
+    else if (posRes.status >= 300 && posRes.status < 400) {
+      const loc = posRes.headers.get('location') ?? '';
+      if (loc.includes('pos=locked')) fail('Akses POS', 'redirect locked');
+      else ok('Akses POS', `HTTP ${posRes.status}`);
+    } else fail('Akses POS', `HTTP ${posRes.status}`);
+  } else {
+    console.log('  ⚠ POS — tiada cawangan aktif (daftar + bayar RM150)');
+  }
+
   if (RUN_FLOW && prof.role === 'SALES_AGENT') {
     console.log('\n--- Aliran order + bayaran ---');
     const c = cookie(login.data.session, login.data.user);

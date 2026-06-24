@@ -42,6 +42,7 @@ const TEST_MATRIX = [
   { role: 'DRIVER', email: 'd002@rkj.com', label: 'Pemandu D002' },
   { role: 'STAFF', email: 's001@rkj.com', label: 'Staf S001' },
   { role: 'STAFF', email: 's052@rkj.com', label: 'Staf S052' },
+  { role: 'SALES_AGENT', email: 'agent001@rkj.com', label: 'Ejen Nur Aisha' },
 ];
 
 function loadEnvFile(filePath) {

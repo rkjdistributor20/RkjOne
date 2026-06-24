@@ -19,6 +19,7 @@
     "verify:am": "node scripts/verify-area-managers.mjs",
     "verify:login": "node scripts/verify-login-all-roles.mjs",
     "verify:production": "node scripts/verify-production.mjs",
+    "verify:all": "node scripts/verify-all-production.mjs",
     "verify:settings-users": "node scripts/verify-settings-users.mjs",
     "verify:auth": "node scripts/verify-go-live-36.mjs auth",
     "verify:delivery": "node scripts/verify-go-live-36.mjs delivery",

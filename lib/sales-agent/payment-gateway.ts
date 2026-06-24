@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { OnlinePaymentMethod } from './types';
+import { getIPay88Config } from './ipay88';
 
 export type PaymentGatewayMode = 'simulate' | 'live';
 
@@ -52,6 +53,18 @@ export async function initiateAgentPayment(
   }
 
   const sessionId = `RKJ-LIVE-${input.paymentId.slice(0, 8)}-${Date.now()}`;
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://rkj-one.vercel.app';
+  const provider = process.env.SALES_AGENT_PAYMENT_PROVIDER?.trim().toLowerCase() ?? 'ipay88';
+
+  if (provider === 'ipay88' && getIPay88Config(appUrl)) {
+    return {
+      mode: 'live',
+      payment_id: input.paymentId,
+      checkout_url: `${appUrl}/sales-agent/checkout?payment=${input.paymentId}`,
+      gateway_session_id: sessionId,
+    };
+  }
+
   const baseUrl = process.env.SALES_AGENT_PAYMENT_GATEWAY_URL?.trim() ?? 'https://payment.rkjdistributor.com.my/checkout';
   const checkoutUrl = new URL(baseUrl);
   checkoutUrl.searchParams.set('session', sessionId);

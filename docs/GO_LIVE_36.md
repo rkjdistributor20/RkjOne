@@ -6,10 +6,20 @@
 
 | Kawasan | AM | Email | Cawangan |
 |---------|-----|-------|----------|
-| Utara | Safuan | safuan@rkj.com | 12 |
-| Tengah | Hakim | hakim@rkj.com | 10 |
-| Selatan | Yati | yati@rkj.com | 14 |
+| Utara | Safuan | dist009@rkj.com | 12 |
+| Tengah | Hakim | dist001@rkj.com | 10 |
+| Selatan | Yati | dist010@rkj.com | 14 |
 | **Jumlah** | | | **36** |
+
+> **Nota:** Guna `dist009@` / `dist001@` / `dist010@` — bukan safuan/hakim/yati@ (legacy INACTIVE).
+
+---
+
+## Portal Ejen (RKJ Distributor)
+
+- **URL:** `/sales-agent` · `agent001@rkj.com` / `RkjOne@2026`
+- **UAT browser:** [`docs/UAT_SALES_AGENT.md`](./UAT_SALES_AGENT.md)
+- **FPX live:** [`docs/FPX_LIVE_SETUP.md`](./FPX_LIVE_SETUP.md) (selepas merchant iPay88)
 
 ---
 
@@ -18,7 +28,10 @@
 - [x] `npm run verify:go-live-36` — Auth + senarai delivery 36 cawangan *(22 Jun 2025)*
 - [x] `npm run verify:go-live` — **19/19** lulus
 - [x] `npm run verify:login` — **13/13** lulus
-- [x] `npm run verify:production` — deploy **`1319f08`** (Logistik UI)
+- [x] `npm run verify:production` — deploy terkini
+- [x] `npm run uat:am` — 3 AM dist009/001/010
+- [x] `npm run uat:sales-agent` — portal ejen + resit
+- [ ] `npm run verify:all` — bundle penuh sebelum hari H
 - [ ] Supabase Auth — **signup OFF**, Site URL = `https://rkj-one.vercel.app` *(verify automatik: signup blocked ✓ — semak manual Dashboard)*
 - [ ] Redirect: `https://rkj-one.vercel.app/auth/callback`
 - [ ] Backup Supabase diaktifkan (Dashboard → Settings → Database)

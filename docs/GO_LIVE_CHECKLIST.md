@@ -96,7 +96,13 @@ Semua item **✓** = asas OK. Selesaikan **✗** sebelum go-live 36 cawangan.
 - [ ] `npm run build` lulus
 - [ ] Deploy production + domain (optional)
 
-Rujuk: [DEPLOYMENT.md](./DEPLOYMENT.md)
+### 1.8 Portal Ejen & FPX
+
+- [x] Migration **00076–00080** (ejen, bayaran, resit, profil syarikat)
+- [x] UAT automatik: `npm run uat:sales-agent` · `npm run uat:sales-agent:flow`
+- [ ] UAT browser: [`UAT_SALES_AGENT.md`](./UAT_SALES_AGENT.md)
+- [ ] FPX live (iPay88): [`FPX_LIVE_SETUP.md`](./FPX_LIVE_SETUP.md) — Merchant Code + Key di Vercel
+- [ ] Bundle verify: `npm run verify:all`
 
 ---
 

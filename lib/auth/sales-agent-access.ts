@@ -5,6 +5,7 @@ export const SALES_AGENT_HOME = '/sales-agent';
 export const SALES_AGENT_ALLOWED_PATHS = [
   '/dashboard',
   SALES_AGENT_HOME,
+  '/sales-agent/checkout',
   '/pos',
   '/profile',
   '/change-password',

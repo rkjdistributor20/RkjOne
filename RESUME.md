@@ -1,109 +1,72 @@
 # ⏸ Sambung Di Sini — RKJ One ERP
 
-> **🔔 CHECKPOINT — Portal Ejen + Resit Rasmi + Profil Syarikat LIVE**
+> **🔔 CHECKPOINT — Go-Live Bundle Siap (Ejen + AM + 36 Cawangan)**
 
 **Tarikh save:** 21 Jun 2026  
-**Branch:** `master` · commit **`b2404db`** (pushed ✓)  
+**Branch:** `master`  
 **Production:** https://rkj-one.vercel.app  
 **Supabase:** `mtygxueknokcihofdttl` · migrations **00001–00080** ✓
 
 ---
 
-## ✅ Status Go-Live
+## ✅ Verify automatik (production)
 
-| Semakan | Hasil |
-|---------|--------|
-| `verify:production` | **6/6** |
-| `verify:payroll` | **14/14** · **89 payslip** dihantar |
-| `verify:am` | **Lulus** · 3 AM aktif |
-| `uat:sales-agent` | **Lulus** · agent001 · order + resit + kilang |
-| `uat:sales-agent --flow-pos` | **Lulus** · cawangan POS + RM150 + resit Maybank |
-| Email staf | `{staffcode}@rkj.com` |
-| Kata laluan | **`RkjOne@2026`** (94 auth users) |
+| Perintah | Status |
+|----------|--------|
+| `npm run verify:production` | **6/6** |
+| `npm run uat:am` | **3/3 AM** lulus |
+| `npm run uat:sales-agent` | **Lulus** · profil + POS |
+| `npm run uat:sales-agent:flow` | Order + resit + kilang + POS |
+| `npm run verify:all` | Bundle production |
 
 ---
 
-## 🏪 Portal Ejen Jualan (RKJ Distributor)
+## 🏪 Portal Ejen
 
-- **URL:** `/sales-agent` · peranan **Ejen Jualan** (`SALES_AGENT`)
-- **Ejen UAT:** `agent001@rkj.com` / `RkjOne@2026` · syarikat **Nur Aisha**
-- **Order stok** → bayar → **resit rasmi AR-xxxxx** → hantar automatik ke kilang
-- **POS cawangan ejen:** langganan **RM150/bulan** → resit → akses `/pos`
-- **Profil syarikat:** Tetapan → **Syarikat** (3 entiti · SSM · bank)
-- **Payment UAT:** `SALES_AGENT_PAYMENT_MODE=simulate` (default)
-- **Payment live:** set `SALES_AGENT_PAYMENT_MODE=live` + merchant keys di Vercel
-
-**Cipta ejen baru:** Tetapan → Pengguna → **Ejen Jualan** · syarikat **RKJ_DIST**  
-**Paut semula akaun:** `npm run provision:sales-agent`
+- **Login UAT:** `agent001@rkj.com` / `RkjOne@2026`
+- **Browser checklist:** [`docs/UAT_SALES_AGENT.md`](docs/UAT_SALES_AGENT.md)
+- **FPX live (iPay88):** [`docs/FPX_LIVE_SETUP.md`](docs/FPX_LIVE_SETUP.md)
+- **Simulate (default):** `SALES_AGENT_PAYMENT_MODE=simulate`
 
 ---
 
-## 🏢 Profil Syarikat (legal_entities)
+## 👥 Area Manager (36 cawangan)
 
-| Kod | Syarikat | Bank |
-|-----|----------|------|
-| RKJ_DIST | RKJ Distributor Sdn Bhd | Maybank · 564856315018 |
-| RKJ_MFG | Roti Kaya Junus Manufacturing Sdn Bhd | Maybank · 564427518660 |
-| RKJ | Roti Kaya Junus | CIMB · 8606268175 |
-
-Alamat: NO. 233A, Jalan Industri 5, Taman Industri Anson, 36000 Teluk Intan, Perak
+- **dist009@** Utara 12 · **dist001@** Tengah 10 · **dist010@** Selatan 14
+- **Checklist:** [`docs/UAT_AM.md`](docs/UAT_AM.md)
+- **Hari H:** [`docs/GO_LIVE_36.md`](docs/GO_LIVE_36.md)
 
 ---
 
-## 🔐 Login Pantas
+## 🏢 Profil syarikat (3 entiti)
 
-| Peranan | Email | Password |
-|---------|-------|----------|
-| Owner | matisa@rkj.com | RkjOne@2026 |
-| **Ejen UAT** | **agent001@rkj.com** | **RkjOne@2026** |
-| HR | dist006@rkj.com | RkjOne@2026 |
-| AM Utara | dist009@rkj.com | RkjOne@2026 |
-| AM Tengah | dist001@rkj.com | RkjOne@2026 |
-| AM Selatan | dist010@rkj.com | RkjOne@2026 |
-| Staf kiosk | s001@rkj.com | RkjOne@2026 |
+| Kod | Bank |
+|-----|------|
+| RKJ_DIST | Maybank 564856315018 |
+| RKJ_MFG | Maybank 564427518660 |
+| RKJ | CIMB 8606268175 |
+
+**Tetapan → Syarikat** (admin)
 
 ---
 
-## 🚀 Perintah Verify / UAT
+## 🚀 Perintah pantas
 
 ```powershell
-npm run verify:production
-npm run verify:payroll
-npm run verify:am
-npm run uat:sales-agent
-npm run uat:sales-agent:flow          # order + bayar + resit + POS
-node scripts/uat-sales-agent.mjs --flow-pos   # POS sahaja
-npm run provision:sales-agent           # paut akaun ejen ke SALES_AGENT
+npm run verify:all              # bundle penuh
+npm run uat:sales-agent:flow    # ejen order + POS
+npm run uat:am                  # 3 AM
+npm run verify:login            # semua peranan (+ agent001)
 ```
 
 ---
 
-## ⚠️ Belum (manual / seterusnya)
+## ⚠️ Manual sebelum Hari H
 
-- [ ] **UAT browser ejen** — agent001 → order → resit cetak → POS cawangan
-- [ ] **UAT browser AM** — [`docs/UAT_AM.md`](docs/UAT_AM.md)
-- [ ] **FPX live** — merchant ID + API key iPay88/Billplz di Vercel
-- [ ] **Supabase Auth** — signup OFF
-- [ ] **Hari H 36 cawangan** — [`docs/GO_LIVE_36.md`](docs/GO_LIVE_36.md)
-
----
-
-## Commits utama (sesi ejen)
-
-| Commit | Ringkasan |
-|--------|-----------|
-| `7cdbdd9` | Portal ejen asas |
-| `f972eed` | Harga katalog + provision script |
-| `a856467` | RLS pembayaran ejen |
-| `06168b1` | Aliran bayar + resit AR |
-| `b2404db` | Profil syarikat 3 entiti |
-
----
-
-## 🔄 Sambung — pilih satu
-
-1. **UAT browser ejen** — agent001 → `/sales-agent` → order + resit + POS
-2. **FPX live** — sediakan merchant gateway RKJ Distributor
-3. **UAT AM / Hari H** — checklist sedia ada
+- [ ] UAT browser ejen — [`UAT_SALES_AGENT.md`](docs/UAT_SALES_AGENT.md)
+- [ ] UAT browser AM — [`UAT_AM.md`](docs/UAT_AM.md)
+- [ ] Supabase Auth signup OFF
+- [ ] FPX live — isi Merchant Code iPay88 di Vercel
+- [ ] 36 cawangan buka syif — [`GO_LIVE_36.md`](docs/GO_LIVE_36.md)
 
 **Production:** https://rkj-one.vercel.app
