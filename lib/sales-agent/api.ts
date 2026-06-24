@@ -1,5 +1,7 @@
 import type {
   AgentDashboardData,
+  AgentPaymentReceipt,
+  AgentPaymentTarget,
   AgentStockOrder,
   OnlinePaymentMethod,
   SalesAgentAccount,
@@ -70,11 +72,18 @@ export async function createAgentPayment(payload: {
 }
 
 export async function confirmAgentPayment(paymentId: string) {
-  return fetchJson<{ ok: boolean; result?: unknown }>('/api/sales-agent/payments/confirm', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ payment_id: paymentId }),
-  });
+  return fetchJson<{ ok: boolean; result?: unknown; receipt?: AgentPaymentReceipt }>(
+    '/api/sales-agent/payments/confirm',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ payment_id: paymentId }),
+    }
+  );
+}
+
+export async function fetchAgentReceipt(paymentId: string) {
+  return fetchJson<{ receipt: AgentPaymentReceipt }>(`/api/sales-agent/receipts/${paymentId}`);
 }
 
 export async function startOutletSubscription(outletId: string) {

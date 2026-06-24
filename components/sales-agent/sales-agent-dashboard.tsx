@@ -1,28 +1,37 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import {
-  Building2,
   CreditCard,
   Factory,
+  FileText,
   Package,
   RefreshCw,
   ShoppingCart,
   Store,
-  Truck,
 } from 'lucide-react';
 import {
   confirmAgentPayment,
   createAgentOrder,
   createAgentPayment,
   fetchAgentDashboard,
+  fetchAgentReceipt,
   fetchStockCatalog,
   registerAgentAccount,
   registerAgentOutlet,
   startOutletSubscription,
 } from '@/lib/sales-agent/api';
-import type { AgentDashboardData, AgentStockOrder, StockCatalogItem } from '@/lib/sales-agent/types';
+import type {
+  AgentDashboardData,
+  AgentPaymentReceipt,
+  AgentPaymentTarget,
+  AgentStockOrder,
+  StockCatalogItem,
+} from '@/lib/sales-agent/types';
+import { AgentPaymentDialog } from '@/components/sales-agent/agent-payment-dialog';
+import { AgentReceiptDialog } from '@/components/sales-agent/agent-receipt-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -61,6 +70,7 @@ const PAY_METHODS = [
 
 export function SalesAgentDashboard() {
   const profile = useAuthStore((s) => s.profile);
+  const searchParams = useSearchParams();
   const [data, setData] = useState<AgentDashboardData | null>(null);
   const [catalog, setCatalog] = useState<StockCatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,6 +79,11 @@ export function SalesAgentDashboard() {
   const [selectedDate, setSelectedDate] = useState('');
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [payMethod, setPayMethod] = useState<'FPX' | 'CARD' | 'DEBIT'>('FPX');
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentTarget, setPaymentTarget] = useState<AgentPaymentTarget | null>(null);
+  const [receiptOpen, setReceiptOpen] = useState(false);
+  const [lastReceipt, setLastReceipt] = useState<AgentPaymentReceipt | null>(null);
   const [outletForm, setOutletForm] = useState({
     outlet_code: '',
     outlet_name: '',
@@ -98,6 +113,70 @@ export function SalesAgentDashboard() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    const paymentId = searchParams.get('payment');
+    if (!paymentId) return;
+    void (async () => {
+      try {
+        const { receipt } = await fetchAgentReceipt(paymentId);
+        setLastReceipt(receipt);
+        setReceiptOpen(true);
+      } catch {
+        toast.message('Bayaran diproses — semak sejarah untuk resit.');
+      }
+    })();
+  }, [searchParams]);
+
+  function openPayment(target: AgentPaymentTarget) {
+    setPaymentTarget(target);
+    setPaymentOpen(true);
+  }
+
+  async function runPayment(target: AgentPaymentTarget) {
+    setPaymentLoading(true);
+    try {
+      const { payment, checkout } = await createAgentPayment({
+        purpose: target.purpose,
+        reference_id: target.referenceId,
+        payment_method: payMethod,
+      });
+      if (checkout.checkout_url) {
+        window.location.href = checkout.checkout_url;
+        return;
+      }
+      const confirmed = await confirmAgentPayment(payment.id);
+      if (confirmed.receipt) {
+        setLastReceipt(confirmed.receipt);
+        setReceiptOpen(true);
+      }
+      toast.success(
+        target.purpose === 'STOCK_ORDER'
+          ? 'Bayaran berjaya — order dihantar ke kilang'
+          : 'Langganan POS aktif — resit rasmi dikeluarkan'
+      );
+      setPaymentOpen(false);
+      setPaymentTarget(null);
+      if (target.purpose === 'STOCK_ORDER') {
+        setQuantities({});
+      }
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Bayaran gagal');
+    } finally {
+      setPaymentLoading(false);
+    }
+  }
+
+  async function showReceiptForPayment(paymentId: string) {
+    try {
+      const { receipt } = await fetchAgentReceipt(paymentId);
+      setLastReceipt(receipt);
+      setReceiptOpen(true);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Resit tidak dijumpai');
+    }
+  }
 
   const orderTotal = useMemo(() => {
     return catalog.reduce((sum, item) => {
@@ -137,34 +216,28 @@ export function SalesAgentDashboard() {
     }
     try {
       const { order } = await createAgentOrder({ production_date: selectedDate, items });
-      toast.success(`Order ${order.order_number} dicipta — teruskan bayaran`);
+      toast.success(`Order ${order.order_number} dicipta`);
+      openPayment({
+        purpose: 'STOCK_ORDER',
+        referenceId: order.id,
+        label: order.order_number,
+        amountRm: order.total_amount_rm,
+        productionDate: order.production_date,
+      });
       await load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Gagal cipta order');
     }
   }
 
-  async function handlePay(purpose: 'STOCK_ORDER' | 'POS_SUBSCRIPTION', referenceId: string, successMsg: string) {
-    try {
-      const { payment, checkout } = await createAgentPayment({
-        purpose,
-        reference_id: referenceId,
-        payment_method: payMethod,
-      });
-      if (checkout.checkout_url) {
-        window.location.href = checkout.checkout_url;
-        return;
-      }
-      await confirmAgentPayment(payment.id);
-      toast.success(successMsg);
-      await load();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Bayaran gagal');
-    }
-  }
-
-  async function handlePayOrder(order: AgentStockOrder) {
-    await handlePay('STOCK_ORDER', order.id, 'Bayaran berjaya — order dihantar ke kilang');
+  function handlePayOrder(order: AgentStockOrder) {
+    openPayment({
+      purpose: 'STOCK_ORDER',
+      referenceId: order.id,
+      label: order.order_number,
+      amountRm: order.total_amount_rm,
+      productionDate: order.production_date,
+    });
   }
 
   async function handleRegisterOutlet() {
@@ -182,14 +255,16 @@ export function SalesAgentDashboard() {
     }
   }
 
-  async function handleSubscribe(outletId: string) {
+  async function handleSubscribe(outletId: string, outletLabel: string) {
     try {
       const { subscription } = await startOutletSubscription(outletId);
-      await handlePay(
-        'POS_SUBSCRIPTION',
-        subscription.id,
-        'Langganan POS aktif — akses penuh dibuka'
-      );
+      openPayment({
+        purpose: 'POS_SUBSCRIPTION',
+        referenceId: subscription.id,
+        label: outletLabel,
+        amountRm: subscription.amount_rm,
+      });
+      await load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Langganan gagal');
     }
@@ -371,7 +446,7 @@ export function SalesAgentDashboard() {
             <div className="mt-3 flex items-center justify-between">
               <p className="font-semibold">Jumlah: {formatRM(orderTotal)}</p>
               <PrimaryActionButton onClick={handleCreateOrder} disabled={orderTotal <= 0}>
-                Cipta Order & Bayar
+                Order & Terus Bayar
               </PrimaryActionButton>
             </div>
           </SectionCard>
@@ -390,8 +465,8 @@ export function SalesAgentDashboard() {
                         Production {o.production_date} · {formatRM(o.total_amount_rm)}
                       </p>
                     </div>
-                    <Button size="sm" onClick={() => void handlePayOrder(o)}>
-                      Bayar & Hantar Kilang
+                    <Button size="sm" onClick={() => handlePayOrder(o)}>
+                      Bayar Sekarang
                     </Button>
                   </div>
                 ))
@@ -439,7 +514,7 @@ export function SalesAgentDashboard() {
                     ) : (
                       <>
                         <Badge variant="outline">Menunggu Langganan</Badge>
-                        <Button size="sm" onClick={() => void handleSubscribe(o.id)}>
+                        <Button size="sm" onClick={() => void handleSubscribe(o.id, o.outlet_name)}>
                           Bayar RM{data.subscription_monthly_rm}
                         </Button>
                       </>
@@ -466,18 +541,46 @@ export function SalesAgentDashboard() {
             ))}
             {data.payments.map((p) => (
               <div key={p.id} className="mb-2 rounded-lg border p-3 text-sm">
-                <div className="flex justify-between">
-                  <span>{p.purpose === 'STOCK_ORDER' ? 'Bayaran Order' : 'Langganan POS'}</span>
-                  <Badge variant={p.status === 'PAID' ? 'default' : 'outline'}>{p.status}</Badge>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <span>{p.purpose === 'STOCK_ORDER' ? 'Bayaran Order' : 'Langganan POS'}</span>
+                    <p className="text-xs text-muted-foreground">
+                      {p.payment_method} · {formatRM(p.amount_rm)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={p.status === 'PAID' ? 'default' : 'outline'}>{p.status}</Badge>
+                    {p.status === 'PAID' && (
+                      <Button size="sm" variant="outline" onClick={() => void showReceiptForPayment(p.id)}>
+                        <FileText className="mr-1 h-3.5 w-3.5" />
+                        Resit
+                      </Button>
+                    )}
+                  </div>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  {p.payment_method} · {formatRM(p.amount_rm)}
-                </p>
               </div>
             ))}
           </SectionCard>
         </TabsContent>
       </Tabs>
+
+      <AgentPaymentDialog
+        open={paymentOpen}
+        onOpenChange={setPaymentOpen}
+        target={paymentTarget}
+        payMethod={payMethod}
+        onPayMethodChange={setPayMethod}
+        loading={paymentLoading}
+        onConfirm={async () => {
+          if (paymentTarget) await runPayment(paymentTarget);
+        }}
+      />
+
+      <AgentReceiptDialog
+        open={receiptOpen}
+        onOpenChange={setReceiptOpen}
+        receipt={lastReceipt}
+      />
     </ModuleLayout>
   );
 }

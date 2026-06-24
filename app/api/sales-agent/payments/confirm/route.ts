@@ -4,6 +4,7 @@ import { getCurrentProfile } from '@/lib/auth/session';
 import { createServiceClient } from '@/lib/supabase/server';
 import { getAgentAccountForProfile } from '@/lib/sales-agent/service';
 import { fulfillAgentPayment } from '@/lib/sales-agent/payment-gateway';
+import { getAgentReceiptForPayment } from '@/lib/sales-agent/receipt';
 
 export async function POST(request: Request) {
   const profile = await getCurrentProfile();
@@ -34,7 +35,12 @@ export async function POST(request: Request) {
   const gatewayRef = `RKJ-SIM-${Date.now()}`;
   try {
     const result = await fulfillAgentPayment(service as SupabaseClient, paymentId, gatewayRef);
-    return NextResponse.json({ ok: true, result, gateway_ref: gatewayRef });
+    const receipt = await getAgentReceiptForPayment(
+      service as SupabaseClient,
+      paymentId,
+      account.id as string
+    );
+    return NextResponse.json({ ok: true, result, gateway_ref: gatewayRef, receipt });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Gagal' }, { status: 400 });
   }

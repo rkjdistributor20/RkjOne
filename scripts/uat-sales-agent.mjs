@@ -227,6 +227,17 @@ for (const agent of agents) {
               failed++;
             } else {
               ok('Sahkan bayaran', confirmRes.body.gateway_ref ?? 'OK');
+              if (confirmRes.body.receipt?.receipt_number) {
+                ok('Resit rasmi', confirmRes.body.receipt.receipt_number);
+              } else {
+                const receiptRes = await apiJson(c, `/api/sales-agent/receipts/${payRes.body.payment.id}`);
+                if (receiptRes.ok && receiptRes.body.receipt?.receipt_number) {
+                  ok('Resit rasmi', receiptRes.body.receipt.receipt_number);
+                } else {
+                  fail('Resit rasmi', 'tiada');
+                  failed++;
+                }
+              }
               const { count: fq } = await admin
                 .from('factory_agent_orders')
                 .select('*', { count: 'exact', head: true })

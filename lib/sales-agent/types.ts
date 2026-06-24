@@ -93,3 +93,68 @@ export type StockCatalogItem = {
   unit: string;
   unit_price_rm: number;
 };
+
+export type AgentPaymentReceiptItem = {
+  item_code: string;
+  item_name: string;
+  quantity: number;
+  unit: string;
+  unit_price_rm: number;
+  line_total_rm: number;
+};
+
+export type AgentPaymentReceipt = {
+  receipt_number: string;
+  issued_at: string;
+  issuer: {
+    code: string;
+    legal_name: string;
+    name: string;
+    address?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    registration_no?: string | null;
+    tax_id?: string | null;
+    bank_name?: string | null;
+    bank_account_name?: string | null;
+    bank_account_no?: string | null;
+  };
+  agent: {
+    company_name: string;
+    registration_no: string | null;
+    contact_person: string | null;
+    contact_email: string | null;
+  };
+  purpose: AgentPaymentPurpose;
+  payment: {
+    id: string;
+    method: OnlinePaymentMethod;
+    amount_rm: number;
+    gateway_ref: string | null;
+    paid_at: string;
+  };
+  order?: {
+    id: string;
+    order_number: string;
+    production_date: string;
+    total_amount_rm: number;
+    items: AgentPaymentReceiptItem[];
+    factory_order_id?: string;
+  };
+  subscription?: {
+    id: string;
+    outlet_code: string;
+    outlet_name: string;
+    period_start: string;
+    period_end: string;
+    amount_rm: number;
+  };
+};
+
+export type AgentPaymentTarget = {
+  purpose: AgentPaymentPurpose;
+  referenceId: string;
+  label: string;
+  amountRm: number;
+  productionDate?: string;
+};
