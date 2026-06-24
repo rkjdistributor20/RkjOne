@@ -81,6 +81,7 @@ async function confirmPaymentAsBank(cookieHeader, paymentId) {
       ok: true,
       status: 200,
       body: {
+        payment_id: paymentId,
         gateway_ref: `UAT-BANK`,
         receipt: receiptRes.body?.receipt ?? null,
         result: data,
@@ -89,6 +90,72 @@ async function confirmPaymentAsBank(cookieHeader, paymentId) {
   }
 
   return confirmRes;
+}
+
+/** UAT: cipta bayaran + simulasikan pengesahan bank (bila iPay88 belum set di Vercel). */
+async function payAndConfirmUat(cookieHeader, agent, profileId, payload) {
+  const payRes = await apiJson(cookieHeader, '/api/sales-agent/payments', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+
+  if (payRes.ok) {
+    ok('Bayaran dimulakan', payRes.body.checkout?.mode ?? 'live');
+    const confirmed = await confirmPaymentAsBank(cookieHeader, payRes.body.payment.id);
+    if (confirmed.ok && !confirmed.body.payment_id) {
+      confirmed.body.payment_id = payRes.body.payment.id;
+    }
+    return confirmed;
+  }
+
+  if (payRes.status !== 503) {
+    return { ok: false, status: payRes.status, body: payRes.body };
+  }
+
+  ok('Gateway iPay88 belum set', 'simulasikan rekod + pengesahan bank (UAT)');
+
+  let amount = 0;
+  if (payload.purpose === 'STOCK_ORDER') {
+    const { data: order } = await admin
+      .from('agent_stock_orders')
+      .select('total_amount_rm')
+      .eq('id', payload.reference_id)
+      .single();
+    amount = Number(order?.total_amount_rm ?? 0);
+  } else {
+    const { data: sub } = await admin
+      .from('agent_outlet_subscriptions')
+      .select('amount_rm')
+      .eq('id', payload.reference_id)
+      .single();
+    amount = Number(sub?.amount_rm ?? 150);
+  }
+
+  const { data: payment, error } = await admin
+    .from('agent_online_payments')
+    .insert({
+      organization_id: org.id,
+      agent_account_id: agent.id,
+      purpose: payload.purpose,
+      reference_type:
+        payload.purpose === 'STOCK_ORDER' ? 'agent_stock_orders' : 'agent_outlet_subscriptions',
+      reference_id: payload.reference_id,
+      amount_rm: amount,
+      payment_method: payload.payment_method,
+      status: 'PENDING',
+      created_by: profileId,
+    })
+    .select('id')
+    .single();
+
+  if (error) {
+    return { ok: false, status: 500, body: { error: error.message } };
+  }
+
+  return confirmPaymentAsBank(cookieHeader, payment.id).then((r) => {
+    if (r.ok && !r.body.payment_id) r.body.payment_id = payment.id;
+    return r;
+  });
 }
 
 console.log('\n=== UAT Portal Ejen Jualan ===\n');
@@ -272,37 +339,34 @@ for (const agent of agents) {
           const order = orderRes.body.order;
           ok('Cipta order', `${order.order_number} — RM${order.total_amount_rm}`);
 
-          const payRes = await apiJson(c, '/api/sales-agent/payments', {
-            method: 'POST',
-            body: JSON.stringify({
-              purpose: 'STOCK_ORDER',
-              reference_id: order.id,
-              payment_method: 'FPX',
-            }),
+          const confirmRes = await payAndConfirmUat(c, agent, prof.id, {
+            purpose: 'STOCK_ORDER',
+            reference_id: order.id,
+            payment_method: 'FPX',
           });
-          if (!payRes.ok) {
-            fail('Bayaran', `${payRes.status} ${payRes.body.error ?? ''}`);
+          if (!confirmRes.ok) {
+            fail('Sahkan bayaran', `${confirmRes.status} ${confirmRes.body.error ?? ''}`);
             failed++;
           } else {
-            ok('Bayaran dimulakan', payRes.body.checkout?.mode ?? 'simulate');
-            const confirmRes = await confirmPaymentAsBank(c, payRes.body.payment.id);
-            if (!confirmRes.ok) {
-              fail('Sahkan bayaran', `${confirmRes.status} ${confirmRes.body.error ?? ''}`);
-              failed++;
-            } else {
-              ok('Sahkan bayaran', confirmRes.body.gateway_ref ?? 'OK');
-              if (confirmRes.body.receipt?.receipt_number) {
-                ok('Resit rasmi', confirmRes.body.receipt.receipt_number);
+            ok('Sahkan bayaran', confirmRes.body.gateway_ref ?? 'OK');
+            if (confirmRes.body.receipt?.receipt_number) {
+              ok('Resit rasmi', confirmRes.body.receipt.receipt_number);
+            } else if (confirmRes.body.payment_id) {
+              const receiptRes = await apiJson(
+                c,
+                `/api/sales-agent/receipts/${confirmRes.body.payment_id}`
+              );
+              if (receiptRes.ok && receiptRes.body.receipt?.receipt_number) {
+                ok('Resit rasmi', receiptRes.body.receipt.receipt_number);
               } else {
-                const receiptRes = await apiJson(c, `/api/sales-agent/receipts/${payRes.body.payment.id}`);
-                if (receiptRes.ok && receiptRes.body.receipt?.receipt_number) {
-                  ok('Resit rasmi', receiptRes.body.receipt.receipt_number);
-                } else {
-                  fail('Resit rasmi', 'tiada');
-                  failed++;
-                }
+                fail('Resit rasmi', 'tiada');
+                failed++;
               }
-              const { count: fq } = await admin
+            } else {
+              fail('Resit rasmi', 'tiada');
+              failed++;
+            }
+            const { count: fq } = await admin
                 .from('factory_agent_orders')
                 .select('*', { count: 'exact', head: true })
                 .eq('agent_account_id', agent.id);
@@ -314,7 +378,6 @@ for (const agent of agents) {
               }
             }
           }
-        }
         }
       }
     }
@@ -352,49 +415,40 @@ for (const agent of agents) {
         failed++;
       } else {
         ok('Langganan dimulakan', `RM${subRes.body.subscription.amount_rm}`);
-        const payRes = await apiJson(c, '/api/sales-agent/payments', {
-          method: 'POST',
-          body: JSON.stringify({
-            purpose: 'POS_SUBSCRIPTION',
-            reference_id: subRes.body.subscription.id,
-            payment_method: 'FPX',
-          }),
+        const confirmRes = await payAndConfirmUat(c, agent, prof.id, {
+          purpose: 'POS_SUBSCRIPTION',
+          reference_id: subRes.body.subscription.id,
+          payment_method: 'FPX',
         });
-        if (!payRes.ok) {
-          fail('Bayaran langganan', `${payRes.status} ${payRes.body.error ?? ''}`);
+        if (!confirmRes.ok) {
+          fail('Bayaran langganan', `${confirmRes.status} ${confirmRes.body.error ?? ''}`);
           failed++;
         } else {
-          const confirmRes = await confirmPaymentAsBank(c, payRes.body.payment.id);
-          if (!confirmRes.ok) {
-            fail('Sahkan langganan', `${confirmRes.status} ${confirmRes.body.error ?? ''}`);
-            failed++;
+          const receipt = confirmRes.body.receipt;
+          if (receipt?.receipt_number) {
+            ok('Resit langganan', receipt.receipt_number);
+            if (receipt.issuer?.bank_account_no?.includes('564856315018')) {
+              ok('Bank RKJ Distributor pada resit', 'Maybank OK');
+            } else if (receipt.issuer?.bank_name) {
+              ok('Bank RKJ Distributor pada resit', receipt.issuer.bank_name);
+            } else {
+              fail('Bank pada resit', 'tiada');
+              failed++;
+            }
           } else {
-            const receipt = confirmRes.body.receipt;
-            if (receipt?.receipt_number) {
-              ok('Resit langganan', receipt.receipt_number);
-              if (receipt.issuer?.bank_account_no?.includes('564856315018')) {
-                ok('Bank RKJ Distributor pada resit', 'Maybank OK');
-              } else if (receipt.issuer?.bank_name) {
-                ok('Bank RKJ Distributor pada resit', receipt.issuer.bank_name);
-              } else {
-                fail('Bank pada resit', 'tiada');
-                failed++;
-              }
-            } else {
-              fail('Resit langganan', 'tiada');
-              failed++;
-            }
-            const { data: outletRow } = await admin
-              .from('agent_outlets')
-              .select('pos_enabled, subscription_active')
-              .eq('id', outletId)
-              .single();
-            if (outletRow?.pos_enabled && outletRow?.subscription_active) {
-              ok('POS cawangan aktif', outletCode);
-            } else {
-              fail('POS cawangan aktif', 'pos_enabled=false');
-              failed++;
-            }
+            fail('Resit langganan', 'tiada');
+            failed++;
+          }
+          const { data: outletRow } = await admin
+            .from('agent_outlets')
+            .select('pos_enabled, subscription_active')
+            .eq('id', outletId)
+            .single();
+          if (outletRow?.pos_enabled && outletRow?.subscription_active) {
+            ok('POS cawangan aktif', outletCode);
+          } else {
+            fail('POS cawangan aktif', 'pos_enabled=false');
+            failed++;
           }
         }
       }
