@@ -1,11 +1,11 @@
 # ⏸ Sambung Di Sini — RKJ One ERP
 
-> **🔔 CHECKPOINT — Go-Live Bundle Siap (Ejen + AM + 36 Cawangan)**
+> **🔔 CHECKPOINT — Bayaran Ejen Live (Bank Wajib + Langganan Bulanan)**
 
 **Tarikh save:** 21 Jun 2026  
 **Branch:** `master`  
 **Production:** https://rkj-one.vercel.app  
-**Supabase:** `mtygxueknokcihofdttl` · migrations **00001–00080** ✓
+**Supabase:** `mtygxueknokcihofdttl` · migrations **00001–00081** ✓
 
 ---
 
@@ -26,7 +26,8 @@
 - **Login UAT:** `agent001@rkj.com` / `RkjOne@2026`
 - **Browser checklist:** [`docs/UAT_SALES_AGENT.md`](docs/UAT_SALES_AGENT.md)
 - **FPX live (iPay88):** [`docs/FPX_LIVE_SETUP.md`](docs/FPX_LIVE_SETUP.md)
-- **Simulate (default):** `SALES_AGENT_PAYMENT_MODE=simulate`
+- **Default production:** live — pengesahan bank wajib · langganan POS tamat bulanan
+- **Simulate (dev/UAT sahaja):** `SALES_AGENT_PAYMENT_MODE=simulate`
 
 ---
 

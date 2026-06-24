@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createServiceClient } from '@/lib/supabase/server';
-import { fulfillAgentPayment, verifyGatewayWebhookSignature } from '@/lib/sales-agent/payment-gateway';
+import { fulfillAgentPayment, rejectAgentPayment, verifyGatewayWebhookSignature } from '@/lib/sales-agent/payment-gateway';
 import { verifyIPay88BackendSignature } from '@/lib/sales-agent/ipay88';
 
 /**
@@ -61,12 +61,21 @@ export async function POST(request: Request) {
   }
 
   if (status !== 'PAID') {
-    const service = await createServiceClient();
-    await (service as SupabaseClient)
-      .from('agent_online_payments')
-      .update({ status: 'FAILED', updated_at: new Date().toISOString() })
-      .eq('id', paymentId);
-    return NextResponse.json({ ok: true, status: 'FAILED' });
+    try {
+      const service = await createServiceClient();
+      await rejectAgentPayment(
+        service as SupabaseClient,
+        paymentId,
+        gatewayRef,
+        status ?? 'FAILED'
+      );
+      return NextResponse.json({ ok: true, status: 'FAILED' });
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : 'Reject failed' },
+        { status: 400 }
+      );
+    }
   }
 
   try {

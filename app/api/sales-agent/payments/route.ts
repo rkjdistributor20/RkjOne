@@ -90,15 +90,23 @@ export async function POST(request: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
-  const checkout = await initiateAgentPayment({
-    paymentId: payment.id as string,
-    amountRm: amount,
-    method: paymentMethod,
-    purpose,
-    payerEmail: profile.email ?? '',
-    payerName: profile.full_name ?? account.company_name,
-    returnUrl: `${appUrl}/sales-agent?payment=${payment.id}`,
-  });
+  let checkout;
+  try {
+    checkout = await initiateAgentPayment({
+      paymentId: payment.id as string,
+      amountRm: amount,
+      method: paymentMethod,
+      purpose,
+      payerEmail: profile.email ?? '',
+      payerName: profile.full_name ?? account.company_name,
+      returnUrl: `${appUrl}/sales-agent/payment-return?payment=${payment.id}`,
+    });
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : 'Gateway tidak tersedia' },
+      { status: 503 }
+    );
+  }
 
   if (checkout.gateway_session_id) {
     await (service as SupabaseClient)

@@ -93,8 +93,9 @@ export function AgentPaymentDialog({
           <div className="flex items-start gap-2 rounded-lg border px-3 py-2 text-xs text-muted-foreground">
             <Landmark className="mt-0.5 h-4 w-4 shrink-0" />
             <p>
-              FPX / kad debit / kredit akan diproses melalui gerbang bayaran RKJ Distributor. Mod ujian:
-              bayaran disahkan serta-merta dalam sistem.
+              Bayaran dihantar ke <strong>Maybank RKJ Distributor Sdn Bhd</strong> melalui iPay88
+              (FPX / kad kredit / kad debit). Tempahan stok atau langganan POS hanya disahkan
+              selepas bank mengesahkan bayaran — bukan serta-merta.
             </p>
           </div>
         </div>

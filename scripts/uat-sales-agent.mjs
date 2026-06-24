@@ -60,6 +60,37 @@ async function apiJson(cookieHeader, path, init = {}) {
   return { ok: res.ok, status: res.status, body };
 }
 
+/** UAT: simulasikan pengesahan bank bila production mod live (RPC service role). */
+async function confirmPaymentAsBank(cookieHeader, paymentId) {
+  const confirmRes = await apiJson(cookieHeader, '/api/sales-agent/payments/confirm', {
+    method: 'POST',
+    body: JSON.stringify({ payment_id: paymentId }),
+  });
+  if (confirmRes.ok) return confirmRes;
+
+  if (confirmRes.status === 403) {
+    const { data, error } = await admin.rpc('confirm_agent_payment_and_fulfill', {
+      p_payment_id: paymentId,
+      p_gateway_ref: `UAT-BANK-${Date.now()}`,
+    });
+    if (error) {
+      return { ok: false, status: 500, body: { error: error.message } };
+    }
+    const receiptRes = await apiJson(cookieHeader, `/api/sales-agent/receipts/${paymentId}`);
+    return {
+      ok: true,
+      status: 200,
+      body: {
+        gateway_ref: `UAT-BANK`,
+        receipt: receiptRes.body?.receipt ?? null,
+        result: data,
+      },
+    };
+  }
+
+  return confirmRes;
+}
+
 console.log('\n=== UAT Portal Ejen Jualan ===\n');
 
 const { data: org } = await admin.from('organizations').select('id').eq('code', 'RKJ').single();
@@ -254,10 +285,7 @@ for (const agent of agents) {
             failed++;
           } else {
             ok('Bayaran dimulakan', payRes.body.checkout?.mode ?? 'simulate');
-            const confirmRes = await apiJson(c, '/api/sales-agent/payments/confirm', {
-              method: 'POST',
-              body: JSON.stringify({ payment_id: payRes.body.payment.id }),
-            });
+            const confirmRes = await confirmPaymentAsBank(c, payRes.body.payment.id);
             if (!confirmRes.ok) {
               fail('Sahkan bayaran', `${confirmRes.status} ${confirmRes.body.error ?? ''}`);
               failed++;
@@ -336,10 +364,7 @@ for (const agent of agents) {
           fail('Bayaran langganan', `${payRes.status} ${payRes.body.error ?? ''}`);
           failed++;
         } else {
-          const confirmRes = await apiJson(c, '/api/sales-agent/payments/confirm', {
-            method: 'POST',
-            body: JSON.stringify({ payment_id: payRes.body.payment.id }),
-          });
+          const confirmRes = await confirmPaymentAsBank(c, payRes.body.payment.id);
           if (!confirmRes.ok) {
             fail('Sahkan langganan', `${confirmRes.status} ${confirmRes.body.error ?? ''}`);
             failed++;

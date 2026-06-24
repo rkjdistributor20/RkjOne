@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   CreditCard,
@@ -62,6 +61,13 @@ const ORDER_STATUS: Record<string, string> = {
   CANCELLED: 'Batal',
 };
 
+const PAYMENT_STATUS: Record<string, string> = {
+  PENDING: 'Menunggu Bank',
+  PAID: 'Disahkan Bank',
+  FAILED: 'Gagal',
+  REFUNDED: 'Dibayar Balik',
+};
+
 const PAY_METHODS = [
   { id: 'FPX', label: 'FPX (Online Banking)' },
   { id: 'CARD', label: 'Kad Kredit' },
@@ -70,7 +76,6 @@ const PAY_METHODS = [
 
 export function SalesAgentDashboard() {
   const profile = useAuthStore((s) => s.profile);
-  const searchParams = useSearchParams();
   const [data, setData] = useState<AgentDashboardData | null>(null);
   const [catalog, setCatalog] = useState<StockCatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -114,20 +119,6 @@ export function SalesAgentDashboard() {
     void load();
   }, [load]);
 
-  useEffect(() => {
-    const paymentId = searchParams.get('payment');
-    if (!paymentId) return;
-    void (async () => {
-      try {
-        const { receipt } = await fetchAgentReceipt(paymentId);
-        setLastReceipt(receipt);
-        setReceiptOpen(true);
-      } catch {
-        toast.message('Bayaran diproses — semak sejarah untuk resit.');
-      }
-    })();
-  }, [searchParams]);
-
   function openPayment(target: AgentPaymentTarget) {
     setPaymentTarget(target);
     setPaymentOpen(true);
@@ -141,26 +132,34 @@ export function SalesAgentDashboard() {
         reference_id: target.referenceId,
         payment_method: payMethod,
       });
-      if (checkout.checkout_url) {
+
+      if (checkout.mode === 'live' && checkout.checkout_url) {
+        toast.message('Menghubung ke iPay88 — pengesahan bank diperlukan.');
         window.location.href = checkout.checkout_url;
         return;
       }
-      const confirmed = await confirmAgentPayment(payment.id);
-      if (confirmed.receipt) {
-        setLastReceipt(confirmed.receipt);
-        setReceiptOpen(true);
+
+      if (checkout.mode === 'simulate') {
+        const confirmed = await confirmAgentPayment(payment.id);
+        if (confirmed.receipt) {
+          setLastReceipt(confirmed.receipt);
+          setReceiptOpen(true);
+        }
+        toast.success(
+          target.purpose === 'STOCK_ORDER'
+            ? 'Bayaran berjaya — order dihantar ke kilang'
+            : 'Langganan POS aktif — resit rasmi dikeluarkan'
+        );
+        setPaymentOpen(false);
+        setPaymentTarget(null);
+        if (target.purpose === 'STOCK_ORDER') {
+          setQuantities({});
+        }
+        await load();
+        return;
       }
-      toast.success(
-        target.purpose === 'STOCK_ORDER'
-          ? 'Bayaran berjaya — order dihantar ke kilang'
-          : 'Langganan POS aktif — resit rasmi dikeluarkan'
-      );
-      setPaymentOpen(false);
-      setPaymentTarget(null);
-      if (target.purpose === 'STOCK_ORDER') {
-        setQuantities({});
-      }
-      await load();
+
+      toast.error('Gerbang bayaran tidak tersedia — hubungi HQ.');
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Bayaran gagal');
     } finally {
@@ -352,7 +351,8 @@ export function SalesAgentDashboard() {
         <div>
           <p className="text-sm font-semibold">RKJ Distributor — Bekalan Stok Ejen</p>
           <p className="text-xs text-emerald-100">
-            Order ikut tarikh production kilang · Bayaran FPX/Kad · Hantar automatik ke kilang selepas bayaran penuh
+            Order ikut tarikh production kilang · Bayaran FPX/Kad ke Maybank RKJ Distributor ·
+            Tempahan & langganan POS disahkan selepas pengesahan bank sahaja
           </p>
         </div>
       </div>
@@ -491,7 +491,8 @@ export function SalesAgentDashboard() {
               </div>
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
-              Langganan POS: RM{data.subscription_monthly_rm}/cawangan/bulan — bayar ke RKJ Distributor sebelum akses penuh.
+              Langganan POS: RM{data.subscription_monthly_rm}/cawangan/bulan — tamat tempoh setiap bulan.
+              Bayar semula untuk terus guna bulan seterusnya.
             </p>
             <PrimaryActionButton className="mt-3" onClick={handleRegisterOutlet}>
               Daftar Cawangan
@@ -502,26 +503,49 @@ export function SalesAgentDashboard() {
             {data.outlets.length === 0 ? (
               <EmptyState title="Tiada cawangan" description="Daftar cawangan untuk guna POS syarikat." />
             ) : (
-              data.outlets.map((o) => (
+              data.outlets.map((o) => {
+                const sub = o.subscription;
+                const expired =
+                  sub?.status === 'EXPIRED' ||
+                  (sub?.status === 'ACTIVE' && sub.period_end < new Date().toISOString().slice(0, 10));
+                const pendingPay = sub?.status === 'PENDING';
+
+                return (
                 <div key={o.id} className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3">
                   <div>
                     <p className="font-medium">{o.outlet_name}</p>
                     <p className="text-xs text-muted-foreground">{o.outlet_code}</p>
+                    {sub && sub.status === 'ACTIVE' && o.subscription_active && (
+                      <p className="text-xs text-emerald-700">
+                        Aktif hingga {sub.period_end}
+                      </p>
+                    )}
+                    {expired && (
+                      <p className="text-xs text-amber-700">Langganan tamat — bayar untuk bulan seterusnya</p>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     {o.subscription_active ? (
                       <Badge className="bg-emerald-600">POS Aktif</Badge>
+                    ) : pendingPay ? (
+                      <>
+                        <Badge variant="outline">Menunggu Bayaran Bank</Badge>
+                        <Button size="sm" onClick={() => void handleSubscribe(o.id, o.outlet_name)}>
+                          Teruskan Bayar RM{data.subscription_monthly_rm}
+                        </Button>
+                      </>
                     ) : (
                       <>
-                        <Badge variant="outline">Menunggu Langganan</Badge>
+                        <Badge variant="outline">{expired ? 'Tamat Tempoh' : 'Menunggu Langganan'}</Badge>
                         <Button size="sm" onClick={() => void handleSubscribe(o.id, o.outlet_name)}>
-                          Bayar RM{data.subscription_monthly_rm}
+                          {expired ? 'Renew' : 'Bayar'} RM{data.subscription_monthly_rm}
                         </Button>
                       </>
                     )}
                   </div>
                 </div>
-              ))
+              );
+              })
             )}
           </SectionCard>
         </TabsContent>
@@ -549,7 +573,9 @@ export function SalesAgentDashboard() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant={p.status === 'PAID' ? 'default' : 'outline'}>{p.status}</Badge>
+                    <Badge variant={p.status === 'PAID' ? 'default' : p.status === 'FAILED' ? 'destructive' : 'outline'}>
+                      {PAYMENT_STATUS[p.status] ?? p.status}
+                    </Badge>
                     {p.status === 'PAID' && (
                       <Button size="sm" variant="outline" onClick={() => void showReceiptForPayment(p.id)}>
                         <FileText className="mr-1 h-3.5 w-3.5" />

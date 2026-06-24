@@ -1,6 +1,8 @@
 import type {
   AgentDashboardData,
+  AgentPaymentPurpose,
   AgentPaymentReceipt,
+  AgentPaymentStatus,
   AgentPaymentTarget,
   AgentStockOrder,
   OnlinePaymentMethod,
@@ -84,6 +86,21 @@ export async function confirmAgentPayment(paymentId: string) {
 
 export async function fetchAgentReceipt(paymentId: string) {
   return fetchJson<{ receipt: AgentPaymentReceipt }>(`/api/sales-agent/receipts/${paymentId}`);
+}
+
+export async function fetchPaymentStatus(paymentId: string) {
+  return fetchJson<{
+    payment: {
+      id: string;
+      purpose: AgentPaymentPurpose;
+      amount_rm: number;
+      payment_method: OnlinePaymentMethod;
+      status: AgentPaymentStatus;
+      paid_at: string | null;
+      created_at: string;
+    };
+    receipt: AgentPaymentReceipt | null;
+  }>(`/api/sales-agent/payments/${paymentId}/status`);
 }
 
 export async function startOutletSubscription(outletId: string) {

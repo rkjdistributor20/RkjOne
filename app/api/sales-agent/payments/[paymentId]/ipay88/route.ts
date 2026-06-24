@@ -18,7 +18,7 @@ export async function GET(
 
   const { paymentId } = await context.params;
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://rkj-one.vercel.app';
-  const config = getIPay88Config(appUrl);
+  const config = getIPay88Config(appUrl, paymentId);
   if (!config) {
     return NextResponse.json(
       { error: 'Gateway iPay88 belum dikonfigurasi — set MERCHANT_ID + API_KEY di Vercel' },

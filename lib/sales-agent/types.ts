@@ -34,6 +34,12 @@ export type AgentOutlet = {
   pos_enabled: boolean;
   subscription_active: boolean;
   status: AgentOutletStatus;
+  subscription?: {
+    status: string;
+    period_start: string;
+    period_end: string;
+    amount_rm: number;
+  } | null;
 };
 
 export type AgentStockOrderItem = {

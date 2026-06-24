@@ -3,10 +3,20 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getCurrentProfile } from '@/lib/auth/session';
 import { createServiceClient } from '@/lib/supabase/server';
 import { getAgentAccountForProfile } from '@/lib/sales-agent/service';
-import { fulfillAgentPayment } from '@/lib/sales-agent/payment-gateway';
+import { fulfillAgentPayment, isSimulatePaymentAllowed } from '@/lib/sales-agent/payment-gateway';
 import { getAgentReceiptForPayment } from '@/lib/sales-agent/receipt';
 
+/** Hanya mod simulate (dev/UAT) — production mesti pengesahan bank iPay88. */
 export async function POST(request: Request) {
+  if (!isSimulatePaymentAllowed()) {
+    return NextResponse.json(
+      {
+        error:
+          'Bayaran mesti melalui FPX/kad (iPay88). Pengesahan bank diperlukan — tempahan tidak disahkan tanpa bayaran berjaya.',
+      },
+      { status: 403 }
+    );
+  }
   const profile = await getCurrentProfile();
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   if (profile.role !== 'SALES_AGENT') {

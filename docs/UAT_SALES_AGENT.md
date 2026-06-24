@@ -8,38 +8,49 @@ Automatik: `npm run uat:sales-agent` · `npm run uat:sales-agent:flow`
 
 ---
 
+## Peraturan bayaran (penting)
+
+1. **FPX / Kad Kredit / Kad Debit** → iPay88 → **Maybank RKJ Distributor** (564856315018)
+2. **Pengesahan bank wajib** — order stok / langganan POS **tidak disahkan** sehingga status **Disahkan Bank**
+3. Bayaran gagal / batal = tempahan **gagal** — ejen boleh cuba bayar semula
+4. **Langganan POS tamat setiap bulan** — bayar RM150/cawangan untuk bulan seterusnya
+
+Setup live: [`FPX_LIVE_SETUP.md`](./FPX_LIVE_SETUP.md)
+
+---
+
 ## 1. Login & dashboard
 
 - [ ] Buka `/login` → log masuk `agent001@rkj.com`
 - [ ] Menu **Portal Ejen** (`/sales-agent`) kelihatan
 - [ ] KPI: order menunggu, dihantar kilang, cawangan POS
-- [ ] Kad header **RKJ Distributor** dipaparkan
+- [ ] Kad header **RKJ Distributor** + nota pengesahan bank
 
 ---
 
 ## 2. Order stok + bayaran + resit
 
-- [ ] Tab **Order Stok** → pilih tarikh production terbuka (contoh 2026-06-25)
-- [ ] Isi kuantiti (Roti Kaya / Kelapa / dll.) — jumlah > RM0
+- [ ] Tab **Order Stok** → pilih tarikh production terbuka
+- [ ] Isi kuantiti — jumlah > RM0
 - [ ] Klik **Order & Terus Bayar**
-- [ ] Dialog bayaran → pilih **FPX** → **Bayar**
-- [ ] Mod simulate: resit **AR-xxxxx** muncul automatik
-- [ ] Resit papar:
-  - RKJ Distributor Sdn Bhd
-  - Alamat Teluk Intan
-  - SSM 1352838V/201901043508
-  - Maybank 564856315018
-- [ ] **Cetak** / **Kongsi** resit
-- [ ] Tab **Sejarah** → order status **Dihantar Kilang**
+- [ ] Dialog → pilih **FPX** / **Kad Kredit** / **Kad Debit** → **Bayar**
+- [ ] Redirect ke **iPay88** (halaman bank)
+- [ ] Selesai bayar → halaman **Menunggu Pengesahan Bank**
+- [ ] Status **Disahkan Bank** → resit **AR-xxxxx**
+- [ ] Resit papar Maybank 564856315018 · SSM RKJ Distributor
+- [ ] Tab **Sejarah** → order **Dihantar Kilang** (hanya selepas PAID)
+
+**Uji gagal:** batal di bank → kembali portal → status bayaran **Gagal** · order masih **Menunggu Bayaran**
 
 ---
 
-## 3. Cawangan POS + langganan RM150
+## 3. Cawangan POS + langganan RM150/bulan
 
-- [ ] Tab **Cawangan POS** → daftar cawangan (kod unik, nama, alamat)
-- [ ] Klik **Bayar RM150** → resit langganan **AR-xxxxx**
-- [ ] Badge **POS Aktif** pada cawangan
-- [ ] Buka **POS** (`/pos`) — terminal load tanpa redirect ke portal
+- [ ] Tab **Cawangan POS** → daftar cawangan
+- [ ] **Bayar RM150** → iPay88 → pengesahan bank
+- [ ] Badge **POS Aktif** + tarikh **Aktif hingga …**
+- [ ] Buka **POS** (`/pos`) — terminal load
+- [ ] (Selepas tamat tempoh) badge **Tamat Tempoh** → **Renew RM150**
 
 ---
 
@@ -47,8 +58,8 @@ Automatik: `npm run uat:sales-agent` · `npm run uat:sales-agent:flow`
 
 Login `matisa@rkj.com`:
 
-- [ ] **Tetapan → Syarikat** — 3 profil (RKJ, RKJ_DIST, RKJ_MFG) dengan bank & SSM
-- [ ] **Kilang** — antrian order ejen (factory queue) jika role CEO_FACTORY
+- [ ] **Tetapan → Syarikat** — profil RKJ_DIST + bank
+- [ ] **Kilang** — antrian order ejen selepas bayaran disahkan
 
 ---
 
@@ -59,4 +70,3 @@ Login `matisa@rkj.com`:
 | Asas ejen | `npm run uat:sales-agent` |
 | Order + resit + kilang | `npm run uat:sales-agent:flow` |
 | POS sahaja | `node scripts/uat-sales-agent.mjs --flow-pos` |
-| Paut akaun ejen | `npm run provision:sales-agent` |

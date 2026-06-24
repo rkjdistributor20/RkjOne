@@ -16,7 +16,7 @@ export type IPay88Config = {
   backendUrl: string;
 };
 
-export function getIPay88Config(appUrl: string): IPay88Config | null {
+export function getIPay88Config(appUrl: string, paymentId?: string): IPay88Config | null {
   const merchantCode = process.env.SALES_AGENT_PAYMENT_MERCHANT_ID?.trim();
   const merchantKey = process.env.SALES_AGENT_PAYMENT_API_KEY?.trim();
   if (!merchantCode || !merchantKey) return null;
@@ -25,11 +25,14 @@ export function getIPay88Config(appUrl: string): IPay88Config | null {
     process.env.SALES_AGENT_PAYMENT_GATEWAY_URL?.trim() ??
     'https://payment.ipay88.com.my/epayment/entry.asp';
 
+  const returnBase = `${appUrl}/sales-agent/payment-return`;
+  const responseUrl = paymentId ? `${returnBase}?payment=${paymentId}` : returnBase;
+
   return {
     merchantCode,
     merchantKey,
     entryUrl,
-    responseUrl: `${appUrl}/sales-agent?payment=return`,
+    responseUrl,
     backendUrl: `${appUrl}/api/sales-agent/payments/webhook`,
   };
 }

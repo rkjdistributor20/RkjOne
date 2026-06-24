@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AGENT_POS_SUBSCRIPTION_RM } from '@/lib/brand/legal-entities';
+import { expireAgentSubscriptions } from './payment-gateway';
 import type { AgentDashboardData, ProductionDayOption, StockCatalogItem } from './types';
 
 export { AGENT_POS_SUBSCRIPTION_RM };
@@ -145,6 +146,8 @@ export async function buildAgentDashboard(
   profileId: string,
   organizationId: string
 ): Promise<AgentDashboardData> {
+  await expireAgentSubscriptions(service, organizationId);
+
   const account = await getAgentAccountForProfile(service, profileId, organizationId);
 
   if (!account) {
@@ -193,6 +196,62 @@ export async function buildAgentDashboard(
     })),
   }));
 
+  const outletIds = (outlets ?? []).map((o) => o.id as string);
+  const subscriptionByOutlet = new Map<
+    string,
+    { status: string; period_start: string; period_end: string; amount_rm: number }
+  >();
+
+  if (outletIds.length) {
+    const { data: subs } = await service
+      .from('agent_outlet_subscriptions')
+      .select('outlet_id, status, period_start, period_end, amount_rm')
+      .in('outlet_id', outletIds)
+      .order('period_end', { ascending: false });
+
+    const today = new Date().toISOString().slice(0, 10);
+    for (const s of subs ?? []) {
+      const oid = s.outlet_id as string;
+      if (subscriptionByOutlet.has(oid)) continue;
+      const active =
+        s.status === 'ACTIVE' &&
+        (s.period_start as string) <= today &&
+        (s.period_end as string) >= today;
+      if (active || s.status === 'PENDING' || s.status === 'EXPIRED') {
+        subscriptionByOutlet.set(oid, {
+          status: s.status as string,
+          period_start: s.period_start as string,
+          period_end: s.period_end as string,
+          amount_rm: Number(s.amount_rm),
+        });
+      }
+    }
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const outletRows = (outlets ?? []).map((o) => {
+    const sub = subscriptionByOutlet.get(o.id as string) ?? null;
+    const isActive =
+      Boolean(o.subscription_active && o.pos_enabled) &&
+      sub?.status === 'ACTIVE' &&
+      sub.period_start <= today &&
+      sub.period_end >= today;
+
+    return {
+      id: o.id,
+      outlet_code: o.outlet_code,
+      outlet_name: o.outlet_name,
+      address_line: o.address_line,
+      city: o.city,
+      state: o.state,
+      postcode: o.postcode,
+      pos_enabled: isActive,
+      subscription_active: isActive,
+      status: o.status,
+      subscription: sub,
+    };
+  });
+
   return {
     account: {
       id: account.id,
@@ -204,18 +263,7 @@ export async function buildAgentDashboard(
       business_address: account.business_address,
       status: account.status,
     },
-    outlets: (outlets ?? []).map((o) => ({
-      id: o.id,
-      outlet_code: o.outlet_code,
-      outlet_name: o.outlet_name,
-      address_line: o.address_line,
-      city: o.city,
-      state: o.state,
-      postcode: o.postcode,
-      pos_enabled: o.pos_enabled,
-      subscription_active: o.subscription_active,
-      status: o.status,
-    })),
+    outlets: outletRows,
     orders: orderRows,
     payments: (payments ?? []) as AgentDashboardData['payments'],
     production_days: await loadProductionDayOptions(service, organizationId),
@@ -224,7 +272,7 @@ export async function buildAgentDashboard(
       pending_orders: orderRows.filter((o) =>
         ['DRAFT', 'PENDING_PAYMENT'].includes(o.status)
       ).length,
-      active_outlets: (outlets ?? []).filter((o) => o.subscription_active).length,
+      active_outlets: outletRows.filter((o) => o.subscription_active).length,
       factory_submitted: orderRows.filter((o) =>
         ['SUBMITTED_FACTORY', 'ACKNOWLEDGED', 'FULFILLED'].includes(o.status)
       ).length,
@@ -238,17 +286,28 @@ export async function agentHasPosAccess(
 ): Promise<boolean> {
   const { data: account } = await service
     .from('sales_agent_accounts')
-    .select('id')
+    .select('id, organization_id')
     .eq('profile_id', profileId)
     .maybeSingle();
   if (!account) return false;
 
-  const { count } = await service
-    .from('agent_outlets')
-    .select('*', { count: 'exact', head: true })
-    .eq('agent_account_id', account.id)
-    .eq('subscription_active', true)
-    .eq('pos_enabled', true);
+  await expireAgentSubscriptions(service, account.organization_id as string);
 
-  return (count ?? 0) > 0;
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: outlets } = await service
+    .from('agent_outlets')
+    .select('id')
+    .eq('agent_account_id', account.id)
+    .eq('pos_enabled', true)
+    .eq('subscription_active', true);
+
+  for (const o of outlets ?? []) {
+    const { data: active } = await (service as SupabaseClient).rpc(
+      'agent_outlet_has_active_subscription',
+      { p_outlet_id: o.id } as never
+    );
+    if (active) return true;
+  }
+
+  return false;
 }

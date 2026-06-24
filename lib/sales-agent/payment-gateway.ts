@@ -22,11 +22,6 @@ export type InitiatePaymentResult = {
   gateway_session_id: string | null;
 };
 
-export function getPaymentGatewayMode(): PaymentGatewayMode {
-  const mode = process.env.SALES_AGENT_PAYMENT_MODE?.trim().toLowerCase();
-  return mode === 'live' ? 'live' : 'simulate';
-}
-
 export function isLivePaymentGatewayConfigured(): boolean {
   return Boolean(
     process.env.SALES_AGENT_PAYMENT_API_KEY?.trim() &&
@@ -34,22 +29,39 @@ export function isLivePaymentGatewayConfigured(): boolean {
   );
 }
 
+/** Simulate hanya bila SALES_AGENT_PAYMENT_MODE=simulate (dev/UAT). */
+export function getPaymentGatewayMode(): PaymentGatewayMode {
+  const mode = process.env.SALES_AGENT_PAYMENT_MODE?.trim().toLowerCase();
+  if (mode === 'simulate') return 'simulate';
+  return 'live';
+}
+
+export function isSimulatePaymentAllowed(): boolean {
+  return process.env.SALES_AGENT_PAYMENT_MODE?.trim().toLowerCase() === 'simulate';
+}
+
 /**
- * Live mode — sambung iPay88 / Stripe / Billplz di sini.
- * Set SALES_AGENT_PAYMENT_MODE=live + merchant keys dalam Vercel.
+ * Live mode — iPay88 FPX/kad → Maybank RKJ Distributor.
+ * Pengesahan bank (BackendURL) wajib sebelum order/langganan aktif.
  */
 export async function initiateAgentPayment(
   input: InitiatePaymentInput
 ): Promise<InitiatePaymentResult> {
   const mode = getPaymentGatewayMode();
 
-  if (mode === 'simulate' || !isLivePaymentGatewayConfigured()) {
+  if (mode === 'simulate') {
     return {
       mode: 'simulate',
       payment_id: input.paymentId,
       checkout_url: null,
       gateway_session_id: null,
     };
+  }
+
+  if (!isLivePaymentGatewayConfigured()) {
+    throw new Error(
+      'Gerbang bayaran belum dikonfigurasi. Hubungi HQ — Merchant Code iPay88 diperlukan.'
+    );
   }
 
   const sessionId = `RKJ-LIVE-${input.paymentId.slice(0, 8)}-${Date.now()}`;
@@ -92,6 +104,34 @@ export async function fulfillAgentPayment(
 
   if (error) throw new Error(error.message);
   return data;
+}
+
+export async function rejectAgentPayment(
+  service: SupabaseClient,
+  paymentId: string,
+  gatewayRef?: string,
+  reason?: string
+) {
+  const { data, error } = await service.rpc('fail_agent_payment', {
+    p_payment_id: paymentId,
+    p_gateway_ref: gatewayRef ?? null,
+    p_reason: reason ?? null,
+  } as never);
+
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function expireAgentSubscriptions(
+  service: SupabaseClient,
+  organizationId?: string
+) {
+  const { data, error } = await service.rpc('expire_agent_subscriptions', {
+    p_org_id: organizationId ?? null,
+  } as never);
+
+  if (error) throw new Error(error.message);
+  return Number(data ?? 0);
 }
 
 export function verifyGatewayWebhookSignature(

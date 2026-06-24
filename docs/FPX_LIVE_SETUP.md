@@ -26,7 +26,7 @@ Project → Settings → Environment Variables:
 
 | Variable | Nilai |
 |----------|--------|
-| `SALES_AGENT_PAYMENT_MODE` | `live` |
+| `SALES_AGENT_PAYMENT_MODE` | *(jangan set — default live)* · `simulate` hanya dev/UAT |
 | `SALES_AGENT_PAYMENT_PROVIDER` | `ipay88` |
 | `SALES_AGENT_PAYMENT_MERCHANT_ID` | *(Merchant Code dari iPay88)* |
 | `SALES_AGENT_PAYMENT_API_KEY` | *(Merchant Key — RAHASIA)* |
@@ -44,33 +44,35 @@ Daftar dalam portal iPay88:
 
 | URL | Nilai |
 |-----|--------|
-| **Response URL** | `https://rkj-one.vercel.app/sales-agent?payment=return` |
+| **Response URL** | `https://rkj-one.vercel.app/sales-agent/payment-return?payment={id}` |
 | **Backend URL** | `https://rkj-one.vercel.app/api/sales-agent/payments/webhook` |
 
 Backend URL menerima POST iPay88 (form-urlencoded) dan mengesahkan tandatangan SHA256.
 
 ---
 
-## 4. Aliran live
+## 4. Aliran live (pengesahan bank wajib)
 
-1. Ejen cipta order → **Order & Terus Bayar**
-2. Sistem cipta rekod `agent_online_payments` (PENDING)
-3. Redirect ke `/sales-agent/checkout?payment={id}`
-4. Halaman auto-POST ke iPay88
-5. Pelanggan bayar FPX/kad
-6. iPay88 panggil **BackendURL** → RPC `confirm_agent_payment_and_fulfill`
-7. Resit **AR-xxxxx** + order ke kilang / POS aktif
+1. Ejen cipta order / langganan → status **Menunggu Bayaran**
+2. Sistem cipta `agent_online_payments` (**PENDING**)
+3. Redirect ke `/sales-agent/checkout?payment={id}` → auto-POST **iPay88**
+4. Ejen bayar FPX / kad kredit / kad debit → **Maybank RKJ Distributor**
+5. iPay88 panggil **BackendURL** dengan status bank
+6. **Status = 1 (berjaya):** RPC `confirm_agent_payment_and_fulfill` → resit AR + kilang / POS aktif
+7. **Status gagal:** RPC `fail_agent_payment` → tempahan **tidak disahkan**
+8. Ejen kembali ke `/sales-agent/payment-return?payment={id}` — poll status sehingga PAID/FAILED
+
+**Default production:** mod live (tiada `SALES_AGENT_PAYMENT_MODE=simulate`).
 
 ---
 
-## 5. UAT simulate (sebelum live)
+## 5. UAT simulate (dev sahaja)
 
 ```powershell
-# Default — tiada iPay88
 SALES_AGENT_PAYMENT_MODE=simulate
 ```
 
-Ejen klik Bayar → sistem sahkan serta-merta → resit keluar.
+Bayaran disahkan serta-merta — **jangan** set di production go-live.
 
 ---
 
