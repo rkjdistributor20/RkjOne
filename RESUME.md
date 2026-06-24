@@ -1,45 +1,53 @@
 # ⏸ Sambung Di Sini — RKJ One ERP
 
-> **🔔 CHECKPOINT — Bayaran Ejen Live (Bank Wajib + Langganan Bulanan)**
+> **🔔 CHECKPOINT — Ejen Bayar (Pilot + Live iPay88) · Rehat 24 Jun 2026**
 
-**Tarikh save:** 21 Jun 2026  
-**Branch:** `master`  
-**Production:** https://rkj-one.vercel.app  
+**Tarikh save:** 24 Jun 2026  
+**Branch:** `master` · commit **`a790def`**  
+**Production:** https://rkj-one.vercel.app · deploy **`a790def`** ✓  
 **Supabase:** `mtygxueknokcihofdttl` · migrations **00001–00081** ✓
 
 ---
 
-## ✅ Verify automatik (production)
+## ✅ Siap setakat ini
 
-| Perintah | Status |
-|----------|--------|
-| `npm run verify:production` | **6/6** |
-| `npm run uat:am` | **3/3 AM** lulus |
-| `npm run uat:sales-agent` | **Lulus** · profil + POS |
-| `npm run uat:sales-agent:flow` | Order + resit + kilang + POS |
-| `npm run verify:all` | Bundle production |
+| Modul | Status |
+|-------|--------|
+| Portal Ejen (order → bayar → resit AR → kilang) | ✓ |
+| Langganan POS RM150/bulan + tamat tempoh auto | ✓ |
+| Profil syarikat 3 entiti + bank (00080) | ✓ |
+| iPay88 live wiring + webhook + payment-return | ✓ |
+| **Mod pilot** (iPay88 belum set → bayar ujian OK) | ✓ `a790def` |
+| UAT automatik `uat:sales-agent` + `:flow` | ✓ lulus |
+| AM 36 cawangan + verify:all | ✓ |
 
 ---
 
-## 🏪 Portal Ejen
+## 🏪 Portal Ejen — bayaran
 
 - **Login UAT:** `agent001@rkj.com` / `RkjOne@2026`
-- **Browser checklist:** [`docs/UAT_SALES_AGENT.md`](docs/UAT_SALES_AGENT.md)
-- **FPX live (iPay88):** [`docs/FPX_LIVE_SETUP.md`](docs/FPX_LIVE_SETUP.md)
-- **Default production:** live — pengesahan bank wajib · langganan POS tamat bulanan
-- **Simulate (dev/UAT sahaja):** `SALES_AGENT_PAYMENT_MODE=simulate`
+- **Mod pilot (sekarang):** tiada Merchant Code iPay88 → bayar disahkan dalam sistem, banner kuning di portal
+- **Mod live (bila ready):** set di Vercel → FPX/kad → Maybank RKJ Distributor → pengesahan bank wajib
+- **Docs:** [`docs/UAT_SALES_AGENT.md`](docs/UAT_SALES_AGENT.md) · [`docs/FPX_LIVE_SETUP.md`](docs/FPX_LIVE_SETUP.md)
+
+```powershell
+# UAT automatik
+npm run uat:sales-agent
+npm run uat:sales-agent:flow
+npm run verify:all
+```
 
 ---
 
 ## 👥 Area Manager (36 cawangan)
 
-- **dist009@** Utara 12 · **dist001@** Tengah 10 · **dist010@** Selatan 14
+- **dist009@** Utara 12 · **dist001@** Tengah 10 · **dist010@** Selatan 14 · `RkjOne@2026`
 - **Checklist:** [`docs/UAT_AM.md`](docs/UAT_AM.md)
 - **Hari H:** [`docs/GO_LIVE_36.md`](docs/GO_LIVE_36.md)
 
 ---
 
-## 🏢 Profil syarikat (3 entiti)
+## 🏢 Profil syarikat
 
 | Kod | Bank |
 |-----|------|
@@ -47,27 +55,27 @@
 | RKJ_MFG | Maybank 564427518660 |
 | RKJ | CIMB 8606268175 |
 
-**Tetapan → Syarikat** (admin)
+**Tetapan → Syarikat** (admin `matisa@rkj.com`)
 
 ---
 
-## 🚀 Perintah pantas
+## ⚠️ Bila sambung — manual
 
-```powershell
-npm run verify:all              # bundle penuh
-npm run uat:sales-agent:flow    # ejen order + POS
-npm run uat:am                  # 3 AM
-npm run verify:login            # semua peranan (+ agent001)
+- [ ] UAT browser ejen — hard refresh → order + bayar → resit AR
+- [ ] UAT browser AM (3 orang)
+- [ ] **FPX live** — Merchant Code + Key iPay88 di Vercel
+- [ ] Supabase Auth signup OFF (semak manual)
+- [ ] Hari H 36 cawangan — [`GO_LIVE_36.md`](docs/GO_LIVE_36.md)
+
+---
+
+## 📦 Commit terkini (sesi ini)
+
 ```
-
----
-
-## ⚠️ Manual sebelum Hari H
-
-- [ ] UAT browser ejen — [`UAT_SALES_AGENT.md`](docs/UAT_SALES_AGENT.md)
-- [ ] UAT browser AM — [`UAT_AM.md`](docs/UAT_AM.md)
-- [ ] Supabase Auth signup OFF
-- [ ] FPX live — isi Merchant Code iPay88 di Vercel
-- [ ] 36 cawangan buka syif — [`GO_LIVE_36.md`](docs/GO_LIVE_36.md)
+a790def fix: allow agent payments in pilot mode when iPay88 not configured
+69ebb7c fix: UAT agent payment fallback when iPay88 not configured
+f8f9ec7 feat: require bank confirmation for agent payments and monthly POS expiry
+8b378c2 feat: iPay88 live checkout, verify:all bundle, go-live docs
+```
 
 **Production:** https://rkj-one.vercel.app
