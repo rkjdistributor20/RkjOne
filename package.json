@@ -29,6 +29,8 @@
     "uat:payroll": "node scripts/uat-payroll.mjs",
     "uat:payroll:direct": "npx tsx scripts/uat-payroll-direct.ts",
     "uat:am": "node scripts/uat-am.mjs",
+    "uat:sales-agent": "node scripts/uat-sales-agent.mjs",
+    "provision:sales-agent": "node scripts/provision-sales-agent.mjs --apply",
     "consolidate:group-owner": "node scripts/consolidate-group-owner.mjs --apply",
     "purge:inactive-staff": "node scripts/purge-inactive-staff.mjs --apply",
     "setup:storage": "node scripts/setup-storage.mjs",

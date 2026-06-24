@@ -102,22 +102,42 @@ export async function loadStockCatalog(
   const [{ data: items }, { data: products }] = await Promise.all([
     service
       .from('stock_items')
-      .select('id, item_code, name, base_unit')
+      .select('id, item_code, name, category, base_unit, pack_quantity')
       .eq('organization_id', organizationId)
       .eq('status', 'ACTIVE')
+      .eq('category', 'Roti')
       .order('name'),
-    service.from('products').select('sku, price').eq('organization_id', organizationId),
+    service.from('products').select('sku, price, category').eq('organization_id', organizationId),
   ]);
 
-  const priceBySku = new Map((products ?? []).map((p) => [p.sku as string, Number(p.price ?? 0)]));
+  const byCategory = new Map<string, Array<{ sku: string; price: number }>>();
+  for (const p of products ?? []) {
+    const cat = p.category as string;
+    const list = byCategory.get(cat) ?? [];
+    list.push({ sku: p.sku as string, price: Number(p.price ?? 0) });
+    byCategory.set(cat, list);
+  }
 
-  return (items ?? []).map((i) => ({
-    id: i.id as string,
-    item_code: i.item_code as string,
-    item_name: i.name as string,
-    unit: i.base_unit as string,
-    unit_price_rm: priceBySku.get(i.item_code as string) ?? 0,
-  }));
+  return (items ?? []).map((i) => {
+    const catProducts = byCategory.get(i.name as string) ?? [];
+    const singleUnit = catProducts.filter((p) => /-1$/.test(p.sku) || /-KB-1$/.test(p.sku));
+    const unitPc =
+      singleUnit.length > 0
+        ? Math.min(...singleUnit.map((p) => p.price))
+        : catProducts.length > 0
+          ? Math.min(...catProducts.map((p) => p.price))
+          : 0;
+    const packQty = Number(i.pack_quantity ?? 1);
+    const unitPrice = Math.round(unitPc * packQty * 100) / 100;
+
+    return {
+      id: i.id as string,
+      item_code: i.item_code as string,
+      item_name: i.name as string,
+      unit: i.base_unit as string,
+      unit_price_rm: unitPrice,
+    };
+  });
 }
 
 export async function buildAgentDashboard(

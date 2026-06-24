@@ -40,6 +40,8 @@ import {
 } from '@/components/shared/module-ui';
 import { LegalEntityLogo } from '@/components/brand/legal-entity-logo';
 import { formatRM } from '@/components/shared/module-ui';
+import { useAuthStore } from '@/stores/auth-store';
+import { isSalesAgentRole } from '@/lib/auth/sales-agent-access';
 
 const ORDER_STATUS: Record<string, string> = {
   DRAFT: 'Draf',
@@ -58,6 +60,7 @@ const PAY_METHODS = [
 ] as const;
 
 export function SalesAgentDashboard() {
+  const profile = useAuthStore((s) => s.profile);
   const [data, setData] = useState<AgentDashboardData | null>(null);
   const [catalog, setCatalog] = useState<StockCatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -201,6 +204,29 @@ export function SalesAgentDashboard() {
   }
 
   if (!data?.account) {
+    const canSelfRegister = profile ? isSalesAgentRole(profile.role) : false;
+
+    if (!canSelfRegister) {
+      return (
+        <ModuleLayout>
+          <ModuleHeader
+            title="Portal Ejen Jualan"
+            description="RKJ Distributor Sdn Bhd — order stok & langganan POS"
+            icon={Store}
+          />
+          <Card className="max-w-lg">
+            <CardContent className="pt-6 text-sm text-muted-foreground">
+              <p>
+                Tiada akaun ejen dipautkan kepada profil anda. Cipta pengguna dengan peranan{' '}
+                <strong>Ejen Jualan</strong> di Tetapan → Pengguna (syarikat RKJ Distributor), kemudian
+                ejen log masuk dan daftar syarikat di halaman ini.
+              </p>
+            </CardContent>
+          </Card>
+        </ModuleLayout>
+      );
+    }
+
     return (
       <ModuleLayout>
         <ModuleHeader

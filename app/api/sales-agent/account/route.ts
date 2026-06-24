@@ -21,8 +21,11 @@ export async function GET() {
 export async function POST(request: Request) {
   const profile = await getCurrentProfile();
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (profile.role !== 'SALES_AGENT' && profile.role !== 'SUPER_ADMIN' && profile.role !== 'ADMIN') {
-    return NextResponse.json({ error: 'Akses ditolak' }, { status: 403 });
+  if (profile.role !== 'SALES_AGENT') {
+    return NextResponse.json(
+      { error: 'Hanya pengguna peranan Ejen Jualan boleh daftar akaun. Minta admin cipta pengguna dengan peranan tersebut.' },
+      { status: 403 }
+    );
   }
 
   const body = await request.json().catch(() => ({}));
