@@ -14,7 +14,7 @@ async function loadStaffForProfile(supabase: SupabaseClient, profileId: string) 
     .from('staff')
     .select(`
       staff_code, worker_type, bank_name, account_number, account_holder,
-      legal_entity:legal_entities(code, name, legal_name, scope)
+      legal_entity:legal_entities(code, name, legal_name, scope, office_address, phone, email, registration_no, tax_id, bank_name, bank_account_name, bank_account_no)
     `)
     .eq('profile_id', profileId)
     .maybeSingle();

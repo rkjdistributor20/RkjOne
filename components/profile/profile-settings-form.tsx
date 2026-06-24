@@ -610,6 +610,25 @@ export function ProfileSettingsForm() {
               {profile.legal_entity?.scope && (
                 <dd className="mt-1 text-xs text-muted-foreground">{profile.legal_entity.scope}</dd>
               )}
+              {profile.legal_entity?.office_address && (
+                <dd className="mt-2 text-xs text-muted-foreground">{profile.legal_entity.office_address}</dd>
+              )}
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                {profile.legal_entity?.phone && <span>Tel: {profile.legal_entity.phone}</span>}
+                {profile.legal_entity?.email && <span>{profile.legal_entity.email}</span>}
+              </div>
+              {profile.legal_entity?.registration_no && (
+                <dd className="mt-1 text-xs">SSM: {profile.legal_entity.registration_no}</dd>
+              )}
+              {(profile.legal_entity?.bank_name || profile.legal_entity?.bank_account_no) && (
+                <dd className="mt-2 rounded border border-dashed px-2 py-1.5 text-xs">
+                  {profile.legal_entity.bank_name && <span>Bank: {profile.legal_entity.bank_name} · </span>}
+                  {profile.legal_entity.bank_account_name && <span>{profile.legal_entity.bank_account_name} · </span>}
+                  {profile.legal_entity.bank_account_no && (
+                    <span className="font-mono">{profile.legal_entity.bank_account_no}</span>
+                  )}
+                </dd>
+              )}
             </div>
             {profile.operating_legal_entity && (
               <div className="rounded-lg border bg-muted/20 px-3 py-2.5 sm:col-span-2">

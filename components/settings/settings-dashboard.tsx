@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { Users, Package, Building2, SlidersHorizontal, Settings2, CalendarDays } from 'lucide-react';
+import { Users, Package, Building2, SlidersHorizontal, Settings2, CalendarDays, Landmark } from 'lucide-react';
 import { BranchesSettingsPanel } from '@/components/settings/branches-settings-panel';
+import { CompanyProfilesPanel } from '@/components/settings/company-profiles-panel';
 import { ProductsSettingsPanel } from '@/components/settings/products-settings-panel';
 import { StockSettingsPanel } from '@/components/settings/stock-settings-panel';
 import { StockPlanningSettingsPanel } from '@/components/settings/stock-planning-settings-panel';
@@ -61,7 +62,9 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
   const defaultTab =
     tabParam === 'branches'
       ? 'branches'
-      : tabParam === 'users'
+      : tabParam === 'companies'
+        ? 'companies'
+        : tabParam === 'users'
         ? 'users'
         : tabParam === 'planning'
           ? 'planning'
@@ -190,6 +193,11 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
                 <CalendarDays className="h-4 w-4" /> Ramalan Order
               </TabsTrigger>
             )}
+            {isAdmin && (
+              <TabsTrigger value="companies" className={moduleTabsTriggerClass}>
+                <Landmark className="h-4 w-4" /> Syarikat
+              </TabsTrigger>
+            )}
             {canViewStaff && (
               <TabsTrigger value="staff" className={moduleTabsTriggerClass}>
                 <Users className="h-4 w-4" /> Staf
@@ -235,6 +243,12 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
           {showPlanningTab && (
             <TabsContent value="planning" className="mt-4">
               <StockPlanningSettingsPanel canEdit={canEditPlanning} />
+            </TabsContent>
+          )}
+
+          {isAdmin && (
+            <TabsContent value="companies" className="mt-4">
+              <CompanyProfilesPanel />
             </TabsContent>
           )}
 

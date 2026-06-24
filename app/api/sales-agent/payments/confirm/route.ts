@@ -38,7 +38,8 @@ export async function POST(request: Request) {
     const receipt = await getAgentReceiptForPayment(
       service as SupabaseClient,
       paymentId,
-      account.id as string
+      account.id as string,
+      profile.organization_id
     );
     return NextResponse.json({ ok: true, result, gateway_ref: gatewayRef, receipt });
   } catch (e) {

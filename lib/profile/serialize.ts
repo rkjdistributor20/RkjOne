@@ -22,6 +22,14 @@ export type ProfileLegalEntityInfo = {
   name: string;
   legal_name: string;
   scope: string | null;
+  office_address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  registration_no?: string | null;
+  tax_id?: string | null;
+  bank_name?: string | null;
+  bank_account_name?: string | null;
+  bank_account_no?: string | null;
 } | null;
 
 export type ProfileMe = {
@@ -76,6 +84,14 @@ function parseLegalEntity(raw: unknown): ProfileLegalEntityInfo {
     name: row.name as string,
     legal_name: row.legal_name as string,
     scope: (row.scope as string | null) ?? null,
+    office_address: (row.office_address as string | null) ?? null,
+    phone: (row.phone as string | null) ?? null,
+    email: (row.email as string | null) ?? null,
+    registration_no: (row.registration_no as string | null) ?? null,
+    tax_id: (row.tax_id as string | null) ?? null,
+    bank_name: (row.bank_name as string | null) ?? null,
+    bank_account_name: (row.bank_account_name as string | null) ?? null,
+    bank_account_no: (row.bank_account_no as string | null) ?? null,
   };
 }
 

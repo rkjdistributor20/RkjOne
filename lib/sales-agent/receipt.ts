@@ -1,37 +1,33 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { getRkjDistributorMerchantProfile } from './merchant-profile';
+import { profileToReceiptIssuer } from '@/lib/brand/legal-entity-profile';
+import { SALES_AGENT_EMPLOYER_CODE } from '@/lib/brand/legal-entities';
+import { loadMerchantProfile } from '@/lib/sales-agent/merchant-profile';
 import type { AgentPaymentReceipt } from './types';
 
-export function enrichAgentReceipt(raw: Record<string, unknown>): AgentPaymentReceipt {
-  const merchant = getRkjDistributorMerchantProfile();
+export async function enrichAgentReceipt(
+  service: SupabaseClient,
+  raw: Record<string, unknown>,
+  organizationId?: string
+): Promise<AgentPaymentReceipt> {
   const issuer = (raw.issuer ?? {}) as Record<string, unknown>;
+  const issuerCode = String(issuer.code ?? SALES_AGENT_EMPLOYER_CODE);
+  const profile = await loadMerchantProfile(service, issuerCode, organizationId);
 
   return {
     ...(raw as AgentPaymentReceipt),
-    issuer: {
-      code: String(issuer.code ?? merchant.code),
-      legal_name: String(issuer.legal_name ?? merchant.legalName),
-      name: String(issuer.name ?? merchant.name),
-      address: merchant.address,
-      phone: merchant.phone,
-      email: merchant.email,
-      registration_no: merchant.registrationNo,
-      tax_id: merchant.taxId,
-      bank_name: merchant.bankName,
-      bank_account_name: merchant.bankAccountName,
-      bank_account_no: merchant.bankAccountNo,
-    },
+    issuer: profileToReceiptIssuer(profile),
   };
 }
 
 export async function getAgentReceiptForPayment(
   service: SupabaseClient,
   paymentId: string,
-  agentAccountId: string
+  agentAccountId: string,
+  organizationId?: string
 ) {
   const { data: payment } = await service
     .from('agent_online_payments')
-    .select('id, agent_account_id, status')
+    .select('id, agent_account_id, status, organization_id')
     .eq('id', paymentId)
     .maybeSingle();
 
@@ -45,5 +41,9 @@ export async function getAgentReceiptForPayment(
     .maybeSingle();
 
   if (!row?.receipt_data) return null;
-  return enrichAgentReceipt(row.receipt_data as Record<string, unknown>);
+  return enrichAgentReceipt(
+    service,
+    row.receipt_data as Record<string, unknown>,
+    organizationId ?? (payment.organization_id as string)
+  );
 }

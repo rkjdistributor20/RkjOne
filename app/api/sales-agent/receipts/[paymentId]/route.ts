@@ -23,7 +23,8 @@ export async function GET(
   const receipt = await getAgentReceiptForPayment(
     service as SupabaseClient,
     paymentId,
-    account.id as string
+    account.id as string,
+    profile.organization_id
   );
   if (!receipt) {
     return NextResponse.json({ error: 'Resit tidak dijumpai atau bayaran belum selesai' }, { status: 404 });

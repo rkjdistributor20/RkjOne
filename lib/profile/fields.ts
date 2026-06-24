@@ -50,7 +50,7 @@ export const PROFILE_SELECT = `
   profile_completed_at, created_at, last_login_at,
   branch:branches(branch_code, branch_name),
   region:regions!profiles_region_id_fkey(code, name),
-  legal_entity:legal_entities(code, name, legal_name, scope)
+  legal_entity:legal_entities(code, name, legal_name, scope, office_address, phone, email, registration_no, tax_id, bank_name, bank_account_name, bank_account_no)
 `;
 
 export function normalizeIcNumber(raw: string): string {
