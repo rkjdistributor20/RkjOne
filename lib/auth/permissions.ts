@@ -5,6 +5,7 @@ import { canAccessFactoryNav, canAccessHqWarehouseNav } from '@/lib/auth/stock-a
 import {
   filterNavForRole,
 } from '@/lib/auth/area-manager-access';
+import { filterNavForSalesAgent } from '@/lib/auth/sales-agent-access';
 
 const LEVEL_RANK: Record<PermissionLevel, number> = {
   NONE: 0,
@@ -45,6 +46,10 @@ export function canAccessMaintenance(role: UserRole): boolean {
   return ['SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER', 'MAINTENANCE_MANAGER', 'AREA_MANAGER', 'STAFF'].includes(role);
 }
 
+export function canAccessSalesAgent(role: UserRole): boolean {
+  return ['SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER', 'FINANCE', 'CEO_FACTORY', 'SALES_AGENT'].includes(role);
+}
+
 export function canAccessHr(role: UserRole): boolean {
   return ['SUPER_ADMIN', 'ADMIN', 'HR'].includes(role);
 }
@@ -75,6 +80,7 @@ export const NAV_ITEMS: Array<{
   { href: '/reports', label: 'Laporan', module: 'reports', icon: 'BarChart3' },
   { href: '/approvals', label: 'Kelulusan', module: 'approval', icon: 'CheckSquare' },
   { href: '/maintenance', label: 'Maintenance', module: 'maintenance', icon: 'Wrench' },
+  { href: '/sales-agent', label: 'Portal Ejen', module: 'sales_agent', icon: 'Store' },
   { href: '/settings', label: 'Tetapan', module: 'user_management', icon: 'Settings' },
 ];
 
@@ -93,6 +99,9 @@ export function getVisibleNavItems(
     if (item.href === '/hr') {
       return canAccessHr(role);
     }
+    if (item.href === '/sales-agent') {
+      return canAccessSalesAgent(role);
+    }
     if (item.href === '/factory') {
       return canAccessFactoryNav(role);
     }
@@ -105,7 +114,7 @@ export function getVisibleNavItems(
     return canAccessModule(role, item.module, permissions);
   });
 
-  return filterNavForRole(role, items);
+  return filterNavForSalesAgent(role, filterNavForRole(role, items));
 }
 
 export function getNavLabelForPath(pathname: string): string {

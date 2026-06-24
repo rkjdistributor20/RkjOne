@@ -71,8 +71,13 @@ export function legalEntityLabel(code: string | null | undefined, legalName?: st
   return def?.legalName ?? def?.name ?? '—';
 }
 
+export const SALES_AGENT_EMPLOYER_CODE: LegalEntityCode = 'RKJ_DIST';
+export const AGENT_POS_SUBSCRIPTION_RM = 150;
+
 export function defaultLegalEntityCodeForRole(role: string): LegalEntityCode | null {
-  if (role === 'AREA_MANAGER' || role === 'DRIVER' || role === 'MAINTENANCE_MANAGER') return AREA_MANAGER_EMPLOYER_CODE;
+  if (role === 'AREA_MANAGER' || role === 'DRIVER' || role === 'MAINTENANCE_MANAGER' || role === 'SALES_AGENT') {
+    return AREA_MANAGER_EMPLOYER_CODE;
+  }
   if (role === 'CEO_FACTORY') return 'RKJ_MFG';
   if (role === 'STAFF') return DEFAULT_SALES_LEGAL_ENTITY_CODE;
   return null;

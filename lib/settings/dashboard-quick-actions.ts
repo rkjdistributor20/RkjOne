@@ -10,6 +10,7 @@ const MODULE_HREF: Partial<Record<PermissionModule, { href: string; label: strin
   stock_kiosk: { href: '/inventory', label: 'Inventori', description: 'Stok cawangan' },
   hr: { href: '/hr', label: 'HR Syarikat', description: 'Maklumat staf' },
   payroll: { href: '/profile', label: 'Gaji Saya', description: 'Slip & gaji' },
+  sales_agent: { href: '/sales-agent', label: 'Portal Ejen', description: 'Order stok & langganan POS' },
 };
 
 const PROFILE_DEFAULT_MODULES: Record<DashboardProfileId, PermissionModule[]> = {
@@ -23,6 +24,7 @@ const PROFILE_DEFAULT_MODULES: Record<DashboardProfileId, PermissionModule[]> = 
   FACTORY_STAFF: ['stock_hq', 'shift'],
   LOGISTICS: ['fleet'],
   MAINTENANCE: ['maintenance' as PermissionModule],
+  SALES_AGENT: ['sales_agent', 'pos'],
 };
 
 export function staffQuickActionsFromMetadata(metadata: unknown) {

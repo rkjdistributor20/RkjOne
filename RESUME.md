@@ -1,13 +1,11 @@
 # ⏸ Sambung Di Sini — RKJ One ERP
 
-> **🔔 CHECKPOINT 21 Jun 2026 — UAT Payroll + AM SIAP · sedia go-live**
+> **🔔 CHECKPOINT — Portal Ejen Jualan RKJ Distributor LIVE**
 
-> **Buka fail ini bila buka semula projek.** Kata **"sambung"** untuk deploy semak, UAT browser manual, atau Hari H.
-
-**Tarikh save:** 21 Jun 2026 (rehat malam · **CHECKPOINT FINAL**)  
-**Branch:** `master` · commit terkini **`b3fd6a7`** (pushed ✓)  
+**Tarikh save:** 21 Jun 2026  
+**Branch:** `master` · commit *(selepas push sesi ini)*  
 **Production:** https://rkj-one.vercel.app  
-**Supabase:** `mtygxueknokcihofdttl` · migrations **00001–00075** ✓
+**Supabase:** `mtygxueknokcihofdttl` · migrations **00001–00077** ✓
 
 ---
 
@@ -22,6 +20,20 @@
 | `uat:am` | Login + inventori skop 3 kawasan ✓ |
 | Email staf | `{staffcode}@rkj.com` |
 | Kata laluan | **`RkjOne@2026`** (94 auth users) |
+| **Portal Ejen** | `/sales-agent` · peranan `SALES_AGENT` · migration **00076–00077** |
+
+---
+
+## 🏪 Portal Ejen Jualan (RKJ Distributor)
+
+- **URL:** `/sales-agent` · peranan **Ejen Jualan** (`SALES_AGENT`)
+- **Order stok** ikut tarikh production kilang + cutoff T-1 22:00
+- **Bayaran:** FPX / Kad Kredit / Debit → hantar automatik ke kilang
+- **POS cawangan ejen:** langganan **RM150/bulan** — bayar dulu, baru akses `/pos`
+- **Payment UAT:** `SALES_AGENT_PAYMENT_MODE=simulate` (default)
+- **Payment live:** set `SALES_AGENT_PAYMENT_MODE=live` + merchant keys di Vercel
+
+**Cipta ejen:** Tetapan → Pengguna → peranan **Ejen Jualan** · syarikat **RKJ_DIST**
 
 ---
 

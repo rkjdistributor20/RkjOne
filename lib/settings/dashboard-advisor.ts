@@ -13,7 +13,8 @@ export type DashboardProfileId =
   | 'DIST_OPERATIONS'
   | 'FACTORY_STAFF'
   | 'LOGISTICS'
-  | 'MAINTENANCE';
+  | 'MAINTENANCE'
+  | 'SALES_AGENT';
 
 export type DashboardAdvice = {
   profile_id: DashboardProfileId;
@@ -43,6 +44,7 @@ const PROFILE_LABELS: Record<DashboardProfileId, string> = {
   FACTORY_STAFF: 'Kilang & Pengeluaran',
   LOGISTICS: 'Logistik & Pemandu',
   MAINTENANCE: 'Maintenance',
+  SALES_AGENT: 'Ejen Jualan RKJ Distributor',
 };
 
 function entityLabel(code: LegalEntityCode) {
@@ -78,6 +80,7 @@ export const DASHBOARD_HOME: Record<DashboardProfileId, string> = {
   FACTORY_STAFF: '/factory',
   LOGISTICS: '/fleet',
   MAINTENANCE: '/maintenance',
+  SALES_AGENT: '/sales-agent',
 };
 
 export function adviseUserDashboard(input: DashboardAdviceInput): DashboardAdvice {
@@ -175,6 +178,14 @@ export function adviseUserDashboard(input: DashboardAdviceInput): DashboardAdvic
         ['maintenance', 'approval'],
         'Manager maintenance — tiket penyelenggaraan cawangan & kenderaan.',
         [entity]
+      );
+    case 'SALES_AGENT':
+      return advice(
+        'SALES_AGENT',
+        '/sales-agent',
+        ['sales_agent', 'pos'],
+        'Ejen jualan RKJ Distributor — order stok ikut jadual kilang, bayaran online, langganan POS RM150/cawangan.',
+        ['RKJ_DIST']
       );
     case 'STAFF':
     default:
