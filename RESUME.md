@@ -3,7 +3,7 @@
 > **🔔 CHECKPOINT — Portal Ejen Jualan RKJ Distributor LIVE**
 
 **Tarikh save:** 21 Jun 2026  
-**Branch:** `master` · commit *(selepas push sesi ini)*  
+**Branch:** `master` · commit **`7cdbdd9`** (pushed ✓)  
 **Production:** https://rkj-one.vercel.app  
 **Supabase:** `mtygxueknokcihofdttl` · migrations **00001–00077** ✓
 
