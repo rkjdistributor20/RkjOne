@@ -346,13 +346,25 @@ export function SalesAgentDashboard() {
         }
       />
 
+      {!data.payment_gateway.ipay88_configured && (
+        <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <p className="font-medium">Mod pilot — iPay88 belum diaktifkan</p>
+          <p className="mt-1 text-xs text-amber-900">
+            Bayaran disahkan dalam sistem untuk ujian. Selepas Merchant Code iPay88 diset di Vercel,
+            FPX/kad akan dihantar ke Maybank RKJ Distributor dengan pengesahan bank sebenar.
+          </p>
+        </div>
+      )}
+
       <div className="mb-4 flex items-center gap-3 rounded-xl border border-emerald-200 bg-gradient-to-r from-emerald-950 via-emerald-900 to-emerald-800 px-4 py-3 text-white">
         <LegalEntityLogo size={36} className="rounded-md bg-white/10 p-1" />
         <div>
           <p className="text-sm font-semibold">RKJ Distributor — Bekalan Stok Ejen</p>
           <p className="text-xs text-emerald-100">
             Order ikut tarikh production kilang · Bayaran FPX/Kad ke Maybank RKJ Distributor ·
-            Tempahan & langganan POS disahkan selepas pengesahan bank sahaja
+            {data.payment_gateway.ipay88_configured
+              ? ' Tempahan disahkan selepas pengesahan bank'
+              : ' Mod pilot — bayaran ujian aktif sehingga iPay88 live'}
           </p>
         </div>
       </div>
@@ -597,6 +609,7 @@ export function SalesAgentDashboard() {
         payMethod={payMethod}
         onPayMethodChange={setPayMethod}
         loading={paymentLoading}
+        ipay88Configured={data.payment_gateway.ipay88_configured}
         onConfirm={async () => {
           if (paymentTarget) await runPayment(paymentTarget);
         }}

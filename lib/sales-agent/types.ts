@@ -90,6 +90,10 @@ export type AgentDashboardData = {
     active_outlets: number;
     factory_submitted: number;
   };
+  payment_gateway: {
+    mode: 'simulate' | 'live';
+    ipay88_configured: boolean;
+  };
 };
 
 export type StockCatalogItem = {

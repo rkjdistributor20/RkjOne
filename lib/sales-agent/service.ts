@@ -1,6 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AGENT_POS_SUBSCRIPTION_RM } from '@/lib/brand/legal-entities';
-import { expireAgentSubscriptions } from './payment-gateway';
+import {
+  expireAgentSubscriptions,
+  getEffectivePaymentMode,
+  isLivePaymentGatewayConfigured,
+} from './payment-gateway';
 import type { AgentDashboardData, ProductionDayOption, StockCatalogItem } from './types';
 
 export { AGENT_POS_SUBSCRIPTION_RM };
@@ -159,6 +163,10 @@ export async function buildAgentDashboard(
       production_days: await loadProductionDayOptions(service, organizationId),
       subscription_monthly_rm: AGENT_POS_SUBSCRIPTION_RM,
       stats: { pending_orders: 0, active_outlets: 0, factory_submitted: 0 },
+      payment_gateway: {
+        mode: getEffectivePaymentMode(),
+        ipay88_configured: isLivePaymentGatewayConfigured(),
+      },
     };
   }
 
@@ -276,6 +284,10 @@ export async function buildAgentDashboard(
       factory_submitted: orderRows.filter((o) =>
         ['SUBMITTED_FACTORY', 'ACKNOWLEDGED', 'FULFILLED'].includes(o.status)
       ).length,
+    },
+    payment_gateway: {
+      mode: getEffectivePaymentMode(),
+      ipay88_configured: isLivePaymentGatewayConfigured(),
     },
   };
 }

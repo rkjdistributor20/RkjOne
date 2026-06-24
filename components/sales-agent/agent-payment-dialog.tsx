@@ -28,6 +28,7 @@ type AgentPaymentDialogProps = {
   onPayMethodChange: (method: OnlinePaymentMethod) => void;
   onConfirm: () => Promise<void>;
   loading?: boolean;
+  ipay88Configured?: boolean;
 };
 
 export function AgentPaymentDialog({
@@ -38,6 +39,7 @@ export function AgentPaymentDialog({
   onPayMethodChange,
   onConfirm,
   loading,
+  ipay88Configured = true,
 }: AgentPaymentDialogProps) {
   if (!target) return null;
 
@@ -93,9 +95,19 @@ export function AgentPaymentDialog({
           <div className="flex items-start gap-2 rounded-lg border px-3 py-2 text-xs text-muted-foreground">
             <Landmark className="mt-0.5 h-4 w-4 shrink-0" />
             <p>
-              Bayaran dihantar ke <strong>Maybank RKJ Distributor Sdn Bhd</strong> melalui iPay88
-              (FPX / kad kredit / kad debit). Tempahan stok atau langganan POS hanya disahkan
-              selepas bank mengesahkan bayaran — bukan serta-merta.
+              {ipay88Configured ? (
+                <>
+                  Bayaran dihantar ke <strong>Maybank RKJ Distributor Sdn Bhd</strong> melalui iPay88
+                  (FPX / kad kredit / kad debit). Tempahan stok atau langganan POS hanya disahkan
+                  selepas bank mengesahkan bayaran.
+                </>
+              ) : (
+                <>
+                  <strong>Mod pilot:</strong> iPay88 belum diaktifkan — bayaran ujian disahkan dalam
+                  sistem. Selepas Merchant Code iPay88 diset, bayaran sebenar ke Maybank RKJ
+                  Distributor akan digunakan.
+                </>
+              )}
             </p>
           </div>
         </div>

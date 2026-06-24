@@ -29,15 +29,25 @@ export function isLivePaymentGatewayConfigured(): boolean {
   );
 }
 
-/** Simulate hanya bila SALES_AGENT_PAYMENT_MODE=simulate (dev/UAT). */
+/** Env eksplisit — `simulate` atau `live`. */
 export function getPaymentGatewayMode(): PaymentGatewayMode {
   const mode = process.env.SALES_AGENT_PAYMENT_MODE?.trim().toLowerCase();
   if (mode === 'simulate') return 'simulate';
   return 'live';
 }
 
+/**
+ * Mod sebenar runtime: live hanya bila Merchant Code + Key iPay88 wujud.
+ * Tanpa credential → simulate sementara (UAT/pilot sebelum go-live FPX).
+ */
+export function getEffectivePaymentMode(): PaymentGatewayMode {
+  if (getPaymentGatewayMode() === 'simulate') return 'simulate';
+  if (!isLivePaymentGatewayConfigured()) return 'simulate';
+  return 'live';
+}
+
 export function isSimulatePaymentAllowed(): boolean {
-  return process.env.SALES_AGENT_PAYMENT_MODE?.trim().toLowerCase() === 'simulate';
+  return getEffectivePaymentMode() === 'simulate';
 }
 
 /**
@@ -47,7 +57,7 @@ export function isSimulatePaymentAllowed(): boolean {
 export async function initiateAgentPayment(
   input: InitiatePaymentInput
 ): Promise<InitiatePaymentResult> {
-  const mode = getPaymentGatewayMode();
+  const mode = getEffectivePaymentMode();
 
   if (mode === 'simulate') {
     return {
@@ -56,12 +66,6 @@ export async function initiateAgentPayment(
       checkout_url: null,
       gateway_session_id: null,
     };
-  }
-
-  if (!isLivePaymentGatewayConfigured()) {
-    throw new Error(
-      'Gerbang bayaran belum dikonfigurasi. Hubungi HQ — Merchant Code iPay88 diperlukan.'
-    );
   }
 
   const sessionId = `RKJ-LIVE-${input.paymentId.slice(0, 8)}-${Date.now()}`;
