@@ -9,6 +9,7 @@ import { DEFAULT_PASSWORD } from './lib/default-password.mjs';
 
 const PRODUCTION_URL = process.env.PRODUCTION_URL ?? 'https://rkj-one.vercel.app';
 const RUN_FLOW = process.argv.includes('--flow');
+const RUN_FLOW_POS = process.argv.includes('--flow-pos') || RUN_FLOW;
 const env = loadProjectEnv();
 const url = env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY;
@@ -170,6 +171,20 @@ for (const agent of agents) {
     .eq('agent_account_id', agent.id);
   ok('Antrian kilang', String(factory ?? 0));
 
+  const companiesRes = await apiJson(c, '/api/legal-entities');
+  if (companiesRes.ok && companiesRes.body.companies?.length >= 3) {
+    const dist = companiesRes.body.companies.find((x) => x.code === 'RKJ_DIST');
+    if (dist?.bankAccountNo && dist?.registrationNo) {
+      ok('Profil syarikat', `RKJ_DIST · Maybank ${dist.bankAccountNo.slice(-4)}`);
+    } else {
+      fail('Profil syarikat', 'RKJ_DIST bank/SSM tiada');
+      failed++;
+    }
+  } else {
+    fail('Profil syarikat API', `HTTP ${companiesRes.status}`);
+    failed++;
+  }
+
   if (RUN_FLOW && prof.role === 'SALES_AGENT') {
     console.log('\n--- Aliran order + bayaran ---');
     const c = cookie(login.data.session, login.data.user);
@@ -251,6 +266,90 @@ for (const agent of agents) {
             }
           }
         }
+        }
+      }
+    }
+  }
+
+  if (RUN_FLOW_POS && prof.role === 'SALES_AGENT') {
+    console.log('\n--- Aliran cawangan POS + langganan ---');
+    const c = cookie(login.data.session, login.data.user);
+    const outletCode = `UAT-${Date.now().toString().slice(-5)}`;
+
+    const outletRes = await apiJson(c, '/api/sales-agent/outlets', {
+      method: 'POST',
+      body: JSON.stringify({
+        outlet_code: outletCode,
+        outlet_name: `Kiosk UAT ${outletCode}`,
+        address_line: 'Teluk Intan',
+        city: 'Teluk Intan',
+        state: 'Perak',
+        postcode: '36000',
+      }),
+    });
+    if (!outletRes.ok) {
+      fail('Daftar cawangan', `${outletRes.status} ${outletRes.body.error ?? ''}`);
+      failed++;
+    } else {
+      ok('Daftar cawangan', outletRes.body.outlet.outlet_code);
+      const outletId = outletRes.body.outlet.id;
+
+      const subRes = await apiJson(c, '/api/sales-agent/subscriptions', {
+        method: 'POST',
+        body: JSON.stringify({ outlet_id: outletId }),
+      });
+      if (!subRes.ok) {
+        fail('Langganan POS', `${subRes.status} ${subRes.body.error ?? ''}`);
+        failed++;
+      } else {
+        ok('Langganan dimulakan', `RM${subRes.body.subscription.amount_rm}`);
+        const payRes = await apiJson(c, '/api/sales-agent/payments', {
+          method: 'POST',
+          body: JSON.stringify({
+            purpose: 'POS_SUBSCRIPTION',
+            reference_id: subRes.body.subscription.id,
+            payment_method: 'FPX',
+          }),
+        });
+        if (!payRes.ok) {
+          fail('Bayaran langganan', `${payRes.status} ${payRes.body.error ?? ''}`);
+          failed++;
+        } else {
+          const confirmRes = await apiJson(c, '/api/sales-agent/payments/confirm', {
+            method: 'POST',
+            body: JSON.stringify({ payment_id: payRes.body.payment.id }),
+          });
+          if (!confirmRes.ok) {
+            fail('Sahkan langganan', `${confirmRes.status} ${confirmRes.body.error ?? ''}`);
+            failed++;
+          } else {
+            const receipt = confirmRes.body.receipt;
+            if (receipt?.receipt_number) {
+              ok('Resit langganan', receipt.receipt_number);
+              if (receipt.issuer?.bank_account_no?.includes('564856315018')) {
+                ok('Bank RKJ Distributor pada resit', 'Maybank OK');
+              } else if (receipt.issuer?.bank_name) {
+                ok('Bank RKJ Distributor pada resit', receipt.issuer.bank_name);
+              } else {
+                fail('Bank pada resit', 'tiada');
+                failed++;
+              }
+            } else {
+              fail('Resit langganan', 'tiada');
+              failed++;
+            }
+            const { data: outletRow } = await admin
+              .from('agent_outlets')
+              .select('pos_enabled, subscription_active')
+              .eq('id', outletId)
+              .single();
+            if (outletRow?.pos_enabled && outletRow?.subscription_active) {
+              ok('POS cawangan aktif', outletCode);
+            } else {
+              fail('POS cawangan aktif', 'pos_enabled=false');
+              failed++;
+            }
+          }
         }
       }
     }
