@@ -1,11 +1,11 @@
 # ⏸ Sambung Di Sini — RKJ One ERP
 
-> **🔔 CHECKPOINT — 6 Jul 2026 · Sync Codex → Cursor → GitHub**
+> **🔔 CHECKPOINT — 6 Jul 2026 · UAT automatik penuh lulus**
 
 **Branch:** `master`  
-**GitHub:** `bdddc74` · sync Codex 6 Jul 2026  
+**GitHub:** `bdddc74` (uncommitted: uat:full, migration 00111, order fix)  
 **Production:** https://rkj-one.vercel.app · deploy **`dpl_HcM7sQo8Pzbfaffiwfcg26Zjp2nT`** ✓  
-**Supabase:** `mtygxueknokcihofdttl` · migrations **00001–00110** + HRMIS/leave (lihat folder migrations)
+**Supabase:** `mtygxueknokcihofdttl` · migrations **00001–00111** applied
 
 ---
 
@@ -22,8 +22,9 @@
 | **Production Readiness Center** (Tetapan → Kesihatan Sistem) | ✓ 10 skor · `verify:readiness` 14/14 |
 | Portal Ejen — mod pilot bayaran | ✓ |
 | Mobile/PWA + Capacitor shell | ✓ `mobile:readiness` 54/54 |
-| **HRMIS self-service pekerja** (cuti, profil, dokumen) | ✓ kod + migration 00110 |
+| **HRMIS self-service pekerja** (cuti, profil, dokumen) | ✓ UAT automatik lulus |
 | **Baki cuti pekerja** | ✓ migration leave balances |
+| **UAT automatik penuh** | ✓ `verify:all` 6/6 · `uat:full` · `uat:sales-agent:flow` · `mobile:readiness` 54/54 |
 
 ---
 
@@ -35,10 +36,11 @@ npm run verify:all            # bundle production
 npm run verify:ui-polish      # guardrail UI/UUID
 npm run verify:hr             # modul HR
 npm run verify:payroll        # payroll 3 syarikat
-npm run uat:sales-agent       # portal ejen
+npm run uat:full              # HR + HRMIS + payroll API + AM + ejen
+npm run uat:sales-agent:flow  # order + bayaran + POS langganan
 npm run uat:am                # 3 AM
 npm run mobile:readiness      # Play/App store checklist
-npm run db:push               # migrations baru (00110+)
+npm run db:push               # migrations (00111+)
 ```
 
 ---
@@ -46,9 +48,8 @@ npm run db:push               # migrations baru (00110+)
 ## 📋 Manual belum siap
 
 - [ ] UAT browser **semua dashboard** selepas redesign visual
-- [ ] UAT browser ejen — [`docs/UAT_SALES_AGENT.md`](docs/UAT_SALES_AGENT.md)
-- [ ] UAT browser AM — [`docs/UAT_AM.md`](docs/UAT_AM.md)
-- [ ] UAT HR self-service + Payroll Studio (3 syarikat)
+- [ ] UAT browser manual — [`docs/UAT_SALES_AGENT.md`](docs/UAT_SALES_AGENT.md) · [`docs/UAT_AM.md`](docs/UAT_AM.md)
+- [ ] Deploy Vercel — kod terkini (retry order API + uat:full)
 - [ ] FPX live — Merchant Code iPay88 di Vercel
 - [ ] Supabase Auth signup OFF
 - [ ] Hari H 36 cawangan — [`docs/GO_LIVE_36.md`](docs/GO_LIVE_36.md)

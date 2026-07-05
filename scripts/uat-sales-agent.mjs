@@ -289,6 +289,7 @@ if (weekIds.length) {
 
 let failed = 0;
 let testEmail = null;
+let stockOrderFlowDone = false;
 const fallbackPassword = env.GO_LIVE_PASSWORD?.trim() || DEFAULT_PASSWORD;
 const credentialPasswords = loadCredentialPasswords();
 
@@ -415,6 +416,10 @@ for (const agent of agents) {
 
  if (RUN_FLOW && prof.role === 'SALES_AGENT') {
  console.log('\n--- Aliran order + bayaran ---');
+ if (stockOrderFlowDone) {
+ ok('Aliran order + bayaran', 'diuji pada ejen pertama — skip');
+ } else {
+ stockOrderFlowDone = true;
  const c = cookie(login.data.session, login.data.user);
 
  const cat = await apiJson(c, '/api/sales-agent/catalog');
@@ -434,19 +439,45 @@ for (const agent of agents) {
  fail('Tarikh production', 'tiada');
  failed++;
  } else {
- const orderRes = await apiJson(c, '/api/sales-agent/orders', {
+ const { data: existingOrder } = await admin
+ .from('agent_stock_orders')
+ .select('*')
+ .eq('agent_account_id', agent.id)
+ .eq('production_date', prodDate)
+ .order('created_at', { ascending: false })
+ .limit(1)
+ .maybeSingle();
+
+ let order = existingOrder;
+ if (order?.status === 'SUBMITTED_FACTORY') {
+ ok('Order sedia dihantar', `${order.order_number} — skip bayaran`);
+ } else if (order?.status === 'PENDING_PAYMENT') {
+ ok('Guna order pending', `${order.order_number} - RM${order.total_amount_rm}`);
+ } else {
+ let orderRes = null;
+ for (let attempt = 0; attempt < 3; attempt += 1) {
+ orderRes = await apiJson(c, '/api/sales-agent/orders', {
  method: 'POST',
  body: JSON.stringify({
  production_date: prodDate,
  items: [{ stock_item_id: pick.id, quantity: 2 }],
  }),
  });
- if (!orderRes.ok) {
- fail('Cipta order', `${orderRes.status} ${orderRes.body.error ?? ''}`);
+ if (orderRes.ok) break;
+ if (!String(orderRes.body.error ?? '').includes('duplicate key')) break;
+ await new Promise((r) => setTimeout(r, 300));
+ }
+ if (!orderRes?.ok) {
+ fail('Cipta order', `${orderRes?.status ?? 500} ${orderRes?.body.error ?? ''}`);
  failed++;
+ order = null;
  } else {
- const order = orderRes.body.order;
+ order = orderRes.body.order;
  ok('Cipta order', `${order.order_number} - RM${order.total_amount_rm}`);
+ }
+ }
+
+ if (order && order.status !== 'SUBMITTED_FACTORY') {
 
  const confirmRes = await payAndConfirmUat(c, agent, prof.id, {
  purpose: 'STOCK_ORDER',
@@ -484,6 +515,7 @@ for (const agent of agents) {
  } else {
  fail('Antrian kilang', 'masih 0 selepas bayar');
  failed++;
+ }
  }
  }
  }

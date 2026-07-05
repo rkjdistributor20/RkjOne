@@ -59,14 +59,18 @@ export async function POST(request: Request) {
  return NextResponse.json({ error: 'Tiada item sah' }, { status: 400 });
  }
 
+ let order: Record<string, unknown> | null = null;
+ let orderErr: { message: string } | null = null;
+
+ for (let attempt = 0; attempt < 5; attempt += 1) {
  const { data: orderNo } = await (service as SupabaseClient).rpc('next_agent_order_number', {
  p_org_id: profile.organization_id,
  } as never);
 
- const { data: order, error: orderErr } = await (service as SupabaseClient).from('agent_stock_orders').insert({
+ const result = await (service as SupabaseClient).from('agent_stock_orders').insert({
  organization_id: profile.organization_id,
  agent_account_id: account.id,
- order_number: String(orderNo ?? `AO-${Date.now()}`),
+ order_number: String(orderNo ?? `AO-${Date.now()}-${attempt}`),
  production_date: productionDate,
  status: paymentExempt ? 'SUBMITTED_FACTORY' : 'PENDING_PAYMENT',
  total_amount_rm: total,
@@ -75,7 +79,16 @@ export async function POST(request: Request) {
  submitted_at: paymentExempt ? new Date().toISOString() : null,
  }).select('*').single();
 
- if (orderErr) return NextResponse.json({ error: orderErr.message }, { status: 500 });
+ if (!result.error && result.data) {
+ order = result.data as Record<string, unknown>;
+ break;
+ }
+
+ orderErr = result.error;
+ if (!result.error?.message.includes('duplicate key')) break;
+ }
+
+ if (!order) return NextResponse.json({ error: orderErr?.message ?? 'Gagal cipta order' }, { status: 500 });
 
  const { error: itemsErr } = await (service as SupabaseClient).from('agent_stock_order_items').insert(
  lineRows.map((r) => ({...r, order_id: order.id })));

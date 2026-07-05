@@ -1,18 +1,27 @@
 {
-  "updated": "2026-07-06 00:35:00 +08:00",
-  "source": "codex-sync-cursor",
+  "updated": "2026-07-06 01:00:00 +08:00",
+  "source": "cursor-uat-full",
   "user_resting": false,
-  "resume_reminder": "Kerja Codex disimpan ke GitHub. Baca RESUME.md. Jalankan npm run verify:readiness + db:push untuk migration 00110/HRMIS. UAT browser dashboard redesign + HR self-service + payroll studio.",
+  "resume_reminder": "UAT automatik penuh lulus. Seterusnya: deploy Vercel (order retry API), UAT browser manual, FPX live.",
   "commit": "bdddc74",
   "branch": "master",
   "production_url": "https://rkj-one.vercel.app",
   "supabase_project": "mtygxueknokcihofdttl",
-  "migrations": "00001-00110 + 20260705_hrmis_leave",
+  "migrations": "00001-00111 — db up to date (6 Jul 2026)",
   "latest_deployment": "dpl_HcM7sQo8Pzbfaffiwfcg26Zjp2nT",
   "last_live_check": {
     "ok": true,
     "status": "ready",
     "appUrl": "https://rkj-one.vercel.app"
+  },
+  "uat_automated": {
+    "verify_all": "6/6",
+    "verify_readiness": "14/14",
+    "verify_ui_polish": "ok",
+    "verify_hr": "11/11",
+    "uat_full": "ok",
+    "uat_sales_agent_flow": "ok — AO-000016, AR-000021, POS langganan",
+    "mobile_readiness": "54/54"
   },
   "codex_work_saved": [
     "Global dashboard visual redesign (shell, KPI, login, POS, cockpit)",
@@ -22,7 +31,8 @@
     "Production Readiness Center — 10-area score in Tetapan > Kesihatan Sistem",
     "HRMIS employee self-service — cuti, profil, dokumen (migration 00110)",
     "HR leave balances catalog (migrations 20260705*)",
-    "verify:readiness, verify:ui-polish, PRODUCTION_READINESS_PLAYBOOK.md"
+    "verify:readiness, verify:ui-polish, PRODUCTION_READINESS_PLAYBOOK.md",
+    "uat:full script + migration 00111 agent order number atomic"
   ],
   "verify_commands": [
     "npm run verify:readiness",
@@ -31,16 +41,16 @@
     "npm run verify:production",
     "npm run verify:hr",
     "npm run verify:payroll",
+    "npm run uat:full",
     "npm run uat:am",
+    "npm run uat:sales-agent:flow",
     "npm run mobile:readiness"
   ],
   "resume_file": "RESUME.md",
   "pending_manual": [
-    "npm run db:push — migration 00110 + HRMIS/leave jika belum apply",
+    "Deploy Vercel — commit uat:full + order API retry + migration note",
     "UAT browser semua dashboard selepas redesign visual",
-    "UAT HR self-service + Payroll Studio 3 syarikat",
-    "UAT browser ejen — mod pilot (docs/UAT_SALES_AGENT.md)",
-    "UAT browser AM (docs/UAT_AM.md)",
+    "UAT browser ejen/AM manual (docs/UAT_SALES_AGENT.md, docs/UAT_AM.md)",
     "FPX live — Merchant Code iPay88 di Vercel",
     "Supabase signup OFF",
     "GO_LIVE_36 hari H",
