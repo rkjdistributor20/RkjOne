@@ -1,4 +1,4 @@
-# RKJ One — Roti Kaya Junus ERP
+# RKJ One - Roti Kaya Junus ERP
 
 Production-ready ERP for **Roti Kaya Junus** (HQ: Teluk Intan, 36 kiosk branches).
 
@@ -20,7 +20,7 @@ npm install
 npm run dev
 ```
 
-→ http://localhost:3000
+ ke http://localhost:3000
 
 ## Go-Live (Production)
 
@@ -33,11 +33,11 @@ npx vercel login
 npx vercel --prod
 ```
 
-Full checklist: [docs/GO_LIVE_CHECKLIST.md](./docs/GO_LIVE_CHECKLIST.md)  
-Deploy guide: [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md)  
+Full checklist: [docs/GO_LIVE_CHECKLIST.md](./docs/GO_LIVE_CHECKLIST.md) 
+Deploy guide: [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) 
 Resume session: **[RESUME.md](./RESUME.md)** ← baca ini bila sambung
 
-**Production:** https://rkj-one.vercel.app · commit `0af1df4`
+**Production:** https://rkj-one.vercel.app - commit `0af1df4`
 
 ### Verify / UAT (production)
 
@@ -50,9 +50,9 @@ npm run uat:am
 
 ### First login
 
-Default password: **`RkjOne@2026`** — email `{staffcode}@rkj.com` (contoh: `s001@rkj.com`, `dist009@rkj.com`)
+Default password: **`[REDACTED_TEMP_PASSWORD]`** - email `{staffcode}@rkj.com` (contoh: `s001@rkj.com`, `dist009@rkj.com`)
 
-Owner: `matisa@rkj.com` · HR: `dist006@rkj.com` · AM: `dist009@` / `dist001@` / `dist010@rkj.com`
+Owner: `matisa@rkj.com` - HR: `dist006@rkj.com` - AM: `dist009@` / `dist001@` / `dist010@rkj.com`
 
 ### Environment variables
 
@@ -80,7 +80,7 @@ Owner: `matisa@rkj.com` · HR: `dist006@rkj.com` · AM: `dist009@` / `dist001@` 
 
 ## User Roles
 
-`SUPER_ADMIN` · `ADMIN` · `HR` · `OPERATION_MANAGER` · `CEO_FACTORY` · `AREA_MANAGER` · `DRIVER` · `STAFF` · `FINANCE`
+`SUPER_ADMIN` - `ADMIN` - `HR` - `OPERATION_MANAGER` - `CEO_FACTORY` - `AREA_MANAGER` - `DRIVER` - `STAFF` - `FINANCE`
 
 ## Scripts
 
@@ -95,4 +95,4 @@ Owner: `matisa@rkj.com` · HR: `dist006@rkj.com` · AM: `dist009@` / `dist001@` 
 
 ## License
 
-Proprietary — Roti Kaya Junus internal use.
+Proprietary - Roti Kaya Junus internal use.

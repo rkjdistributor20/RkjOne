@@ -1,22 +1,86 @@
 {
-  "name": "RKJ One — Roti Kaya Junus",
-  "short_name": "RKJ One",
-  "description": "ERP, POS & Inventory for Roti Kaya Junus",
-  "start_url": "/dashboard",
-  "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#f59e0b",
-  "orientation": "portrait-primary",
-  "icons": [
-    {
-      "src": "/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png"
-    }
-  ]
+ "id": "/",
+ "name": "RKJ One Staff",
+ "short_name": "RKJ One",
+ "description": "Akses rasmi RKJ One untuk pengguna berdaftar.",
+ "lang": "ms-MY",
+ "dir": "ltr",
+ "start_url": "/login?source=pwa",
+ "scope": "/",
+ "display": "standalone",
+ "display_override": ["standalone", "browser"],
+ "background_color": "#f6f1e7",
+ "theme_color": "#111111",
+ "orientation": "portrait-primary",
+ "categories": ["business", "productivity"],
+ "icons": [
+ {
+ "src": "/app-icon-72.png",
+ "sizes": "72x72",
+ "type": "image/png",
+ "purpose": "any"
+ },
+ {
+ "src": "/app-icon-96.png",
+ "sizes": "96x96",
+ "type": "image/png",
+ "purpose": "any"
+ },
+ {
+ "src": "/app-icon-128.png",
+ "sizes": "128x128",
+ "type": "image/png",
+ "purpose": "any"
+ },
+ {
+ "src": "/app-icon-144.png",
+ "sizes": "144x144",
+ "type": "image/png",
+ "purpose": "any"
+ },
+ {
+ "src": "/app-icon-152.png",
+ "sizes": "152x152",
+ "type": "image/png",
+ "purpose": "any"
+ },
+ {
+ "src": "/app-icon-192.png",
+ "sizes": "192x192",
+ "type": "image/png",
+ "purpose": "any"
+ },
+ {
+ "src": "/app-icon-384.png",
+ "sizes": "384x384",
+ "type": "image/png",
+ "purpose": "any"
+ },
+ {
+ "src": "/app-icon-512.png",
+ "sizes": "512x512",
+ "type": "image/png",
+ "purpose": "any"
+ },
+ {
+ "src": "/app-icon-maskable-192.png",
+ "sizes": "192x192",
+ "type": "image/png",
+ "purpose": "maskable"
+ },
+ {
+ "src": "/app-icon-maskable-512.png",
+ "sizes": "512x512",
+ "type": "image/png",
+ "purpose": "maskable"
+ }
+ ],
+ "shortcuts": [
+ {
+ "name": "Log Masuk",
+ "short_name": "Login",
+ "url": "/login?source=shortcut",
+ "icons": [{ "src": "/app-icon-192.png", "sizes": "192x192", "type": "image/png" }]
+ }
+ ]
 }

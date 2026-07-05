@@ -9,16 +9,16 @@ Sistem HR ini memisahkan rekod pekerja mengikut majikan legal masing-masing, sam
 ## Syarikat Legal
 
 1. **Roti Kaya Junus**
-   - Fokus: staf jualan kiosk dan operasi 36 cawangan.
-   - Rekod utama: staf cawangan, portal staf, profil HR, jadual syif, payroll operasi.
+ - Fokus: staf jualan kiosk dan operasi 36 cawangan.
+ - Rekod utama: staf cawangan, portal staf, profil HR, jadual syif, payroll operasi.
 
 2. **RKJ Distributor Sdn Bhd**
-   - Fokus: pengedaran, fleet, HQ Distributor, Area Manager dan Maintenance.
-   - Rekod utama: pengurus kawasan, driver, staf logistik, Manager Maintenance.
+ - Fokus: pengedaran, fleet, HQ Distributor, Area Manager dan Maintenance.
+ - Rekod utama: pengurus kawasan, driver, staf logistik, Manager Maintenance.
 
 3. **Roti Kaya Junus Manufacturing Sdn Bhd**
-   - Fokus: kilang, pengeluaran roti dan gudang kilang.
-   - Rekod utama: staf kilang, pengurusan produksi, profil HR dan payroll kilang.
+ - Fokus: kilang, pengeluaran roti dan gudang kilang.
+ - Rekod utama: staf kilang, pengurusan produksi, profil HR dan payroll kilang.
 
 ## Akses Pengguna
 

@@ -1,56 +1,56 @@
 -- RKJ One simplified seed data. Review before production import.
 
 create table if not exists rkj_branches (
-  branch_code text primary key,
-  branch_name text not null,
-  area text,
-  manager_name text,
-  status text default 'Active',
-  latitude text,
-  longitude text,
-  remarks text
+ branch_code text primary key,
+ branch_name text not null,
+ area text,
+ manager_name text,
+ status text default 'Active',
+ latitude text,
+ longitude text,
+ remarks text
 );
 
 create table if not exists rkj_products (
-  sku text primary key,
-  name text not null,
-  category text,
-  price numeric,
-  sale_unit text,
-  status text default 'Active',
-  notes text
+ sku text primary key,
+ name text not null,
+ category text,
+ price numeric,
+ sale_unit text,
+ status text default 'Active',
+ notes text
 );
 
 create table if not exists rkj_stock_items (
-  item_code text primary key,
-  name text not null,
-  category text,
-  storage_unit text,
-  conversion_text text,
-  min_threshold numeric,
-  critical_threshold numeric,
-  status text default 'Active',
-  notes text
+ item_code text primary key,
+ name text not null,
+ category text,
+ storage_unit text,
+ conversion_text text,
+ min_threshold numeric,
+ critical_threshold numeric,
+ status text default 'Active',
+ notes text
 );
 
 create table if not exists rkj_drivers (
-  driver_id text primary key,
-  name text not null,
-  route text,
-  vehicle_default text,
-  status text default 'Active',
-  phone text,
-  notes text
+ driver_id text primary key,
+ name text not null,
+ route text,
+ vehicle_default text,
+ status text default 'Active',
+ phone text,
+ notes text
 );
 
 create table if not exists rkj_shift_templates (
-  template_id text primary key,
-  name text not null,
-  start_time text,
-  end_time text,
-  default_hours numeric,
-  status text default 'Active',
-  notes text
+ template_id text primary key,
+ name text not null,
+ start_time text,
+ end_time text,
+ default_hours numeric,
+ status text default 'Active',
+ notes text
 );
 
 -- Branches

@@ -1,8 +1,8 @@
-# Go-Live Terus — 36 Cawangan (Operasi Sebenar)
+# Go-Live Terus - 36 Cawangan (Operasi Sebenar)
 
-**Keputusan:** Langkau pilot — semua kiosk guna RKJ One **hari go-live yang sama**.  
-**URL:** https://rkj-one.vercel.app  
-**Verify automatik:** `npm run verify:go-live` · `npm run verify:login` · `npm run verify:am`
+**Keputusan:** Langkau pilot - semua kiosk guna RKJ One **hari go-live yang sama**. 
+**URL:** https://rkj-one.vercel.app 
+**Verify automatik:** `npm run verify:go-live` - `npm run verify:login` - `npm run verify:am`
 
 | Kawasan | AM | Email | Cawangan |
 |---------|-----|-------|----------|
@@ -11,44 +11,44 @@
 | Selatan | Yati | dist010@rkj.com | 14 |
 | **Jumlah** | | | **36** |
 
-> **Nota:** Guna `dist009@` / `dist001@` / `dist010@` — bukan safuan/hakim/yati@ (legacy INACTIVE).
+> **Nota:** Guna `dist009@` / `dist001@` / `dist010@` - bukan safuan/hakim/yati@ (legacy INACTIVE).
 
 ---
 
 ## Portal Ejen (RKJ Distributor)
 
-- **URL:** `/sales-agent` · `agent001@rkj.com` / `RkjOne@2026`
+- **URL:** `/sales-agent` - `agent001@rkj.com` / `[REDACTED_TEMP_PASSWORD]`
 - **UAT browser:** [`docs/UAT_SALES_AGENT.md`](./UAT_SALES_AGENT.md)
 - **FPX live:** [`docs/FPX_LIVE_SETUP.md`](./FPX_LIVE_SETUP.md) (selepas merchant iPay88)
 
 ---
 
-## Sebelum hari go-live (IT — ~1 jam)
+## Sebelum hari go-live (IT - ~1 jam)
 
-- [x] `npm run verify:go-live-36` — Auth + senarai delivery 36 cawangan *(22 Jun 2025)*
-- [x] `npm run verify:go-live` — **19/19** lulus
-- [x] `npm run verify:login` — **13/13** lulus
-- [x] `npm run verify:production` — deploy terkini
-- [x] `npm run uat:am` — 3 AM dist009/001/010
-- [x] `npm run uat:sales-agent` — portal ejen + resit
-- [ ] `npm run verify:all` — bundle penuh sebelum hari H
-- [ ] Supabase Auth — **signup OFF**, Site URL = `https://rkj-one.vercel.app` *(verify automatik: signup blocked ✓ — semak manual Dashboard)*
+- [x] `npm run verify:go-live-36` - Auth + senarai delivery 36 cawangan *(22 Jun 2025)*
+- [x] `npm run verify:go-live` - **19/19** lulus
+- [x] `npm run verify:login` - **13/13** lulus
+- [x] `npm run verify:production` - deploy terkini
+- [x] `npm run uat:am` - 3 AM dist009/001/010
+- [x] `npm run uat:sales-agent` - portal ejen + resit
+- [ ] `npm run verify:all` - bundle penuh sebelum hari H
+- [ ] Supabase Auth - **signup OFF**, Site URL = `https://rkj-one.vercel.app` *(verify automatik: signup blocked ✓ - semak manual Dashboard)*
 - [ ] Redirect: `https://rkj-one.vercel.app/auth/callback`
-- [ ] Backup Supabase diaktifkan (Dashboard → Settings → Database)
+- [ ] Backup Supabase diaktifkan (Dashboard ke Settings ke Database)
 - [ ] Panduan Auth: [`docs/SUPABASE_AUTH_SETUP.md`](./SUPABASE_AUTH_SETUP.md)
 
 ---
 
-## Hari go-live — pagi (HQ + kilang)
+## Hari go-live - pagi (HQ + kilang)
 
 ### Mat Isa / Admin HQ
 
 - [ ] Umumkan URL & SOP ringkas ke 3 AM + semua cawangan (WhatsApp)
-- [ ] Semak dashboard HQ — 36 cawangan aktif
+- [ ] Semak dashboard HQ - 36 cawangan aktif
 
 ### Ibrahim (Operasi) + HQ Distributor
 
-- [ ] Delivery order / logistik — **stok ke 36 kiosk** (minimum: 4 roti + Kaya + Butter + plastik)
+- [ ] Delivery order / logistik - **stok ke 36 kiosk** (minimum: 4 roti + Kaya + Butter + plastik)
 - [ ] Pastikan setiap kiosk ada baki > 0 sebelum staf buka syif
 
 ### Muhammad (Kilang)
@@ -59,39 +59,39 @@
 
 | AM | Semak |
 |----|--------|
-| Safuan | 12 cawangan — staf login, inventori kiosk, jadual syif |
-| Hakim | 10 cawangan — sama |
-| Yati | 14 cawangan — sama |
+| Safuan | 12 cawangan - staf login, inventori kiosk, jadual syif |
+| Hakim | 10 cawangan - sama |
+| Yati | 14 cawangan - sama |
 
 ---
 
-## Hari go-live — setiap cawangan (staf kiosk)
+## Hari go-live - setiap cawangan (staf kiosk)
 
 1. [ ] Buka **https://rkj-one.vercel.app/login** (bookmark tablet/PC)
 2. [ ] Login `sxxx@rkj.com` / kata laluan (tukar jika diminta)
-3. [ ] **Inventori** — semak baki stok selepas delivery
-4. [ ] **POS** — buka syif (tunai permulaan)
-5. [ ] Jual minimum 1 transaksi setiap menu (Kaya, Kacang, Kelapa, Benggali) — ujian hari pertama
-6. [ ] Tutup syif petang — jumlah jualan & tunai
+3. [ ] **Inventori** - semak baki stok selepas delivery
+4. [ ] **POS** - buka syif (tunai permulaan)
+5. [ ] Jual minimum 1 transaksi setiap menu (Kaya, Kacang, Kelapa, Benggali) - ujian hari pertama
+6. [ ] Tutup syif petang - jumlah jualan & tunai
 
 ---
 
-## Hari go-live — petang (review)
+## Hari go-live - petang (review)
 
-- [ ] **Safuan, Hakim, Yati** — dashboard AM: KPI jualan harian per cawangan
-- [ ] **Mat Isa** — dashboard HQ: jualan 36 cawangan
-- [ ] Senarai cawangan yang **belum** buka syif / login gagal / stok kosong → esok pagi follow-up
-- [ ] Semua pengurus & staf **tukar kata laluan** dari `RkjOne@2025`
+- [ ] **Safuan, Hakim, Yati** - dashboard AM: KPI jualan harian per cawangan
+- [ ] **Mat Isa** - dashboard HQ: jualan 36 cawangan
+- [ ] Senarai cawangan yang **belum** buka syif / login gagal / stok kosong ke esok pagi follow-up
+- [ ] Semua pengurus & staf **tukar kata laluan** dari `[REDACTED_TEMP_PASSWORD]`
 
 ---
 
-## SOP ringkas (1 muka surat — edarkan ke cawangan)
+## SOP ringkas (1 muka surat - edarkan ke cawangan)
 
 ```
-1. Login → POS → Buka Syif
+1. Login ke POS ke Buka Syif
 2. Jual 4 menu roti (tunai / QR)
-3. Tutup Syif — kira tunai
-4. Masalah: hubungi AM kawasan → HQ Operasi
+3. Tutup Syif - kira tunai
+4. Masalah: hubungi AM kawasan ke HQ Operasi
 5. URL: https://rkj-one.vercel.app
 ```
 
@@ -108,8 +108,8 @@
 
 ## Minggu pertama (36 cawangan)
 
-- [ ] Staf lengkapkan profil HR (`/profile`) — IC, alamat, kecemasan
-- [ ] AM terbitkan jadual staf mingguan (Syif → Jadual Mingguan)
+- [ ] Staf lengkapkan profil HR (`/profile`) - IC, alamat, kecemasan
+- [ ] AM terbitkan jadual staf mingguan (Syif ke Jadual Mingguan)
 - [ ] HQ pantau delivery harian ke kiosk
 - [ ] Owner review laporan jualan harian / mingguan
 
@@ -119,10 +119,10 @@
 
 | Isu | Tindakan |
 |-----|----------|
-| Staf tidak boleh login | AM reset password (Tetapan → Staf) |
+| Staf tidak boleh login | AM reset password (Tetapan ke Staf) |
 | Stok kosong | HQ delivery ke kiosk tersebut |
 | POS halang jualan | Semak baki inventori kiosk |
-| AM nampak UI HQ | Logout → Incognito → login semula |
+| AM nampak UI HQ | Logout ke Incognito ke login semula |
 
 ---
 
@@ -130,8 +130,8 @@
 
 - Setup teknikal penuh: [`GO_LIVE_CHECKLIST.md`](./GO_LIVE_CHECKLIST.md)
 - UAT AM (optional pantas): [`UAT_AM.md`](./UAT_AM.md)
-- Pilot 14 hari (optional — **tidak dipilih**): [`PILOT_14_UTARA.md`](./PILOT_14_UTARA.md)
+- Pilot 14 hari (optional - **tidak dipilih**): [`PILOT_14_UTARA.md`](./PILOT_14_UTARA.md)
 
 ---
 
-*RKJ One · Roti Kaya Junus · 36 cawangan · satu sistem · tiga syarikat · pemilik sama*
+*RKJ One - Roti Kaya Junus - 36 cawangan - satu sistem - tiga syarikat - pemilik sama*

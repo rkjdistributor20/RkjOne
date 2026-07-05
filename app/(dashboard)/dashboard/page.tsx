@@ -1,39 +1,40 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import {
-  TrendingUp,
-  AlertTriangle,
-  CheckCircle2,
-  Banknote,
-  Package,
-  Truck,
-  Monitor,
-  BarChart3,
-  Clock,
-  ShoppingCart,
+ TrendingUp,
+ AlertTriangle,
+ CheckCircle2,
+ Banknote,
+ Package,
+ Factory,
+ Truck,
+ Monitor,
+ BarChart3,
+ Clock,
+ ShoppingCart,
 } from 'lucide-react';
 import { getCurrentProfile } from '@/lib/auth/session';
 import { resolveScopedBranches } from '@/lib/auth/branch-scope';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import {
-  getDashboardStats,
-  getFleetOverview,
-  getPosOverview,
-  getAreaManagerDashboardContext,
-  fetchKioskOverviewForBranches,
+ getDashboardStats,
+ getFleetOverview,
+ getPosOverview,
+ getAreaManagerDashboardContext,
+ fetchKioskOverviewForBranches,
 } from '@/lib/dashboard/queries';
 import { getAreaManagerBranchMetrics } from '@/lib/dashboard/am-branch-metrics';
 import { buildAreaManagerInsights } from '@/lib/dashboard/am-insights';
 import {
-  getRosterStatusForBranches,
-  syncRosterReminders,
+ getRosterStatusForBranches,
+ syncRosterReminders,
 } from '@/lib/roster/queries';
 import { StaffSchedulePanel } from '@/components/shifts/staff-schedule-panel';
 import { BrandStatsStrip } from '@/components/brand/page-header';
 import { COMPANY } from '@/lib/brand/company';
 import {
-  LOGISTIK_DELIVERY_TITLE,
-  LOGISTIK_LABEL,
+ LOGISTIK_DELIVERY_TITLE,
+ LOGISTIK_LABEL,
 } from '@/lib/fleet/logistics-label';
 import { PosOverviewPanel } from '@/components/dashboard/pos-overview-panel';
 import { AreaManagerDashboard } from '@/components/dashboard/area-manager-dashboard';
@@ -41,283 +42,379 @@ import { OwnerGroupDashboard } from '@/components/dashboard/owner-group-dashboar
 import { isOwnerDashboardRole } from '@/lib/dashboard/owner-company-structure';
 import { getCompanyHrDashboard } from '@/lib/hr/company-hr';
 import {
-  DashboardHero,
-  BrandProductStrip,
-  QuickActionGrid,
-  DashboardAlert,
+ DashboardHero,
+ BrandProductStrip,
+ QuickActionGrid,
+ DashboardAlert,
 } from '@/components/dashboard/dashboard-brand-ui';
 import { labelFor, FLEET_VEHICLE_STATUS_LABELS } from '@/lib/ui/labels';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import {
-  ModuleLayout,
-  KpiGrid,
-  KpiCard,
-  SectionCard,
-  formatRM,
+ ModuleLayout,
+ KpiGrid,
+ KpiCard,
+ SectionCard,
+ formatRM,
 } from '@/components/shared/module-ui';
 import { StaffPayHrPanel } from '@/components/staff/staff-pay-hr-panel';
 import { staffQuickActionsFromMetadata } from '@/lib/settings/dashboard-quick-actions';
+import { getRoleWorkflow } from '@/lib/dashboard/role-workflows';
+import { WorkflowSopPanel } from '@/components/dashboard/workflow-sop-panel';
+import { RoleProactiveCockpit } from '@/components/dashboard/role-proactive-cockpit';
+import { ManagementGovernancePanel } from '@/components/dashboard/management-governance-panel';
+
+function operationQuickActions(legalEntityCode?: string | null) {
+ if (legalEntityCode === 'RKJ_MFG') {
+ return [
+ { label: 'Production Queue', href: '/factory', icon: Package, description: 'Order & batch kilang' },
+ { label: 'Bahan Mentah', href: '/factory', icon: Factory, description: 'Stock card production' },
+ { label: 'Stok Kilang', href: '/factory', icon: Package, description: 'Baki & pergerakan stok' },
+ { label: 'Laporan Kilang', href: '/reports', icon: BarChart3, description: 'Prestasi production' },
+ ];
+ }
+ if (legalEntityCode === 'RKJ_DIST') {
+ return [
+ { label: 'HQ Distributor', href: '/warehouse', icon: Package, description: 'Stok & cross-dock' },
+ { label: 'Logistik', href: '/fleet', icon: Truck, description: 'Driver, route & POD' },
+ { label: 'Portal Ejen', href: '/sales-agent', icon: ShoppingCart, description: 'Ejen, order & POS' },
+ { label: 'Kelulusan', href: '/approvals', icon: CheckCircle2, description: 'Tindakan distributor' },
+ ];
+ }
+ return [
+ { label: 'POS Cawangan', href: '/pos', icon: Monitor, description: 'Kaunter jualan' },
+ { label: 'Inventori Kiosk', href: '/inventory', icon: Package, description: 'Stok cawangan' },
+ { label: 'Syif Staf', href: '/shifts', icon: Clock, description: 'Jadual & kehadiran' },
+ { label: 'Maintenance', href: '/maintenance', icon: CheckCircle2, description: 'Isu cawangan' },
+ ];
+}
 
 export default async function DashboardPage() {
-  const profile = await getCurrentProfile();
-  if (!profile) {
-    redirect('/login');
-  }
+ const profile = await getCurrentProfile();
+ if (!profile) {
+ redirect('/login');
+ }
 
-  const supabase = await createClient();
-  const scope = await resolveScopedBranches(supabase, profile);
-  const isAreaManager = profile.role === 'AREA_MANAGER';
+ const supabase = await createClient();
+ const scope = await resolveScopedBranches(supabase, profile);
+ const isAreaManager = profile.role === 'AREA_MANAGER';
+ const legalEntityCode = profile.legal_entity?.code ?? null;
 
-  if (isAreaManager) {
-    const branchIds = scope.branchIds ?? [];
-    const [stats, kioskOverview, context, branchMetrics, rosterStatuses] = await Promise.all([
-      getDashboardStats(profile.organization_id, branchIds),
-      fetchKioskOverviewForBranches(supabase, profile.organization_id, branchIds),
-      getAreaManagerDashboardContext(
-        profile.organization_id,
-        profile.region_id,
-        branchIds
-      ),
-      getAreaManagerBranchMetrics(supabase, profile.organization_id, branchIds),
-      getRosterStatusForBranches(supabase, profile.organization_id, branchIds),
-    ]);
+ if (isAreaManager) {
+ const branchIds = scope.branchIds ?? [];
+ const [stats, kioskOverview, context, branchMetrics, rosterStatuses] = await Promise.all([
+ getDashboardStats(profile.organization_id, branchIds),
+ fetchKioskOverviewForBranches(supabase, profile.organization_id, branchIds),
+ getAreaManagerDashboardContext(
+ profile.organization_id,
+ profile.region_id,
+ branchIds),
+ getAreaManagerBranchMetrics(supabase, profile.organization_id, branchIds),
+ getRosterStatusForBranches(supabase, profile.organization_id, branchIds),
+ ]);
 
-    await syncRosterReminders(
-      supabase,
-      profile.organization_id,
-      profile.id,
-      rosterStatuses
-    );
+ await syncRosterReminders(
+ supabase,
+ profile.organization_id,
+ profile.id,
+ rosterStatuses);
 
-    const { insights, summary: insightsSummary } = buildAreaManagerInsights({
-      stats,
-      kioskBranches: kioskOverview.branches,
-      kioskSummary: kioskOverview.summary,
-      branchMetrics,
-      regionName: context.regionName,
-      rosterStatuses,
-    });
+ const { insights, summary: insightsSummary } = buildAreaManagerInsights({
+ stats,
+ kioskBranches: kioskOverview.branches,
+ kioskSummary: kioskOverview.summary,
+ branchMetrics,
+ regionName: context.regionName,
+ rosterStatuses,
+ });
 
-    return (
-      <AreaManagerDashboard
-        stats={stats}
-        kioskOverview={kioskOverview}
-        branchMetrics={branchMetrics}
-        insights={insights}
-        insightsSummary={insightsSummary}
-        context={context}
-      />
-    );
-  }
+ return (
+ <AreaManagerDashboard
+ stats={stats}
+ kioskOverview={kioskOverview}
+ branchMetrics={branchMetrics}
+ insights={insights}
+ insightsSummary={insightsSummary}
+ context={context}
+ />);
+ }
 
-  if (profile.role === 'STAFF') {
-    const firstName = profile.full_name?.split(' ')[0] ?? 'Staf';
-    const quickActions = staffQuickActionsFromMetadata(profile.metadata);
-    const dashMeta = profile.metadata as Record<string, unknown> | null;
-    const dashLabel =
-      typeof dashMeta?.dashboard_label === 'string' ? dashMeta.dashboard_label : 'Staf Kiosk';
+ if (profile.role === 'STAFF') {
+ const firstName = profile.full_name?.split(' ')[0] ?? 'Staf';
+ const quickActions = staffQuickActionsFromMetadata(profile.metadata);
+ const dashMeta = profile.metadata as Record<string, unknown> | null;
+ const dashLabel =
+ typeof dashMeta?.dashboard_label === 'string' ? dashMeta.dashboard_label : 'Staf Kiosk';
+ const workflow = getRoleWorkflow({
+ role: profile.role,
+ dashboardLabel: dashLabel,
+ legalEntityCode,
+ });
+ const service = await createServiceClient();
+ const { data: specialAgentAssignments } = await service.from('agent_special_staff_assignments').select('id, role_title, assignment_note, assigned_at, agent_account:sales_agent_accounts(company_name), legal_entity:legal_entities(code, legal_name, name)').eq('organization_id', profile.organization_id).eq('profile_id', profile.id).eq('status', 'ACTIVE').order('assigned_at', { ascending: false });
+ const agentKhasAssignments = (specialAgentAssignments ?? []) as Array<{
+ id: string;
+ role_title: string;
+ assignment_note: string | null;
+ assigned_at: string;
+ agent_account?: { company_name: string } | null;
+ legal_entity?: { code: string; legal_name: string; name: string } | null;
+ }>;
 
-    return (
-      <ModuleLayout>
-        <DashboardHero
-          variant="warm"
-          eyebrow={`${COMPANY.name} · ${dashLabel}`}
-          title={`Selamat bertugas, ${firstName}`}
-          subtitle={`${COMPANY.taglineMs} — semak jadual syif dan maklumat harian anda di sini.`}
-          showLogo
-        />
+ return (
+ <ModuleLayout>
+ <DashboardHero
+ variant="warm"
+ eyebrow={`${COMPANY.name} - ${dashLabel}`}
+ title={`Selamat bertugas, ${firstName}`}
+ subtitle={`${COMPANY.taglineMs} - semak jadual syif dan maklumat harian anda di sini.`}
+ showLogo
+ />
 
-        <BrandProductStrip compact />
+ <BrandProductStrip compact />
 
-        <StaffPayHrPanel compact />
+ <RoleProactiveCockpit
+ role={profile.role}
+ workflow={workflow}
+ legalEntityCode={legalEntityCode}
+ branchCount={scope.branchIds?.length ?? null}
+ specialAssignmentCount={agentKhasAssignments.length}
+ />
 
-        <SectionCard
-          title="Jadual Syif Saya"
-          description="Minggu semasa · diterbitkan oleh pengurus cawangan"
-        >
-          <StaffSchedulePanel />
-        </SectionCard>
+ <WorkflowSopPanel workflow={workflow} />
 
-        <SectionCard title="Pautan Pantas" description="Modul dashboard anda">
-          <QuickActionGrid
-            actions={quickActions.map((a: { label: string; href: string; description: string }) => ({
-              label: a.label,
-              href: a.href,
-              icon: a.href === '/pos' ? ShoppingCart : Clock,
-              description: a.description,
-            }))}
-          />
-        </SectionCard>
-      </ModuleLayout>
-    );
-  }
+ {agentKhasAssignments.length > 0 && (
+ <SectionCard
+ title="Tugasan Agent Khas"
+ description="Peranan khas yang dipautkan oleh Pentadbir Utama untuk operasi RKJ Distributor / Manufacturing."
+ >
+ <div className="space-y-2">
+ {agentKhasAssignments.map((assignment) => (
+ <div key={assignment.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3 text-sm">
+ <div>
+ <p className="font-semibold">{assignment.role_title}</p>
+ <p className="text-xs text-muted-foreground">
+ {assignment.agent_account?.company_name ?? 'Ejen Khas Syarikat'} - {assignment.legal_entity?.legal_name ?? assignment.legal_entity?.name ?? 'RKJ Group'}
+ </p>
+ {assignment.assignment_note && (
+ <p className="mt-1 text-xs text-muted-foreground">{assignment.assignment_note}</p>)}
+ </div>
+ <Link href="/sales-agent" className={cn(buttonVariants({ size: 'sm', variant: 'outline' }), 'shrink-0')}>
+ Buka Portal Ejen
+ </Link>
+ </div>))}
+ </div>
+ </SectionCard>)}
 
-  const [stats, posOverview, fleetOverview] = await Promise.all([
-    getDashboardStats(profile.organization_id, scope.branchIds),
-    getPosOverview(profile.organization_id, scope.branchIds),
-    getFleetOverview(profile.organization_id),
-  ]);
+ <StaffPayHrPanel compact />
 
-  if (isOwnerDashboardRole(profile.role)) {
-    const service = await createServiceClient();
-    const hrData = await getCompanyHrDashboard(service, profile.organization_id);
+ <SectionCard
+ title="Jadual Syif Saya"
+ description="Minggu semasa - diterbitkan oleh pengurus cawangan"
+ >
+ <StaffSchedulePanel />
+ </SectionCard>
 
-    return (
-      <OwnerGroupDashboard
-        profileName={profile.full_name ?? 'Owner'}
-        stats={stats}
-        posOverview={posOverview}
-        fleetOverview={fleetOverview}
-        hrData={hrData}
-      />
-    );
-  }
+ <SectionCard title="Pautan Pantas" description="Modul dashboard anda">
+ <QuickActionGrid
+ actions={quickActions.map((a: { label: string; href: string; description: string }) => ({
+ label: a.label,
+ href: a.href,
+ icon: a.href === '/pos' ? ShoppingCart : Clock,
+ description: a.description,
+ }))}
+ />
+ </SectionCard>
+ </ModuleLayout>);
+ }
 
-  const statsUnavailable = stats === null;
+ const [stats, posOverview, fleetOverview] = await Promise.all([
+ getDashboardStats(profile.organization_id, scope.branchIds),
+ getPosOverview(profile.organization_id, scope.branchIds),
+ getFleetOverview(profile.organization_id),
+ ]);
 
-  return (
-    <ModuleLayout>
-      <DashboardHero
-        variant="premium"
-        eyebrow={COMPANY.systemName}
-        title="Papan Pemuka Operasi"
-        subtitle={`${COMPANY.name} — ${COMPANY.tagline}. ${COMPANY.taglineMs}`}
-        actions={
-          <Link
-            href="/pos"
-            className={cn(
-              buttonVariants({ size: 'sm' }),
-              'bg-[#E5A812] text-[#141414] shadow-md hover:bg-[#F0C030]'
-            )}
-          >
-            <Monitor className="mr-1.5 h-4 w-4" />
-            Buka POS
-          </Link>
-        }
-      />
+ if (isOwnerDashboardRole(profile.role)) {
+ const service = await createServiceClient();
+ const hrData = await getCompanyHrDashboard(service, profile.organization_id);
 
-      <BrandStatsStrip />
+ return (
+ <OwnerGroupDashboard
+ profileName={profile.full_name ?? 'Owner'}
+ stats={stats}
+ posOverview={posOverview}
+ fleetOverview={fleetOverview}
+ hrData={hrData}
+ />);
+ }
 
-      <BrandProductStrip />
+ const statsUnavailable = stats === null;
+ const workflow = getRoleWorkflow({ role: profile.role, legalEntityCode });
+ const quickActions = profile.role === 'OPERATION_MANAGER'
+ ? operationQuickActions(legalEntityCode)
+ : [
+ {
+ label: 'Buka Syif POS',
+ href: '/pos',
+ icon: Monitor,
+ description: 'Kaunter jualan',
+ },
+ {
+ label: 'Inventori',
+ href: '/inventory',
+ icon: Package,
+ description: 'Stok kiosk & HQ',
+ },
+ {
+ label: 'Laporan',
+ href: '/reports',
+ icon: BarChart3,
+ description: 'Jualan & prestasi',
+ },
+ {
+ label: 'Kelulusan',
+ href: '/approvals',
+ icon: CheckCircle2,
+ description: 'Menunggu tindakan',
+ },
+ ];
 
-      {statsUnavailable && (
-        <DashboardAlert>
-          Statistik papan pemuka tidak dapat dimuatkan. Semak sambungan pangkalan data atau view{' '}
-          <code className="text-xs">dashboard_stats</code>.
-        </DashboardAlert>
-      )}
+ return (
+ <ModuleLayout>
+ <DashboardHero
+ variant="premium"
+ eyebrow={workflow.companyScope}
+ title={workflow.label}
+ subtitle={workflow.primaryObjective}
+ actions={
+ <Link
+ href={workflow.steps[0]?.href ?? '/dashboard'}
+ className={cn(
+ buttonVariants({ size: 'sm' }),
+ 'bg-[#E5A812] text-[#141414] shadow-md hover:bg-[#F0C030]')}
+ >
+ <Monitor className="mr-1.5 h-4 w-4" />
+ Buka Tugasan
+ </Link>
+ }
+ />
 
-      <KpiGrid cols={4}>
-        <KpiCard
-          title="Jualan Hari Ini"
-          value={statsUnavailable ? '—' : formatRM(stats!.sales_today ?? 0)}
-          icon={TrendingUp}
-        />
-        <KpiCard
-          title="Jualan Minggu Ini"
-          value={statsUnavailable ? '—' : formatRM(stats!.sales_this_week ?? 0)}
-          icon={TrendingUp}
-        />
-        <KpiCard
-          title="Jualan Bulan Ini"
-          value={statsUnavailable ? '—' : formatRM(stats!.sales_this_month ?? 0)}
-          icon={TrendingUp}
-        />
-        <KpiCard
-          title="Tunai Tertunggak"
-          value={statsUnavailable ? '—' : formatRM(stats!.outstanding_cash ?? 0)}
-          icon={Banknote}
-          variant="warning"
-        />
-      </KpiGrid>
+ <BrandStatsStrip />
 
-      <KpiGrid cols={3}>
-        <KpiCard
-          title="Stok Rendah"
-          value={statsUnavailable ? '—' : String(stats!.low_stock_count ?? 0)}
-          description="Di bawah ambang minimum"
-          icon={Package}
-          variant="warning"
-        />
-        <KpiCard
-          title="Stok Kritikal"
-          value={statsUnavailable ? '—' : String(stats!.critical_stock_count ?? 0)}
-          description="Tindakan segera diperlukan"
-          icon={AlertTriangle}
-          variant="danger"
-        />
-        <KpiCard
-          title="Kelulusan Tertunda"
-          value={statsUnavailable ? '—' : String(stats!.pending_approvals ?? 0)}
-          description="Menunggu tindakan pengurus"
-          icon={CheckCircle2}
-        />
-      </KpiGrid>
+ <BrandProductStrip />
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <PosOverviewPanel overview={posOverview} />
+ <RoleProactiveCockpit
+ role={profile.role}
+ workflow={workflow}
+ legalEntityCode={legalEntityCode}
+ stats={stats}
+ branchCount={scope.branchIds?.length ?? null}
+ />
 
-        <SectionCard
-          title={LOGISTIK_DELIVERY_TITLE}
-          description={`${fleetOverview.pending_deliveries} menunggu · ${fleetOverview.in_transit} dalam perjalanan`}
-          action={
-            <Link href="/fleet" className={cn(buttonVariants({ size: 'sm' }), 'shrink-0')}>
-              Buka {LOGISTIK_LABEL}
-            </Link>
-          }
-        >
-          {fleetOverview.vehicles.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Tiada kenderaan didaftarkan.</p>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {fleetOverview.vehicles.map((v) => (
-                <Badge key={v.id} variant="outline" className="gap-1 px-3 py-1.5">
-                  <Truck className="h-3.5 w-3.5 text-primary" />
-                  {v.vehicle_code} · {v.vehicle_type}
-                  {v.latest_status && (
-                    <span className="text-muted-foreground">
-                      — {labelFor(FLEET_VEHICLE_STATUS_LABELS, v.latest_status, v.latest_status)}
-                    </span>
-                  )}
-                </Badge>
-              ))}
-            </div>
-          )}
-        </SectionCard>
-      </div>
+ {(profile.role === 'ADMIN' || profile.role === 'OPERATION_MANAGER' || profile.role === 'FINANCE') && (
+ <ManagementGovernancePanel
+ role={profile.role}
+ legalEntityCode={legalEntityCode}
+ stats={stats}
+ branchCount={scope.branchIds?.length ?? COMPANY.branchCount}
+ openShifts={posOverview.open_shifts}
+ pendingDeliveries={fleetOverview.pending_deliveries}
+ inTransitDeliveries={fleetOverview.in_transit}
+ />)}
 
-      <SectionCard title="Tindakan Pantas" description="Tugasan operasi harian HQ & cawangan">
-        <QuickActionGrid
-          actions={[
-            {
-              label: 'Buka Syif POS',
-              href: '/pos',
-              icon: Monitor,
-              description: 'Kaunter jualan',
-            },
-            {
-              label: 'Inventori',
-              href: '/inventory',
-              icon: Package,
-              description: 'Stok kiosk & HQ',
-            },
-            {
-              label: 'Laporan',
-              href: '/reports',
-              icon: BarChart3,
-              description: 'Jualan & prestasi',
-            },
-            {
-              label: 'Kelulusan',
-              href: '/approvals',
-              icon: CheckCircle2,
-              description: 'Menunggu tindakan',
-            },
-          ]}
-        />
-      </SectionCard>
-    </ModuleLayout>
-  );
+ <WorkflowSopPanel workflow={workflow} />
+
+ {statsUnavailable && (
+ <DashboardAlert>
+ Statistik papan pemuka tidak dapat dimuatkan. Semak sambungan pangkalan data atau view{' '}
+ <code className="text-xs">dashboard_stats</code>.
+ </DashboardAlert>)}
+
+ <KpiGrid cols={4}>
+ <KpiCard
+ title="Jualan Hari Ini"
+ value={statsUnavailable ? '-' : formatRM(stats!.sales_today ?? 0)}
+ icon={TrendingUp}
+ />
+ <KpiCard
+ title="Jualan Minggu Ini"
+ value={statsUnavailable ? '-' : formatRM(stats!.sales_this_week ?? 0)}
+ icon={TrendingUp}
+ />
+ <KpiCard
+ title="Jualan Bulan Ini"
+ value={statsUnavailable ? '-' : formatRM(stats!.sales_this_month ?? 0)}
+ icon={TrendingUp}
+ />
+ <KpiCard
+ title="Tunai Tertunggak"
+ value={statsUnavailable ? '-' : formatRM(stats!.outstanding_cash ?? 0)}
+ icon={Banknote}
+ variant="warning"
+ />
+ </KpiGrid>
+
+ <KpiGrid cols={3}>
+ <KpiCard
+ title="Stok Rendah"
+ value={statsUnavailable ? '-' : String(stats!.low_stock_count ?? 0)}
+ description="Di bawah ambang minimum"
+ icon={Package}
+ variant="warning"
+ />
+ <KpiCard
+ title="Stok Kritikal"
+ value={statsUnavailable ? '-' : String(stats!.critical_stock_count ?? 0)}
+ description="Tindakan segera diperlukan"
+ icon={AlertTriangle}
+ variant="danger"
+ />
+ <KpiCard
+ title="Kelulusan Tertunda"
+ value={statsUnavailable ? '-' : String(stats!.pending_approvals ?? 0)}
+ description="Menunggu tindakan pengurus"
+ icon={CheckCircle2}
+ />
+ </KpiGrid>
+
+ <div className="grid gap-4 lg:grid-cols-2">
+ <PosOverviewPanel overview={posOverview} />
+
+ <SectionCard
+ title={LOGISTIK_DELIVERY_TITLE}
+ description={`${fleetOverview.pending_deliveries} menunggu - ${fleetOverview.in_transit} dalam perjalanan`}
+ action={
+ <Link href="/fleet" className={cn(buttonVariants({ size: 'sm' }), 'shrink-0')}>
+ Buka {LOGISTIK_LABEL}
+ </Link>
+ }
+ >
+ {fleetOverview.vehicles.length === 0 ? (
+ <p className="text-sm text-muted-foreground">Tiada kenderaan didaftarkan.</p>) : (
+ <div className="flex flex-wrap gap-2">
+ {fleetOverview.vehicles.map((v) => (
+ <Badge key={v.id} variant="outline" className="gap-1 px-3 py-1.5">
+ <Truck className="h-3.5 w-3.5 text-primary" />
+ {v.vehicle_code} - {v.vehicle_type}
+ {v.latest_status && (
+ <span className="text-muted-foreground">
+ - {labelFor(FLEET_VEHICLE_STATUS_LABELS, v.latest_status, v.latest_status)}
+ </span>)}
+ </Badge>))}
+ </div>)}
+ </SectionCard>
+ </div>
+
+ <SectionCard title="Tindakan Pantas" description="Tugasan operasi harian HQ & cawangan">
+ <QuickActionGrid actions={quickActions} />
+ </SectionCard>
+ </ModuleLayout>);
 }
+
+
+
+
+
+
+

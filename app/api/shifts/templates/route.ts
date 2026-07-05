@@ -3,15 +3,11 @@ import { createClient } from '@/lib/supabase/server';
 import { getCurrentProfile } from '@/lib/auth/session';
 
 export async function GET() {
-  const profile = await getCurrentProfile();
-  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+ const profile = await getCurrentProfile();
+ if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from('shift_templates')
-    .select('id, template_code, name, start_time, end_time, default_hours, crosses_midnight')
-    .eq('organization_id', profile.organization_id)
-    .eq('status', 'ACTIVE');
+ const supabase = await createClient();
+ const { data } = await supabase.from('shift_templates').select('id, template_code, name, start_time, end_time, default_hours, crosses_midnight').eq('organization_id', profile.organization_id).eq('status', 'ACTIVE');
 
-  return NextResponse.json({ templates: data ?? [] });
+ return NextResponse.json({ templates: data ?? [] });
 }

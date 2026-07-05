@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">RKJ One Staff</string>
+    <string name="title_activity_main">RKJ One Staff</string>
+    <string name="package_name">com.rkjone.staff</string>
+    <string name="custom_url_scheme">com.rkjone.staff</string>
+</resources>

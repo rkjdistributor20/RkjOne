@@ -8,92 +8,90 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+ Dialog,
+ DialogContent,
+ DialogDescription,
+ DialogFooter,
+ DialogHeader,
+ DialogTitle,
 } from '@/components/ui/dialog';
 
 interface OpenShiftDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  branchId: string;
-  onSuccess: () => void;
+ open: boolean;
+ onOpenChange: (open: boolean) => void;
+ branchId: string;
+ onSuccess: () => void;
 }
 
 const QUICK_FLOAT = [0, 50, 100, 200, 500];
 
 export function OpenShiftDialog({
-  open,
-  onOpenChange,
-  branchId,
-  onSuccess,
+ open,
+ onOpenChange,
+ branchId,
+ onSuccess,
 }: OpenShiftDialogProps) {
-  const [openingCash, setOpeningCash] = useState('100');
-  const [loading, setLoading] = useState(false);
-  const setShift = usePosStore((s) => s.setShift);
+ const [openingCash, setOpeningCash] = useState('100');
+ const [loading, setLoading] = useState(false);
+ const setShift = usePosStore((s) => s.setShift);
 
-  async function handleOpen() {
-    setLoading(true);
-    try {
-      const { shift } = await openShift(branchId, Number(openingCash) || 0);
-      setShift(shift);
-      toast.success(`Syif ${shift.shift_number} dibuka`);
-      onOpenChange(false);
-      onSuccess();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Gagal buka syif');
-    } finally {
-      setLoading(false);
-    }
-  }
+ async function handleOpen() {
+ setLoading(true);
+ try {
+ const { shift } = await openShift(branchId, Number(openingCash) || 0);
+ setShift(shift);
+ toast.success(`Syif ${shift.shift_number} dibuka`);
+ onOpenChange(false);
+ onSuccess();
+ } catch (err) {
+ toast.error(err instanceof Error ? err.message : 'Gagal buka syif');
+ } finally {
+ setLoading(false);
+ }
+ }
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Buka Syif</DialogTitle>
-          <DialogDescription>
-            Masukkan float tunai permulaan sebelum mula jual. Stok kiosk dari HQ
-            akan ditolak setiap jualan.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3">
-          <Label htmlFor="opening-cash">Float Tunai Permulaan (RM)</Label>
-          <Input
-            id="opening-cash"
-            type="number"
-            min="0"
-            step="0.01"
-            className="h-12 text-lg"
-            value={openingCash}
-            onChange={(e) => setOpeningCash(e.target.value)}
-          />
-          <div className="flex flex-wrap gap-2">
-            {QUICK_FLOAT.map((amt) => (
-              <Button
-                key={amt}
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setOpeningCash(String(amt))}
-              >
-                RM {amt}
-              </Button>
-            ))}
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Batal
-          </Button>
-          <Button onClick={handleOpen} disabled={loading}>
-            {loading ? 'Membuka…' : 'Buka Syif'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
+ return (
+ <Dialog open={open} onOpenChange={onOpenChange}>
+ <DialogContent>
+ <DialogHeader>
+ <DialogTitle>Buka Syif</DialogTitle>
+ <DialogDescription>
+ Masukkan float tunai permulaan. Selepas syif dibuka, staf wajib sahkan
+ kiraan stok permulaan dahulu sebelum skrin jualan dibuka.
+ </DialogDescription>
+ </DialogHeader>
+ <div className="space-y-3">
+ <Label htmlFor="opening-cash">Float Tunai Permulaan (RM)</Label>
+ <Input
+ id="opening-cash"
+ type="number"
+ min="0"
+ step="0.01"
+ className="h-12 text-lg"
+ value={openingCash}
+ onChange={(e) => setOpeningCash(e.target.value)}
+ />
+ <div className="flex flex-wrap gap-2">
+ {QUICK_FLOAT.map((amt) => (
+ <Button
+ key={amt}
+ type="button"
+ variant="outline"
+ size="sm"
+ onClick={() => setOpeningCash(String(amt))}
+ >
+ RM {amt}
+ </Button>))}
+ </div>
+ </div>
+ <DialogFooter>
+ <Button variant="outline" onClick={() => onOpenChange(false)}>
+ Batal
+ </Button>
+ <Button onClick={handleOpen} disabled={loading}>
+ {loading ? 'Membuka...' : 'Buka Syif'}
+ </Button>
+ </DialogFooter>
+ </DialogContent>
+ </Dialog>);
 }

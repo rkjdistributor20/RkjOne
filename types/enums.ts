@@ -2,55 +2,55 @@ import { HQ_DISTRIBUTOR_LABEL } from '@/lib/brand/legal-entities';
 import { LOGISTIK_LABEL } from '@/lib/fleet/logistics-label';
 
 export const USER_ROLES = [
-  'SUPER_ADMIN',
-  'ADMIN',
-  'HR',
-  'OPERATION_MANAGER',
-  'CEO_FACTORY',
-  'AREA_MANAGER',
-  'DRIVER',
-  'STAFF',
-  'FINANCE',
-  'MAINTENANCE_MANAGER',
-  'SALES_AGENT',
+ 'SUPER_ADMIN',
+ 'ADMIN',
+ 'HR',
+ 'OPERATION_MANAGER',
+ 'CEO_FACTORY',
+ 'AREA_MANAGER',
+ 'DRIVER',
+ 'STAFF',
+ 'FINANCE',
+ 'MAINTENANCE_MANAGER',
+ 'SALES_AGENT',
 ] as const;
 
 export type UserRole = (typeof USER_ROLES)[number];
 
 export const PERMISSION_MODULES = [
-  'pos',
-  'shift',
-  'stock_kiosk',
-  'stock_hq',
-  'fleet',
-  'payroll',
-  'finance',
-  'reports',
-  'user_management',
-  'approval',
-  'maintenance',
-  'hr',
-  'sales_agent',
+ 'pos',
+ 'shift',
+ 'stock_kiosk',
+ 'stock_hq',
+ 'fleet',
+ 'payroll',
+ 'finance',
+ 'reports',
+ 'user_management',
+ 'approval',
+ 'maintenance',
+ 'hr',
+ 'sales_agent',
 ] as const;
 
 export type PermissionModule = (typeof PERMISSION_MODULES)[number];
 
 export const PERMISSION_LEVELS = [
-  'NONE',
-  'VIEW',
-  'VIEW_AREA',
-  'FULL',
-  'FULL_OWN',
-  'OWN',
+ 'NONE',
+ 'VIEW',
+ 'VIEW_AREA',
+ 'FULL',
+ 'FULL_OWN',
+ 'OWN',
 ] as const;
 
 export type PermissionLevel = (typeof PERMISSION_LEVELS)[number];
 
 export const LOCATION_TYPES = [
-  'FACTORY',
-  'HQ_WAREHOUSE',
-  'FLEET_VEHICLE',
-  'BRANCH_KIOSK',
+ 'FACTORY',
+ 'HQ_WAREHOUSE',
+ 'FLEET_VEHICLE',
+ 'BRANCH_KIOSK',
 ] as const;
 
 export type LocationType = (typeof LOCATION_TYPES)[number];
@@ -59,31 +59,31 @@ export const REGION_CODES = ['UTARA', 'TENGAH', 'SELATAN'] as const;
 export type RegionCode = (typeof REGION_CODES)[number];
 
 export const ROLE_LABELS: Record<UserRole, string> = {
-  SUPER_ADMIN: 'Pentadbir Utama',
-  ADMIN: 'Pentadbir HQ',
-  HR: 'Sumber Manusia',
-  OPERATION_MANAGER: 'Pengurus Operasi',
-  CEO_FACTORY: 'CEO Kilang',
-  AREA_MANAGER: 'Pengurus Kawasan',
-  DRIVER: 'Pemandu',
-  STAFF: 'Staf',
-  FINANCE: 'Kewangan',
-  MAINTENANCE_MANAGER: 'Manager Maintenance',
-  SALES_AGENT: 'Ejen Jualan',
+ SUPER_ADMIN: 'Pentadbir Utama',
+ ADMIN: 'Pentadbir HQ',
+ HR: 'Sumber Manusia',
+ OPERATION_MANAGER: 'Pengurus Operasi',
+ CEO_FACTORY: 'CEO Kilang',
+ AREA_MANAGER: 'Pengurus Kawasan',
+ DRIVER: 'Pemandu',
+ STAFF: 'Staf',
+ FINANCE: 'Kewangan',
+ MAINTENANCE_MANAGER: 'Manager Maintenance',
+ SALES_AGENT: 'Ejen Jualan',
 };
 
 export const MODULE_LABELS: Record<PermissionModule, string> = {
-  pos: 'POS',
-  shift: 'Syif',
-  stock_kiosk: 'Inventori Kiosk',
-  stock_hq: HQ_DISTRIBUTOR_LABEL,
-  fleet: LOGISTIK_LABEL,
-  payroll: 'Gaji',
-  finance: 'Kewangan',
-  reports: 'Laporan',
-  user_management: 'Pengguna',
-  approval: 'Kelulusan',
-  maintenance: 'Maintenance',
-  hr: 'HR Syarikat',
-  sales_agent: 'Portal Ejen',
+ pos: 'POS',
+ shift: 'Syif',
+ stock_kiosk: 'Inventori Kiosk',
+ stock_hq: HQ_DISTRIBUTOR_LABEL,
+ fleet: LOGISTIK_LABEL,
+ payroll: 'Gaji',
+ finance: 'Kewangan',
+ reports: 'Laporan',
+ user_management: 'Pengguna',
+ approval: 'Kelulusan',
+ maintenance: 'Maintenance',
+ hr: 'HR Syarikat',
+ sales_agent: 'Portal Ejen',
 };

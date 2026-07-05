@@ -21,29 +21,29 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 import {
 
-  Dialog,
+ Dialog,
 
-  DialogContent,
+ DialogContent,
 
-  DialogFooter,
+ DialogFooter,
 
-  DialogHeader,
+ DialogHeader,
 
-  DialogTitle,
+ DialogTitle,
 
 } from '@/components/ui/dialog';
 
 import {
 
-  Select,
+ Select,
 
-  SelectContent,
+ SelectContent,
 
-  SelectItem,
+ SelectItem,
 
-  SelectTrigger,
+ SelectTrigger,
 
-  SelectValue,
+ SelectValue,
 
 } from '@/components/ui/select';
 
@@ -55,25 +55,25 @@ const NO_BRANCH = '__none__';
 
 interface UsersSettingsPanelProps {
 
-  users: SettingsUser[];
+ users: SettingsUser[];
 
-  usersStaffTotal?: number;
+ usersStaffTotal?: number;
 
-  usersLoginTotal?: number;
+ usersLoginTotal?: number;
 
-  usersLoading?: boolean;
+ usersLoading?: boolean;
 
-  usersError?: string | null;
+ usersError?: string | null;
 
-  branchGroups: SettingsBranchGroup[];
+ branchGroups: SettingsBranchGroup[];
 
-  isAdmin: boolean;
+ isAdmin: boolean;
 
-  isAreaManager: boolean;
+ isAreaManager: boolean;
 
-  creatableRoles: UserRole[];
+ creatableRoles: UserRole[];
 
-  onRefresh: () => Promise<void>;
+ onRefresh: () => Promise<void>;
 
 }
 
@@ -81,13 +81,13 @@ interface UsersSettingsPanelProps {
 
 interface UserBranchGroup {
 
-  branch_id: string;
+ branch_id: string;
 
-  branch_code: string;
+ branch_code: string;
 
-  branch_name: string;
+ branch_name: string;
 
-  users: SettingsUser[];
+ users: SettingsUser[];
 
 }
 
@@ -95,13 +95,13 @@ interface UserBranchGroup {
 
 interface UserRegionGroup {
 
-  region_id: string;
+ region_id: string;
 
-  region_name: string;
+ region_name: string;
 
-  branches: UserBranchGroup[];
+ branches: UserBranchGroup[];
 
-  user_count: number;
+ user_count: number;
 
 }
 
@@ -109,669 +109,635 @@ interface UserRegionGroup {
 
 function groupUsers(users: SettingsUser[], branchGroups: SettingsBranchGroup[]): UserRegionGroup[] {
 
-  const regionMeta = new Map(
+ const regionMeta = new Map(
 
-    branchGroups.map((g) => [g.region_id, { name: g.region_name, code: g.region_code }])
+ branchGroups.map((g) => [g.region_id, { name: g.region_name, code: g.region_code }]));
 
-  );
 
 
+ const branchMeta = new Map<
 
-  const branchMeta = new Map<
+ string,
 
-    string,
+ { branch_code: string; branch_name: string; region_id: string }
 
-    { branch_code: string; branch_name: string; region_id: string }
+ >();
 
-  >();
+ for (const g of branchGroups) {
 
-  for (const g of branchGroups) {
+ for (const b of g.branches) {
 
-    for (const b of g.branches) {
+ branchMeta.set(b.id, {
 
-      branchMeta.set(b.id, {
+ branch_code: b.branch_code,
 
-        branch_code: b.branch_code,
+ branch_name: b.branch_name,
 
-        branch_name: b.branch_name,
+ region_id: g.region_id,
 
-        region_id: g.region_id,
+ });
 
-      });
+ }
 
-    }
+ }
 
-  }
 
 
+ const hqUsers: SettingsUser[] = [];
 
-  const hqUsers: SettingsUser[] = [];
+ const byRegion = new Map<string, Map<string, SettingsUser[]>>();
 
-  const byRegion = new Map<string, Map<string, SettingsUser[]>>();
 
 
+ for (const user of users) {
 
-  for (const user of users) {
+ if (!user.branch_id) {
 
-    if (!user.branch_id) {
+ hqUsers.push(user);
 
-      hqUsers.push(user);
+ continue;
 
-      continue;
+ }
 
-    }
 
 
+ const meta = branchMeta.get(user.branch_id);
 
-    const meta = branchMeta.get(user.branch_id);
+ const regionId = user.region_id ?? meta?.region_id ?? 'unknown';
 
-    const regionId = user.region_id ?? meta?.region_id ?? 'unknown';
+ const branchKey = user.branch_id;
 
-    const branchKey = user.branch_id;
 
 
+ if (!byRegion.has(regionId)) byRegion.set(regionId, new Map());
 
-    if (!byRegion.has(regionId)) byRegion.set(regionId, new Map());
+ const regionMap = byRegion.get(regionId)!;
 
-    const regionMap = byRegion.get(regionId)!;
+ const list = regionMap.get(branchKey) ?? [];
 
-    const list = regionMap.get(branchKey) ?? [];
+ list.push(user);
 
-    list.push(user);
+ regionMap.set(branchKey, list);
 
-    regionMap.set(branchKey, list);
+ }
 
-  }
 
 
+ const groups: UserRegionGroup[] = [];
 
-  const groups: UserRegionGroup[] = [];
 
 
+ if (hqUsers.length > 0) {
 
-  if (hqUsers.length > 0) {
+ groups.push({
 
-    groups.push({
+ region_id: 'hq',
 
-      region_id: 'hq',
+ region_name: 'Pusat / HQ',
 
-      region_name: 'Pusat / HQ',
+ branches: [
 
-      branches: [
+ {
 
-        {
+ branch_id: 'hq',
 
-          branch_id: 'hq',
+ branch_code: 'HQ',
 
-          branch_code: 'HQ',
+ branch_name: 'Tiada cawangan kiosk',
 
-          branch_name: 'Tiada cawangan kiosk',
+ users: hqUsers.sort((a, b) => a.full_name.localeCompare(b.full_name)),
 
-          users: hqUsers.sort((a, b) => a.full_name.localeCompare(b.full_name)),
+ },
 
-        },
+ ],
 
-      ],
+ user_count: hqUsers.length,
 
-      user_count: hqUsers.length,
+ });
 
-    });
+ }
 
-  }
 
 
+ const regionIds = [...new Set([...branchGroups.map((g) => g.region_id),...Array.from(byRegion.keys()),
 
-  const regionIds = [
+ ]),
 
-    ...new Set([
+ ];
 
-      ...branchGroups.map((g) => g.region_id),
 
-      ...Array.from(byRegion.keys()),
 
-    ]),
+ for (const regionId of regionIds) {
 
-  ];
+ const regionMap = byRegion.get(regionId);
 
+ if (!regionMap) continue;
 
 
-  for (const regionId of regionIds) {
 
-    const regionMap = byRegion.get(regionId);
+ const meta = regionMeta.get(regionId);
 
-    if (!regionMap) continue;
+ const branches: UserBranchGroup[] = [];
 
 
 
-    const meta = regionMeta.get(regionId);
+ for (const [branchId, branchUsers] of regionMap) {
 
-    const branches: UserBranchGroup[] = [];
+ const bMeta = branchMeta.get(branchId);
 
+ const first = branchUsers[0];
 
+ branches.push({
 
-    for (const [branchId, branchUsers] of regionMap) {
+ branch_id: branchId,
 
-      const bMeta = branchMeta.get(branchId);
+ branch_code: first.branch?.branch_code ?? bMeta?.branch_code ?? ' - ',
 
-      const first = branchUsers[0];
+ branch_name: first.branch?.branch_name ?? bMeta?.branch_name ?? ' - ',
 
-      branches.push({
+ users: branchUsers.sort((a, b) => a.full_name.localeCompare(b.full_name)),
 
-        branch_id: branchId,
+ });
 
-        branch_code: first.branch?.branch_code ?? bMeta?.branch_code ?? '—',
+ }
 
-        branch_name: first.branch?.branch_name ?? bMeta?.branch_name ?? '—',
 
-        users: branchUsers.sort((a, b) => a.full_name.localeCompare(b.full_name)),
 
-      });
+ branches.sort((a, b) => a.branch_code.localeCompare(b.branch_code));
 
-    }
 
 
+ groups.push({
+ region_id: regionId,
+ region_name:
+ meta?.name ??
+ branches[0]?.users[0]?.region?.name ??
+ regionId,
+ branches,
+ user_count: branches.reduce((n, b) => n + b.users.length, 0),
+ });
 
-    branches.sort((a, b) => a.branch_code.localeCompare(b.branch_code));
+ }
 
 
 
-    groups.push({
-      region_id: regionId,
-      region_name:
-        meta?.name ??
-        branches[0]?.users[0]?.region?.name ??
-        regionId,
-      branches,
-      user_count: branches.reduce((n, b) => n + b.users.length, 0),
-    });
-
-  }
-
-
-
-  return groups.filter((g) => g.user_count > 0);
+ return groups.filter((g) => g.user_count > 0);
 }
 
 function statusBadge(status: string) {
 
-  if (status === 'ACTIVE') {
+ if (status === 'ACTIVE') {
 
-    return (
+ return (
 
-      <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-800">
+ <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-800">
 
-        Aktif
+ Aktif
 
-      </Badge>
+ </Badge>);
 
-    );
+ }
 
-  }
-
-  return <Badge variant="secondary">{status}</Badge>;
+ return <Badge variant="secondary">{status}</Badge>;
 
 }
 
 
 
 export function UsersSettingsPanel({
-  users,
-  usersStaffTotal,
-  usersLoginTotal,
-  usersLoading,
-  usersError,
-  branchGroups,
-  isAdmin,
-  isAreaManager,
-  creatableRoles,
-  onRefresh,
+ users,
+ usersStaffTotal,
+ usersLoginTotal,
+ usersLoading,
+ usersError,
+ branchGroups,
+ isAdmin,
+ isAreaManager,
+ creatableRoles,
+ onRefresh,
 }: UsersSettingsPanelProps) {
 
-  if (isAdmin) {
-    return (
-      <UsersAdminPanel
-        users={users}
-        staffTotal={usersStaffTotal}
-        loginTotal={usersLoginTotal}
-        loading={usersLoading}
-        loadError={usersError}
-        branchGroups={branchGroups}
-        creatableRoles={creatableRoles}
-        onRefresh={onRefresh}
-      />
-    );
-  }
+ if (isAdmin) {
+ return (
+ <UsersAdminPanel
+ users={users}
+ staffTotal={usersStaffTotal}
+ loginTotal={usersLoginTotal}
+ loading={usersLoading}
+ loadError={usersError}
+ branchGroups={branchGroups}
+ creatableRoles={creatableRoles}
+ onRefresh={onRefresh}
+ />);
+ }
 
-  const currentProfile = useAuthStore((s) => s.profile);
+ const currentProfile = useAuthStore((s) => s.profile);
 
-  const [addOpen, setAddOpen] = useState(false);
+ const [addOpen, setAddOpen] = useState(false);
 
-  const [fullName, setFullName] = useState('');
+ const [fullName, setFullName] = useState('');
 
-  const [email, setEmail] = useState('');
+ const [email, setEmail] = useState('');
 
-  const [role, setRole] = useState<UserRole>(creatableRoles[0] ?? 'STAFF');
+ const [role, setRole] = useState<UserRole>(creatableRoles[0] ?? 'STAFF');
 
-  const [branchId, setBranchId] = useState('');
+ const [branchId, setBranchId] = useState('');
 
-  const [saving, setSaving] = useState(false);
+ const [saving, setSaving] = useState(false);
 
 
 
-  const allBranches = branchGroups.flatMap((g) =>
+ const allBranches = branchGroups.flatMap((g) =>
 
-    g.branches.map((b) => ({ ...b, region_name: g.region_name }))
+ g.branches.map((b) => ({...b, region_name: g.region_name })));
 
-  );
 
 
+ const branchRequired = isAreaManager;
 
-  const branchRequired = isAreaManager;
+ const groups = useMemo(() => groupUsers(users, branchGroups), [users, branchGroups]);
 
-  const groups = useMemo(() => groupUsers(users, branchGroups), [users, branchGroups]);
 
 
+ async function handleAdd() {
 
-  async function handleAdd() {
+ if (!fullName.trim() || !email.trim()) {
 
-    if (!fullName.trim() || !email.trim()) {
+ toast.error('Nama dan e-mel diperlukan');
 
-      toast.error('Nama dan e-mel diperlukan');
+ return;
 
-      return;
+ }
 
-    }
+ if (branchRequired && !branchId) {
 
-    if (branchRequired && !branchId) {
+ toast.error('Pilih cawangan kiosk');
 
-      toast.error('Pilih cawangan kiosk');
+ return;
 
-      return;
+ }
 
-    }
+ setSaving(true);
 
-    setSaving(true);
+ try {
 
-    try {
+ const result = await createUser({
 
-      await createUser({
+ full_name: fullName.trim(),
 
-        full_name: fullName.trim(),
+ email: email.trim(),
 
-        email: email.trim(),
+ role,
 
-        role,
+ branch_id: branchId && branchId !== NO_BRANCH ? branchId : undefined,
 
-        branch_id: branchId && branchId !== NO_BRANCH ? branchId : undefined,
+ });
 
-      });
+ toast.success(
+ result.temporary_password
+ ? `Pengguna ditambah. Password sementara: ${result.temporary_password}`
+ : 'Pengguna ditambah');
 
-      toast.success('Pengguna ditambah — kata laluan default: RkjOne@2026');
+ setAddOpen(false);
 
-      setAddOpen(false);
+ setFullName('');
 
-      setFullName('');
+ setEmail('');
 
-      setEmail('');
+ setRole(creatableRoles[0] ?? 'STAFF');
 
-      setRole(creatableRoles[0] ?? 'STAFF');
+ setBranchId('');
 
-      setBranchId('');
+ await onRefresh();
 
-      await onRefresh();
+ } catch (err) {
 
-    } catch (err) {
+ toast.error(err instanceof Error ? err.message : 'Gagal tambah pengguna');
 
-      toast.error(err instanceof Error ? err.message : 'Gagal tambah pengguna');
+ } finally {
 
-    } finally {
+ setSaving(false);
 
-      setSaving(false);
+ }
 
-    }
+ }
 
-  }
 
 
+ async function handleDelete(id: string, name: string) {
 
-  async function handleDelete(id: string, name: string) {
+ if (id === currentProfile?.id) {
 
-    if (id === currentProfile?.id) {
+ toast.error('Tidak boleh padam akaun sendiri');
 
-      toast.error('Tidak boleh padam akaun sendiri');
+ return;
 
-      return;
+ }
 
-    }
+ if (!confirm(`Padam pengguna "${name}"?`)) return;
 
-    if (!confirm(`Padam pengguna "${name}"?`)) return;
+ try {
 
-    try {
+ await deleteUser(id);
 
-      await deleteUser(id);
+ toast.success('Pengguna dipadam');
 
-      toast.success('Pengguna dipadam');
+ await onRefresh();
 
-      await onRefresh();
+ } catch (err) {
 
-    } catch (err) {
+ toast.error(err instanceof Error ? err.message : 'Gagal padam');
 
-      toast.error(err instanceof Error ? err.message : 'Gagal padam');
+ }
 
-    }
+ }
 
-  }
 
 
+ return (
 
-  return (
+ <div className="space-y-4">
 
-    <div className="space-y-4">
+ {isAreaManager && (
+ <p className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-950">
+ Pengurus Kawasan: urus akaun login <strong>Staf kiosk</strong> dalam kawasan anda sahaja.
+ </p>)}
 
-      {isAreaManager && (
-        <p className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-950">
-          Pengurus Kawasan: urus akaun login <strong>Staf kiosk</strong> dalam kawasan anda sahaja.
-        </p>
-      )}
+ <div className="flex flex-wrap items-center justify-between gap-2">
+ <Badge variant="outline" className="gap-1.5 font-normal tabular-nums">
+ <Users className="h-3.5 w-3.5" />
+ {users.length} pengguna
+ </Badge>
+ <Button
+ size="sm"
+ className="gap-1.5 bg-amber-500 hover:bg-amber-600"
+ onClick={() => setAddOpen(true)}
+ >
+ <Plus className="h-4 w-4" />
+ Tambah Pengguna
+ </Button>
+ </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Badge variant="outline" className="gap-1.5 font-normal tabular-nums">
-          <Users className="h-3.5 w-3.5" />
-          {users.length} pengguna
-        </Badge>
-        <Button
-          size="sm"
-          className="gap-1.5 bg-amber-500 hover:bg-amber-600"
-          onClick={() => setAddOpen(true)}
-        >
-          <Plus className="h-4 w-4" />
-          Tambah Pengguna
-        </Button>
-      </div>
 
 
+ {users.length === 0 ? (
 
-      {users.length === 0 ? (
+ <p className="text-sm text-muted-foreground">Tiada pengguna berdaftar.</p>) : (
 
-        <p className="text-sm text-muted-foreground">Tiada pengguna berdaftar.</p>
+ groups.map((group) => (
 
-      ) : (
+ <Card key={group.region_id}>
 
-        groups.map((group) => (
+ <CardHeader className="pb-2">
 
-          <Card key={group.region_id}>
+ <CardTitle className="flex flex-wrap items-center gap-2 text-base">
 
-            <CardHeader className="pb-2">
+ {group.region_id === 'hq' ? (
 
-              <CardTitle className="flex flex-wrap items-center gap-2 text-base">
+ <Building2 className="h-4 w-4 text-primary" />) : (
 
-                {group.region_id === 'hq' ? (
+ <Users className="h-4 w-4 text-primary" />)}
 
-                  <Building2 className="h-4 w-4 text-primary" />
+ {group.region_name}
 
-                ) : (
+ <Badge variant="outline" className="font-normal tabular-nums">
 
-                  <Users className="h-4 w-4 text-primary" />
+ {group.user_count} pengguna
 
-                )}
+ </Badge>
 
-                {group.region_name}
+ </CardTitle>
 
-                <Badge variant="outline" className="font-normal tabular-nums">
+ </CardHeader>
 
-                  {group.user_count} pengguna
+ <CardContent className="space-y-3">
 
-                </Badge>
+ {group.branches.map((branch) => (
 
-              </CardTitle>
+ <div key={branch.branch_id} className="rounded-lg border bg-muted/20 p-3">
 
-            </CardHeader>
+ <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
 
-            <CardContent className="space-y-3">
+ <Store className="h-3.5 w-3.5 text-muted-foreground" />
 
-              {group.branches.map((branch) => (
+ {branch.branch_code} - {branch.branch_name}
 
-                <div key={branch.branch_id} className="rounded-lg border bg-muted/20 p-3">
+ </p>
 
-                  <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
+ <div className="overflow-x-auto rounded-md border bg-background">
 
-                    <Store className="h-3.5 w-3.5 text-muted-foreground" />
+ <table className="w-full text-sm">
 
-                    {branch.branch_code} — {branch.branch_name}
+ <thead>
 
-                  </p>
+ <tr className="border-b bg-muted/40 text-left text-xs">
 
-                  <div className="overflow-x-auto rounded-md border bg-background">
+ <th className="p-2">Nama</th>
 
-                    <table className="w-full text-sm">
+ <th className="p-2">E-mel</th>
 
-                      <thead>
+ <th className="p-2">Peranan</th>
 
-                        <tr className="border-b bg-muted/40 text-left text-xs">
+ <th className="p-2">Status</th>
 
-                          <th className="p-2">Nama</th>
+ <th className="w-10 p-2" />
 
-                          <th className="p-2">E-mel</th>
+ </tr>
 
-                          <th className="p-2">Peranan</th>
+ </thead>
 
-                          <th className="p-2">Status</th>
+ <tbody>
 
-                          <th className="w-10 p-2" />
+ {branch.users.map((u) => (
 
-                        </tr>
+ <tr key={u.id} className="border-b last:border-0">
 
-                      </thead>
+ <td className="p-2 font-medium">{u.full_name}</td>
 
-                      <tbody>
+ <td className="p-2 text-muted-foreground">{u.email}</td>
 
-                        {branch.users.map((u) => (
+ <td className="p-2">
 
-                          <tr key={u.id} className="border-b last:border-0">
+ <Badge variant="outline" className="font-normal">
 
-                            <td className="p-2 font-medium">{u.full_name}</td>
+ {ROLE_LABELS[u.role as UserRole] ?? u.role}
 
-                            <td className="p-2 text-muted-foreground">{u.email}</td>
+ </Badge>
 
-                            <td className="p-2">
+ </td>
 
-                              <Badge variant="outline" className="font-normal">
+ <td className="p-2">{statusBadge(u.status)}</td>
 
-                                {ROLE_LABELS[u.role as UserRole] ?? u.role}
+ <td className="p-2">
 
-                              </Badge>
+ {u.id !== currentProfile?.id && (
 
-                            </td>
+ <Button
 
-                            <td className="p-2">{statusBadge(u.status)}</td>
+ size="icon"
 
-                            <td className="p-2">
+ variant="ghost"
 
-                              {u.id !== currentProfile?.id && (
+ className="h-7 w-7 text-destructive"
 
-                                <Button
+ onClick={() => handleDelete(u.id, u.full_name)}
 
-                                  size="icon"
+ >
 
-                                  variant="ghost"
+ <Trash2 className="h-3.5 w-3.5" />
 
-                                  className="h-7 w-7 text-destructive"
+ </Button>)}
 
-                                  onClick={() => handleDelete(u.id, u.full_name)}
+ </td>
 
-                                >
+ </tr>))}
 
-                                  <Trash2 className="h-3.5 w-3.5" />
+ </tbody>
 
-                                </Button>
+ </table>
 
-                              )}
+ </div>
 
-                            </td>
+ </div>))}
 
-                          </tr>
+ </CardContent>
 
-                        ))}
+ </Card>)))}
 
-                      </tbody>
 
-                    </table>
 
-                  </div>
+ <Dialog open={addOpen} onOpenChange={setAddOpen}>
 
-                </div>
+ <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
 
-              ))}
+ <DialogHeader>
 
-            </CardContent>
+ <DialogTitle>Tambah Pengguna</DialogTitle>
 
-          </Card>
+ </DialogHeader>
 
-        ))
+ <div className="space-y-3">
 
-      )}
+ <div className="space-y-1">
 
+ <Label>Nama Penuh</Label>
 
+ <Input value={fullName} onChange={(e) => setFullName(e.target.value)} />
 
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+ </div>
 
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+ <div className="space-y-1">
 
-          <DialogHeader>
+ <Label>E-mel</Label>
 
-            <DialogTitle>Tambah Pengguna</DialogTitle>
+ <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
 
-          </DialogHeader>
+ </div>
 
-          <div className="space-y-3">
+ <div className="space-y-1">
 
-            <div className="space-y-1">
+ <Label>Peranan</Label>
 
-              <Label>Nama Penuh</Label>
+ <Select value={role} onValueChange={(v) => v && setRole(v as UserRole)}>
 
-              <Input value={fullName} onChange={(e) => setFullName(e.target.value)} />
+ <SelectTrigger>
 
-            </div>
+ <SelectValue />
 
-            <div className="space-y-1">
+ </SelectTrigger>
 
-              <Label>E-mel</Label>
+ <SelectContent>
 
-              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+ {creatableRoles.map((r) => (
 
-            </div>
+ <SelectItem key={r} value={r}>
 
-            <div className="space-y-1">
+ {ROLE_LABELS[r]}
 
-              <Label>Peranan</Label>
+ </SelectItem>))}
 
-              <Select value={role} onValueChange={(v) => v && setRole(v as UserRole)}>
+ </SelectContent>
 
-                <SelectTrigger>
+ </Select>
 
-                  <SelectValue />
+ </div>
 
-                </SelectTrigger>
+ <div className="space-y-1">
 
-                <SelectContent>
+ <Label>Cawangan {branchRequired ? '' : '(pilihan)'}</Label>
 
-                  {creatableRoles.map((r) => (
+ <Select
 
-                    <SelectItem key={r} value={r}>
+ value={branchId || NO_BRANCH}
 
-                      {ROLE_LABELS[r]}
+ onValueChange={(v) => setBranchId(v === NO_BRANCH ? '' : (v ?? ''))}
 
-                    </SelectItem>
+ >
 
-                  ))}
+ <SelectTrigger>
 
-                </SelectContent>
+ <SelectValue placeholder={branchRequired ? 'Pilih cawangan' : 'Tiada'} />
 
-              </Select>
+ </SelectTrigger>
 
-            </div>
+ <SelectContent>
 
-            <div className="space-y-1">
+ {!branchRequired && (
 
-              <Label>Cawangan {branchRequired ? '' : '(pilihan)'}</Label>
+ <SelectItem value={NO_BRANCH}>Tiada / HQ</SelectItem>)}
 
-              <Select
+ {allBranches.map((b) => (
 
-                value={branchId || NO_BRANCH}
+ <SelectItem key={b.id} value={b.id}>
 
-                onValueChange={(v) => setBranchId(v === NO_BRANCH ? '' : (v ?? ''))}
+ {b.branch_code} - {b.branch_name}
 
-              >
+ </SelectItem>))}
 
-                <SelectTrigger>
+ </SelectContent>
 
-                  <SelectValue placeholder={branchRequired ? 'Pilih cawangan' : 'Tiada'} />
+ </Select>
 
-                </SelectTrigger>
+ </div>
 
-                <SelectContent>
+ <p className="text-xs text-muted-foreground">
 
-                  {!branchRequired && (
+ Kata laluan sementara akan dijana automatik dan hanya dipaparkan sekali selepas akaun
+ dicipta. Pengguna mesti tukar selepas login.
 
-                    <SelectItem value={NO_BRANCH}>Tiada / HQ</SelectItem>
+ </p>
 
-                  )}
+ </div>
 
-                  {allBranches.map((b) => (
+ <DialogFooter>
 
-                    <SelectItem key={b.id} value={b.id}>
+ <Button variant="outline" onClick={() => setAddOpen(false)}>
 
-                      {b.branch_code} — {b.branch_name}
+ Batal
 
-                    </SelectItem>
+ </Button>
 
-                  ))}
+ <Button
 
-                </SelectContent>
+ className="bg-amber-500 hover:bg-amber-600"
 
-              </Select>
+ disabled={saving}
 
-            </div>
+ onClick={handleAdd}
 
-            <p className="text-xs text-muted-foreground">
+ >
 
-              Kata laluan sementara: RkjOne@2026 — pengguna mesti tukar selepas login.
+ {saving ? 'Menyimpan...' : 'Simpan'}
 
-            </p>
+ </Button>
 
-          </div>
+ </DialogFooter>
 
-          <DialogFooter>
+ </DialogContent>
 
-            <Button variant="outline" onClick={() => setAddOpen(false)}>
+ </Dialog>
 
-              Batal
-
-            </Button>
-
-            <Button
-
-              className="bg-amber-500 hover:bg-amber-600"
-
-              disabled={saving}
-
-              onClick={handleAdd}
-
-            >
-
-              {saving ? 'Menyimpan…' : 'Simpan'}
-
-            </Button>
-
-          </DialogFooter>
-
-        </DialogContent>
-
-      </Dialog>
-
-    </div>
-
-  );
+ </div>);
 
 }
 

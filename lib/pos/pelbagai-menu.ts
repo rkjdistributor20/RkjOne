@@ -1,6 +1,6 @@
 /**
- * Menu Pelbagai POS — spesifikasi rasmi RKJ (9 jenis · 21 SKU).
- * BOM tolakan stok roti kiosk (ST-PLANTA / ST-KELAPA / ST-KACANG / ST-BENGGALI).
+ * Menu Pelbagai POS - spesifikasi rasmi RKJ (9 jenis - 21 SKU).
+ * BOM tolakan stok: roti kiosk, kaya, butter dan plastik pembungkusan.
  */
 
 export const PELBAGAI_SKUS = [
@@ -35,7 +35,7 @@ export interface PelbagaiVariantDef {
   price: number;
   saleUnit: string;
   sortOrder: number;
-  /** Kandungan set — papar pada kad produk */
+  /** Kandungan set - papar pada kad produk */
   contents: string;
   /** Nota tolakan stok untuk varian ini */
   deductNote: string;
@@ -54,7 +54,7 @@ export const PELBAGAI_MENU_GROUPS: PelbagaiMenuGroupDef[] = [
     id: 'kaya-butter',
     number: 1,
     title: 'Roti Kaya (Butter Sahaja)',
-    stockNote: 'Tolak mengikut pcs Stok Roti Kaya',
+    stockNote: 'Tolak Roti Kaya, butter dan plastik mengikut kuantiti',
     variants: [
       {
         sku: 'PLG-KBS-3',
@@ -63,7 +63,7 @@ export const PELBAGAI_MENU_GROUPS: PelbagaiMenuGroupDef[] = [
         saleUnit: 'Set',
         sortOrder: 50,
         contents: '3 pcs Roti Kaya (Butter Sahaja)',
-        deductNote: 'Tolak 3 pcs Stok Roti Kaya',
+        deductNote: 'Tolak 3 Roti Kaya, 12g butter, 1 plastik M',
       },
       {
         sku: 'PLG-KBS-1',
@@ -72,7 +72,7 @@ export const PELBAGAI_MENU_GROUPS: PelbagaiMenuGroupDef[] = [
         saleUnit: 'Pcs',
         sortOrder: 51,
         contents: '1 pcs Roti Kaya (Butter Sahaja)',
-        deductNote: 'Tolak 1 pcs Stok Roti Kaya',
+        deductNote: 'Tolak 1 Roti Kaya, 4g butter, 1 plastik S',
       },
     ],
   },
@@ -80,7 +80,8 @@ export const PELBAGAI_MENU_GROUPS: PelbagaiMenuGroupDef[] = [
     id: 'campur-kaya-butter',
     number: 2,
     title: 'Set Campur Kaya Butter',
-    stockNote: 'Tolak stok roti ikut kandungan set',
+    stockNote:
+      'Tolak roti ikut set, 12g kaya, butter ikut bilangan roti butter dan 1 plastik M',
     variants: [
       {
         sku: 'PLG-SCKB-111',
@@ -89,7 +90,8 @@ export const PELBAGAI_MENU_GROUPS: PelbagaiMenuGroupDef[] = [
         saleUnit: 'Set',
         sortOrder: 52,
         contents: '1 Kaya Butter + 1 Kelapa (Kaya) + 1 Kacang (Kaya)',
-        deductNote: 'Tolak 1 Kaya · 1 Kelapa · 1 Kacang',
+        deductNote:
+          'Tolak 1 Kaya, 1 Kelapa, 1 Kacang, 12g kaya, 4g butter, 1 plastik M',
       },
       {
         sku: 'PLG-SCKB-211',
@@ -98,7 +100,7 @@ export const PELBAGAI_MENU_GROUPS: PelbagaiMenuGroupDef[] = [
         saleUnit: 'Set',
         sortOrder: 53,
         contents: '2 Kaya Butter + 1 Kelapa (Kaya)',
-        deductNote: 'Tolak 2 Kaya · 1 Kelapa',
+        deductNote: 'Tolak 2 Kaya, 1 Kelapa, 12g kaya, 8g butter, 1 plastik M',
       },
       {
         sku: 'PLG-SCKB-212',
@@ -107,7 +109,7 @@ export const PELBAGAI_MENU_GROUPS: PelbagaiMenuGroupDef[] = [
         saleUnit: 'Set',
         sortOrder: 54,
         contents: '2 Kaya Butter + 1 Kacang (Kaya)',
-        deductNote: 'Tolak 2 Kaya · 1 Kacang',
+        deductNote: 'Tolak 2 Kaya, 1 Kacang, 12g kaya, 8g butter, 1 plastik M',
       },
       {
         sku: 'PLG-SCKB-121',
@@ -116,7 +118,7 @@ export const PELBAGAI_MENU_GROUPS: PelbagaiMenuGroupDef[] = [
         saleUnit: 'Set',
         sortOrder: 55,
         contents: '2 Kelapa (Kaya) + 1 Kacang (Kaya)',
-        deductNote: 'Tolak 2 Kelapa · 1 Kacang',
+        deductNote: 'Tolak 2 Kelapa, 1 Kacang, 12g kaya, 1 plastik M',
       },
       {
         sku: 'PLG-SCKB-112',
@@ -125,7 +127,7 @@ export const PELBAGAI_MENU_GROUPS: PelbagaiMenuGroupDef[] = [
         saleUnit: 'Set',
         sortOrder: 56,
         contents: '2 Kacang (Kaya) + 1 Kaya Butter',
-        deductNote: 'Tolak 2 Kacang · 1 Kaya',
+        deductNote: 'Tolak 2 Kacang, 1 Kaya, 12g kaya, 4g butter, 1 plastik M',
       },
     ],
   },
@@ -133,7 +135,7 @@ export const PELBAGAI_MENU_GROUPS: PelbagaiMenuGroupDef[] = [
     id: 'campur-kaya',
     number: 3,
     title: 'Set Campur Kaya',
-    stockNote: 'Tolak stok roti ikut kandungan set',
+    stockNote: 'Tolak roti ikut set, 12g kaya dan 1 plastik M',
     variants: [
       {
         sku: 'PLG-SCK-111',
@@ -142,7 +144,7 @@ export const PELBAGAI_MENU_GROUPS: PelbagaiMenuGroupDef[] = [
         saleUnit: 'Set',
         sortOrder: 57,
         contents: '1 Kaya Sahaja + 1 Kelapa + 1 Kacang',
-        deductNote: 'Tolak 1 Kaya · 1 Kelapa · 1 Kacang',
+        deductNote: 'Tolak 1 Kaya, 1 Kelapa, 1 Kacang, 12g kaya, 1 plastik M',
       },
       {
         sku: 'PLG-SCK-211',
@@ -151,7 +153,7 @@ export const PELBAGAI_MENU_GROUPS: PelbagaiMenuGroupDef[] = [
         saleUnit: 'Set',
         sortOrder: 58,
         contents: '2 Kaya + 1 Kelapa',
-        deductNote: 'Tolak 2 Kaya · 1 Kelapa',
+        deductNote: 'Tolak 2 Kaya, 1 Kelapa, 12g kaya, 1 plastik M',
       },
       {
         sku: 'PLG-SCK-212',
@@ -160,7 +162,7 @@ export const PELBAGAI_MENU_GROUPS: PelbagaiMenuGroupDef[] = [
         saleUnit: 'Set',
         sortOrder: 59,
         contents: '2 Kaya + 1 Kacang',
-        deductNote: 'Tolak 2 Kaya · 1 Kacang',
+        deductNote: 'Tolak 2 Kaya, 1 Kacang, 12g kaya, 1 plastik M',
       },
       {
         sku: 'PLG-SCK-121',
@@ -169,7 +171,7 @@ export const PELBAGAI_MENU_GROUPS: PelbagaiMenuGroupDef[] = [
         saleUnit: 'Set',
         sortOrder: 60,
         contents: '2 Kelapa + 1 Kacang',
-        deductNote: 'Tolak 2 Kelapa · 1 Kacang',
+        deductNote: 'Tolak 2 Kelapa, 1 Kacang, 12g kaya, 1 plastik M',
       },
       {
         sku: 'PLG-SCK-112',
@@ -178,7 +180,7 @@ export const PELBAGAI_MENU_GROUPS: PelbagaiMenuGroupDef[] = [
         saleUnit: 'Set',
         sortOrder: 61,
         contents: '2 Kacang + 1 Kaya',
-        deductNote: 'Tolak 2 Kacang · 1 Kaya',
+        deductNote: 'Tolak 2 Kacang, 1 Kaya, 12g kaya, 1 plastik M',
       },
       {
         sku: 'PLG-SCK-113',
@@ -187,7 +189,7 @@ export const PELBAGAI_MENU_GROUPS: PelbagaiMenuGroupDef[] = [
         saleUnit: 'Set',
         sortOrder: 62,
         contents: '2 Kacang + 1 Kaya',
-        deductNote: 'Tolak 2 Kacang · 1 Kaya',
+        deductNote: 'Tolak 2 Kacang, 1 Kaya, 12g kaya, 1 plastik M',
       },
     ],
   },
@@ -195,7 +197,7 @@ export const PELBAGAI_MENU_GROUPS: PelbagaiMenuGroupDef[] = [
     id: 'benggali-separuh',
     number: 4,
     title: 'Set Benggali Separuh',
-    stockNote: 'Tolak 1 pcs Stok Roti Benggali',
+    stockNote: 'Tolak 1 Roti Benggali, kaya, butter dan 1 plastik B',
     variants: [
       {
         sku: 'PLG-BSEP',
@@ -204,7 +206,7 @@ export const PELBAGAI_MENU_GROUPS: PelbagaiMenuGroupDef[] = [
         saleUnit: 'Set',
         sortOrder: 63,
         contents: 'Separuh Kaya Sahaja + Separuh Kaya Butter',
-        deductNote: 'Tolak 1 pcs Benggali',
+        deductNote: 'Tolak 1 Benggali, 42.5g kaya, 22.5g butter, 1 plastik B',
       },
     ],
   },
@@ -212,7 +214,7 @@ export const PELBAGAI_MENU_GROUPS: PelbagaiMenuGroupDef[] = [
     id: 'benggali-butter-only',
     number: 5,
     title: 'Set Benggali Butter Only',
-    stockNote: 'Tolak 1 pcs Stok Roti Benggali',
+    stockNote: 'Tolak 1 Roti Benggali, butter dan 1 plastik B',
     variants: [
       {
         sku: 'PLG-BBO',
@@ -221,7 +223,7 @@ export const PELBAGAI_MENU_GROUPS: PelbagaiMenuGroupDef[] = [
         saleUnit: 'Set',
         sortOrder: 64,
         contents: 'Set Benggali Butter Only',
-        deductNote: 'Tolak 1 pcs Benggali',
+        deductNote: 'Tolak 1 Benggali, 45g butter, 1 plastik B',
       },
     ],
   },
@@ -229,7 +231,7 @@ export const PELBAGAI_MENU_GROUPS: PelbagaiMenuGroupDef[] = [
     id: 'benggali-half-kb',
     number: 6,
     title: 'Set Separuh Benggali Kaya Butter',
-    stockNote: 'Tolak ½ pcs Stok Roti Benggali',
+    stockNote: 'Tolak 0.5 Roti Benggali, kaya, butter dan 1 plastik B',
     variants: [
       {
         sku: 'PLG-BHKB',
@@ -238,7 +240,7 @@ export const PELBAGAI_MENU_GROUPS: PelbagaiMenuGroupDef[] = [
         saleUnit: 'Set',
         sortOrder: 65,
         contents: 'Separuh Benggali Kaya Butter',
-        deductNote: 'Tolak ½ pcs Benggali',
+        deductNote: 'Tolak 0.5 Benggali, 22.5g kaya, 22.5g butter, 1 plastik B',
       },
     ],
   },
@@ -246,7 +248,7 @@ export const PELBAGAI_MENU_GROUPS: PelbagaiMenuGroupDef[] = [
     id: 'benggali-half-k',
     number: 7,
     title: 'Set Separuh Benggali Kaya Sahaja',
-    stockNote: 'Tolak ½ pcs Stok Roti Benggali',
+    stockNote: 'Tolak 0.5 Roti Benggali, kaya dan 1 plastik B',
     variants: [
       {
         sku: 'PLG-BHK',
@@ -255,7 +257,7 @@ export const PELBAGAI_MENU_GROUPS: PelbagaiMenuGroupDef[] = [
         saleUnit: 'Set',
         sortOrder: 66,
         contents: 'Separuh Benggali Kaya Sahaja',
-        deductNote: 'Tolak ½ pcs Benggali',
+        deductNote: 'Tolak 0.5 Benggali, 20g kaya, 1 plastik B',
       },
     ],
   },
@@ -263,7 +265,7 @@ export const PELBAGAI_MENU_GROUPS: PelbagaiMenuGroupDef[] = [
     id: 'kacang-butter',
     number: 8,
     title: 'Set Kacang Butter',
-    stockNote: 'Tolak mengikut pcs Stok Roti Kacang',
+    stockNote: 'Tolak Roti Kacang, butter dan plastik mengikut kuantiti',
     variants: [
       {
         sku: 'PLG-KACB-1',
@@ -272,7 +274,7 @@ export const PELBAGAI_MENU_GROUPS: PelbagaiMenuGroupDef[] = [
         saleUnit: 'Pcs',
         sortOrder: 67,
         contents: '1 pcs Set Kacang Butter',
-        deductNote: 'Tolak 1 pcs Kacang',
+        deductNote: 'Tolak 1 Kacang, 4g butter, 1 plastik S',
       },
       {
         sku: 'PLG-KACB-3',
@@ -281,7 +283,7 @@ export const PELBAGAI_MENU_GROUPS: PelbagaiMenuGroupDef[] = [
         saleUnit: 'Set',
         sortOrder: 68,
         contents: '3 pcs Set Kacang Butter',
-        deductNote: 'Tolak 3 pcs Kacang',
+        deductNote: 'Tolak 3 Kacang, 12g butter, 1 plastik M',
       },
     ],
   },
@@ -289,7 +291,7 @@ export const PELBAGAI_MENU_GROUPS: PelbagaiMenuGroupDef[] = [
     id: 'kelapa-butter',
     number: 9,
     title: 'Set Kelapa Butter',
-    stockNote: 'Tolak mengikut pcs Stok Roti Kelapa',
+    stockNote: 'Tolak Roti Kelapa, butter dan plastik mengikut kuantiti',
     variants: [
       {
         sku: 'PLG-KELB-1',
@@ -298,7 +300,7 @@ export const PELBAGAI_MENU_GROUPS: PelbagaiMenuGroupDef[] = [
         saleUnit: 'Pcs',
         sortOrder: 69,
         contents: '1 pcs Set Kelapa Butter',
-        deductNote: 'Tolak 1 pcs Kelapa',
+        deductNote: 'Tolak 1 Kelapa, 4g butter, 1 plastik S',
       },
       {
         sku: 'PLG-KELB-3',
@@ -307,7 +309,7 @@ export const PELBAGAI_MENU_GROUPS: PelbagaiMenuGroupDef[] = [
         saleUnit: 'Set',
         sortOrder: 70,
         contents: '3 pcs Set Kelapa Butter',
-        deductNote: 'Tolak 3 pcs Kelapa',
+        deductNote: 'Tolak 3 Kelapa, 12g butter, 1 plastik M',
       },
     ],
   },
@@ -320,7 +322,9 @@ for (const group of PELBAGAI_MENU_GROUPS) {
   }
 }
 
-export function getPelbagaiVariantBySku(sku: string): PelbagaiVariantDef | undefined {
+export function getPelbagaiVariantBySku(
+  sku: string
+): PelbagaiVariantDef | undefined {
   return skuToVariant.get(sku as PelbagaiSku);
 }
 
@@ -328,8 +332,12 @@ export function isPelbagaiSku(sku: string): sku is PelbagaiSku {
   return (PELBAGAI_SKUS as readonly string[]).includes(sku);
 }
 
-export function sortPelbagaiProducts<T extends { sku: string }>(items: T[]): T[] {
-  const order = new Map<string, number>(PELBAGAI_SKUS.map((sku, i) => [sku, i]));
+export function sortPelbagaiProducts<T extends { sku: string }>(
+  items: T[]
+): T[] {
+  const order = new Map<string, number>(
+    PELBAGAI_SKUS.map((sku, i) => [sku, i])
+  );
   return [...items].sort(
     (a, b) => (order.get(a.sku) ?? 999) - (order.get(b.sku) ?? 999)
   );

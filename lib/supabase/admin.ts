@@ -1,14 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database';
 
-/** Service role client — no cookies, for server-side admin queries only */
+/** Service role client - no cookies, for server-side admin queries only */
 export function createAdminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
-    throw new Error('Supabase service role env tidak dikonfigurasi');
-  }
-  return createClient<Database>(url, key, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+ const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+ const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+ if (!url || !key) {
+ throw new Error('Supabase service role env tidak dikonfigurasi');
+ }
+ return createClient<Database>(url, key, {
+ auth: { autoRefreshToken: false, persistSession: false },
+ });
 }

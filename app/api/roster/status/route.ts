@@ -6,22 +6,21 @@ import { getRosterStatusForBranches } from '@/lib/roster/queries';
 import { getNextWeekStart } from '@/lib/roster/week-utils';
 
 export async function GET(request: Request) {
-  const profile = await getCurrentProfile();
-  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+ const profile = await getCurrentProfile();
+ if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const weekStart =
-    new URL(request.url).searchParams.get('week_start') ?? getNextWeekStart();
+ const weekStart =
+ new URL(request.url).searchParams.get('week_start') ?? getNextWeekStart();
 
-  const supabase = await createClient();
-  const scope = await resolveScopedBranches(supabase, profile);
-  const branchIds = scope.branchIds ?? [];
+ const supabase = await createClient();
+ const scope = await resolveScopedBranches(supabase, profile);
+ const branchIds = scope.branchIds ?? [];
 
-  const statuses = await getRosterStatusForBranches(
-    supabase,
-    profile.organization_id,
-    branchIds,
-    weekStart
-  );
+ const statuses = await getRosterStatusForBranches(
+ supabase,
+ profile.organization_id,
+ branchIds,
+ weekStart);
 
-  return NextResponse.json({ week_start: weekStart, branches: statuses });
+ return NextResponse.json({ week_start: weekStart, branches: statuses });
 }

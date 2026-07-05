@@ -39,27 +39,27 @@ Programmer boleh import CSV dari folder `csv_import/` ke Supabase.
 - Driver hanya boleh lihat delivery sendiri.
 
 ## 5. Flow operasi
-Factory → HQ Distributor → Driver / Driver Transfer → Kiosk → Customer
+Factory ke HQ Distributor ke Driver / Driver Transfer ke Kiosk ke Customer
 
 ## 6. Go Live
 
-Pilot 14 hari — lihat **[docs/GO_LIVE_CHECKLIST.md](docs/GO_LIVE_CHECKLIST.md)** untuk langkah teknikal penuh.
+Pilot 14 hari - lihat **[docs/GO_LIVE_CHECKLIST.md](docs/GO_LIVE_CHECKLIST.md)** untuk langkah teknikal penuh.
 
 ```bash
-npm run verify:go-live          # semak DB
-npm run bundle:migrations       # SQL manual jika db push gagal
-npm run seed:users              # cipta login
-.\scripts\go-live.ps1           # Windows — automasi penuh
+npm run verify:go-live # semak DB
+npm run bundle:migrations # SQL manual jika db push gagal
+npm run seed:users # cipta login
+.\scripts\go-live.ps1 # Windows - automasi penuh
 ```
 
-Pilot — **go-live terus 36 cawangan** (lihat **[docs/GO_LIVE_36.md](docs/GO_LIVE_36.md)**).
+Pilot - **go-live terus 36 cawangan** (lihat **[docs/GO_LIVE_36.md](docs/GO_LIVE_36.md)**).
 
 ```bash
-npm run verify:go-live          # semak DB 36 cawangan
-npm run verify:login            # semak 13 peranan
-npm run bundle:migrations       # SQL manual jika db push gagal
-npm run seed:users              # cipta login
-.\scripts\go-live.ps1           # Windows — automasi penuh
+npm run verify:go-live # semak DB 36 cawangan
+npm run verify:login # semak 13 peranan
+npm run bundle:migrations # SQL manual jika db push gagal
+npm run seed:users # cipta login
+.\scripts\go-live.ps1 # Windows - automasi penuh
 ```
 
 **Hari go-live:** Utara 12 + Tengah 10 + Selatan 14 = **36 kiosk serentak**.

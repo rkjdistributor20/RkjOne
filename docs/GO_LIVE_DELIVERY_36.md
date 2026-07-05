@@ -1,7 +1,7 @@
-# Delivery Go-Live — 36 Cawangan
+# Delivery Go-Live - 36 Cawangan
 
-**Auto-jana:** `npm run verify:delivery`  
-**Aliran:** Kilang → **HQ Distributor** → Logistik → Kiosk → POS
+**Auto-jana:** `npm run verify:delivery` 
+**Aliran:** Kilang ke **HQ Distributor** ke Logistik ke Kiosk ke POS
 
 Tandakan `[x]` bila delivery selesai & staf sahkan stok.
 
@@ -15,7 +15,7 @@ Tandakan `[x]` bila delivery selesai & staf sahkan stok.
 
 ---
 
-## Utara — Safuan
+## Utara - Safuan
 
 | [ ] | Kod | Cawangan | Kiosk | Stok |
 |-----|-----|----------|-------|------|
@@ -32,7 +32,7 @@ Tandakan `[x]` bila delivery selesai & staf sahkan stok.
 | [ ] | BR011 | RNR Sg Nyiur Arah Utara | ✓ | ✓ |
 | [ ] | BR012 | Hentian Sebelah Bukit Gantang Arah Selatan | ✓ | ✓ |
 
-## Tengah — Hakim
+## Tengah - Hakim
 
 | [ ] | Kod | Cawangan | Kiosk | Stok |
 |-----|-----|----------|-------|------|
@@ -47,7 +47,7 @@ Tandakan `[x]` bila delivery selesai & staf sahkan stok.
 | [ ] | BR021 | RNR Ulu Bernam Arah Selatan | ✓ | ✓ |
 | [ ] | BR022 | Hentian Sebelah Tg Malim Arah Selatan | ✓ | ✓ |
 
-## Selatan — Yati
+## Selatan - Yati
 
 | [ ] | Kod | Cawangan | Kiosk | Stok |
 |-----|-----|----------|-------|------|
@@ -68,4 +68,4 @@ Tandakan `[x]` bila delivery selesai & staf sahkan stok.
 
 ---
 
-HQ: [GO_LIVE_36.md](./GO_LIVE_36.md) · *Dijana automatik — jalankan `npm run verify:delivery`*
+HQ: [GO_LIVE_36.md](./GO_LIVE_36.md) - *Dijana automatik - jalankan `npm run verify:delivery`*

@@ -7,177 +7,156 @@ import { assertSettingsAdmin, isSettingsAdmin } from '@/lib/settings/admin-auth'
 import { canManageHrPeople } from '@/lib/hr/hr-access';
 
 export async function GET(request: Request) {
-  const profile = await getCurrentProfile();
-  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+ const profile = await getCurrentProfile();
+ if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const grouped = new URL(request.url).searchParams.get('grouped') === '1';
-  const supabase = await createClient();
+ const grouped = new URL(request.url).searchParams.get('grouped') === '1';
+ const supabase = await createClient();
 
-  if (grouped && (isSettingsAdmin(profile.role) || canManageHrPeople(profile.role))) {
-    const { data: regions, error: regionErr } = await supabase
-      .from('regions')
-      .select('id, code, name, manager_name')
-      .eq('organization_id', profile.organization_id)
-      .order('code');
+ if (grouped && (isSettingsAdmin(profile.role) || canManageHrPeople(profile.role))) {
+ const [regionsResult, branchesResult] = await Promise.all([
+ supabase.from('regions').select('id, code, name, manager_name').eq('organization_id', profile.organization_id).order('code'),
+ supabase.from('branches').select('id, branch_code, branch_name, status, area, region_id').eq('organization_id', profile.organization_id).order('branch_code'),
+ ]);
 
-    if (regionErr) return NextResponse.json({ error: regionErr.message }, { status: 500 });
+ const { data: regions, error: regionErr } = regionsResult;
+ const { data: branches, error: branchErr } = branchesResult;
+ if (regionErr) return NextResponse.json({ error: regionErr.message }, { status: 500 });
+ if (branchErr) return NextResponse.json({ error: branchErr.message }, { status: 500 });
 
-    const { data: branches, error: branchErr } = await supabase
-      .from('branches')
-      .select('id, branch_code, branch_name, status, area, region_id')
-      .eq('organization_id', profile.organization_id)
-      .order('branch_code');
+ type RegionRow = {
+ id: string;
+ code: string;
+ name: string;
+ manager_name: string | null;
+ };
 
-    if (branchErr) return NextResponse.json({ error: branchErr.message }, { status: 500 });
+ type BranchRow = {
+ id: string;
+ branch_code: string;
+ branch_name: string;
+ status: string;
+ area: string | null;
+ region_id: string;
+ };
 
-    type RegionRow = {
-      id: string;
-      code: string;
-      name: string;
-      manager_name: string | null;
-    };
+ const groups = ((regions ?? []) as RegionRow[]).map((region) => ({
+ region_id: region.id,
+ region_code: region.code,
+ region_name: region.name,
+ manager_name: region.manager_name,
+ branches: ((branches ?? []) as BranchRow[]).filter((b) => b.region_id === region.id).map((b) => ({
+ id: b.id,
+ branch_code: b.branch_code,
+ branch_name: b.branch_name,
+ status: b.status,
+ area: b.area,
+ })),
+ }));
 
-    type BranchRow = {
-      id: string;
-      branch_code: string;
-      branch_name: string;
-      status: string;
-      area: string | null;
-      region_id: string;
-    };
+ return NextResponse.json({ groups: groups.filter((g) => g.branches.length > 0) });
+ }
 
-    const groups = ((regions ?? []) as RegionRow[]).map((region) => ({
-      region_id: region.id,
-      region_code: region.code,
-      region_name: region.name,
-      manager_name: region.manager_name,
-      branches: ((branches ?? []) as BranchRow[])
-        .filter((b) => b.region_id === region.id)
-        .map((b) => ({
-          id: b.id,
-          branch_code: b.branch_code,
-          branch_name: b.branch_name,
-          status: b.status,
-          area: b.area,
-        })),
-    }));
+ if (grouped) {
+ let scope;
+ try {
+ scope = await resolveScopedBranches(supabase, profile);
+ } catch (err) {
+ return NextResponse.json(
+ { error: err instanceof Error ? err.message : 'Forbidden' },
+ { status: 403 });
+ }
 
-    return NextResponse.json({ groups: groups.filter((g) => g.branches.length > 0) });
-  }
+ let regionsQuery = supabase.from('regions').select('id, code, name, manager_name').eq('organization_id', profile.organization_id).order('code');
 
-  if (grouped) {
-    let scope;
-    try {
-      scope = await resolveScopedBranches(supabase, profile);
-    } catch (err) {
-      return NextResponse.json(
-        { error: err instanceof Error ? err.message : 'Forbidden' },
-        { status: 403 }
-      );
-    }
+ if (scope.regionId) {
+ regionsQuery = regionsQuery.eq('id', scope.regionId);
+ }
 
-    let regionsQuery = supabase
-      .from('regions')
-      .select('id, code, name, manager_name')
-      .eq('organization_id', profile.organization_id)
-      .order('code');
+ let branchesQuery = supabase.from('branches').select('id, branch_code, branch_name, status, area, region_id').eq('organization_id', profile.organization_id).order('branch_code');
 
-    if (scope.regionId) {
-      regionsQuery = regionsQuery.eq('id', scope.regionId);
-    }
+ branchesQuery = applyBranchIdsFilter(branchesQuery, 'id', scope.branchIds);
 
-    const { data: regions, error: regionErr } = await regionsQuery;
-    if (regionErr) return NextResponse.json({ error: regionErr.message }, { status: 500 });
+ const [regionsResult, branchesResult] = await Promise.all([
+ regionsQuery,
+ branchesQuery,
+ ]);
 
-    let branchesQuery = supabase
-      .from('branches')
-      .select('id, branch_code, branch_name, status, area, region_id')
-      .eq('organization_id', profile.organization_id)
-      .order('branch_code');
+ const { data: regions, error: regionErr } = regionsResult;
+ const { data: branches, error: branchErr } = branchesResult;
+ if (regionErr) return NextResponse.json({ error: regionErr.message }, { status: 500 });
+ if (branchErr) return NextResponse.json({ error: branchErr.message }, { status: 500 });
 
-    branchesQuery = applyBranchIdsFilter(branchesQuery, 'id', scope.branchIds);
+ type RegionRow = {
+ id: string;
+ code: string;
+ name: string;
+ manager_name: string | null;
+ };
 
-    const { data: branches, error: branchErr } = await branchesQuery;
-    if (branchErr) return NextResponse.json({ error: branchErr.message }, { status: 500 });
+ type BranchRow = {
+ id: string;
+ branch_code: string;
+ branch_name: string;
+ status: string;
+ area: string | null;
+ region_id: string;
+ };
 
-    type RegionRow = {
-      id: string;
-      code: string;
-      name: string;
-      manager_name: string | null;
-    };
+ const groups = ((regions ?? []) as RegionRow[]).map((region) => ({
+ region_id: region.id,
+ region_code: region.code,
+ region_name: region.name,
+ manager_name: region.manager_name,
+ branches: ((branches ?? []) as BranchRow[]).filter((b) => b.region_id === region.id).map((b) => ({
+ id: b.id,
+ branch_code: b.branch_code,
+ branch_name: b.branch_name,
+ status: b.status,
+ area: b.area,
+ })),
+ }));
 
-    type BranchRow = {
-      id: string;
-      branch_code: string;
-      branch_name: string;
-      status: string;
-      area: string | null;
-      region_id: string;
-    };
+ return NextResponse.json({ groups: groups.filter((g) => g.branches.length > 0) });
+ }
 
-    const groups = ((regions ?? []) as RegionRow[]).map((region) => ({
-      region_id: region.id,
-      region_code: region.code,
-      region_name: region.name,
-      manager_name: region.manager_name,
-      branches: ((branches ?? []) as BranchRow[])
-        .filter((b) => b.region_id === region.id)
-        .map((b) => ({
-          id: b.id,
-          branch_code: b.branch_code,
-          branch_name: b.branch_name,
-          status: b.status,
-          area: b.area,
-        })),
-    }));
+ let scope;
+ try {
+ scope = await resolveScopedBranches(supabase, profile);
+ } catch (err) {
+ return NextResponse.json(
+ { error: err instanceof Error ? err.message : 'Forbidden' },
+ { status: 403 });
+ }
 
-    return NextResponse.json({ groups: groups.filter((g) => g.branches.length > 0) });
-  }
+ let query = supabase.from('branches').select('id, branch_code, branch_name, status, area, region:regions(id, name, manager_name)').eq('organization_id', profile.organization_id).order('branch_code');
 
-  let scope;
-  try {
-    scope = await resolveScopedBranches(supabase, profile);
-  } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Forbidden' },
-      { status: 403 }
-    );
-  }
+ query = applyBranchIdsFilter(query, 'id', scope.branchIds);
 
-  let query = supabase
-    .from('branches')
-    .select('id, branch_code, branch_name, status, area, region:regions(id, name, manager_name)')
-    .eq('organization_id', profile.organization_id)
-    .order('branch_code');
-
-  query = applyBranchIdsFilter(query, 'id', scope.branchIds);
-
-  const { data, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ branches: data ?? [] });
+ const { data, error } = await query;
+ if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+ return NextResponse.json({ branches: data ?? [] });
 }
 
 export async function POST(request: Request) {
-  try {
-    assertSettingsAdmin(await getCurrentProfile());
-    const body = await request.json();
-    const supabase = await createClient();
+ try {
+ assertSettingsAdmin(await getCurrentProfile());
+ const body = await request.json();
+ const supabase = await createClient();
 
-    const { data, error } = await inventoryRpc(supabase, 'admin_create_branch', {
-      p_region_id: body.region_id,
-      p_branch_code: body.branch_code,
-      p_branch_name: body.branch_name,
-      p_area: body.area ?? null,
-      p_manager_name: body.manager_name ?? null,
-    });
+ const { data, error } = await inventoryRpc(supabase, 'admin_create_branch', {
+ p_region_id: body.region_id,
+ p_branch_code: body.branch_code,
+ p_branch_name: body.branch_name,
+ p_area: body.area ?? null,
+ p_manager_name: body.manager_name ?? null,
+ });
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-    return NextResponse.json({ result: data });
-  } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Forbidden' },
-      { status: 403 }
-    );
-  }
+ if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+ return NextResponse.json({ result: data });
+ } catch (err) {
+ return NextResponse.json(
+ { error: err instanceof Error ? err.message : 'Forbidden' },
+ { status: 403 });
+ }
 }

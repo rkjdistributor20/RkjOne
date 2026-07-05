@@ -1,224 +1,229 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Flame, MapPin, Store, CalendarDays, ArrowRight } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import {
+ ArrowRight,
+ CalendarDays,
+ Eye,
+ EyeOff,
+ LockKeyhole,
+ Mail,
+ ShieldCheck,
+ Sparkles,
+} from 'lucide-react';
+
 import { mapAuthError, safeRedirectPath } from '@/lib/auth/errors';
-import { COMPANY, BRAND_COLORS } from '@/lib/brand/company';
+import { COMPANY } from '@/lib/brand/company';
 import { BrandLogo } from '@/components/brand/brand-logo';
+import { StaffSchedulePanel } from '@/components/shifts/staff-schedule-panel';
+import { LanguageSwitcher } from '@/components/i18n/language-switcher';
+import { useLanguage } from '@/components/i18n/language-provider';
+import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+ Card,
+ CardContent,
+ CardDescription,
+ CardHeader,
+ CardTitle,
 } from '@/components/ui/card';
-import { StaffSchedulePanel } from '@/components/shifts/staff-schedule-panel';
 
 export function LoginForm() {
-  const searchParams = useSearchParams();
-  const redirect = safeRedirectPath(searchParams.get('redirect'));
+ const searchParams = useSearchParams();
+ const redirect = safeRedirectPath(searchParams.get('redirect'));
+ const { t } = useLanguage();
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [showSchedule, setShowSchedule] = useState(false);
-  const [isStaffLogin, setIsStaffLogin] = useState(false);
+ const [email, setEmail] = useState('');
+ const [password, setPassword] = useState('');
+ const [showPassword, setShowPassword] = useState(false);
+ const [loading, setLoading] = useState(false);
+ const [error, setError] = useState<string | null>(null);
+ const [showSchedule, setShowSchedule] = useState(false);
+ const [isStaffLogin, setIsStaffLogin] = useState(false);
 
-  async function handleLogin(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
+ async function handleLogin(e: FormEvent) {
+ e.preventDefault();
+ setLoading(true);
+ setError(null);
 
-    const supabase = createClient();
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+ const supabase = createClient();
+ const { error: authError } = await supabase.auth.signInWithPassword({
+ email,
+ password,
+ });
 
-    if (authError) {
-      setError(mapAuthError(authError.message));
-      setLoading(false);
-      return;
-    }
+ if (authError) {
+ setError(mapAuthError(authError.message));
+ setLoading(false);
+ return;
+ }
 
-    const { data: authData } = await supabase.auth.getUser();
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', authData.user?.id ?? '')
-      .maybeSingle();
+ const { data: authData } = await supabase.auth.getUser();
+ const { data: profile } = await supabase
+ .from('profiles')
+ .select('role')
+ .eq('id', authData.user?.id ?? '')
+ .maybeSingle();
 
-    if ((profile as { role?: string } | null)?.role === 'STAFF') {
-      setIsStaffLogin(true);
-      setShowSchedule(true);
-      setLoading(false);
-      return;
-    }
+ if ((profile as { role?: string } | null)?.role === 'STAFF') {
+ setIsStaffLogin(true);
+ setShowSchedule(true);
+ setLoading(false);
+ return;
+ }
 
-    window.location.href = redirect;
-  }
+ window.location.href = redirect;
+ }
 
-  function continueToApp() {
-    window.location.href = isStaffLogin ? '/dashboard' : redirect;
-  }
+ function continueToApp() {
+ window.location.href = isStaffLogin ? '/dashboard' : redirect;
+ }
 
-  return (
-    <div className="flex min-h-screen">
-      <aside
-        className="relative hidden w-[46%] overflow-hidden lg:flex lg:flex-col lg:justify-between"
-        style={{ backgroundColor: BRAND_COLORS.black }}
-      >
-        <div
-          className="absolute inset-0 opacity-50"
-          style={{
-            backgroundImage: `radial-gradient(circle at 15% 85%, ${BRAND_COLORS.gold}33 0%, transparent 50%), radial-gradient(circle at 85% 15%, ${BRAND_COLORS.goldBright}22 0%, transparent 45%)`,
-          }}
-          aria-hidden
-        />
-        <div className="relative p-10 xl:p-12">
-          <BrandLogo layout="sign" size="xl" />
-          <div className="mt-10 space-y-4">
-            <p
-              className="text-sm font-bold uppercase tracking-[0.2em]"
-              style={{ color: BRAND_COLORS.gold }}
-            >
-              Sejak {COMPANY.founded} · {COMPANY.hq}
-            </p>
-            <h1 className="max-w-md text-3xl font-bold leading-tight text-white xl:text-4xl">
-              &ldquo;{COMPANY.tagline}&rdquo;
-            </h1>
-            <p className="max-w-md text-base leading-relaxed text-white/80">
-              {COMPANY.taglineMs}
-            </p>
-          </div>
+ return (
+ <main className="min-h-screen bg-[#f6f1e7] text-foreground">
+ <div className="grid min-h-screen lg:grid-cols-[minmax(360px,0.85fr)_minmax(560px,1.15fr)]">
+ <section className="relative hidden overflow-hidden bg-[#111111] px-10 py-10 text-white lg:flex lg:flex-col lg:justify-between">
+ <div className="pointer-events-none absolute inset-0 opacity-[0.08] [background-image:linear-gradient(135deg,rgba(255,255,255,0.7)_0_1px,transparent_1px_18px)]" />
 
-          <div className="mt-8 flex flex-wrap gap-2">
-            {COMPANY.products.map((p) => (
-              <span
-                key={p.name}
-                className="rounded-full border px-3 py-1 text-xs font-medium text-white"
-                style={{
-                  borderColor: `${BRAND_COLORS.gold}55`,
-                  backgroundColor: `${BRAND_COLORS.gold}18`,
-                }}
-              >
-                {p.name}
-              </span>
-            ))}
-          </div>
-        </div>
+ <div className="relative">
+ <div className="mb-8 flex justify-end">
+ <LanguageSwitcher compact />
+ </div>
+ <BrandLogo size="lg" variant="light" className="drop-shadow" />
+ <div className="mt-16 max-w-md">
+ <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#e9b127]">{t('login.restrictedAccess')}</p>
+ <h1 className="mt-4 font-serif text-5xl font-bold leading-tight text-white">{COMPANY.systemName}</h1>
+ <p className="mt-5 text-base leading-7 text-white/72">
+ {t('login.heroIntro')}
+ </p>
+ </div>
+ </div>
 
-        <div
-          className="relative space-y-4 border-t p-10 xl:p-12"
-          style={{ borderColor: `${BRAND_COLORS.gold}33` }}
-        >
-          {COMPANY.highlights.map((line) => (
-            <div key={line} className="flex gap-3 text-sm text-white/75">
-              <Flame className="mt-0.5 h-4 w-4 shrink-0" style={{ color: BRAND_COLORS.gold }} />
-              <span>{line}</span>
-            </div>
-          ))}
-          <div className="flex flex-wrap gap-6 pt-2 text-xs text-white/50">
-            <span className="flex items-center gap-1.5">
-              <Store className="h-3.5 w-3.5" />
-              {COMPANY.branchCount} cawangan kiosk
-            </span>
-            <span className="flex items-center gap-1.5">
-              <MapPin className="h-3.5 w-3.5" />
-              {COMPANY.regions.join(' · ')}
-            </span>
-          </div>
-        </div>
-      </aside>
+ <div className="relative grid gap-3">
+ <div className="flex items-center gap-3 rounded-[8px] border border-white/10 bg-white/6 px-4 py-3 text-sm text-white/76">
+ <ShieldCheck className="h-5 w-5 text-[#e9b127]" />
+ <span>{t('login.secureAccount')}</span>
+ </div>
+ <div className="flex items-center gap-3 rounded-[8px] border border-white/10 bg-white/6 px-4 py-3 text-sm text-white/76">
+ <LockKeyhole className="h-5 w-5 text-[#e9b127]" />
+ <span>{t('login.keepSecret')}</span>
+ </div>
+ <div className="flex items-center gap-3 rounded-[8px] border border-white/10 bg-white/6 px-4 py-3 text-sm text-white/76">
+ <Sparkles className="h-5 w-5 text-[#e9b127]" />
+ <span>{t('login.roleBased')}</span>
+ </div>
+ </div>
+ </section>
 
-      <div
-        className="flex flex-1 items-center justify-center p-4 sm:p-8"
-        style={{
-          background: `linear-gradient(to bottom right, ${BRAND_COLORS.cream}, white, ${BRAND_COLORS.goldLight})`,
-        }}
-      >
-        <Card className="w-full max-w-md border bg-white/95 shadow-xl backdrop-blur-sm" style={{ borderColor: `${BRAND_COLORS.gold}44` }}>
-          <CardHeader className="space-y-4 text-center">
-            <div className="lg:hidden">
-              <BrandLogo size="lg" className="justify-center" />
-            </div>
-            <div className="hidden lg:block">
-              <CardTitle className="text-2xl" style={{ color: BRAND_COLORS.black }}>
-                Log Masuk
-              </CardTitle>
-              <CardDescription className="text-base">
-                Portal dalaman {COMPANY.name}
-              </CardDescription>
-            </div>
-            <div className="lg:hidden">
-              <CardTitle className="text-xl" style={{ color: BRAND_COLORS.black }}>
-                Log Masuk Staff
-              </CardTitle>
-              <CardDescription>
-                {COMPANY.systemName} · {COMPANY.hq}
-              </CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {showSchedule ? (
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                  <CalendarDays className="h-4 w-4 text-primary" />
-                  Jadual Syif Anda
-                </div>
-                <StaffSchedulePanel compact />
-                <Button type="button" className="w-full gap-1" size="lg" onClick={continueToApp}>
-                  Teruskan ke Portal
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-              </div>
-            ) : (
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="matisa@rkj.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  autoComplete="email"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Kata Laluan</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  autoComplete="current-password"
-                />
-              </div>
-              {error && (
-                <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
-                  {error}
-                </p>
-              )}
-              <Button type="submit" className="w-full" size="lg" disabled={loading}>
-                {loading ? 'Sedang log masuk…' : 'Log Masuk ke RKJ One'}
-              </Button>
-            </form>
-            )}
-            <p className="mt-6 text-center text-xs text-muted-foreground">
-              {COMPANY.name} · Sistem dalaman syarikat · {COMPANY.branchCount} cawangan
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
+ <section className="flex items-center justify-center px-5 py-10 sm:px-8">
+ <div className="w-full max-w-[480px]">
+ <div className="mb-6 flex items-center justify-between gap-3 lg:hidden">
+ <BrandLogo size="lg" />
+ <LanguageSwitcher compact />
+ </div>
+
+ <Card className="overflow-hidden rounded-[8px] border-[#eadfca] bg-white/95 shadow-2xl shadow-[#b8871a]/12">
+ <CardHeader className="border-b border-[#efe7d8] px-7 py-7 text-center">
+ <div className="mx-auto hidden lg:block">
+ <BrandLogo size="lg" />
+ </div>
+ <div className="mx-auto mt-2 flex h-11 w-11 items-center justify-center rounded-[8px] bg-[#111111] text-[#e9b127]">
+ <LockKeyhole className="h-5 w-5" />
+ </div>
+ <CardTitle className="font-serif text-3xl">{t('login.title')}</CardTitle>
+ <CardDescription className="text-base">{t('login.description')}</CardDescription>
+ </CardHeader>
+ <CardContent className="space-y-5 px-7 py-7">
+ {showSchedule ? (
+ <div className="space-y-4">
+ <div className="rounded-[8px] border border-[#e5dfd5] bg-[#fffbf3] p-4">
+ <div className="mb-3 flex items-center gap-2 font-serif text-xl font-bold">
+ <CalendarDays className="h-5 w-5 text-[#e9b127]" />
+ {t('login.todaySchedule')}
+ </div>
+ <StaffSchedulePanel compact />
+ </div>
+ <Button
+ type="button"
+ onClick={continueToApp}
+ className="h-12 w-full rounded-[8px] bg-[#e9b127] text-base font-semibold text-black hover:bg-[#d19a10]"
+ >
+ {t('login.continueDashboard')} <ArrowRight className="ml-2 h-5 w-5" />
+ </Button>
+ </div>) : (
+ <form onSubmit={handleLogin} className="space-y-5">
+ <div className="space-y-2">
+ <Label htmlFor="email" className="text-sm font-semibold text-[#3f3528]">
+ {t('login.email')}
+ </Label>
+ <div className="relative">
+ <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#83786b]" />
+ <Input
+ id="email"
+ type="email"
+ value={email}
+ onChange={(event) => setEmail(event.target.value)}
+ placeholder={t('login.emailPlaceholder')}
+ required
+ autoComplete="email"
+ className="h-11 rounded-[8px] border-[#e5dfd5] bg-white pl-10 text-base"
+ />
+ </div>
+ </div>
+
+ <div className="space-y-2">
+ <Label htmlFor="password" className="text-sm font-semibold text-[#3f3528]">
+ {t('login.password')}
+ </Label>
+ <div className="relative">
+ <LockKeyhole className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#83786b]" />
+ <Input
+ id="password"
+ type={showPassword ? 'text' : 'password'}
+ value={password}
+ onChange={(event) => setPassword(event.target.value)}
+ required
+ autoComplete="current-password"
+ className="h-11 rounded-[8px] border-[#e5dfd5] bg-white pl-10 pr-12 text-base"
+ />
+ <Button
+ type="button"
+ variant="ghost"
+ size="icon-sm"
+ onClick={() => setShowPassword((value) => !value)}
+ aria-label={showPassword ? t('login.hidePassword') : t('login.showPassword')}
+ className="absolute right-2 top-1/2 -translate-y-1/2 text-[#6b6257] hover:bg-[#f7f1e6]"
+ >
+ {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+ </Button>
+ </div>
+ </div>
+
+ {error ? (
+ <p className="rounded-[8px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+ {error}
+ </p>) : null}
+
+ <Button
+ type="submit"
+ disabled={loading}
+ className="h-12 w-full rounded-[8px] bg-[#e9b127] text-base font-semibold text-black hover:bg-[#d19a10]"
+ >
+ {loading ? t('login.loading') : t('login.submit')}
+ {!loading ? <ArrowRight className="ml-2 h-5 w-5" /> : null}
+ </Button>
+ </form>)}
+
+ <p className="pt-2 text-center text-xs text-[#6b6257]">
+ {t('login.registeredOnly')}
+ </p>
+ </CardContent>
+ </Card>
+ </div>
+ </section>
+ </div>
+ </main>);
 }

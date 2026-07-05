@@ -1,250 +1,333 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
-  kioskStockStatus,
-  POS_ROTI_MENU_CATEGORIES,
-  POS_MENU_STOCK_CODES,
-  POS_SUPPLEMENT_STOCK,
-  toKioskStockDisplay,
-  type KioskStockRowConfig,
-  type PosRotiMenuCategory,
+ kioskStockStatus,
+ POS_ROTI_MENU_CATEGORIES,
+ POS_MENU_STOCK_CODES,
+ POS_SUPPLEMENT_STOCK,
+ toKioskStockDisplay,
+ type KioskStockDisplayMode,
+ type KioskStockRowConfig,
+ type PosRotiMenuCategory,
 } from '@/lib/pos/utils';
 import { getStockByCode, resolvePackQuantity } from '@/lib/stock/catalog';
-import type { MenuStockBalance, ProductStockInfo, StockStatus } from '@/lib/pos/types';
+import type { MenuStockBalance, PosShiftStockCheckType, ProductStockInfo, StockStatus } from '@/lib/pos/types';
 
 function stockStatus(qty: number): StockStatus {
-  if (qty <= 0) return 'OUT';
-  if (qty <= 5) return 'LOW';
-  return 'OK';
+ if (qty <= 0) return 'OUT';
+ if (qty <= 5) return 'LOW';
+ return 'OK';
 }
 
 type StockItemRow = {
-  id: string;
-  item_code: string;
-  name: string;
-  base_unit: string;
-  pack_quantity: number | null;
+ id: string;
+ item_code: string;
+ name: string;
+ base_unit: string;
+ pack_quantity: number | null;
 };
 
-function buildBalanceRow(
-  config: KioskStockRowConfig & { name: string },
-  quantity: number,
-  balanceUnit: string,
-  packQuantity: number | null,
-  group: 'menu' | 'supplement'
-): MenuStockBalance {
-  const {
-    displayQuantity,
-    displayUnit,
-    statusValue,
-    displayBags,
-    displayRemainderPcs,
-    packQuantity: resolvedPackQty,
-  } = toKioskStockDisplay(
-    quantity,
-    balanceUnit,
-    config.display,
-    packQuantity,
-    config.itemCode
-  );
+type PendingPosStockCount = {
+ countId: string;
+ countNumber: string;
+ checkType: PosShiftStockCheckType | null;
+ createdAt: string;
+ itemsByCode: Record<
+ string,
+ {
+ stockItemId: string;
+ itemCode: string;
+ itemName: string;
+ quantity: number;
+ unit: string;
+ }
+ >;
+};
 
-  return {
-    key: config.key,
-    label: config.label,
-    itemCode: config.itemCode,
-    name: config.name,
-    quantity,
-    unit: balanceUnit,
-    displayQuantity,
-    displayUnit,
-    displayBags,
-    displayRemainderPcs,
-    packQuantity: resolvedPackQty,
-    status: kioskStockStatus(statusValue, config.display),
-    group,
-  };
+function parsePosCheckType(notes?: string | null): PosShiftStockCheckType | null {
+ const match = String(notes ?? '').match(/^POS_(OPENING|MID_SHIFT|CLOSE_SHIFT)\b/);
+ return (match?.[1] as PosShiftStockCheckType | undefined) ?? null;
+}
+
+function displayModeFromBalance(row: MenuStockBalance): KioskStockDisplayMode {
+ if (
+ row.displayUnit === 'pcs' ||
+ row.displayUnit === 'bag' ||
+ row.displayUnit === 'tong' ||
+ row.displayUnit === 'bag_pcs'
+ ) {
+ return row.displayUnit;
+ }
+ return 'pcs';
+}
+
+export function attachPendingPosStockCount(
+ row: MenuStockBalance,
+ pendingCount: PendingPosStockCount | null): MenuStockBalance {
+ const pendingItem = pendingCount?.itemsByCode[row.itemCode];
+ if (!pendingCount || !pendingItem) return row;
+
+ const pendingDisplay = toKioskStockDisplay(
+ pendingItem.quantity,
+ pendingItem.unit,
+ displayModeFromBalance(row),
+ row.packQuantity,
+ row.itemCode);
+
+ return {
+ ...row,
+ pendingCount: {
+ countId: pendingCount.countId,
+ countNumber: pendingCount.countNumber,
+ checkType: pendingCount.checkType,
+ createdAt: pendingCount.createdAt,
+ quantity: pendingItem.quantity,
+ unit: pendingItem.unit,
+ displayQuantity: pendingDisplay.displayQuantity,
+ displayUnit: pendingDisplay.displayUnit,
+ displayBags: pendingDisplay.displayBags,
+ displayRemainderPcs: pendingDisplay.displayRemainderPcs,
+ packQuantity: pendingDisplay.packQuantity,
+ },
+ };
+}
+
+function buildBalanceRow(
+ config: KioskStockRowConfig & { name: string },
+ quantity: number,
+ balanceUnit: string,
+ packQuantity: number | null,
+ group: 'menu' | 'supplement'): MenuStockBalance {
+ const {
+ displayQuantity,
+ displayUnit,
+ statusValue,
+ displayBags,
+ displayRemainderPcs,
+ packQuantity: resolvedPackQty,
+ } = toKioskStockDisplay(
+ quantity,
+ balanceUnit,
+ config.display,
+ packQuantity,
+ config.itemCode);
+
+ return {
+ key: config.key,
+ label: config.label,
+ itemCode: config.itemCode,
+ name: config.name,
+ quantity,
+ unit: balanceUnit,
+ displayQuantity,
+ displayUnit,
+ displayBags,
+ displayRemainderPcs,
+ packQuantity: resolvedPackQty,
+ status: kioskStockStatus(statusValue, config.display),
+ group,
+ };
 }
 
 async function fetchBalancesForCodes(
-  supabase: SupabaseClient,
-  locationId: string,
-  configs: KioskStockRowConfig[],
-  group: 'menu' | 'supplement'
-): Promise<MenuStockBalance[]> {
-  const codes = configs.map((c) => c.itemCode);
-  if (!codes.length) return [];
+ supabase: SupabaseClient,
+ locationId: string,
+ configs: KioskStockRowConfig[],
+ group: 'menu' | 'supplement'): Promise<MenuStockBalance[]> {
+ const codes = configs.map((c) => c.itemCode);
+ if (!codes.length) return [];
 
-  const { data: items } = await supabase
-    .from('stock_items')
-    .select('id, item_code, name, base_unit, pack_quantity')
-    .in('item_code', codes);
+ const { data: items } = await supabase.from('stock_items').select('id, item_code, name, base_unit, pack_quantity').in('item_code', codes);
 
-  if (!items?.length) return [];
+ if (!items?.length) return [];
 
-  const itemByCode = new Map(
-    (items as StockItemRow[]).map((i) => [i.item_code, i])
-  );
+ const itemByCode = new Map(
+ (items as StockItemRow[]).map((i) => [i.item_code, i]));
 
-  const { data: balances } = await supabase
-    .from('inventory_balances')
-    .select('stock_item_id, quantity, unit')
-    .eq('location_id', locationId)
-    .in(
-      'stock_item_id',
-      items.map((i) => i.id)
-    );
+ const { data: balances } = await supabase.from('inventory_balances').select('stock_item_id, quantity, unit').eq('location_id', locationId).in(
+ 'stock_item_id',
+ items.map((i) => i.id));
 
-  const balanceByItemId = new Map(
-    (balances ?? []).map((b) => [
-      b.stock_item_id,
-      { quantity: Number(b.quantity), unit: b.unit as string },
-    ])
-  );
+ const balanceByItemId = new Map(
+ (balances ?? []).map((b) => [
+ b.stock_item_id,
+ { quantity: Number(b.quantity), unit: b.unit as string },
+ ]));
 
-  return configs.flatMap((config) => {
-    const item = itemByCode.get(config.itemCode);
-    if (!item) return [];
+ return configs.flatMap((config) => {
+ const item = itemByCode.get(config.itemCode);
+ if (!item) return [];
 
-    const balance = balanceByItemId.get(item.id);
-    const quantity = balance?.quantity ?? 0;
-    const unit = balance?.unit ?? item.base_unit ?? 'pcs';
-    const resolvedPack = resolvePackQuantity(item.item_code, {
-      pack_quantity: item.pack_quantity,
-    });
+ const balance = balanceByItemId.get(item.id);
+ const quantity = balance?.quantity ?? 0;
+ const unit = balance?.unit ?? item.base_unit ?? 'pcs';
+ const resolvedPack = resolvePackQuantity(item.item_code, {
+ pack_quantity: item.pack_quantity,
+ });
 
-    return [
-      buildBalanceRow(
-        { ...config, name: item.name },
-        quantity,
-        unit,
-        resolvedPack ?? item.pack_quantity ?? config.packQuantity ?? null,
-        group
-      ),
-    ];
-  });
+ return [
+ buildBalanceRow(
+ {...config, name: item.name },
+ quantity,
+ unit,
+ resolvedPack ?? item.pack_quantity ?? config.packQuantity ?? null,
+ group),
+ ];
+ });
 }
 
 export async function getKioskLocationId(
-  supabase: SupabaseClient,
-  branchId: string
-): Promise<string | null> {
-  const { data } = await supabase
-    .from('inventory_locations')
-    .select('id')
-    .eq('branch_id', branchId)
-    .eq('location_type', 'BRANCH_KIOSK')
-    .limit(1)
-    .maybeSingle();
-  return data?.id ?? null;
+ supabase: SupabaseClient,
+ branchId: string): Promise<string | null> {
+ const { data } = await supabase.from('inventory_locations').select('id').eq('branch_id', branchId).eq('location_type', 'BRANCH_KIOSK').limit(1).maybeSingle();
+ return data?.id ?? null;
 }
 
 export async function fetchMenuStockBalances(
-  supabase: SupabaseClient,
-  locationId: string
-): Promise<Record<string, MenuStockBalance>> {
-  const menuConfigs: KioskStockRowConfig[] = POS_ROTI_MENU_CATEGORIES.map((menu) => {
-    const code = POS_MENU_STOCK_CODES[menu as PosRotiMenuCategory];
-    const def = getStockByCode(code);
-    return {
-      key: menu,
-      itemCode: code,
-      label: def?.pos_label ?? menu,
-      display: (def?.pos_display ?? 'bag_pcs') as KioskStockRowConfig['display'],
-      packQuantity: def?.pack_quantity,
-    };
-  });
+ supabase: SupabaseClient,
+ locationId: string): Promise<Record<string, MenuStockBalance>> {
+ const menuConfigs: KioskStockRowConfig[] = POS_ROTI_MENU_CATEGORIES.map((menu) => {
+ const code = POS_MENU_STOCK_CODES[menu as PosRotiMenuCategory];
+ const def = getStockByCode(code);
+ return {
+ key: menu,
+ itemCode: code,
+ label: def?.pos_label ?? menu,
+ display: (def?.pos_display ?? 'bag_pcs') as KioskStockRowConfig['display'],
+ packQuantity: def?.pack_quantity,
+ };
+ });
 
-  const rows = await fetchBalancesForCodes(
-    supabase,
-    locationId,
-    menuConfigs,
-    'menu'
-  );
+ const rows = await fetchBalancesForCodes(
+ supabase,
+ locationId,
+ menuConfigs,
+ 'menu');
 
-  return Object.fromEntries(rows.map((row) => [row.key, row]));
+ return Object.fromEntries(rows.map((row) => [row.key, row]));
 }
 
 export async function fetchSupplementStockBalances(
-  supabase: SupabaseClient,
-  locationId: string
-): Promise<MenuStockBalance[]> {
-  return fetchBalancesForCodes(
-    supabase,
-    locationId,
-    POS_SUPPLEMENT_STOCK,
-    'supplement'
-  );
+ supabase: SupabaseClient,
+ locationId: string): Promise<MenuStockBalance[]> {
+ return fetchBalancesForCodes(
+ supabase,
+ locationId,
+ POS_SUPPLEMENT_STOCK,
+ 'supplement');
+}
+
+export async function fetchLatestPendingPosStockCount(
+ supabase: SupabaseClient,
+ locationId: string): Promise<PendingPosStockCount | null> {
+ const { data: count, error: countError } = await supabase
+ .from('stock_counts')
+ .select('id, count_number, notes, created_at')
+ .eq('location_id', locationId)
+ .eq('status', 'PENDING')
+ .like('notes', 'POS_%')
+ .order('created_at', { ascending: false })
+ .limit(1)
+ .maybeSingle();
+
+ if (countError) throw new Error(countError.message);
+ if (!count) return null;
+
+ const { data: items, error: itemsError } = await supabase
+ .from('stock_count_items')
+ .select(`
+ stock_item_id,
+ counted_quantity,
+ unit,
+ stock_item:stock_items(item_code, name, base_unit)
+ `)
+ .eq('count_id', count.id);
+
+ if (itemsError) throw new Error(itemsError.message);
+
+ const itemsByCode: PendingPosStockCount['itemsByCode'] = {};
+
+ (items ?? []).forEach((row: any) => {
+ const stockItem = Array.isArray(row.stock_item) ? row.stock_item[0] : row.stock_item;
+ const itemCode = String(stockItem?.item_code ?? '').trim().toUpperCase();
+ if (!itemCode) return;
+
+ const quantity = Number(row.counted_quantity ?? 0);
+ itemsByCode[itemCode] = {
+ stockItemId: String(row.stock_item_id ?? ''),
+ itemCode,
+ itemName: String(stockItem?.name ?? itemCode),
+ quantity: Number.isFinite(quantity) ? quantity : 0,
+ unit: String(row.unit ?? stockItem?.base_unit ?? 'PCS'),
+ };
+ });
+
+ if (!Object.keys(itemsByCode).length) return null;
+
+ return {
+ countId: String(count.id),
+ countNumber: String(count.count_number ?? 'Kiraan stok pending'),
+ checkType: parsePosCheckType(count.notes),
+ createdAt: String(count.created_at),
+ itemsByCode,
+ };
 }
 
 export async function computeProductAvailability(
-  supabase: SupabaseClient,
-  orgId: string,
-  locationId: string
-): Promise<Record<string, ProductStockInfo>> {
-  const { data: products } = await supabase
-    .from('products')
-    .select('id')
-    .eq('organization_id', orgId)
-    .eq('status', 'ACTIVE');
+ supabase: SupabaseClient,
+ orgId: string,
+ locationId: string): Promise<Record<string, ProductStockInfo>> {
+ const { data: products } = await supabase.from('products').select('id').eq('organization_id', orgId).eq('status', 'ACTIVE');
 
-  if (!products?.length) return {};
+ if (!products?.length) return {};
 
-  const productIds = products.map((p) => p.id);
+ const productIds = products.map((p) => p.id);
 
-  const { data: bomRows } = await supabase
-    .from('product_bom')
-    .select('product_id, stock_item_id, quantity')
-    .in('product_id', productIds)
-    .eq('auto_deduct', true);
+ const { data: bomRows } = await supabase.from('product_bom').select('product_id, stock_item_id, quantity').in('product_id', productIds).eq('auto_deduct', true);
 
-  if (!bomRows?.length) return {};
+ if (!bomRows?.length) return {};
 
-  const stockItemIds = [...new Set(bomRows.map((b) => b.stock_item_id))];
+ const stockItemIds = [...new Set(bomRows.map((b) => b.stock_item_id))];
 
-  const { data: balances } = await supabase
-    .from('inventory_balances')
-    .select('stock_item_id, quantity')
-    .eq('location_id', locationId)
-    .in('stock_item_id', stockItemIds);
+ const { data: balances } = await supabase.from('inventory_balances').select('stock_item_id, quantity').eq('location_id', locationId).in('stock_item_id', stockItemIds);
 
-  const balanceByItem = new Map(
-    (balances ?? []).map((b) => [b.stock_item_id, Number(b.quantity)])
-  );
+ const balanceByItem = new Map(
+ (balances ?? []).map((b) => [b.stock_item_id, Number(b.quantity)]));
 
-  const bomByProduct = new Map<
-    string,
-    Array<{ stock_item_id: string; quantity: number }>
-  >();
-  for (const row of bomRows) {
-    const list = bomByProduct.get(row.product_id) ?? [];
-    list.push({
-      stock_item_id: row.stock_item_id,
-      quantity: Number(row.quantity),
-    });
-    bomByProduct.set(row.product_id, list);
-  }
+ const bomByProduct = new Map<
+ string,
+ Array<{ stock_item_id: string; quantity: number }>
+ >();
+ for (const row of bomRows) {
+ const list = bomByProduct.get(row.product_id) ?? [];
+ list.push({
+ stock_item_id: row.stock_item_id,
+ quantity: Number(row.quantity),
+ });
+ bomByProduct.set(row.product_id, list);
+ }
 
-  const result: Record<string, ProductStockInfo> = {};
+ const result: Record<string, ProductStockInfo> = {};
 
-  for (const product of products) {
-    const lines = bomByProduct.get(product.id);
-    if (!lines?.length) continue;
+ for (const product of products) {
+ const lines = bomByProduct.get(product.id);
+ if (!lines?.length) continue;
 
-    let productMax: number | null = null;
+ let productMax: number | null = null;
 
-    for (const line of lines) {
-      if (line.quantity <= 0) continue;
-      const balance = balanceByItem.get(line.stock_item_id) ?? 0;
-      const max = Math.floor(balance / line.quantity);
-      productMax = productMax === null ? max : Math.min(productMax, max);
-    }
+ for (const line of lines) {
+ if (line.quantity <= 0) continue;
+ const balance = balanceByItem.get(line.stock_item_id) ?? 0;
+ const max = Math.floor(balance / line.quantity);
+ productMax = productMax === null ? max : Math.min(productMax, max);
+ }
 
-    if (productMax !== null) {
-      result[product.id] = {
-        available: productMax,
-        status: stockStatus(productMax),
-      };
-    }
-  }
+ if (productMax !== null) {
+ result[product.id] = {
+ available: productMax,
+ status: stockStatus(productMax),
+ };
+ }
+ }
 
-  return result;
+ return result;
 }

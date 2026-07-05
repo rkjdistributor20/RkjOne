@@ -1,4 +1,4 @@
-/** Nama modul fleet dalam UI — ditukar dari "Armada" */
+/** Nama modul fleet dalam UI - ditukar dari "Armada" */
 export const LOGISTIK_LABEL = 'Logistik';
 
 export const LOGISTIK_MODULE_TITLE = 'Pengurusan Logistik';

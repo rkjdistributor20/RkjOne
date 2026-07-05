@@ -1,4 +1,4 @@
-# RKJ One — Deployment Guide
+# RKJ One - Deployment Guide
 
 Production deployment for Roti Kaya Junus ERP on **Supabase** + **Vercel**.
 
@@ -28,7 +28,7 @@ supabase link --project-ref YOUR_PROJECT_REF
 supabase db push
 ```
 
-**Windows — automated go-live script:**
+**Windows - automated go-live script:**
 
 ```powershell
 .\scripts\go-live.ps1 -ProjectRef YOUR_PROJECT_REF
@@ -36,11 +36,11 @@ supabase db push
 
 **If `db push` fails** (remote/local history mismatch):
 
-1. Ensure `00001`–`00018` are already applied.
-2. Supabase Dashboard → SQL Editor → run `docs/sql/00019_00030_manual_bundle.sql`
+1. Ensure `00001`-`00018` are already applied.
+2. Supabase Dashboard ke SQL Editor ke run `docs/sql/00019_00030_manual_bundle.sql`
 3. Regenerate bundle anytime: `npm run bundle:migrations`
 
-**Migration index (00019–00030):**
+**Migration index (00019-00030):**
 
 | File | Purpose |
 |------|---------|
@@ -49,10 +49,10 @@ supabase db push
 | 00021 | Opening stock HQ + kiosks |
 | 00022 | Missing staff profiles |
 | 00023 | POS stock validation RPC |
-| 00024 | Benggali → Roti Benggali category |
+| 00024 | Benggali ke Roti Benggali category |
 | 00025 | Regions RLS read (profile fix) |
 | 00026 | Product prices |
-| 00027–00028 | Roti Kaya stock + BOM |
+| 00027-00028 | Roti Kaya stock + BOM |
 | 00029 | Kelapa/Kacang/Benggali stock + BOM |
 | 00030 | Four POS menus only |
 
@@ -73,7 +73,7 @@ npm run verify:go-live
 
 ### Auth configuration
 
-In Supabase Dashboard → **Authentication** → **Settings**:
+In Supabase Dashboard ke **Authentication** ke **Settings**:
 
 | Setting | Value |
 |---------|-------|
@@ -89,17 +89,17 @@ cp .env.example .env.local
 npm run seed:users
 ```
 
-Default password: `RkjOne@2025` — users must change on first login.  
+Default password: `[REDACTED_TEMP_PASSWORD]` - users must change on first login. 
 Full list: `csv_import/login_users_generated.csv`
 
 HQ users can also be updated manually:
 
 ```sql
 UPDATE profiles SET
-  role = 'SUPER_ADMIN',
-  employee_code = 'U001',
-  full_name = 'Mat Isa',
-  must_change_password = true
+ role = 'SUPER_ADMIN',
+ employee_code = 'U001',
+ full_name = 'Mat Isa',
+ must_change_password = true
 WHERE email = 'matisa@rkj.com';
 ```
 
@@ -137,7 +137,7 @@ npm install
 npm run build
 ```
 
-Connect GitHub repo to Vercel — **Root Directory** is the repo root (`.`).
+Connect GitHub repo to Vercel - **Root Directory** is the repo root (`.`).
 
 Or CLI:
 
@@ -147,12 +147,12 @@ npx vercel --prod
 
 ## 3. Post-Deploy Checklist
 
-- [ ] Migrations 00001–00030 applied
+- [ ] Migrations 00001-00030 applied
 - [ ] `npm run verify:go-live` passes
 - [ ] Seed users created (`npm run seed:users`)
 - [ ] Super Admin login works (`matisa@rkj.com`)
 - [ ] POS: 4 menus, prices, stock bar visible
-- [ ] Fleet delivery → kiosk stock → POS sale flow tested
+- [ ] Fleet delivery ke kiosk stock ke POS sale flow tested
 - [ ] RLS tested per role
 - [ ] Pilot 3 branches before full rollout (see GO_LIVE_CHECKLIST.md)
 

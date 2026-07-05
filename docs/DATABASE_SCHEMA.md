@@ -1,4 +1,4 @@
-# RKJ One — Database Schema
+# RKJ One - Database Schema
 
 Production PostgreSQL schema for Supabase. Multi-tenant via `organization_id` on all business tables.
 
@@ -11,10 +11,10 @@ organizations
 ├── profiles (auth.users extension)
 ├── staff, drivers, vehicles
 ├── products, stock_items, product_bom
-├── inventory_locations → inventory_balances → stock_movements
-├── pos_shifts → pos_transactions → pos_payments
-├── staff_shifts → attendance_records
-├── stock_transfers → transfer_legs (Factory→HQ→Vehicle→Branch)
+├── inventory_locations ke inventory_balances ke stock_movements
+├── pos_shifts ke pos_transactions ke pos_payments
+├── staff_shifts ke attendance_records
+├── stock_transfers ke transfer_legs (Factory ke HQ ke Vehicle ke Branch)
 ├── payroll_rules, commission_tiers, payroll_runs
 ├── finance_collections, bank_in_records
 ├── approval_requests, notifications
@@ -75,7 +75,7 @@ Extends `auth.users` with role, org, region/branch scope, employee link.
 
 ## Migration Order
 
-Apply **in numeric order** (`00001` → `00018`). See [supabase/README.md](../supabase/README.md) for full index.
+Apply **in numeric order** (`00001` ke `00018`). See [supabase/README.md](../supabase/README.md) for full index.
 
 | # | File | Summary |
 |---|------|---------|

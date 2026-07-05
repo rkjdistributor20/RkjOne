@@ -72,7 +72,7 @@ STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT organization_id FROM profiles WHERE id = auth.uid()
+ SELECT organization_id FROM profiles WHERE id = auth.uid()
 $$;
 
 CREATE OR REPLACE FUNCTION public.user_role()
@@ -82,7 +82,7 @@ STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT role FROM profiles WHERE id = auth.uid()
+ SELECT role FROM profiles WHERE id = auth.uid()
 $$;
 
 CREATE OR REPLACE FUNCTION public.user_region_id()
@@ -92,7 +92,7 @@ STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT region_id FROM profiles WHERE id = auth.uid()
+ SELECT region_id FROM profiles WHERE id = auth.uid()
 $$;
 
 CREATE OR REPLACE FUNCTION public.user_branch_id()
@@ -102,7 +102,7 @@ STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT branch_id FROM profiles WHERE id = auth.uid()
+ SELECT branch_id FROM profiles WHERE id = auth.uid()
 $$;
 
 CREATE OR REPLACE FUNCTION public.is_admin()
@@ -112,11 +112,11 @@ STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM profiles
-    WHERE id = auth.uid()
-    AND role IN ('SUPER_ADMIN', 'ADMIN')
-  )
+ SELECT EXISTS (
+ SELECT 1 FROM profiles
+ WHERE id = auth.uid()
+ AND role IN ('SUPER_ADMIN', 'ADMIN')
+ )
 $$;
 
 CREATE OR REPLACE FUNCTION public.has_branch_access(p_branch_id UUID)
@@ -126,25 +126,25 @@ STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM profiles p
-    WHERE p.id = auth.uid()
-    AND (
-      p.role IN ('SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER', 'HR', 'FINANCE', 'CEO_FACTORY')
-      OR p.branch_id = p_branch_id
-      OR EXISTS (
-        SELECT 1 FROM profile_branch_access pba
-        WHERE pba.profile_id = p.id AND pba.branch_id = p_branch_id
-      )
-      OR (
-        p.role = 'AREA_MANAGER'
-        AND EXISTS (
-          SELECT 1 FROM branches b
-          WHERE b.id = p_branch_id AND b.region_id = p.region_id
-        )
-      )
-    )
-  )
+ SELECT EXISTS (
+ SELECT 1 FROM profiles p
+ WHERE p.id = auth.uid()
+ AND (
+ p.role IN ('SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER', 'HR', 'FINANCE', 'CEO_FACTORY')
+ OR p.branch_id = p_branch_id
+ OR EXISTS (
+ SELECT 1 FROM profile_branch_access pba
+ WHERE pba.profile_id = p.id AND pba.branch_id = p_branch_id
+ )
+ OR (
+ p.role = 'AREA_MANAGER'
+ AND EXISTS (
+ SELECT 1 FROM branches b
+ WHERE b.id = p_branch_id AND b.region_id = p.region_id
+ )
+ )
+ )
+ )
 $$;
 
 -- ============================================================
@@ -152,124 +152,124 @@ $$;
 -- ============================================================
 
 CREATE POLICY profiles_select ON profiles
-  FOR SELECT USING (
-    id = auth.uid()
-    OR (organization_id = public.organization_id() AND public.is_admin())
-  );
+ FOR SELECT USING (
+ id = auth.uid()
+ OR (organization_id = public.organization_id() AND public.is_admin())
+ );
 
 CREATE POLICY profiles_update_own ON profiles
-  FOR UPDATE USING (id = auth.uid())
-  WITH CHECK (id = auth.uid());
+ FOR UPDATE USING (id = auth.uid())
+ WITH CHECK (id = auth.uid());
 
 CREATE POLICY profiles_admin_all ON profiles
-  FOR ALL USING (
-    organization_id = public.organization_id() AND public.is_admin()
-  );
+ FOR ALL USING (
+ organization_id = public.organization_id() AND public.is_admin()
+ );
 
 -- ============================================================
 -- GENERIC ORG-SCOPED READ for master data
 -- ============================================================
 
 CREATE POLICY org_read_branches ON branches
-  FOR SELECT USING (organization_id = public.organization_id());
+ FOR SELECT USING (organization_id = public.organization_id());
 
 CREATE POLICY org_read_products ON products
-  FOR SELECT USING (organization_id = public.organization_id());
+ FOR SELECT USING (organization_id = public.organization_id());
 
 CREATE POLICY org_read_stock_items ON stock_items
-  FOR SELECT USING (organization_id = public.organization_id());
+ FOR SELECT USING (organization_id = public.organization_id());
 
 CREATE POLICY org_admin_products ON products
-  FOR ALL USING (
-    organization_id = public.organization_id()
-    AND public.user_role() IN ('SUPER_ADMIN', 'ADMIN')
-  );
+ FOR ALL USING (
+ organization_id = public.organization_id()
+ AND public.user_role() IN ('SUPER_ADMIN', 'ADMIN')
+ );
 
 CREATE POLICY org_admin_stock_items ON stock_items
-  FOR ALL USING (
-    organization_id = public.organization_id()
-    AND public.user_role() IN ('SUPER_ADMIN', 'ADMIN', 'CEO_FACTORY')
-  );
+ FOR ALL USING (
+ organization_id = public.organization_id()
+ AND public.user_role() IN ('SUPER_ADMIN', 'ADMIN', 'CEO_FACTORY')
+ );
 
 -- ============================================================
 -- POS: branch-scoped access
 -- ============================================================
 
 CREATE POLICY pos_shifts_branch ON pos_shifts
-  FOR ALL USING (
-    organization_id = public.organization_id()
-    AND public.has_branch_access(branch_id)
-  );
+ FOR ALL USING (
+ organization_id = public.organization_id()
+ AND public.has_branch_access(branch_id)
+ );
 
 CREATE POLICY pos_transactions_branch ON pos_transactions
-  FOR ALL USING (
-    organization_id = public.organization_id()
-    AND public.has_branch_access(branch_id)
-  );
+ FOR ALL USING (
+ organization_id = public.organization_id()
+ AND public.has_branch_access(branch_id)
+ );
 
 CREATE POLICY pos_tx_items_via_tx ON pos_transaction_items
-  FOR ALL USING (
-    EXISTS (
-      SELECT 1 FROM pos_transactions t
-      WHERE t.id = transaction_id
-      AND t.organization_id = public.organization_id()
-      AND public.has_branch_access(t.branch_id)
-    )
-  );
+ FOR ALL USING (
+ EXISTS (
+ SELECT 1 FROM pos_transactions t
+ WHERE t.id = transaction_id
+ AND t.organization_id = public.organization_id()
+ AND public.has_branch_access(t.branch_id)
+ )
+ );
 
 -- ============================================================
 -- NOTIFICATIONS: own only
 -- ============================================================
 
 CREATE POLICY notifications_own ON notifications
-  FOR ALL USING (recipient_id = auth.uid());
+ FOR ALL USING (recipient_id = auth.uid());
 
 -- ============================================================
 -- APPROVALS: assigned or admin
 -- ============================================================
 
 CREATE POLICY approvals_access ON approval_requests
-  FOR SELECT USING (
-    organization_id = public.organization_id()
-    AND (
-      public.is_admin()
-      OR requested_by = auth.uid()
-      OR assigned_to = auth.uid()
-      OR (branch_id IS NOT NULL AND public.has_branch_access(branch_id))
-    )
-  );
+ FOR SELECT USING (
+ organization_id = public.organization_id()
+ AND (
+ public.is_admin()
+ OR requested_by = auth.uid()
+ OR assigned_to = auth.uid()
+ OR (branch_id IS NOT NULL AND public.has_branch_access(branch_id))
+ )
+ );
 
 -- ============================================================
 -- INVENTORY: org scoped with role checks via API layer
 -- ============================================================
 
 CREATE POLICY inventory_org ON inventory_locations
-  FOR SELECT USING (organization_id = public.organization_id());
+ FOR SELECT USING (organization_id = public.organization_id());
 
 CREATE POLICY inventory_balances_org ON inventory_balances
-  FOR SELECT USING (organization_id = public.organization_id());
+ FOR SELECT USING (organization_id = public.organization_id());
 
 CREATE POLICY stock_movements_org ON stock_movements
-  FOR SELECT USING (organization_id = public.organization_id());
+ FOR SELECT USING (organization_id = public.organization_id());
 
 -- ============================================================
 -- DELIVERY: drivers see own deliveries
 -- ============================================================
 
 CREATE POLICY delivery_legs_driver ON delivery_legs
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM delivery_orders d
-      JOIN drivers dr ON dr.id = delivery_legs.driver_id
-      WHERE d.id = delivery_order_id
-      AND d.organization_id = public.organization_id()
-      AND (
-        public.is_admin()
-        OR dr.profile_id = auth.uid()
-        OR public.user_role() = 'OPERATION_MANAGER'
-      )
-    )
-  );
+ FOR SELECT USING (
+ EXISTS (
+ SELECT 1 FROM delivery_orders d
+ JOIN drivers dr ON dr.id = delivery_legs.driver_id
+ WHERE d.id = delivery_order_id
+ AND d.organization_id = public.organization_id()
+ AND (
+ public.is_admin()
+ OR dr.profile_id = auth.uid()
+ OR public.user_role() = 'OPERATION_MANAGER'
+ )
+ )
+ );
 
 -- Service role bypass (for API routes using service key)
 -- Note: service_role key bypasses RLS by default in Supabase

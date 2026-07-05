@@ -1,14 +1,14 @@
 Code,Email,Nama,Role,Cawangan/Kawasan,Kata Laluan Default,Nota
-U001,matisa@rkj.com,Mat Isa,SUPER_ADMIN,Semua,RkjOne@2025,HQ
-U002,norashikin@rkj.com,Norashikin,ADMIN,Semua,RkjOne@2025,HQ
-U003,mohdali@rkj.com,Mohd Ali,HR,Semua,RkjOne@2025,HQ
-U004,ibrahim@rkj.com,Ibrahim,OPERATION_MANAGER,Semua,RkjOne@2025,HQ
-U005,muhammad@rkj.com,Muhammad,CEO_FACTORY,Semua,RkjOne@2025,HQ
-U006,safuan@rkj.com,Safuan,AREA_MANAGER,Semua,RkjOne@2025,HQ
-U007,hakim@rkj.com,Hakim,AREA_MANAGER,Semua,RkjOne@2025,HQ
-U008,yati@rkj.com,Yati,AREA_MANAGER,Semua,RkjOne@2025,HQ
-D001,d001@rkj.com,Samad,DRIVER,HQ→Kiosk,RkjOne@2025,Pemandu
-D002,d002@rkj.com,Anuar,DRIVER,HQ→Kiosk,RkjOne@2025,Pemandu
-D003,d003@rkj.com,Farid,DRIVER,HQ→Kiosk,RkjOne@2025,Pemandu
-D004,d004@rkj.com,Fazil,DRIVER,HQ→Kiosk,RkjOne@2025,Pemandu
-D005,d005@rkj.com,Ridhuan,DRIVER,HQ→Kiosk,RkjOne@2025,Pemandu
+U001,matisa@rkj.com,Mat Isa,SUPER_ADMIN,Semua,[REDACTED_TEMP_PASSWORD],HQ
+U002,norashikin@rkj.com,Norashikin,ADMIN,Semua,[REDACTED_TEMP_PASSWORD],HQ
+U003,mohdali@rkj.com,Mohd Ali,HR,Semua,[REDACTED_TEMP_PASSWORD],HQ
+U004,ibrahim@rkj.com,Ibrahim,OPERATION_MANAGER,Semua,[REDACTED_TEMP_PASSWORD],HQ
+U005,muhammad@rkj.com,Muhammad,CEO_FACTORY,Semua,[REDACTED_TEMP_PASSWORD],HQ
+U006,safuan@rkj.com,Safuan,AREA_MANAGER,Semua,[REDACTED_TEMP_PASSWORD],HQ
+U007,hakim@rkj.com,Hakim,AREA_MANAGER,Semua,[REDACTED_TEMP_PASSWORD],HQ
+U008,yati@rkj.com,Yati,AREA_MANAGER,Semua,[REDACTED_TEMP_PASSWORD],HQ
+D001,d001@rkj.com,Samad,DRIVER,HQ→Kiosk,[REDACTED_TEMP_PASSWORD],Pemandu
+D002,d002@rkj.com,Anuar,DRIVER,HQ→Kiosk,[REDACTED_TEMP_PASSWORD],Pemandu
+D003,d003@rkj.com,Farid,DRIVER,HQ→Kiosk,[REDACTED_TEMP_PASSWORD],Pemandu
+D004,d004@rkj.com,Fazil,DRIVER,HQ→Kiosk,[REDACTED_TEMP_PASSWORD],Pemandu
+D005,d005@rkj.com,Ridhuan,DRIVER,HQ→Kiosk,[REDACTED_TEMP_PASSWORD],Pemandu

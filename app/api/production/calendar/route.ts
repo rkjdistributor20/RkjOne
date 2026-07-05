@@ -4,63 +4,58 @@ import { getCurrentProfile } from '@/lib/auth/session';
 import { inventoryRpc } from '@/lib/supabase/inventory-rpc';
 
 function parseRpcJsonArray(data: unknown): Record<string, unknown>[] {
-  if (Array.isArray(data)) return data as Record<string, unknown>[];
-  if (typeof data === 'string') {
-    try {
-      const parsed = JSON.parse(data) as unknown;
-      return Array.isArray(parsed) ? (parsed as Record<string, unknown>[]) : [];
-    } catch {
-      return [];
-    }
-  }
-  return [];
+ if (Array.isArray(data)) return data as Record<string, unknown>[];
+ if (typeof data === 'string') {
+ try {
+ const parsed = JSON.parse(data) as unknown;
+ return Array.isArray(parsed) ? (parsed as Record<string, unknown>[]) : [];
+ } catch {
+ return [];
+ }
+ }
+ return [];
 }
 
 export async function GET(request: Request) {
-  const profile = await getCurrentProfile();
-  if (!profile) {
-    return NextResponse.json({ error: 'Tidak dibenarkan' }, { status: 401 });
-  }
+ const profile = await getCurrentProfile();
+ if (!profile) {
+ return NextResponse.json({ error: 'Tidak dibenarkan' }, { status: 401 });
+ }
 
-  const { searchParams } = new URL(request.url);
-  const from =
-    searchParams.get('from') ??
-    new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-  const to =
-    searchParams.get('to') ??
-    new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10);
+ const { searchParams } = new URL(request.url);
+ const from =
+ searchParams.get('from') ??
+ new Date(Date.now() ?? 86400000).toISOString().slice(0, 10);
+ const to =
+ searchParams.get('to') ??
+ new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10);
 
-  const supabase = await createClient();
+ const supabase = await createClient();
 
-  // Tutup window expired (write) — jangan panggil dari STABLE read function
-  await inventoryRpc(supabase, 'close_expired_production_order_windows', {});
+ // Tutup window expired (write) - jangan panggil dari STABLE read function
+ await inventoryRpc(supabase, 'close_expired_production_order_windows', {});
 
-  const { data, error } = await inventoryRpc(supabase, 'get_published_production_dates', {
-    p_from: from,
-    p_to: to,
-  });
+ const { data, error } = await inventoryRpc(supabase, 'get_published_production_dates', {
+ p_from: from,
+ p_to: to,
+ });
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+ if (error) {
+ return NextResponse.json({ error: error.message }, { status: 500 });
+ }
 
-  const dates = parseRpcJsonArray(data);
-  if (dates.length === 0) {
-    const { data: weeks } = await supabase
-      .from('factory_production_weeks' as 'products')
-      .select('id, status')
-      .eq('organization_id', profile.organization_id)
-      .eq('status', 'PUBLISHED')
-      .limit(1);
-    if ((weeks ?? []).length > 0) {
-      console.error('[production/calendar] RPC returned empty but published weeks exist', {
-        org: profile.organization_id,
-        from,
-        to,
-        rpcData: data,
-      });
-    }
-  }
+ const dates = parseRpcJsonArray(data);
+ if (dates.length === 0) {
+ const { data: weeks } = await supabase.from('factory_production_weeks' as 'products').select('id, status').eq('organization_id', profile.organization_id).eq('status', 'PUBLISHED').limit(1);
+ if ((weeks ?? []).length > 0) {
+ console.error('[production/calendar] RPC returned empty but published weeks exist', {
+ org: profile.organization_id,
+ from,
+ to,
+ rpcData: data,
+ });
+ }
+ }
 
-  return NextResponse.json({ dates });
+ return NextResponse.json({ dates });
 }

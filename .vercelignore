@@ -1,0 +1,9 @@
+android/
+ios/
+outputs/
+.next/
+.vercel/output/
+node_modules/
+*.aab
+*.apk
+*.ipa

@@ -1,11 +1,10 @@
 import type { Profile } from '@/types/database';
 
 export function profileNeedsAvatar(
-  profile: Pick<Profile, 'avatar_url'> | null | undefined
-): boolean {
-  if (!profile) return true;
-  const url = profile.avatar_url?.trim();
-  return !url;
+ profile: Pick<Profile, 'avatar_url'> | null | undefined): boolean {
+ if (!profile) return true;
+ const url = profile.avatar_url?.trim();
+ return !url;
 }
 
 export const PROFILE_PATH = '/profile';
