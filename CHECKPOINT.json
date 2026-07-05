@@ -1,25 +1,25 @@
 {
-  "updated": "2026-07-06 01:15:00 +08:00",
-  "source": "cursor-rest-save",
+  "updated": "2026-07-06 01:19:15 +08:00",
+  "source": "codex-final-save",
   "user_resting": true,
-  "resume_reminder": "Baca RESUME.md. UAT automatik sudah lulus. Seterusnya: UAT browser, FPX live, signup OFF, Hari H 36.",
-  "commit": "d2538f6",
+  "resume_reminder": "Baca RESUME.md. Semua connection sudah disemak: Vercel live Ready, verify:production 6/6, Git master 960f964, Supabase health ready. Fail credential/output sensitif tidak dipush.",
+  "commit": "960f964",
   "branch": "master",
   "production_url": "https://rkj-one.vercel.app",
   "supabase_project": "mtygxueknokcihofdttl",
-  "migrations": "00001-00111 — db up to date (6 Jul 2026)",
-  "latest_deployment": "dpl_9hkEfehyzVgdRz1CPGWmQBER35Wc",
+  "migrations": "00001-00111 - db up to date (6 Jul 2026)",
+  "latest_deployment": "dpl_5mf7Bgh9BwdJk8p7CeLW23MxLQPU",
   "github": "https://github.com/rkjdistributor20/RkjOne",
   "last_live_check": {
     "ok": true,
     "status": "ready",
     "appUrl": "https://rkj-one.vercel.app",
-    "verified_at": "2026-07-06 01:10 +08"
+    "verified_at": "2026-07-06 01:19 +08"
   },
   "connections_saved": {
-    "github": "master @ d2538f6",
-    "vercel": "dpl_9hkEfehyzVgdRz1CPGWmQBER35Wc — rkj-one.vercel.app",
-    "supabase": "mtygxueknokcihofdttl — migrations 00111 applied",
+    "github": "master @ 960f964",
+    "vercel": "dpl_5mf7Bgh9BwdJk8p7CeLW23MxLQPU - rkj-one.vercel.app",
+    "supabase": "mtygxueknokcihofdttl - migrations 00111 applied",
     "codex_cursor": "Continuity via RESUME.md + CHECKPOINT.json + Git (no auto chat sync)"
   },
   "uat_automated": {
