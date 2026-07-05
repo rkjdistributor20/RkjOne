@@ -1,10 +1,10 @@
 # ⏸ Sambung Di Sini — RKJ One ERP
 
-> **🔔 CHECKPOINT — 6 Jul 2026 · UAT automatik penuh lulus**
+> **🔔 REHAT — 6 Jul 2026 · Semua disimpan (GitHub + Vercel + Supabase)**
 
 **Branch:** `master`  
-**GitHub:** `bdddc74` (uncommitted: uat:full, migration 00111, order fix)  
-**Production:** https://rkj-one.vercel.app · deploy **`dpl_HcM7sQo8Pzbfaffiwfcg26Zjp2nT`** ✓  
+**GitHub:** `400941e` · UAT penuh + order fix  
+**Production:** https://rkj-one.vercel.app · deploy **`dpl_9hkEfehyzVgdRz1CPGWmQBER35Wc`** ✓  
 **Supabase:** `mtygxueknokcihofdttl` · migrations **00001–00111** applied
 
 ---
@@ -49,7 +49,6 @@ npm run db:push               # migrations (00111+)
 
 - [ ] UAT browser **semua dashboard** selepas redesign visual
 - [ ] UAT browser manual — [`docs/UAT_SALES_AGENT.md`](docs/UAT_SALES_AGENT.md) · [`docs/UAT_AM.md`](docs/UAT_AM.md)
-- [ ] Deploy Vercel — kod terkini (retry order API + uat:full)
 - [ ] FPX live — Merchant Code iPay88 di Vercel
 - [ ] Supabase Auth signup OFF
 - [ ] Hari H 36 cawangan — [`docs/GO_LIVE_36.md`](docs/GO_LIVE_36.md)
@@ -97,7 +96,20 @@ Cursor **tidak** sync chat automatik dengan Codex. Continuity melalui:
 - `CHECKPOINT.json`
 - Git commits di GitHub
 
-**Bila buka di Codex atau Cursor:** baca bahagian atas fail ini + jalankan `npm run verify:readiness`.
+**Bila buka di Codex atau Cursor:** taip **sambung** — baca bahagian atas fail ini + jalankan `npm run verify:readiness`.
+
+---
+
+## 😴 Rehat — apa sudah disimpan
+
+| Connection | Status |
+|------------|--------|
+| **GitHub** | `400941e` on `master` — https://github.com/rkjdistributor20/RkjOne |
+| **Vercel** | Live — https://rkj-one.vercel.app · `dpl_9hkEfehyzVgdRz1CPGWmQBER35Wc` |
+| **Supabase** | `mtygxueknokcihofdttl` · migrations **00111** applied |
+| **Codex ↔ Cursor** | Sync melalui Git + `RESUME.md` + `CHECKPOINT.json` (bukan chat) |
+
+**Tidak di-commit (sengaja):** `_restore/`, `outputs/`, credential CSV.
 
 ---
 

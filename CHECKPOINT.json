@@ -1,18 +1,26 @@
 {
-  "updated": "2026-07-06 01:00:00 +08:00",
-  "source": "cursor-uat-full",
-  "user_resting": false,
-  "resume_reminder": "UAT automatik penuh lulus. Seterusnya: deploy Vercel (order retry API), UAT browser manual, FPX live.",
-  "commit": "bdddc74",
+  "updated": "2026-07-06 01:15:00 +08:00",
+  "source": "cursor-rest-save",
+  "user_resting": true,
+  "resume_reminder": "Baca RESUME.md. UAT automatik sudah lulus. Seterusnya: UAT browser, FPX live, signup OFF, Hari H 36.",
+  "commit": "400941e",
   "branch": "master",
   "production_url": "https://rkj-one.vercel.app",
   "supabase_project": "mtygxueknokcihofdttl",
   "migrations": "00001-00111 — db up to date (6 Jul 2026)",
-  "latest_deployment": "dpl_HcM7sQo8Pzbfaffiwfcg26Zjp2nT",
+  "latest_deployment": "dpl_9hkEfehyzVgdRz1CPGWmQBER35Wc",
+  "github": "https://github.com/rkjdistributor20/RkjOne",
   "last_live_check": {
     "ok": true,
     "status": "ready",
-    "appUrl": "https://rkj-one.vercel.app"
+    "appUrl": "https://rkj-one.vercel.app",
+    "verified_at": "2026-07-06 01:10 +08"
+  },
+  "connections_saved": {
+    "github": "master @ 400941e (+ docs checkpoint pending push)",
+    "vercel": "dpl_9hkEfehyzVgdRz1CPGWmQBER35Wc — rkj-one.vercel.app",
+    "supabase": "mtygxueknokcihofdttl — migrations 00111 applied",
+    "codex_cursor": "Continuity via RESUME.md + CHECKPOINT.json + Git (no auto chat sync)"
   },
   "uat_automated": {
     "verify_all": "6/6",
@@ -26,21 +34,17 @@
   "codex_work_saved": [
     "Global dashboard visual redesign (shell, KPI, login, POS, cockpit)",
     "Bilingual BM/EN expansion + verify:ui-polish guardrail",
-    "Browser refresh fixes — no auto-reload loops, branch edit instant update",
     "Payroll Studio 3 syarikat — company-scoped payroll + payslip preview",
     "Production Readiness Center — 10-area score in Tetapan > Kesihatan Sistem",
     "HRMIS employee self-service — cuti, profil, dokumen (migration 00110)",
     "HR leave balances catalog (migrations 20260705*)",
-    "verify:readiness, verify:ui-polish, PRODUCTION_READINESS_PLAYBOOK.md",
-    "uat:full script + migration 00111 agent order number atomic"
+    "uat:full script + migration 00111 agent order number atomic",
+    "Deploy Vercel production 400941e"
   ],
   "verify_commands": [
     "npm run verify:readiness",
     "npm run verify:all",
-    "npm run verify:ui-polish",
     "npm run verify:production",
-    "npm run verify:hr",
-    "npm run verify:payroll",
     "npm run uat:full",
     "npm run uat:am",
     "npm run uat:sales-agent:flow",
@@ -48,7 +52,6 @@
   ],
   "resume_file": "RESUME.md",
   "pending_manual": [
-    "Deploy Vercel — commit uat:full + order API retry + migration note",
     "UAT browser semua dashboard selepas redesign visual",
     "UAT browser ejen/AM manual (docs/UAT_SALES_AGENT.md, docs/UAT_AM.md)",
     "FPX live — Merchant Code iPay88 di Vercel",
@@ -60,5 +63,11 @@
     { "email": "dist009@rkj.com", "region": "UTARA", "kiosks": 12 },
     { "email": "dist001@rkj.com", "region": "TENGAH", "kiosks": 10 },
     { "email": "dist010@rkj.com", "region": "SELATAN", "kiosks": 14 }
-  ]
+  ],
+  "login_uat": {
+    "password": "RkjOne@2026",
+    "owner": "matisa@rkj.com",
+    "hr": "mohdali@rkj.com",
+    "agent": "ejen.ag008@rkjdistributor.my"
+  }
 }
