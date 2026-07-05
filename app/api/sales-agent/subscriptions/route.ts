@@ -8,9 +8,6 @@ import { expireAgentSubscriptions } from '@/lib/sales-agent/payment-gateway';
 export async function POST(request: Request) {
  const profile = await getCurrentProfile();
  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
- if (profile.role !== 'SALES_AGENT') {
- return NextResponse.json({ error: 'Hanya ejen jualan' }, { status: 403 });
- }
 
  const body = await request.json().catch(() => ({}));
  const outletId = body.outlet_id as string | undefined;

@@ -83,10 +83,10 @@ export function LoginForm() {
  }
 
  return (
- <main className="min-h-screen bg-[#f6f1e7] text-foreground">
+ <main className="min-h-screen bg-[linear-gradient(135deg,#f8fafc_0%,#fff8ea_46%,#eefcf6_100%)] text-foreground">
  <div className="grid min-h-screen lg:grid-cols-[minmax(360px,0.85fr)_minmax(560px,1.15fr)]">
- <section className="relative hidden overflow-hidden bg-[#111111] px-10 py-10 text-white lg:flex lg:flex-col lg:justify-between">
- <div className="pointer-events-none absolute inset-0 opacity-[0.08] [background-image:linear-gradient(135deg,rgba(255,255,255,0.7)_0_1px,transparent_1px_18px)]" />
+ <section className="relative hidden overflow-hidden bg-[linear-gradient(180deg,#101411_0%,#18130f_54%,#0f1b17_100%)] px-10 py-10 text-white lg:flex lg:flex-col lg:justify-between">
+ <div className="pointer-events-none absolute inset-0 opacity-10 [background-image:linear-gradient(135deg,rgba(255,255,255,0.55)_0_1px,transparent_1px_18px)]" />
 
  <div className="relative">
  <div className="mb-8 flex justify-end">
@@ -95,23 +95,23 @@ export function LoginForm() {
  <BrandLogo size="lg" variant="light" className="drop-shadow" />
  <div className="mt-16 max-w-md">
  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#e9b127]">{t('login.restrictedAccess')}</p>
- <h1 className="mt-4 font-serif text-5xl font-bold leading-tight text-white">{COMPANY.systemName}</h1>
- <p className="mt-5 text-base leading-7 text-white/72">
+ <h1 className="mt-4 text-5xl font-semibold leading-tight text-white">{COMPANY.systemName}</h1>
+ <p className="mt-5 text-base leading-7 text-white/75">
  {t('login.heroIntro')}
  </p>
  </div>
  </div>
 
  <div className="relative grid gap-3">
- <div className="flex items-center gap-3 rounded-[8px] border border-white/10 bg-white/6 px-4 py-3 text-sm text-white/76">
+ <div className="flex items-center gap-3 rounded-[8px] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/75">
  <ShieldCheck className="h-5 w-5 text-[#e9b127]" />
  <span>{t('login.secureAccount')}</span>
  </div>
- <div className="flex items-center gap-3 rounded-[8px] border border-white/10 bg-white/6 px-4 py-3 text-sm text-white/76">
+ <div className="flex items-center gap-3 rounded-[8px] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/75">
  <LockKeyhole className="h-5 w-5 text-[#e9b127]" />
  <span>{t('login.keepSecret')}</span>
  </div>
- <div className="flex items-center gap-3 rounded-[8px] border border-white/10 bg-white/6 px-4 py-3 text-sm text-white/76">
+ <div className="flex items-center gap-3 rounded-[8px] border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/75">
  <Sparkles className="h-5 w-5 text-[#e9b127]" />
  <span>{t('login.roleBased')}</span>
  </div>
@@ -125,7 +125,7 @@ export function LoginForm() {
  <LanguageSwitcher compact />
  </div>
 
- <Card className="overflow-hidden rounded-[8px] border-[#eadfca] bg-white/95 shadow-2xl shadow-[#b8871a]/12">
+ <Card className="overflow-hidden rounded-[8px] border-[#eadfca] bg-white/95 shadow-2xl shadow-[#b8871a]/10">
  <CardHeader className="border-b border-[#efe7d8] px-7 py-7 text-center">
  <div className="mx-auto hidden lg:block">
  <BrandLogo size="lg" />
@@ -133,14 +133,14 @@ export function LoginForm() {
  <div className="mx-auto mt-2 flex h-11 w-11 items-center justify-center rounded-[8px] bg-[#111111] text-[#e9b127]">
  <LockKeyhole className="h-5 w-5" />
  </div>
- <CardTitle className="font-serif text-3xl">{t('login.title')}</CardTitle>
+ <CardTitle className="text-3xl font-semibold">{t('login.title')}</CardTitle>
  <CardDescription className="text-base">{t('login.description')}</CardDescription>
  </CardHeader>
  <CardContent className="space-y-5 px-7 py-7">
  {showSchedule ? (
  <div className="space-y-4">
  <div className="rounded-[8px] border border-[#e5dfd5] bg-[#fffbf3] p-4">
- <div className="mb-3 flex items-center gap-2 font-serif text-xl font-bold">
+ <div className="mb-3 flex items-center gap-2 text-xl font-semibold">
  <CalendarDays className="h-5 w-5 text-[#e9b127]" />
  {t('login.todaySchedule')}
  </div>

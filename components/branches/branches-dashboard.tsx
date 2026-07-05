@@ -69,6 +69,7 @@ import {
 } from '@/components/shared/module-ui';
 import { DocumentPreviewDialog } from '@/components/shared/document-preview-dialog';
 import { cn } from '@/lib/utils';
+import { boundSelectValue } from '@/lib/ui/select-utils';
 
 export type BranchInventoryStatus = 'OK' | 'LOW' | 'CRITICAL' | 'NO_LOCATION';
 
@@ -260,6 +261,7 @@ export function BranchesDashboard({
  userRole: string;
 }) {
  const router = useRouter();
+ const [branchRows, setBranchRows] = useState(branches);
  const [search, setSearch] = useState('');
  const [filter, setFilter] = useState<FilterMode>('all');
  const [selectedId, setSelectedId] = useState(branches[0]?.id ?? '');
@@ -268,10 +270,17 @@ export function BranchesDashboard({
  const [formBranch, setFormBranch] = useState<BranchDashboardBranch | null>(null);
  const [saving, setSaving] = useState(false);
 
+ useEffect(() => {
+ setBranchRows(branches);
+ if (!branches.some((branch) => branch.id === selectedId)) {
+ setSelectedId(branches[0]?.id ?? '');
+ }
+ }, [branches, selectedId]);
+
  const filteredBranches = useMemo(() => {
  const q = search.trim().toLowerCase();
 
- return branches.filter((branch) => {
+ return branchRows.filter((branch) => {
  const matchesSearch =
  !q ||
  branch.branch_code.toLowerCase().includes(q) ||
@@ -294,19 +303,19 @@ export function BranchesDashboard({
  if (filter === 'incomplete') return branch.profile_score < 80;
  return true;
  });
- }, [branches, filter, search]);
+ }, [branchRows, filter, search]);
 
  const selectedBranch =
- branches.find((branch) => branch.id === selectedId) ??
+ branchRows.find((branch) => branch.id === selectedId) ??
  filteredBranches[0] ??
- branches[0];
+ branchRows[0];
 
  const filters: Array<{ id: FilterMode; label: string; count: number }> = [
- { id: 'all', label: 'Semua', count: branches.length },
+ { id: 'all', label: 'Semua', count: branchRows.length },
  { id: 'open_pos', label: 'POS buka', count: summary.open_pos },
  { id: 'stock', label: 'Stok isu', count: summary.inventory_alerts + summary.pending_transfers },
  { id: 'maintenance', label: 'Maintenance', count: summary.maintenance_open },
- { id: 'incomplete', label: 'Profil belum lengkap', count: branches.filter((b) => b.profile_score < 80).length },
+ { id: 'incomplete', label: 'Profil belum lengkap', count: branchRows.filter((b) => b.profile_score < 80).length },
  ];
 
  function openAdd() {
@@ -330,8 +339,9 @@ export function BranchesDashboard({
  try {
  await deleteBranch(branch.id);
  toast.success('Cawangan dipadam');
- setSelectedId(branches.find((item) => item.id !== branch.id)?.id ?? '');
- router.refresh();
+ const nextRows = branchRows.filter((item) => item.id !== branch.id);
+ setBranchRows(nextRows);
+ setSelectedId(nextRows[0]?.id ?? '');
  } catch (err) {
  toast.error(err instanceof Error ? err.message : 'Gagal padam cawangan');
  } finally {
@@ -394,7 +404,7 @@ export function BranchesDashboard({
  selectedBranch={selectedBranch}
  />
 
- {branches.length === 0 ? (
+ {branchRows.length === 0 ? (
  <EmptyState
  icon={Building2}
  title="Tiada cawangan dalam skop akses"
@@ -480,7 +490,19 @@ export function BranchesDashboard({
  saving={saving}
  setSaving={setSaving}
  onOpenChange={setFormOpen}
- onSaved={() => router.refresh()}
+ onSaved={(savedBranch) => {
+ if (!savedBranch) {
+ router.refresh();
+ return;
+ }
+ setBranchRows((rows) => {
+ const exists = rows.some((row) => row.id === savedBranch.id);
+ return exists
+ ? rows.map((row) => (row.id === savedBranch.id ? savedBranch : row))
+ : [savedBranch, ...rows];
+ });
+ setSelectedId(savedBranch.id);
+ }}
  />
  ) : null}
  </ModuleLayout>);
@@ -631,7 +653,7 @@ function BranchCrudDialog({
  saving: boolean;
  setSaving: (value: boolean) => void;
  onOpenChange: (value: boolean) => void;
- onSaved: () => void;
+ onSaved: (branch?: BranchDashboardBranch) => void;
 }) {
  const [regionId, setRegionId] = useState('');
  const [branchCode, setBranchCode] = useState('');
@@ -639,6 +661,8 @@ function BranchCrudDialog({
  const [area, setArea] = useState('');
  const [managerName, setManagerName] = useState('');
  const [status, setStatus] = useState<'ACTIVE' | 'INACTIVE'>('ACTIVE');
+ const regionValues = useMemo(() => regions.map((region) => region.id), [regions]);
+ const safeRegionId = boundSelectValue(regionId, regionValues) ?? '';
  const selectedRegion = regions.find((region) => region.id === regionId) ?? null;
 
  useEffect(() => {
@@ -669,14 +693,43 @@ function BranchCrudDialog({
 
  setSaving(true);
  try {
+ let savedBranch: BranchDashboardBranch | undefined;
  if (mode === 'add') {
- await createBranch({
+ const created = await createBranch({
  region_id: regionId,
  branch_code: branchCode.trim().toUpperCase(),
  branch_name: branchName.trim(),
  area: area.trim() || undefined,
  manager_name: managerName.trim() || undefined,
  });
+ const result = created.result as { branch_id?: string; branch_code?: string } | null;
+ if (result?.branch_id) {
+ savedBranch = {
+ id: result.branch_id,
+ region_id: regionId,
+ branch_code: result.branch_code ?? branchCode.trim().toUpperCase(),
+ branch_name: branchName.trim(),
+ area: area.trim() || null,
+ region_name: selectedRegion?.name ?? null,
+ manager_name: managerName.trim() || selectedRegion?.manager_name || null,
+ status: 'ACTIVE',
+ sales_today: 0,
+ sales_week: 0,
+ sales_month: 0,
+ transactions_today: 0,
+ shift_open: false,
+ staff_count: 0,
+ staff_clocked_in_today: 0,
+ inventory_status: 'NO_LOCATION',
+ inventory_low_count: 0,
+ inventory_critical_count: 0,
+ pending_transfers: 0,
+ has_kiosk_location: true,
+ maintenance_open: 0,
+ maintenance_urgent: 0,
+ profile_score: 80,
+ };
+ }
  toast.success('Cawangan baharu ditambah');
  } else if (branch) {
  await updateBranch(branch.id, {
@@ -686,11 +739,20 @@ function BranchCrudDialog({
  manager_name: managerName.trim() || null,
  status,
  });
+ savedBranch = {
+ ...branch,
+ region_id: regionId,
+ branch_name: branchName.trim(),
+ area: area.trim() || null,
+ region_name: selectedRegion?.name ?? branch.region_name,
+ manager_name: managerName.trim() || null,
+ status,
+ };
  toast.success('Cawangan dikemaskini');
  }
 
  onOpenChange(false);
- onSaved();
+ onSaved(savedBranch);
  } catch (err) {
  toast.error(err instanceof Error ? err.message : 'Gagal simpan cawangan');
  } finally {
@@ -727,7 +789,7 @@ function BranchCrudDialog({
  </div>
  <div className="space-y-2">
  <Label>Region / Kawasan</Label>
- <Select value={regionId} onValueChange={(value) => value && setRegionId(value)}>
+ <Select value={safeRegionId} onValueChange={(value) => value && setRegionId(value)}>
  <SelectTrigger className="w-full min-w-0">
  <SelectValue placeholder="Pilih region">
  {selectedRegion ? formatRegionOption(selectedRegion) : null}
@@ -771,7 +833,7 @@ function BranchCrudDialog({
  </div>
  </div>
  <div className="rounded-xl border bg-amber-50/40 p-3 text-sm text-muted-foreground">
- Perubahan cawangan akan terus digunakan oleh POS, Inventori, Syif, Laporan dan profile cawangan selepas halaman refresh.
+ Perubahan cawangan akan diselaraskan automatik ke POS, Inventori, Syif, Laporan dan profil cawangan selepas simpan.
  </div>
  <DialogFooter>
  <Button type="button" variant="outline" disabled={saving} onClick={() => onOpenChange(false)}>
@@ -1517,6 +1579,10 @@ function StockAdjustmentDialog({
  const [note, setNote] = useState('');
  const [saving, setSaving] = useState(false);
 
+ const stockItemValues = useMemo(
+ () => snapshot.balances.map((item) => item.stock_item_id),
+ [snapshot.balances]);
+ const safeStockItemId = boundSelectValue(stockItemId, stockItemValues) ?? '';
  const selected = snapshot.balances.find((item) => item.stock_item_id === stockItemId) ?? null;
 
  useEffect(() => {
@@ -1584,7 +1650,7 @@ function StockAdjustmentDialog({
  <div className="grid gap-4 md:grid-cols-2">
  <div className="space-y-2">
  <Label>Item Stok</Label>
- <Select value={stockItemId} onValueChange={(value) => value && setStockItemId(value)}>
+ <Select value={safeStockItemId} onValueChange={(value) => value && setStockItemId(value)}>
  <SelectTrigger className="w-full">
  <SelectValue placeholder="Pilih item">
  {selected ? formatStockSelectLabel(selected) : undefined}
@@ -1670,7 +1736,9 @@ function StaffEditDialog({
  const [status, setStatus] = useState('ACTIVE');
  const [branchId, setBranchId] = useState('');
  const [saving, setSaving] = useState(false);
- const selectedBranchOption = branchOptions.find((branch) => branch.id === branchId) ?? null;
+ const branchOptionValues = useMemo(() => branchOptions.map((branch) => branch.id), [branchOptions]);
+ const safeBranchId = boundSelectValue(branchId, branchOptionValues) ?? '';
+ const selectedBranchOption = branchOptions.find((branch) => branch.id === safeBranchId) ?? null;
 
  useEffect(() => {
  if (!open || !staff) return;
@@ -1685,7 +1753,7 @@ function StaffEditDialog({
  toast.error('Nama staf wajib diisi');
  return;
  }
- if (!branchId) {
+ if (!safeBranchId) {
  toast.error('Pilih cawangan staf');
  return;
  }
@@ -1695,7 +1763,7 @@ function StaffEditDialog({
  await updateStaffMember(staff.id, {
  full_name: fullName.trim(),
  status,
- branch_id: branchId,
+ branch_id: safeBranchId,
  });
  onOpenChange(false);
  onSaved();
@@ -1739,7 +1807,7 @@ function StaffEditDialog({
  </div>
  <div className="space-y-2">
  <Label>Cawangan Bertugas</Label>
- <Select value={branchId} onValueChange={(value) => value && setBranchId(value)} disabled={!canTransfer}>
+ <Select value={safeBranchId} onValueChange={(value) => value && setBranchId(value)} disabled={!canTransfer}>
  <SelectTrigger className="w-full">
  <SelectValue placeholder="Pilih cawangan">
  {selectedBranchOption ? formatBranchOptionLabel(selectedBranchOption) : undefined}
@@ -1756,7 +1824,7 @@ function StaffEditDialog({
  </div>
  <div className="flex items-center gap-2 rounded-xl border bg-amber-50/40 p-3 text-sm text-muted-foreground">
  <MoveRight className="h-4 w-4 text-amber-700" />
- Jika staf dipindahkan, dashboard staf dan syif akan ikut cawangan baru selepas refresh/login semula.
+ Jika staf dipindahkan, dashboard staf dan syif akan ikut cawangan baru secara automatik selepas rekod disimpan.
  </div>
  </div>
  ) : null}

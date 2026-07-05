@@ -23,6 +23,7 @@ import { staffPayDisplay } from '@/lib/payroll/staff-pay-rates';
 import { WorkerTypeBadge, resolveWorkerType } from '@/components/payroll/worker-type-badge';
 import { CompanyPayrollSection } from '@/components/payroll/company-payroll-section';
 import { AiPayrollProposalSection } from '@/components/payroll/ai-payroll-proposal';
+import { PayrollStudio } from '@/components/payroll/payroll-studio';
 import type {
  CommissionTier,
  PayrollLineItem,
@@ -146,8 +147,11 @@ export function PayrollOperationsPanel() {
 
  {loading ? (
  <ModuleLoading />) : (
- <Tabs defaultValue="runs" className="space-y-4">
+ <Tabs defaultValue="studio" className="space-y-4">
  <TabsList className={moduleTabsListClass}>
+ <TabsTrigger value="studio" className={moduleTabsTriggerClass}>
+ <Wallet className="h-4 w-4" /> Payroll Studio
+ </TabsTrigger>
  <TabsTrigger value="companies" className={moduleTabsTriggerClass}>
  <Building2 className="h-4 w-4" /> 3 Syarikat
  </TabsTrigger>
@@ -164,6 +168,10 @@ export function PayrollOperationsPanel() {
  <Users className="h-4 w-4" /> Staf
  </TabsTrigger>
  </TabsList>
+
+ <TabsContent value="studio" className="mt-4">
+ <PayrollStudio onGenerated={loadData} />
+ </TabsContent>
 
  <TabsContent value="companies" className="mt-4 space-y-4">
  <AiPayrollProposalSection />
@@ -205,6 +213,10 @@ export function PayrollOperationsPanel() {
  <p className="text-xs text-muted-foreground">
  {run.period_start} hingga {run.period_end}
  </p>
+ {run.legal_entity && (
+ <Badge variant="outline" className="mt-1 font-normal">
+ {run.legal_entity.code} - {run.legal_entity.legal_name ?? run.legal_entity.name}
+ </Badge>)}
  </div>
  <div className="flex items-center gap-2">
  <Badge variant={run.status === 'APPROVED' ? 'outline' : 'secondary'}>
@@ -376,8 +388,8 @@ export function PayrollDashboard() {
  return (
  <ModuleLayout>
  <ModuleHeader
- title="Gaji & Komisyen"
- description="Pecahan 3 syarikat legal - gaji auto ikut peraturan - laporan mingguan pekerja asing"
+ title="HR Payroll 3 Syarikat"
+ description="Pilih syarikat, semak profil gaji staf, preview payslip, generate payroll dan hantar untuk kelulusan."
  icon={Wallet}
  />
 

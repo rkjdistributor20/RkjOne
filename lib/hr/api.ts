@@ -1,5 +1,6 @@
 import type { HrDashboardData } from '@/lib/hr/company-hr';
 import type { LegalEntityCode } from '@/lib/brand/legal-entities';
+import type { HrLeaveBalance, HrLeaveType, HrServiceRequestStatus } from '@/types/database';
 import type { UserRole } from '@/types/enums';
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -60,6 +61,38 @@ export async function updateHrAgentAccess(
  body: JSON.stringify({
  account_id: accountId,
  assigned_price_group_id: assignedPriceGroupId,
+ }),
+ });
+}
+
+export async function updateHrServiceRequestStatus(
+ requestId: string,
+ payload: { status: Exclude<HrServiceRequestStatus, 'SUBMITTED'>; reviewer_note?: string | null },
+) {
+ return fetchJson<{ request: unknown }>(`/api/hr/self-service/requests/${requestId}`, {
+ method: 'PATCH',
+ body: JSON.stringify(payload),
+ });
+}
+
+export async function updateHrLeaveBalance(
+ staffId: string,
+ payload: {
+ leave_type: HrLeaveType;
+ leave_year: number;
+ entitlement_days?: number;
+ carried_forward_days?: number;
+ used_days?: number;
+ pending_days?: number;
+ adjustment_days?: number;
+ notes?: string | null;
+ },
+) {
+ return fetchJson<{ balance: HrLeaveBalance }>('/api/hr/leave-balances', {
+ method: 'PATCH',
+ body: JSON.stringify({
+ staff_id: staffId,
+ ...payload,
  }),
  });
 }

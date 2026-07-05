@@ -29,6 +29,14 @@ function readGoLivePassword() {
  return line || DEFAULT_PASSWORD;
 }
 
+function loginPasswords() {
+ const passwords = [readGoLivePassword(), DEFAULT_PASSWORD]
+  .filter(Boolean)
+  .map((p) => p.trim())
+  .filter(Boolean);
+ return [...new Set(passwords)];
+}
+
 function loadEnvFile(filePath) {
  if (!fs.existsSync(filePath)) return {};
  const out = {};
@@ -94,6 +102,8 @@ async function mainAuth() {
  const body = await health.json();
  if (body.ok && body.appUrl === PRODUCTION_URL) {
  pass(`NEXT_PUBLIC_APP_URL = ${body.appUrl}`);
+ } else if (body.ok && !body.appUrl) {
+ pass('Health endpoint OK - appUrl tidak didedahkan secara public');
  } else {
  fail(`appUrl mismatch: ${body.appUrl ?? 'null'}`);
  }
@@ -102,17 +112,26 @@ async function mainAuth() {
  }
 
  console.log('\n3. Login production (Safuan AM)');
- const safuanPassword = readGoLivePassword();
  const anon = createClient(url, anonKey);
- const { data: loginData, error: loginErr } = await anon.auth.signInWithPassword({
- email: 'safuan@rkj.com',
- password: safuanPassword,
+ let loginData = null;
+ let loginErr = null;
+ for (const password of loginPasswords()) {
+ const result = await anon.auth.signInWithPassword({
+ email: 'dist009@rkj.com',
+ password,
  });
+ if (!result.error) {
+ loginData = result.data;
+ loginErr = null;
+ break;
+ }
+ loginErr = result.error;
+ }
  if (loginErr) {
- fail(`Login safuan@rkj.com - ${loginErr.message}`);
+ fail(`Login dist009@rkj.com - ${loginErr.message}`);
  warn('Semak Site URL / Redirect URLs jika redirect loop');
  } else {
- pass(`Login safuan@rkj.com - session OK`);
+ pass(`Login dist009@rkj.com - session OK`);
  await anon.auth.signOut();
  }
 

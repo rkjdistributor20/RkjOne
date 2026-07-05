@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Plus, Trash2, Store, Users } from 'lucide-react';
 import {
@@ -30,6 +30,7 @@ import {
  SelectValue,
 } from '@/components/ui/select';
 import { EmptyState } from '@/components/shared/module-ui';
+import { boundSelectValue } from '@/lib/ui/select-utils';
 
 interface BranchesSettingsPanelProps {
  groups: SettingsBranchGroup[];
@@ -51,16 +52,19 @@ export function BranchesSettingsPanel({
  const [area, setArea] = useState('');
  const [saving, setSaving] = useState(false);
  const [togglingId, setTogglingId] = useState<string | null>(null);
+ const regionSelectValues = useMemo(() => regions.map((region) => region.id), [regions]);
+ const safeRegionId = boundSelectValue(regionId, regionSelectValues) ?? '';
+ const selectedRegion = regions.find((region) => region.id === safeRegionId) ?? null;
 
  async function handleAdd() {
- if (!regionId || !branchCode.trim() || !branchName.trim()) {
+ if (!safeRegionId || !branchCode.trim() || !branchName.trim()) {
  toast.error('Lengkapkan kawasan, kod, dan nama cawangan');
  return;
  }
  setSaving(true);
  try {
  await createBranch({
- region_id: regionId,
+ region_id: safeRegionId,
  branch_code: branchCode.trim(),
  branch_name: branchName.trim(),
  area: area.trim() || undefined,
@@ -188,9 +192,13 @@ export function BranchesSettingsPanel({
  <div className="space-y-3">
  <div className="space-y-1">
  <Label>Kawasan (Pengurus Kawasan)</Label>
- <Select value={regionId} onValueChange={(v) => v && setRegionId(v)}>
+ <Select value={safeRegionId} onValueChange={(v) => v && setRegionId(v)}>
  <SelectTrigger>
- <SelectValue placeholder="Pilih kawasan" />
+ <SelectValue placeholder="Pilih kawasan">
+ {selectedRegion
+ ? `${selectedRegion.name}${selectedRegion.manager_name ? ` - ${selectedRegion.manager_name}` : ''}`
+ : undefined}
+ </SelectValue>
  </SelectTrigger>
  <SelectContent>
  {regions.map((r) => (

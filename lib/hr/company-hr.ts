@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { HrLeaveBalance, HrLeaveType } from '@/types/database';
 import type { UserRole } from '@/types/enums';
 import { LEGAL_ENTITIES, legalEntityLabel } from '@/lib/brand/legal-entities';
 import {
@@ -8,6 +9,26 @@ import {
  sumMonthlyEmployments,
  sumWeeklyEmployments,
 } from '@/lib/hr/group-owner';
+import { remainingLeaveDays } from '@/lib/hr/leave-balances';
+
+export type HrLeaveBalanceSummary = Pick<
+ HrLeaveBalance,
+ | 'id'
+ | 'staff_id'
+ | 'profile_id'
+ | 'leave_year'
+ | 'leave_type'
+ | 'entitlement_days'
+ | 'carried_forward_days'
+ | 'used_days'
+ | 'pending_days'
+ | 'adjustment_days'
+ | 'remaining_days'
+ | 'notes'
+ | 'updated_at'
+> & {
+ remaining: number;
+};
 
 export type HrStaffPerson = {
  id: string;
@@ -35,6 +56,7 @@ export type HrStaffPerson = {
  total_monthly_amount?: number | null;
  total_weekly_amount?: number | null;
  legal_entity_codes?: string[];
+ leave_balances?: HrLeaveBalanceSummary[];
 };
 
 export type HrAgentPriceGroupOption = {
@@ -92,12 +114,35 @@ export type HrDashboardSummary = {
  management_people: number;
  branch_staff: number;
  profile_complete: number;
+ leave_balances: number;
+ leave_pending: number;
+};
+
+export type HrServiceRequestSummary = {
+ id: string;
+ request_number: string;
+ request_type: string;
+ title: string;
+ description: string;
+ priority: string;
+ status: string;
+ requester_name: string | null;
+ staff_code: string | null;
+ legal_entity_code: string | null;
+ legal_entity_name: string | null;
+ branch_code: string | null;
+ branch_name: string | null;
+ start_date: string | null;
+ end_date: string | null;
+ created_at: string;
+ reviewer_note: string | null;
 };
 
 export type HrDashboardData = {
  companies: HrCompanyGroup[];
  group_owners: HrStaffPerson[];
  unassigned: HrStaffPerson[];
+ service_requests: HrServiceRequestSummary[];
  summary: HrDashboardSummary;
 };
 
@@ -144,6 +189,26 @@ type StaffRow = {
  region?: RegionRow | RegionRow[];
  profile?: ProfileLite | ProfileLite[] | null;
  profile_id: string | null;
+};
+
+type LeaveBalanceRow = HrLeaveBalance;
+
+type HrServiceRequestRow = {
+ id: string;
+ request_number: string;
+ request_type: string;
+ title: string;
+ description: string;
+ priority: string;
+ status: string;
+ profile_id: string;
+ staff_id: string | null;
+ legal_entity_id: string | null;
+ branch_id: string | null;
+ start_date: string | null;
+ end_date: string | null;
+ created_at: string;
+ reviewer_note: string | null;
 };
 
 type AgentPriceGroupRow = {
@@ -215,22 +280,28 @@ export async function getCompanyHrDashboard(
  const [
  { data: legalRows, error: legalError },
  { data: staffRows, error: staffError },
+ { data: leaveRows, error: leaveError },
  { data: profileRows, error: profileError },
  { data: agentRows, error: agentError },
  { data: agentPriceRows, error: agentPriceError },
+ { data: serviceRequestRows, error: serviceRequestError },
  ] = await Promise.all([
  supabase.from('legal_entities').select('id, code, name, legal_name, scope, status, sort_order').eq('organization_id', organizationId).order('sort_order'),
  supabase.from('staff').select('id, staff_code, full_name, status, worker_type, weekly_amount, monthly_amount, legal_entity_id, on_hold, profile_id, branch:branches!staff_branch_id_fkey(branch_code, branch_name), region:regions!staff_region_id_fkey(name), profile:profiles!staff_profile_id_fkey(id, employee_code, full_name, email, phone, role, status, legal_entity_id, must_change_password, profile_completed_at, last_login_at)').eq('organization_id', organizationId).eq('status', 'ACTIVE').order('staff_code'),
+ supabase.from('hr_leave_balances').select('*').eq('organization_id', organizationId).order('leave_year', { ascending: false }).order('leave_type'),
  supabase.from('profiles').select('id, employee_code, full_name, email, phone, role, status, legal_entity_id, metadata, branch:branches!profiles_branch_id_fkey(branch_code, branch_name), region:regions!profiles_region_id_fkey(name), must_change_password, profile_completed_at, last_login_at').eq('organization_id', organizationId).eq('status', 'ACTIVE').order('full_name'),
  supabase.from('sales_agent_accounts').select('id, profile_id, company_name, registration_no, contact_person, contact_email, contact_phone, status, assigned_price_group_id, created_at').eq('organization_id', organizationId).is('archived_at', null).neq('status', 'SUSPENDED').order('company_name'),
  supabase.from('agent_price_groups').select('id, code, name, payment_exempt').eq('organization_id', organizationId).eq('status', 'ACTIVE').order('name'),
+ supabase.from('hr_service_requests').select('id, request_number, request_type, title, description, priority, status, profile_id, staff_id, legal_entity_id, branch_id, start_date, end_date, created_at, reviewer_note').eq('organization_id', organizationId).order('created_at', { ascending: false }).limit(20),
  ]);
 
  if (legalError) throw new Error(legalError.message);
  if (staffError) throw new Error(staffError.message);
+ if (leaveError) throw new Error(leaveError.message);
  if (profileError) throw new Error(profileError.message);
  if (agentError) throw new Error(agentError.message);
  if (agentPriceError) throw new Error(agentPriceError.message);
+ if (serviceRequestError) throw new Error(serviceRequestError.message);
 
  const allowedCodes = options.allowedLegalEntityCodes ?? null;
  const legalEntities = ((legalRows ?? []) as LegalEntityRow[]).filter(
@@ -304,6 +375,29 @@ export async function getCompanyHrDashboard(
 
  for (const profile of scopedProfileRows) {
  profileById.set(profile.id, profile);
+ }
+
+ const scopedStaffIds = new Set(scopedStaffRows.map((staff) => staff.id));
+ const leaveBalancesByStaff = new Map<string, HrLeaveBalanceSummary[]>();
+ for (const row of (leaveRows ?? []) as LeaveBalanceRow[]) {
+ if (!scopedStaffIds.has(row.staff_id)) continue;
+ const balance: HrLeaveBalanceSummary = {
+ id: row.id,
+ staff_id: row.staff_id,
+ profile_id: row.profile_id,
+ leave_year: row.leave_year,
+ leave_type: row.leave_type as HrLeaveType,
+ entitlement_days: Number(row.entitlement_days ?? 0),
+ carried_forward_days: Number(row.carried_forward_days ?? 0),
+ used_days: Number(row.used_days ?? 0),
+ pending_days: Number(row.pending_days ?? 0),
+ adjustment_days: Number(row.adjustment_days ?? 0),
+ remaining_days: Number(row.remaining_days ?? remainingLeaveDays(row)),
+ notes: row.notes,
+ updated_at: row.updated_at,
+ remaining: Number(row.remaining_days ?? remainingLeaveDays(row)),
+ };
+ leaveBalancesByStaff.set(row.staff_id, [...(leaveBalancesByStaff.get(row.staff_id) ?? []), balance]);
  }
 
  for (const staff of scopedStaffRows) {
@@ -380,6 +474,7 @@ export async function getCompanyHrDashboard(
  total_monthly_amount: totalMonthly,
  total_weekly_amount: totalWeekly,
  legal_entity_codes: employments.map((e) => e.legal_entity_code),
+ leave_balances: rows.flatMap((staff) => leaveBalancesByStaff.get(staff.id) ?? []),
  });
  }
 
@@ -415,6 +510,7 @@ export async function getCompanyHrDashboard(
  last_login_at: profile?.last_login_at ?? null,
  source: 'staff',
  legal_entity_code: company?.code ?? null,
+ leave_balances: leaveBalancesByStaff.get(staff.id) ?? [],
  };
  if (company) {
  company.people.push(person);
@@ -453,6 +549,7 @@ export async function getCompanyHrDashboard(
  last_login_at: profile.last_login_at,
  source: 'profile',
  legal_entity_code: company?.code ?? null,
+ leave_balances: [],
  };
  if (company) {
  company.people.push(person);
@@ -464,13 +561,53 @@ export async function getCompanyHrDashboard(
 
  const companyList = [...companies.values()].map((company) => ({...company, people: company.people.sort(sortPeople) })).sort((a, b) => a.sort_order - b.sort_order || a.legal_name.localeCompare(b.legal_name));
 
+ const requestBranchIds = [
+ ...new Set(((serviceRequestRows ?? []) as HrServiceRequestRow[]).map((row) => row.branch_id).filter(Boolean) as string[]),
+ ];
+ const { data: requestBranches } = requestBranchIds.length
+ ? await supabase.from('branches').select('id, branch_code, branch_name').in('id', requestBranchIds)
+ : { data: [] };
+ const requestBranchById = new Map(
+ ((requestBranches ?? []) as Array<{ id: string; branch_code: string | null; branch_name: string | null }>).map(
+ (branch) => [branch.id, branch]));
+ const staffById = new Map(scopedStaffRows.map((staff) => [staff.id, staff]));
+ const serviceRequests: HrServiceRequestSummary[] = ((serviceRequestRows ?? []) as HrServiceRequestRow[])
+ .filter((request) => !allowedEntityIds.size || !request.legal_entity_id || allowedEntityIds.has(request.legal_entity_id))
+ .map((request) => {
+ const profile = profileById.get(request.profile_id);
+ const staff = request.staff_id ? staffById.get(request.staff_id) : null;
+ const company = request.legal_entity_id ? companies.get(request.legal_entity_id) : null;
+ const branch = request.branch_id ? requestBranchById.get(request.branch_id) : null;
+ return {
+ id: request.id,
+ request_number: request.request_number,
+ request_type: request.request_type,
+ title: request.title,
+ description: request.description,
+ priority: request.priority,
+ status: request.status,
+ requester_name: profile?.full_name ?? staff?.full_name ?? null,
+ staff_code: staff?.staff_code ?? profile?.employee_code ?? null,
+ legal_entity_code: company?.code ?? null,
+ legal_entity_name: company?.legal_name ?? null,
+ branch_code: branch?.branch_code ?? null,
+ branch_name: branch?.branch_name ?? null,
+ start_date: request.start_date,
+ end_date: request.end_date,
+ created_at: request.created_at,
+ reviewer_note: request.reviewer_note,
+ };
+ });
+
  const sortedGroupOwners = group_owners.sort((a, b) => a.full_name.localeCompare(b.full_name));
  const allSummaries = companyList.map((c) => c.summary);
  const companyPeople = allSummaries.reduce((n, s) => n + s.total, 0);
+ const allLeaveBalances = [...leaveBalancesByStaff.values()].flat();
  return {
  companies: companyList,
  group_owners: sortedGroupOwners,
  unassigned: unassigned.sort(sortPeople),
+ service_requests: serviceRequests,
  summary: {
  total_companies: companyList.length,
  total_people: companyPeople + unassigned.length + sortedGroupOwners.length,
@@ -487,6 +624,8 @@ export async function getCompanyHrDashboard(
  allSummaries.reduce((n, s) => n + s.profile_complete, 0) +
  unassigned.filter((p) => p.profile_completed_at).length +
  sortedGroupOwners.filter((p) => p.profile_completed_at).length,
+ leave_balances: allLeaveBalances.length,
+ leave_pending: allLeaveBalances.reduce((sum, balance) => sum + Number(balance.pending_days ?? 0), 0),
  },
  };
 }

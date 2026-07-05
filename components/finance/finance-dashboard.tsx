@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
  Banknote,
@@ -68,6 +68,7 @@ import {
  moduleTabsListClass,
  moduleTabsTriggerClass,
 } from '@/components/shared/module-ui';
+import { boundSelectValue } from '@/lib/ui/select-utils';
 
 function fmt(n: number) {
  return `RM ${Number(n).toLocaleString('ms-MY', { minimumFractionDigits: 2 })}`;
@@ -80,6 +81,14 @@ type FinanceBranchOption = {
  area?: string | null;
  region_name?: string | null;
 };
+
+const NO_COLLECTION_VALUE = '__NO_COLLECTION__';
+
+function financeBranchLabel(branch: FinanceBranchOption) {
+ return [branch.branch_code, branch.branch_name, branch.region_name ?? branch.area]
+ .filter(Boolean)
+ .join(' - ');
+}
 
 export function FinanceDashboard() {
  const profile = useAuthStore((s) => s.profile);
@@ -230,7 +239,22 @@ export function FinanceDashboard() {
  }
  }
 
+ const branchSelectValues = useMemo(() => branches.map((branch) => branch.id), [branches]);
+ const safeNewCollectionBranchId =
+ boundSelectValue(newCollection.branch_id, branchSelectValues) ?? '';
+ const safeReconBranchId = boundSelectValue(reconForm.branch_id, branchSelectValues) ?? '';
+ const selectedNewCollectionBranch =
+ branches.find((branch) => branch.id === safeNewCollectionBranchId) ?? null;
+ const selectedReconBranch = branches.find((branch) => branch.id === safeReconBranchId) ?? null;
  const pendingCollections = collections.filter((c) => c.status === 'PENDING');
+ const bankInCollectionValues = useMemo(
+ () => [NO_COLLECTION_VALUE,...pendingCollections.map((collection) => collection.id)],
+ [pendingCollections]);
+ const safeBankInCollectionValue =
+ boundSelectValue(bankInForm.collection_id || NO_COLLECTION_VALUE, bankInCollectionValues) ??
+ NO_COLLECTION_VALUE;
+ const selectedBankInCollection =
+ pendingCollections.find((collection) => collection.id === safeBankInCollectionValue) ?? null;
  const pendingManualQr = manualQrPayments.filter((p) => p.status === 'PENDING');
 
  return (
@@ -322,13 +346,17 @@ export function FinanceDashboard() {
  <div className="space-y-1">
  <Label>Branch</Label>
  <Select
- value={newCollection.branch_id}
+ value={safeNewCollectionBranchId}
  onValueChange={(v) => v && setNewCollection({...newCollection, branch_id: v })}
  >
- <SelectTrigger><SelectValue /></SelectTrigger>
+ <SelectTrigger>
+ <SelectValue placeholder="Pilih cawangan">
+ {selectedNewCollectionBranch ? financeBranchLabel(selectedNewCollectionBranch) : undefined}
+ </SelectValue>
+ </SelectTrigger>
  <SelectContent>
  {branches.map((b) => (
- <SelectItem key={b.id} value={b.id}>{b.branch_name}</SelectItem>))}
+ <SelectItem key={b.id} value={b.id}>{financeBranchLabel(b)}</SelectItem>))}
  </SelectContent>
  </Select>
  </div>
@@ -491,12 +519,20 @@ export function FinanceDashboard() {
  <div className="space-y-1">
  <Label>Link Collection (optional)</Label>
  <Select
- value={bankInForm.collection_id}
- onValueChange={(v) => setBankInForm({ ...bankInForm, collection_id: v ?? '' })}
+ value={safeBankInCollectionValue}
+ onValueChange={(v) =>
+ setBankInForm({ ...bankInForm, collection_id: v === NO_COLLECTION_VALUE ? '' : v ?? '' })
+ }
  >
- <SelectTrigger><SelectValue placeholder="Tiada" /></SelectTrigger>
+ <SelectTrigger>
+ <SelectValue placeholder="Tiada">
+ {selectedBankInCollection
+ ? `${selectedBankInCollection.collection_number} - ${fmt(selectedBankInCollection.amount)}`
+ : 'Tiada'}
+ </SelectValue>
+ </SelectTrigger>
  <SelectContent>
- <SelectItem value="">Tiada</SelectItem>
+ <SelectItem value={NO_COLLECTION_VALUE}>Tiada</SelectItem>
  {pendingCollections.map((c) => (
  <SelectItem key={c.id} value={c.id}>
  {c.collection_number} - {fmt(c.amount)}
@@ -540,13 +576,17 @@ export function FinanceDashboard() {
  <div className="space-y-1">
  <Label>Branch</Label>
  <Select
- value={reconForm.branch_id}
+ value={safeReconBranchId}
  onValueChange={(v) => v && setReconForm({...reconForm, branch_id: v })}
  >
- <SelectTrigger><SelectValue /></SelectTrigger>
+ <SelectTrigger>
+ <SelectValue placeholder="Pilih cawangan">
+ {selectedReconBranch ? financeBranchLabel(selectedReconBranch) : undefined}
+ </SelectValue>
+ </SelectTrigger>
  <SelectContent>
  {branches.map((b) => (
- <SelectItem key={b.id} value={b.id}>{b.branch_name}</SelectItem>))}
+ <SelectItem key={b.id} value={b.id}>{financeBranchLabel(b)}</SelectItem>))}
  </SelectContent>
  </Select>
  </div>

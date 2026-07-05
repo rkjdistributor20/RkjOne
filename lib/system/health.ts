@@ -1,5 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database, ProfileWithBranch } from '@/types/database';
+import {
+ buildProductionReadiness,
+ type ProductionReadinessSnapshot,
+} from '@/lib/system/production-readiness';
 
 export type SystemHealthStatus = 'PASS' | 'WARN' | 'FAIL';
 
@@ -21,6 +25,7 @@ export type SystemHealthSection = {
 export type SystemHealthSnapshot = {
  generated_at: string;
  overall: SystemHealthStatus;
+ production_readiness: ProductionReadinessSnapshot;
  profile: {
  id: string;
  name: string;
@@ -99,6 +104,14 @@ export async function buildSystemHealthSnapshot(
  'RAZER_MERCHANT_ID',
  'IPAY88_MERCHANT_CODE',
  ]);
+ const productionReadiness = buildProductionReadiness({
+ hasSupabaseEnv,
+ hasPaymentEnv,
+ branches,
+ legalEntities,
+ activeProfiles,
+ migrationRows,
+ });
 
  const sections: SystemHealthSection[] = [
  {
@@ -219,6 +232,7 @@ export async function buildSystemHealthSnapshot(
  return {
  generated_at: now,
  overall: worstStatus(allStatuses),
+ production_readiness: productionReadiness,
  profile: {
  id: profile.id,
  name: profile.full_name,

@@ -124,6 +124,33 @@ export interface Database {
  Insert: Omit<ApprovalRequest, 'id' | 'created_at' | 'updated_at'>;
  Update: Partial<ApprovalRequest>;
  };
+ hr_service_requests: {
+ Row: HrServiceRequest;
+ Insert: Omit<HrServiceRequest, 'id' | 'created_at' | 'updated_at'> & {
+ id?: string;
+ created_at?: string;
+ updated_at?: string;
+ };
+ Update: Partial<HrServiceRequest>;
+ };
+ hr_leave_balances: {
+ Row: HrLeaveBalance;
+ Insert: Omit<HrLeaveBalance, 'id' | 'created_at' | 'updated_at' | 'remaining_days'> & {
+ id?: string;
+ created_at?: string;
+ updated_at?: string;
+ remaining_days?: number;
+ };
+ Update: Partial<Omit<HrLeaveBalance, 'remaining_days'>>;
+ };
+ hr_leave_transactions: {
+ Row: HrLeaveTransaction;
+ Insert: Omit<HrLeaveTransaction, 'id' | 'created_at'> & {
+ id?: string;
+ created_at?: string;
+ };
+ Update: Partial<HrLeaveTransaction>;
+ };
  maintenance_reports: {
  Row: MaintenanceReport;
  Insert: Omit<MaintenanceReport, 'id' | 'created_at' | 'updated_at'> & {
@@ -354,6 +381,7 @@ export interface Staff {
  organization_id: string;
  staff_code: string;
  full_name: string;
+ legal_entity_id: string | null;
  branch_id: string | null;
  region_id: string | null;
  worker_type: 'FOREIGN' | 'LOCAL' | null;
@@ -573,6 +601,103 @@ export interface ApprovalRequest {
  created_at: string;
  updated_at: string;
  resolved_at: string | null;
+}
+
+export type HrServiceRequestType =
+ | 'LEAVE'
+ | 'PROFILE_UPDATE'
+ | 'DOCUMENT'
+ | 'PAYROLL'
+ | 'TRANSFER'
+ | 'ATTENDANCE'
+ | 'UNIFORM_EQUIPMENT'
+ | 'OVERTIME'
+ | 'CLAIM'
+ | 'TRAINING'
+ | 'RESIGNATION'
+ | 'DISCIPLINE'
+ | 'ASSET'
+ | 'LOAN_ADVANCE'
+ | 'HR_HELP';
+
+export type HrServiceRequestStatus =
+ | 'SUBMITTED'
+ | 'IN_REVIEW'
+ | 'APPROVED'
+ | 'REJECTED'
+ | 'CANCELLED'
+ | 'COMPLETED';
+
+export type HrServiceRequestPriority = 'LOW' | 'NORMAL' | 'HIGH';
+
+export type HrLeaveType = 'ANNUAL' | 'SICK' | 'EMERGENCY' | 'UNPAID' | 'REPLACEMENT';
+
+export type HrLeaveTransactionType =
+ | 'ENTITLEMENT'
+ | 'CARRY_FORWARD'
+ | 'ADJUSTMENT'
+ | 'PENDING'
+ | 'APPROVED_USAGE'
+ | 'REJECT_RELEASE'
+ | 'CANCEL_RELEASE';
+
+export interface HrServiceRequest {
+ id: string;
+ organization_id: string;
+ legal_entity_id: string | null;
+ branch_id: string | null;
+ profile_id: string;
+ staff_id: string | null;
+ request_number: string;
+ request_type: HrServiceRequestType;
+ title: string;
+ description: string;
+ start_date: string | null;
+ end_date: string | null;
+ priority: HrServiceRequestPriority;
+ status: HrServiceRequestStatus;
+ reviewed_by: string | null;
+ reviewed_at: string | null;
+ reviewer_note: string | null;
+ metadata: Json;
+ created_at: string;
+ updated_at: string;
+}
+
+export interface HrLeaveBalance {
+ id: string;
+ organization_id: string;
+ legal_entity_id: string | null;
+ staff_id: string;
+ profile_id: string | null;
+ leave_year: number;
+ leave_type: HrLeaveType;
+ entitlement_days: number;
+ carried_forward_days: number;
+ used_days: number;
+ pending_days: number;
+ adjustment_days: number;
+ remaining_days: number;
+ notes: string | null;
+ updated_by: string | null;
+ created_at: string;
+ updated_at: string;
+}
+
+export interface HrLeaveTransaction {
+ id: string;
+ organization_id: string;
+ leave_balance_id: string | null;
+ staff_id: string;
+ profile_id: string | null;
+ hr_service_request_id: string | null;
+ leave_type: HrLeaveType;
+ transaction_type: HrLeaveTransactionType;
+ days: number;
+ balance_after_days: number | null;
+ note: string | null;
+ created_by: string | null;
+ created_at: string;
 }
 
 export interface DashboardStats {

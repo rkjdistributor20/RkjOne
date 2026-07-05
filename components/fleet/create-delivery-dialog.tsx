@@ -62,6 +62,7 @@ import {
  SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { boundSelectValue } from '@/lib/ui/select-utils';
 import type { FleetDriver, FleetVehicle } from '@/lib/fleet/types';
 
 type StockOrigin = 'FROM_FACTORY' | 'FROM_HQ';
@@ -137,9 +138,13 @@ export function CreateDeliveryDialog({
  instructions.length > 0 && selectedKeys.size === instructions.length;
  const someSelected = selectedKeys.size > 0;
 
- const selectedDriver = drivers.find((d) => d.id === driverId);
+ const driverValues = useMemo(() => drivers.map((driver) => driver.id), [drivers]);
+ const safeDriverId = boundSelectValue(driverId, driverValues) ?? '';
+ const selectedDriver = drivers.find((d) => d.id === safeDriverId);
  const selectedVehicle = vehicles.find((v) => v.id === vehicleId);
  const fleetSlot = fleetLocationForVehicle(vehicleId, fleetLocs);
+ const branchSelectValues = useMemo(() => branches.map((branch) => branch.id), [branches]);
+ const stockItemSelectValues = useMemo(() => hqStockItems.map((item) => item.id), [hqStockItems]);
 
  const filteredBranches = useMemo(() => {
  const q = branchSearch.trim().toLowerCase();
@@ -156,7 +161,7 @@ export function CreateDeliveryDialog({
  setStockOrigin('FROM_FACTORY');
  setBranchSearch('');
  setScheduledDate(new Date().toISOString().slice(0, 10));
- if (drivers.length) setDriverId(drivers[0].id);
+ setDriverId(drivers[0]?.id ?? '');
  setInstructions([emptyInstruction(branches, defaultItemId)]);
  setAiSummary(null);
  setPosition(null);
@@ -164,19 +169,19 @@ export function CreateDeliveryDialog({
  }, [open, branches, drivers, defaultItemId]);
 
  useEffect(() => {
- if (!driverId) return;
- const linked = vehicleForDriver(driverId, vehicles);
+ if (!safeDriverId) return;
+ const linked = vehicleForDriver(safeDriverId, vehicles);
  if (linked) setVehicleId(linked.id);
- }, [driverId, vehicles]);
+ }, [safeDriverId, vehicles]);
 
  const parsedInstructions = useMemo(
  () =>
  instructions.map((row) => ({
- destId: row.destId,
- itemId: row.itemId,
+ destId: boundSelectValue(row.destId, branchSelectValues) ?? '',
+ itemId: boundSelectValue(row.itemId, stockItemSelectValues) ?? '',
  quantity: Number(row.qty),
  })),
- [instructions]);
+ [instructions, branchSelectValues, stockItemSelectValues]);
 
  const journeyNodes = useMemo(() => {
  const nodes: Array<{ icon: typeof Factory; label: string; sub?: string }> = [];
@@ -196,7 +201,8 @@ export function CreateDeliveryDialog({
  });
  }
  instructions.forEach((row, idx) => {
- const branch = branches.find((b) => b.id === row.destId);
+ const safeDestId = boundSelectValue(row.destId, branchSelectValues) ?? '';
+ const branch = branches.find((b) => b.id === safeDestId);
  if (!branch) return;
  nodes.push({
  icon: Store,
@@ -205,7 +211,7 @@ export function CreateDeliveryDialog({
  });
  });
  return nodes;
- }, [stockOrigin, factory, hq, fleetSlot, selectedVehicle, instructions, branches]);
+ }, [stockOrigin, factory, hq, fleetSlot, selectedVehicle, instructions, branches, branchSelectValues]);
 
  function updateInstruction(key: string, patch: Partial<ManualDeliveryInstruction>) {
  setInstructions((prev) =>
@@ -340,7 +346,7 @@ export function CreateDeliveryDialog({
  }
 
  async function handleCreate() {
- if (!hq?.id || !driverId || !vehicleId) {
+ if (!hq?.id || !safeDriverId || !vehicleId) {
  toast.error(`Sila pilih pemandu dan pastikan ${HQ_DISTRIBUTOR_LABEL} wujud`);
  return;
  }
@@ -377,7 +383,7 @@ export function CreateDeliveryDialog({
  factoryId: factory?.id,
  hqId: hq.id,
  fleetSlotId: slot.id,
- driverId,
+ driverId: safeDriverId,
  vehicleId,
  instructions: parsedInstructions,
  });
@@ -385,7 +391,7 @@ export function CreateDeliveryDialog({
  await createDeliveryOrder({
  origin_location_id: originId,
  final_destination_id: lastDest,
- primary_driver_id: driverId,
+ primary_driver_id: safeDriverId,
  primary_vehicle_id: vehicleId,
  scheduled_date: scheduledDate,
  ai_route_summary: aiSummary ?? undefined,
@@ -505,7 +511,7 @@ export function CreateDeliveryDialog({
 
  <div className="space-y-1.5">
  <Label className="text-sm font-semibold">2. Pemandu penghantaran</Label>
- <Select value={driverId} onValueChange={(v) => setDriverId(v ?? '')}>
+ <Select value={safeDriverId} onValueChange={(v) => setDriverId(v ?? '')}>
  <SelectTrigger>
  <SelectValue placeholder="Pilih pemandu">
  {formatDriverName(selectedDriver)}
@@ -636,8 +642,10 @@ export function CreateDeliveryDialog({
 
  <div className="max-h-[min(52vh,520px)] space-y-3 overflow-y-auto pr-1">
  {instructions.map((row, idx) => {
- const branch = branches.find((b) => b.id === row.destId);
- const item = hqStockItems.find((s) => s.id === row.itemId);
+ const safeDestId = boundSelectValue(row.destId, branchSelectValues) ?? '';
+ const safeItemId = boundSelectValue(row.itemId, stockItemSelectValues) ?? '';
+ const branch = branches.find((b) => b.id === safeDestId);
+ const item = hqStockItems.find((s) => s.id === safeItemId);
  const qtyUnitLabel = item
  ? formatStockItemDetail(item)?.split(' - ').pop()?.replace('Order dalam ', '') ??
  'unit'
@@ -685,7 +693,7 @@ export function CreateDeliveryDialog({
  <div className="space-y-1">
  <Label className="text-xs text-muted-foreground">Cawangan</Label>
  <Select
- value={row.destId}
+ value={safeDestId}
  onValueChange={(v) => updateInstruction(row.key, { destId: v ?? '' })}
  >
  <SelectTrigger>
@@ -715,7 +723,7 @@ export function CreateDeliveryDialog({
  <div className="space-y-1">
  <Label className="text-xs text-muted-foreground">Stok</Label>
  <Select
- value={row.itemId}
+ value={safeItemId}
  onValueChange={(v) => updateInstruction(row.key, { itemId: v ?? '' })}
  >
  <SelectTrigger>
@@ -779,12 +787,14 @@ export function CreateDeliveryDialog({
  </p>
  <ul className="mt-2 space-y-0.5 text-xs text-emerald-900/80">
  {instructions.map((row, idx) => {
- const branch = branches.find((b) => b.id === row.destId);
- const item = hqStockItems.find((s) => s.id === row.itemId);
+ const safeDestId = boundSelectValue(row.destId, branchSelectValues) ?? '';
+ const safeItemId = boundSelectValue(row.itemId, stockItemSelectValues) ?? '';
+ const branch = branches.find((b) => b.id === safeDestId);
+ const item = hqStockItems.find((s) => s.id === safeItemId);
  if (!branch || !item || Number(row.qty) <= 0) return null;
  return (
  <li key={row.key}>
- {idx + 1}. {formatBranchDestination(branch)} - {row.qty}× {item.name}
+ {idx + 1}. {formatBranchDestination(branch)} - {row.qty} x {item.name}
  </li>);
  })}
  </ul>

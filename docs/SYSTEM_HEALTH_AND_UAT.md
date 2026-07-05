@@ -40,9 +40,10 @@ Semak setiap kategori pengguna:
 Sebelum kerja besar:
 
 1. Jalankan `npm run system:audit`.
-2. Jalankan `npm run bundle:migrations`.
-3. Pastikan `CHECKPOINT.json` dan `RESUME.md` dikemas kini.
-4. Simpan nota deploy production terakhir.
+2. Jalankan `npm run verify:readiness`.
+3. Jalankan `npm run bundle:migrations`.
+4. Pastikan `CHECKPOINT.json` dan `RESUME.md` dikemas kini.
+5. Simpan nota deploy production terakhir.
 
 ## 5. Payment Gateway
 

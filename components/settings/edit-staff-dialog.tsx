@@ -45,6 +45,7 @@ import {
  LEGAL_ENTITIES,
  type LegalEntityCode,
 } from '@/lib/brand/legal-entities';
+import { boundSelectValue } from '@/lib/ui/select-utils';
 
 const COMPANY_HQ_BRANCH_VALUE = '__COMPANY_HQ__';
 
@@ -90,6 +91,12 @@ export function EditStaffDialog({
  const [hasPortal, setHasPortal] = useState(false);
 
  const [payrollRules, setPayrollRules] = useState<PayrollRule[]>([]);
+ const branchSelectValues = useMemo(() => branches.map((branch) => branch.id), [branches]);
+ const useRkjDefaultPay = legalEntityCode === DEFAULT_SALES_LEGAL_ENTITY_CODE;
+ const isKioskEmployer = useRkjDefaultPay;
+ const safeBranchId = isKioskEmployer
+ ? boundSelectValue(branchId, branchSelectValues) ?? ''
+ : COMPANY_HQ_BRANCH_VALUE;
 
  const foreignTiers = useMemo(
  () => getForeignShiftTiers(payrollRules),
@@ -139,7 +146,6 @@ export function EditStaffDialog({
 
  async function handleSave() {
  if (!staffId) return;
- const useRkjDefaultPay = legalEntityCode === DEFAULT_SALES_LEGAL_ENTITY_CODE;
  const monthly = Number(monthlyAmount);
  const weekly = Number(weeklyAmount);
 
@@ -165,7 +171,7 @@ export function EditStaffDialog({
  try {
  const payload: Record<string, unknown> = {
  full_name: fullName.trim(),
- branch_id: branchId === COMPANY_HQ_BRANCH_VALUE ? null : branchId,
+ branch_id: safeBranchId === COMPANY_HQ_BRANCH_VALUE ? null : safeBranchId,
  legal_entity_code: legalEntityCode,
  status,
  worker_type: workerType,
@@ -249,9 +255,8 @@ export function EditStaffDialog({
  if (!Number.isFinite(hours) || hours <= 0) return null;
  return computeForeignWeeklyPay(payrollRules, hours, days);
  }, [payrollRules, workerType, shiftHours, shiftsPerWeek]);
- const useRkjDefaultPay = legalEntityCode === DEFAULT_SALES_LEGAL_ENTITY_CODE;
- const isKioskEmployer = useRkjDefaultPay;
  const selectedLegalEntity = LEGAL_ENTITIES.find((entity) => entity.code === legalEntityCode);
+ const selectedBranch = branches.find((branch) => branch.id === safeBranchId) ?? null;
 
  return (
  <Dialog open={open} onOpenChange={onOpenChange}>
@@ -329,9 +334,11 @@ export function EditStaffDialog({
  {isKioskEmployer ? (
  <div className="space-y-1.5 sm:col-span-2">
  <Label>{isKioskEmployer ? 'Cawangan' : 'Lokasi / Cawangan (opsyenal)'}</Label>
- <Select value={branchId} onValueChange={(v) => v && setBranchId(v)}>
+ <Select value={safeBranchId} onValueChange={(v) => v && setBranchId(v)}>
  <SelectTrigger>
- <SelectValue />
+ <SelectValue placeholder="Pilih cawangan">
+ {selectedBranch ? `${selectedBranch.branch_code} - ${selectedBranch.branch_name}` : undefined}
+ </SelectValue>
  </SelectTrigger>
  <SelectContent>
  {branches.map((b) => (

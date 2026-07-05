@@ -1164,12 +1164,12 @@ export function PosStockSopPanel({
  <div className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">
  Tiada penghantaran driver yang menunggu pengesahan staf.
  </div>) : (
- receipts.map((receipt) => (
+ receipts.map((receipt, receiptIndex) => (
  <div key={receipt.id} className="rounded-2xl border bg-background p-4 shadow-sm">
  <div className="flex flex-wrap items-start justify-between gap-3">
  <div>
  <div className="flex flex-wrap items-center gap-2">
- <p className="font-bold">Delivery {receipt.stock_transfer_id?.slice(0, 8) ?? receipt.id.slice(0, 8)}</p>
+ <p className="font-bold">Penghantaran driver #{receiptIndex + 1}</p>
  <Badge variant={statusVariant(receipt.status)}>
  {STATUS_LABELS[receipt.status] ?? receipt.status}
  </Badge>
@@ -1197,7 +1197,7 @@ export function PosStockSopPanel({
  mismatch && 'border-orange-300 bg-orange-50/70')}
  >
  <div>
- <p className="font-medium">{item.stock_item?.name ?? item.stock_item_id}</p>
+ <p className="font-medium">{item.stock_item?.name ?? 'Item stok tidak dikenal pasti'}</p>
  <p className="text-xs text-muted-foreground">
  {item.stock_item?.item_code} {item.production_date ? `- Production ${item.production_date}` : ''}
  </p>

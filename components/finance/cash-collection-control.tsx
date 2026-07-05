@@ -51,6 +51,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { SectionCard, formatRM } from '@/components/shared/module-ui';
 import { cn } from '@/lib/utils';
+import { boundSelectValue } from '@/lib/ui/select-utils';
 
 type BranchOption = {
  id: string;
@@ -214,17 +215,31 @@ export function CashCollectionControl({
  (item.status === 'PENDING' || item.status === 'COLLECTED') &&
  remainingForCollection(item) > 0.009);
 
- const selectedBranchId = branchId || branches[0]?.id || '';
- const selectedBranch = branches.find((branch) => branch.id === selectedBranchId) ?? branches[0];
- const selectedBankCollection = cashCollections.find((item) => item.id === bankInCollectionId);
+ const branchSelectValues = useMemo(() => branches.map((branch) => branch.id), [branches]);
+ const selectedBranchId =
+ boundSelectValue(branchId || branches[0]?.id || '', branchSelectValues) ?? '';
+ const selectedBranch = branches.find((branch) => branch.id === selectedBranchId) ?? null;
+ const bankableCollectionValues = useMemo(
+ () => bankableCollections.map((collection) => collection.id),
+ [bankableCollections]);
+ const safeBankInCollectionId =
+ boundSelectValue(bankInCollectionId, bankableCollectionValues) ?? '';
+ const selectedBankCollection = cashCollections.find((item) => item.id === safeBankInCollectionId);
+ const safeUsageCollectionId =
+ boundSelectValue(usageCollectionId, bankableCollectionValues) ?? bankableCollections[0]?.id ?? '';
  const selectedUsageCollection =
- cashCollections.find((item) => item.id === usageCollectionId) ?? bankableCollections[0] ?? null;
+ cashCollections.find((item) => item.id === safeUsageCollectionId) ?? null;
  const selectedUsageRemaining = selectedUsageCollection ? remainingForCollection(selectedUsageCollection) : 0;
  const availableRequestsForUsage = supplyRequests.filter(
  (request) =>
  selectedUsageCollection?.branch_id &&
  request.branch_id === selectedUsageCollection.branch_id &&
  (request.status === 'APPROVED' || request.status === 'FULFILLED'));
+ const availableRequestValues = useMemo(
+ () => availableRequestsForUsage.map((request) => request.id),
+ [availableRequestsForUsage]);
+ const safeUsageSupplyRequestId =
+ boundSelectValue(usageSupplyRequestId, availableRequestValues) ?? '';
 
  const branchRows = useMemo(() => {
  return branches.map((branch) => {
@@ -492,7 +507,11 @@ export function CashCollectionControl({
  <div className="space-y-1.5">
  <Label>Cawangan</Label>
  <Select value={selectedBranchId} onValueChange={(value) => value && setBranchId(value)}>
- <SelectTrigger><SelectValue placeholder="Pilih cawangan" /></SelectTrigger>
+ <SelectTrigger>
+ <SelectValue placeholder="Pilih cawangan">
+ {selectedBranch ? branchDisplay(selectedBranch) : undefined}
+ </SelectValue>
+ </SelectTrigger>
  <SelectContent>
  {branches.map((branch) => (
  <SelectItem key={branch.id} value={branch.id}>{branchDisplay(branch)}</SelectItem>))}
@@ -540,14 +559,20 @@ export function CashCollectionControl({
  <div className="space-y-1.5">
  <Label>Cash collection</Label>
  <Select
- value={selectedUsageCollection?.id ?? ''}
+ value={safeUsageCollectionId}
  onValueChange={(value) => {
  if (!value) return;
  setUsageCollectionId(value);
  setUsageSupplyRequestId('');
  }}
  >
- <SelectTrigger><SelectValue placeholder="Pilih kutipan cash" /></SelectTrigger>
+ <SelectTrigger>
+ <SelectValue placeholder="Pilih kutipan cash">
+ {selectedUsageCollection
+ ? `${selectedUsageCollection.collection_number} - ${selectedUsageCollection.branch?.branch_code ?? 'HQ'} - baki ${formatRM(selectedUsageRemaining)}`
+ : undefined}
+ </SelectValue>
+ </SelectTrigger>
  <SelectContent>
  {bankableCollections.map((collection) => (
  <SelectItem key={collection.id} value={collection.id}>
@@ -578,8 +603,14 @@ export function CashCollectionControl({
  {usageType === 'BRANCH_NECESSITY' && (
  <div className="space-y-1.5">
  <Label>Request staf cawangan yang diluluskan</Label>
- <Select value={usageSupplyRequestId} onValueChange={(value) => value && setUsageSupplyRequestId(value)}>
- <SelectTrigger><SelectValue placeholder="Pilih request approved" /></SelectTrigger>
+ <Select value={safeUsageSupplyRequestId} onValueChange={(value) => value && setUsageSupplyRequestId(value)}>
+ <SelectTrigger>
+ <SelectValue placeholder="Pilih request approved">
+ {availableRequestsForUsage.find((request) => request.id === safeUsageSupplyRequestId)
+ ? supplyRequestLabel(availableRequestsForUsage.find((request) => request.id === safeUsageSupplyRequestId)!)
+ : undefined}
+ </SelectValue>
+ </SelectTrigger>
  <SelectContent>
  {availableRequestsForUsage.map((request) => (
  <SelectItem key={request.id} value={request.id}>{supplyRequestLabel(request)}</SelectItem>))}
@@ -634,7 +665,7 @@ export function CashCollectionControl({
  <div className="space-y-1.5">
  <Label>Rekod kutipan</Label>
  <Select
- value={bankInCollectionId}
+ value={safeBankInCollectionId}
  onValueChange={(value) => {
  if (!value) return;
  setBankInCollectionId(value);
@@ -642,7 +673,13 @@ export function CashCollectionControl({
  setBankInAmount(collection ? String(remainingForCollection(collection).toFixed(2)) : '');
  }}
  >
- <SelectTrigger><SelectValue placeholder="Pilih kutipan belum selesai" /></SelectTrigger>
+ <SelectTrigger>
+ <SelectValue placeholder="Pilih kutipan belum selesai">
+ {selectedBankCollection
+ ? `${selectedBankCollection.collection_number} - ${selectedBankCollection.branch?.branch_code ?? selectedBankCollection.collected_from ?? 'HQ'} - baki ${formatRM(remainingForCollection(selectedBankCollection))}`
+ : undefined}
+ </SelectValue>
+ </SelectTrigger>
  <SelectContent>
  {bankableCollections.map((collection) => (
  <SelectItem key={collection.id} value={collection.id}>

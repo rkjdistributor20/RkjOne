@@ -78,6 +78,7 @@ import { isSalesAgentRole } from '@/lib/auth/sales-agent-access';
 import { WorkflowSopPanel } from '@/components/dashboard/workflow-sop-panel';
 import { getRoleWorkflow } from '@/lib/dashboard/role-workflows';
 import { formatProductionDayLabel } from '@/lib/production/week-utils';
+import { boundSelectValue } from '@/lib/ui/select-utils';
 import { useLanguage } from '@/components/i18n/language-provider';
 
 const ORDER_STATUS: Record<string, string> = {
@@ -314,7 +315,7 @@ export function SalesAgentDashboard() {
  phone: salesStaffForm.phone.trim() || null,
  email: salesStaffForm.email.trim() || null,
  role_title: salesStaffForm.role_title.trim() || 'Staf Jualan',
- outlet_id: salesStaffForm.outlet_id === 'none' ? null : salesStaffForm.outlet_id,
+ outlet_id: safeSalesStaffOutletId === 'none' ? null : safeSalesStaffOutletId,
  duty_scope: salesStaffForm.duty_scope.trim() || null,
  });
  toast.success('Staf jualan Ejen Khas didaftarkan');
@@ -434,6 +435,11 @@ export function SalesAgentDashboard() {
 
  const isSpecialAgent = Boolean(data.account?.payment_exempt);
  const canManageSalesStaff = isSpecialAgent || data.stats.active_outlets > 0;
+ const outletSelectValues = ['none',...data.outlets.map((outlet) => outlet.id)];
+ const safeSalesStaffOutletId =
+ boundSelectValue(salesStaffForm.outlet_id || 'none', outletSelectValues) ?? 'none';
+ const selectedSalesStaffOutlet =
+ data.outlets.find((outlet) => outlet.id === safeSalesStaffOutletId) ?? null;
 
  return (
  <ModuleLayout>
@@ -731,11 +737,15 @@ export function SalesAgentDashboard() {
  <div className="md:col-span-2">
  <Label>Outlet / POS Bertugas</Label>
  <Select
- value={salesStaffForm.outlet_id}
+ value={safeSalesStaffOutletId}
  onValueChange={(value) => setSalesStaffForm((p) => ({...p, outlet_id: value ?? 'none' }))}
  >
  <SelectTrigger>
- <SelectValue placeholder="Pilih outlet/POS" />
+ <SelectValue placeholder="Pilih outlet/POS">
+ {selectedSalesStaffOutlet
+ ? `${selectedSalesStaffOutlet.outlet_code} - ${selectedSalesStaffOutlet.outlet_name}`
+ : 'Belum ditetapkan'}
+ </SelectValue>
  </SelectTrigger>
  <SelectContent>
  <SelectItem value="none">Belum ditetapkan</SelectItem>
@@ -932,6 +942,12 @@ function AdminSalesAgentManagement({ workflow }: { workflow: ReturnType<typeof g
  const activePriceGroups = useMemo(
  () => priceGroups.filter((g) => g.id && g.name && g.status !== 'INACTIVE'),
  [priceGroups]);
+ const priceGroupSelectValues = useMemo(
+ () => ['DEFAULT', ...activePriceGroups.map((group) => group.id)],
+ [activePriceGroups]);
+ const assignableStaffValues = useMemo(
+ () => ['NONE', ...assignableStaff.map((staff) => staff.id)],
+ [assignableStaff]);
 
  const specialPriceGroup = useMemo(
  () => activePriceGroups.find((g) => g.payment_exempt || g.code === 'EJEN_KHAS_SYARIKAT') ?? null,
@@ -1002,6 +1018,9 @@ function AdminSalesAgentManagement({ workflow }: { workflow: ReturnType<typeof g
  }, [activePriceGroups]);
 
  const formPriceGroup = activePriceGroups.find((g) => g.id === form.assigned_price_group_id) ?? null;
+ const formPriceGroupSelectValue = boundSelectValue(form.assigned_price_group_id || 'DEFAULT', priceGroupSelectValues) ?? 'DEFAULT';
+ const editPriceGroupSelectValue = boundSelectValue(editForm.assigned_price_group_id || 'DEFAULT', priceGroupSelectValues) ?? 'DEFAULT';
+ const formStaffSelectValue = boundSelectValue(form.staff_id || 'NONE', assignableStaffValues) ?? 'NONE';
  const addingSpecialAgent = Boolean(formPriceGroup?.payment_exempt || formPriceGroup?.code === 'EJEN_KHAS_SYARIKAT');
 
  useEffect(() => {
@@ -1246,7 +1265,7 @@ function AdminSalesAgentManagement({ workflow }: { workflow: ReturnType<typeof g
  <div className="grid gap-3 md:grid-cols-2">
  <div className="space-y-1 md:col-span-2">
  <Label>Pilih Staf Ejen Khas</Label>
- <Select value={form.staff_id || 'NONE'} onValueChange={(value) => setForm((p) => ({...p, staff_id: value === 'NONE' ? '' : String(value) }))}>
+ <Select value={formStaffSelectValue} onValueChange={(value) => setForm((p) => ({...p, staff_id: value === 'NONE' ? '' : String(value) }))}>
  <SelectTrigger className="w-full"><SelectValue placeholder="Pilih staf RKJ Distributor / Manufacturing" /></SelectTrigger>
  <SelectContent>
  <SelectItem value="NONE">Pilih staf</SelectItem>
@@ -1289,7 +1308,7 @@ function AdminSalesAgentManagement({ workflow }: { workflow: ReturnType<typeof g
  </div>
  <div className="space-y-1">
  <Label>Group Rate</Label>
- <Select value={form.assigned_price_group_id || 'DEFAULT'} onValueChange={(value) => setForm((p) => ({...p, assigned_price_group_id: value === 'DEFAULT' ? '' : String(value), staff_id: value === 'DEFAULT' ? '' : p.staff_id }))}>
+ <Select value={formPriceGroupSelectValue} onValueChange={(value) => setForm((p) => ({...p, assigned_price_group_id: value === 'DEFAULT' ? '' : String(value), staff_id: value === 'DEFAULT' ? '' : p.staff_id }))}>
  <SelectTrigger className="w-full"><SelectValue placeholder="Pilih group rate">{groupRateLabel(form.assigned_price_group_id)}</SelectValue></SelectTrigger>
  <SelectContent>
  <SelectItem value="DEFAULT">Default sistem</SelectItem>
@@ -1303,7 +1322,7 @@ function AdminSalesAgentManagement({ workflow }: { workflow: ReturnType<typeof g
  <div className="grid gap-3 md:grid-cols-2">
  <div className="space-y-1">
  <Label>Group Rate</Label>
- <Select value={form.assigned_price_group_id || 'DEFAULT'} onValueChange={(value) => setForm((p) => ({...p, assigned_price_group_id: value === 'DEFAULT' ? '' : String(value), staff_id: value === 'DEFAULT' ? '' : p.staff_id }))}>
+ <Select value={formPriceGroupSelectValue} onValueChange={(value) => setForm((p) => ({...p, assigned_price_group_id: value === 'DEFAULT' ? '' : String(value), staff_id: value === 'DEFAULT' ? '' : p.staff_id }))}>
  <SelectTrigger className="w-full"><SelectValue>{groupRateLabel(form.assigned_price_group_id)}</SelectValue></SelectTrigger>
  <SelectContent>
  <SelectItem value="DEFAULT">Default sistem</SelectItem>
@@ -1423,7 +1442,7 @@ function AdminSalesAgentManagement({ workflow }: { workflow: ReturnType<typeof g
  <div className="flex min-w-[280px] flex-1 flex-wrap items-end gap-2 sm:justify-end">
  <div className="min-w-[240px] flex-1 space-y-1">
  <Label>Staf Bertugas</Label>
- <Select value={specialStaffByAccount[account.id] || 'NONE'} onValueChange={(value) => setSpecialStaffByAccount((prev) => ({...prev, [account.id]: value === 'NONE' ? '' : String(value) }))}>
+ <Select value={boundSelectValue(specialStaffByAccount[account.id] || 'NONE', assignableStaffValues) ?? 'NONE'} onValueChange={(value) => setSpecialStaffByAccount((prev) => ({...prev, [account.id]: value === 'NONE' ? '' : String(value) }))}>
  <SelectTrigger><SelectValue placeholder="Pilih staf" /></SelectTrigger>
  <SelectContent>
  <SelectItem value="NONE">Pilih staf</SelectItem>
@@ -1581,7 +1600,7 @@ function AdminSalesAgentManagement({ workflow }: { workflow: ReturnType<typeof g
  <div className="space-y-1"><Label>Nama Syarikat</Label><Input value={editForm.company_name} onChange={(e) => setEditForm((p) => ({...p, company_name: e.target.value }))} /></div>
  <div className="space-y-1">
  <Label>Group Rate</Label>
- <Select value={editForm.assigned_price_group_id || 'DEFAULT'} onValueChange={(value) => setEditForm((p) => ({...p, assigned_price_group_id: value === 'DEFAULT' ? '' : String(value) }))}>
+ <Select value={editPriceGroupSelectValue} onValueChange={(value) => setEditForm((p) => ({...p, assigned_price_group_id: value === 'DEFAULT' ? '' : String(value) }))}>
  <SelectTrigger><SelectValue>{groupRateLabel(editForm.assigned_price_group_id)}</SelectValue></SelectTrigger>
  <SelectContent>
  <SelectItem value="DEFAULT">Default sistem</SelectItem>

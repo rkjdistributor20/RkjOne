@@ -53,7 +53,18 @@ export function canAccessSalesAgent(role: UserRole): boolean {
 }
 
 export function canAccessHr(role: UserRole): boolean {
- return ['SUPER_ADMIN', 'ADMIN', 'HR'].includes(role);
+ return [
+ 'SUPER_ADMIN',
+ 'ADMIN',
+ 'HR',
+ 'OPERATION_MANAGER',
+ 'CEO_FACTORY',
+ 'AREA_MANAGER',
+ 'DRIVER',
+ 'STAFF',
+ 'FINANCE',
+ 'MAINTENANCE_MANAGER',
+ ].includes(role);
 }
 
 export function buildPermissionMap(

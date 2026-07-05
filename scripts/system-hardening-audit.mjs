@@ -82,15 +82,21 @@ const checks = [
  'PWA',
  'Manifest dan service worker tersedia.',
  'Uji install PWA pada Android/iOS selepas deploy.'),
- row(
- await exists(path.join(root, 'outputs', 'mobile-release', 'release-readiness-audit.md')) ? 'PASS' : 'WARN',
- 'Mobile store',
- 'Mobile readiness audit tersedia.',
- 'Jalankan npm run mobile:readiness sebelum submit Play Store/App Store.'),
- row(
- await exists(path.join(root, 'app', 'api', 'system', 'health', 'route.ts')) ? 'PASS' : 'WARN',
- 'Monitoring',
- 'Admin system health endpoint tersedia.',
+row(
+await exists(path.join(root, 'outputs', 'mobile-release', 'release-readiness-audit.md')) ? 'PASS' : 'WARN',
+'Mobile store',
+'Mobile readiness audit tersedia.',
+'Jalankan npm run mobile:readiness sebelum submit Play Store/App Store.'),
+row(
+ await exists(path.join(root, 'scripts', 'verify-production-readiness.mjs')) &&
+ await exists(path.join(root, 'docs', 'PRODUCTION_READINESS_PLAYBOOK.md')) ? 'PASS' : 'WARN',
+ 'Production readiness',
+ 'Readiness audit dan playbook owner tersedia.',
+ 'Jalankan npm run verify:readiness sebelum deploy besar.'),
+row(
+await exists(path.join(root, 'app', 'api', 'system', 'health', 'route.ts')) ? 'PASS' : 'WARN',
+'Monitoring',
+'Admin system health endpoint tersedia.',
  'Semak tab Tetapan > Kesihatan Sistem selepas login owner.'),
 ];
 
@@ -109,6 +115,7 @@ ${checks.join('\n')}
 - Payment gateway live masih perlu diuji dengan merchant approved dan webhook sebenar sebelum QR online dibuka kepada staf.
 - Untuk UAT POS, kekalkan manual payment/QR manual dahulu sehingga resit, stok, syif dan approval AM/OM stabil.
 - Jalankan audit ini sebelum deploy besar: \`npm run system:audit\`.
+- Jalankan readiness penuh sebelum deploy besar: \`npm run verify:readiness\`.
 `;
 
 await fs.mkdir(outputDir, { recursive: true });

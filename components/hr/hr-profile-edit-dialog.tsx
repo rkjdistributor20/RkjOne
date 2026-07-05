@@ -208,7 +208,7 @@ export function HrProfileEditDialog({
  </Badge>))}
  </div>
  <p className="text-xs text-muted-foreground">
- Akses dashboard dan modul akan ikut role ini selepas staf refresh atau log masuk semula.
+ Akses dashboard dan modul akan diselaraskan automatik selepas rekod disimpan.
  </p>
  </div>) : (
  <p className="text-xs text-muted-foreground">

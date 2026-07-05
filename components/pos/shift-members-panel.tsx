@@ -37,6 +37,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { boundSelectValue } from '@/lib/ui/select-utils';
 
 const ROLE_LABELS: Record<PosShiftMemberRole, string> = {
   PIC: 'PIC Syif',
@@ -138,6 +139,11 @@ export function ShiftMembersPanel() {
     () => selectableStaff.find((staff) => staffOptionValue(staff) === selectedStaff) ?? null,
     [selectableStaff, selectedStaff]
   );
+  const selectableStaffValues = useMemo(
+    () => selectableStaff.map((staff) => staffOptionValue(staff)),
+    [selectableStaff]
+  );
+  const safeSelectedStaffValue = boundSelectValue(selectedStaff, selectableStaffValues) ?? '';
   const selectedStaffLabel = selectedStaffRecord ? staffOptionLabel(selectedStaffRecord) : '';
   const currentStaffRecord = useMemo(
     () => availableStaff.find((staff) => staff.profile_id === profile?.id) ?? null,
@@ -314,12 +320,18 @@ export function ShiftMembersPanel() {
                 Tambah staf cawangan masuk syif
               </p>
               <Select
-                value={selectedStaff}
+                value={safeSelectedStaffValue}
                 onValueChange={(value) => setSelectedStaff(String(value ?? ''))}
                 disabled={!selectableStaff.length}
               >
                 <SelectTrigger className="h-9 w-full">
-                  <SelectValue>{selectedStaffLabel || 'Tiada staf cawangan tersedia'}</SelectValue>
+                  <SelectValue>
+                    {safeSelectedStaffValue
+                      ? selectedStaffLabel
+                      : selectableStaff.length
+                        ? 'Pilih staf cawangan'
+                        : 'Tiada staf cawangan tersedia'}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent className="max-h-64">
                   {selectableStaff.map((staff) => (

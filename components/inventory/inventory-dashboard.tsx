@@ -1,7 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import {
  Package,
@@ -76,7 +75,6 @@ import {
 } from '@/components/shared/module-ui';
 
 export function InventoryDashboard() {
- const router = useRouter();
  const profile = useAuthStore((s) => s.profile);
  const showBranchPicker = profile ? needsBranchPicker(profile) : false;
  const isStaff = profile ? isStaffRole(profile.role) : false;
@@ -189,18 +187,6 @@ export function InventoryDashboard() {
  useEffect(() => {
  loadData();
  }, [loadData]);
-
- useLayoutEffect(() => {
- if (profile?.role === 'AREA_MANAGER') {
- router.refresh();
- }
- }, [profile, router]);
-
- useEffect(() => {
- if (profile?.role === 'AREA_MANAGER') {
- router.refresh();
- }
- }, [profile, router]);
 
  const selectedLocation = locations.find((l) => l.id === selectedLocationId);
  const locationSelectValue =

@@ -50,17 +50,17 @@ export function DashboardHero({
  return (
  <div
  className={cn(
- 'relative overflow-hidden rounded-2xl border shadow-lg',
- isPremium ? 'border-[#D8A928]/45 text-white' : 'border-[#E5A812]/40',
+ 'relative overflow-hidden rounded-lg border shadow-lg',
+ isPremium ? 'border-[#D8A928]/35 text-white' : 'rkj-surface',
  className)}
  style={
  isPremium
  ? {
  background:
- 'linear-gradient(90deg, rgba(5, 95, 70, 0.24), transparent 48%, rgba(229, 168, 18, 0.22)), linear-gradient(135deg, #10100f 0%, #1d1a14 42%, #2c2413 100%)',
+ 'linear-gradient(120deg, rgba(5,150,105,0.22), transparent 34%, rgba(14,165,233,0.12) 67%, rgba(229,168,18,0.2)), linear-gradient(135deg, #101312 0%, #181713 45%, #261f12 100%)',
  }
  : {
- background: `linear-gradient(to bottom right, ${BRAND_COLORS.goldLight}, ${BRAND_COLORS.cream}, white)`,
+ background: `linear-gradient(to bottom right, white, ${BRAND_COLORS.goldLight}55, ${BRAND_COLORS.cream})`,
  }
  }
  >
@@ -103,7 +103,7 @@ export function DashboardHero({
  {badges && <div className="flex flex-wrap gap-2">{badges}</div>}
  <h1
  className={cn(
- 'text-2xl font-bold tracking-tight md:text-3xl',
+ 'text-2xl font-semibold tracking-tight md:text-3xl',
  isPremium ? 'text-[#FFF7E3]' : 'text-[#141414]')}
  >
  {title}
@@ -190,7 +190,7 @@ export function BrandProductStrip({ compact }: { compact?: boolean }) {
  {COMPANY.products.map((product) => (
  <div
  key={product.name}
- className="rounded-xl border bg-gradient-to-br from-[#FFF4D6]/40 to-white px-3 py-3 transition-colors hover:border-primary/40"
+ className="rounded-lg border bg-gradient-to-br from-[#FFF4D6]/35 to-white px-3 py-3 transition-colors hover:border-primary/40"
  style={{ borderColor: `${BRAND_COLORS.gold}33` }}
  >
  <p className="font-semibold text-[#141414]">{product.name}</p>
@@ -214,11 +214,11 @@ export function QuickActionGrid({
  <Link
  key={action.href}
  href={action.href}
- className="group flex items-start gap-3 rounded-xl border bg-card px-4 py-3.5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
+ className="rkj-surface group flex items-start gap-3 rounded-lg px-4 py-3.5 transition-all hover:border-primary/40 hover:shadow-md"
  style={{ borderColor: `${BRAND_COLORS.gold}33` }}
  >
  <div
- className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg shadow-sm transition-colors group-hover:brightness-105"
+ className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-amber-200/60 bg-amber-50 shadow-sm transition-colors group-hover:brightness-105"
  style={{
  backgroundColor: `${BRAND_COLORS.gold}22`,
  color: BRAND_COLORS.gold,
@@ -245,7 +245,7 @@ export function DashboardAlert({
  return (
  <div
  className={cn(
- 'rounded-xl border px-4 py-3 text-sm',
+ 'rounded-lg border px-4 py-3 text-sm',
  tone === 'warning'
  ? 'border-amber-200/80 bg-amber-50/90 text-amber-950'
  : 'border-[#E5A812]/30 bg-[#FFF4D6]/50 text-[#141414]')}

@@ -76,14 +76,14 @@ export function ProductGrid() {
  }, [products, selectedCategory, searchQuery]);
 
  return (
- <div className="flex h-full min-h-0 flex-col gap-3 overflow-hidden rounded-xl border bg-card p-3">
+ <div className="rkj-surface flex h-full min-h-0 flex-col gap-3 overflow-hidden rounded-lg p-3">
  <div className="relative shrink-0">
  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
  <Input
  placeholder="Cari roti atau SKU..."
  value={searchQuery}
  onChange={(e) => setSearchQuery(e.target.value)}
- className="h-11 pl-9 text-base"
+ className="h-11 rounded-lg border-amber-200/70 bg-white pl-9 text-base shadow-sm"
  />
  </div>
 
@@ -101,12 +101,12 @@ export function ProductGrid() {
  type="button"
  onClick={() => setSelectedCategory(cat)}
  className={cn(
- 'rounded-full border px-3 py-1.5 text-sm font-medium transition-colors',
+ 'rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm transition-colors',
  selectedCategory === cat
  ? isPelbagai
  ? 'border-violet-600 bg-violet-600 text-white'
- : 'border-primary bg-primary text-primary-foreground'
- : 'bg-background hover:bg-muted',
+ : 'border-amber-400 bg-amber-400 text-stone-950'
+ : 'bg-white hover:bg-amber-50',
  !isPelbagai &&
  menuBalance?.status === 'OUT' &&
  selectedCategory !== cat &&
@@ -137,7 +137,7 @@ export function ProductGrid() {
  </div>
 
  {!shift && (
- <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50 px-3 py-2 text-center text-sm text-amber-900">
+ <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50 px-3 py-2 text-center text-sm font-medium text-amber-900">
  Buka syif dahulu untuk mula jual
  </div>)}
 
@@ -159,8 +159,8 @@ export function ProductGrid() {
  disabled={!shift || outOfStock}
  onClick={() => addToCart(product)}
  className={cn(
- 'flex min-h-[116px] flex-col justify-between rounded-xl border-2 bg-background p-3 text-left transition-all',
- 'hover:border-primary hover:shadow-md active:scale-[0.97]',
+ 'flex min-h-[116px] flex-col justify-between rounded-lg border bg-white p-3 text-left shadow-sm transition-all',
+ 'hover:border-amber-400 hover:bg-amber-50/30 hover:shadow-md active:scale-[0.98]',
  'disabled:cursor-not-allowed disabled:opacity-45',
  outOfStock && 'border-dashed opacity-50')}
  >

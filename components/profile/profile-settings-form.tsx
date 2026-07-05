@@ -139,22 +139,28 @@ export function ProfileSettingsForm() {
  },
  [setProfile]);
 
- useEffect(() => {
- let cancelled = false;
- (async () => {
+ const loadProfile = useCallback(async () => {
+ setLoading(true);
  try {
  const p = await fetchMyProfile();
- if (!cancelled) syncStore(p);
+ syncStore(p);
  } catch (err) {
  toast.error(err instanceof Error ? err.message : 'Gagal muat profil');
  } finally {
- if (!cancelled) setLoading(false);
+ setLoading(false);
  }
+ }, [syncStore]);
+
+ useEffect(() => {
+ let cancelled = false;
+ (async () => {
+ if (cancelled) return;
+ await loadProfile();
  })();
  return () => {
  cancelled = true;
  };
- }, [syncStore]);
+ }, [loadProfile]);
 
  const avatarSrc = previewUrl ?? profile?.avatar_url ?? undefined;
  const needsAvatar = profile?.needs_avatar ?? true;
@@ -242,7 +248,7 @@ export function ProfileSettingsForm() {
  return (
  <div className="mx-auto max-w-md rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center">
  <p className="font-semibold text-destructive">Profil tidak dapat dimuatkan</p>
- <Button type="button" className="mt-4" variant="outline" onClick={() => window.location.reload()}>
+ <Button type="button" className="mt-4" variant="outline" onClick={() => void loadProfile()}>
  Muat semula
  </Button>
  </div>);

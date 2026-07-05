@@ -44,7 +44,7 @@ function StockCard({
 }) {
  const pending = balance ? pendingLabel(balance) : null;
  return (
- <div className={cn('rounded-lg border px-3 py-2', statusClass(balance?.status))}>
+ <div className={cn('rounded-lg border px-3 py-2 shadow-sm', statusClass(balance?.status))}>
  <p className="truncate text-[11px] font-medium uppercase tracking-wide opacity-80">
  {balance?.label ?? ' - '}
  </p>
@@ -67,9 +67,9 @@ export function KioskStockBar() {
  const supplementStock = usePosStore((s) => s.supplementStock);
 
  return (
- <div className="space-y-2">
+ <div className="space-y-3 rounded-lg border bg-white/70 p-3 shadow-sm">
  <div>
- <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+ <p className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
  Stok Roti
  </p>
  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -83,7 +83,7 @@ export function KioskStockBar() {
  </div>
 
  <div>
- <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+ <p className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
  Bahan & Packaging
  </p>
  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">

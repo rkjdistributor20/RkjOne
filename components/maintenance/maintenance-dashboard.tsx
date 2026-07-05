@@ -22,6 +22,7 @@ import {
 import { useAuthStore } from '@/stores/auth-store';
 import { WorkflowSopPanel } from '@/components/dashboard/workflow-sop-panel';
 import { getRoleWorkflow } from '@/lib/dashboard/role-workflows';
+import { boundSelectValue } from '@/lib/ui/select-utils';
 
 type BranchOption = {
  id: string;
@@ -142,6 +143,9 @@ export function MaintenanceDashboard() {
  substitute: open.filter((r) => r.substitute_required).length,
  };
  }, [reports]);
+ const branchValues = useMemo(() => branches.map((branch) => branch.id), [branches]);
+ const safeBranchId = boundSelectValue(form.branch_id, branchValues) ?? '';
+ const selectedBranch = branches.find((branch) => branch.id === safeBranchId) ?? null;
 
  async function submitReport() {
  if (!form.branch_id) {
@@ -232,9 +236,11 @@ export function MaintenanceDashboard() {
  <div className="space-y-4">
  <div className="space-y-2">
  <Label>Cawangan</Label>
- <Select value={form.branch_id} onValueChange={(value) => setForm((f) => ({ ...f, branch_id: String(value ?? '') }))}>
+ <Select value={safeBranchId} onValueChange={(value) => setForm((f) => ({ ...f, branch_id: String(value ?? '') }))}>
  <SelectTrigger>
- <SelectValue placeholder="Pilih cawangan" />
+ <SelectValue placeholder="Pilih cawangan">
+ {selectedBranch ? `${selectedBranch.branch_code} - ${selectedBranch.branch_name}` : undefined}
+ </SelectValue>
  </SelectTrigger>
  <SelectContent>
  {branches.map((b) => (

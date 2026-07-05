@@ -11,7 +11,7 @@ export function ModuleLayout({
  className,...props
 }: ComponentProps<'div'>) {
  return (
- <div className={cn('mx-auto w-full max-w-7xl space-y-6', className)} {...props}>
+ <div className={cn('rkj-dashboard-shell', className)} {...props}>
  {children}
  </div>);
 }
@@ -31,32 +31,22 @@ export function ModuleHeader({
  badges?: React.ReactNode;
 }) {
  return (
- <div
- className="relative overflow-hidden rounded-2xl border px-5 py-5 md:px-6 md:py-6"
- style={{
- borderColor: `${BRAND_COLORS.gold}55`,
- background: `linear-gradient(to bottom right, ${BRAND_COLORS.goldLight}, ${BRAND_COLORS.cream}, white)`,
- }}
- >
- <div
- className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full blur-2xl"
- style={{ backgroundColor: `${BRAND_COLORS.gold}33` }}
- aria-hidden
- />
+ <div className="rkj-surface relative overflow-hidden rounded-lg px-5 py-5 md:px-6 md:py-6">
+ <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-amber-400 via-emerald-500 to-sky-500" />
+ <div className="pointer-events-none absolute inset-0 rkj-panel-head" aria-hidden />
  <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
  <div className="flex gap-4">
  {Icon && (
  <div
- className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl shadow-sm"
+ className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-amber-200/70 bg-white shadow-sm"
  style={{
- backgroundColor: `${BRAND_COLORS.gold}22`,
  color: BRAND_COLORS.gold,
  }}
  >
  <Icon className="h-6 w-6" strokeWidth={2} />
  </div>)}
  <div className="min-w-0 space-y-1">
- <h1 className="text-xl font-bold tracking-tight md:text-2xl">{title}</h1>
+ <h1 className="text-xl font-semibold tracking-tight text-stone-950 md:text-2xl">{title}</h1>
  {description && (
  <p className="max-w-2xl text-sm text-muted-foreground md:text-base">
  {description}
@@ -96,9 +86,8 @@ export function KpiCard({
  return (
  <div
  className={cn(
- 'relative overflow-hidden rounded-xl border bg-card p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md',
+ 'rkj-surface relative overflow-hidden rounded-lg p-4 transition-all hover:border-amber-300/70 hover:shadow-md',
  className)}
- style={{ borderColor: `${BRAND_COLORS.gold}33` }}
  >
  <div
  className="absolute inset-x-0 top-0 h-1 opacity-90"
@@ -109,11 +98,11 @@ export function KpiCard({
  {title}
  </p>
  {Icon && (
- <div className={cn('rounded-lg p-2', tone.icon)}>
+ <div className={cn('rounded-lg border border-current/10 p-2', tone.icon)}>
  <Icon className="h-4 w-4" />
  </div>)}
  </div>
- <p className="mt-2 text-2xl font-bold tabular-nums tracking-tight text-[#141414]">
+ <p className="mt-2 text-2xl font-semibold tabular-nums tracking-tight text-stone-950">
  {value}
  </p>
  {description && (
@@ -144,10 +133,10 @@ export function EmptyState({
  action?: React.ReactNode;
 }) {
  return (
- <div className="flex flex-col items-center justify-center rounded-xl border border-dashed bg-muted/20 px-6 py-14 text-center">
+ <div className="rkj-surface flex flex-col items-center justify-center rounded-lg border-dashed px-6 py-14 text-center">
  {Icon && (
- <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted">
- <Icon className="h-7 w-7 text-muted-foreground" />
+ <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-lg border bg-amber-50 text-amber-700">
+ <Icon className="h-7 w-7" />
  </div>)}
  <p className="text-base font-semibold">{title}</p>
  {description && (
@@ -171,20 +160,13 @@ export function SectionCard({
  action?: React.ReactNode;
 }) {
  return (
- <div
- className={cn('overflow-hidden rounded-xl border bg-card shadow-sm', className)}
- style={{ borderColor: `${BRAND_COLORS.gold}33` }}
- >
+ <div className={cn('rkj-surface overflow-hidden rounded-lg', className)}>
  {(title || action) && (
  <div
- className="flex items-start justify-between gap-3 border-b px-4 py-3.5 md:px-5"
- style={{
- borderColor: `${BRAND_COLORS.gold}22`,
- background: `linear-gradient(to right, ${BRAND_COLORS.goldLight}40, transparent)`,
- }}
+ className="rkj-panel-head flex items-start justify-between gap-3 border-b border-amber-100/80 px-4 py-3.5 md:px-5"
  >
  <div>
- {title && <h3 className="font-semibold text-[#141414]">{title}</h3>}
+ {title && <h3 className="font-semibold text-stone-950">{title}</h3>}
  {description && (
  <p className="text-xs text-muted-foreground">{description}</p>)}
  </div>
@@ -196,10 +178,10 @@ export function SectionCard({
 
 /** Kelas Tailwind konsisten untuk Tabs shadcn */
 export const moduleTabsListClass =
- 'flex h-auto w-full flex-wrap justify-start gap-1 rounded-xl bg-muted/60 p-1';
+ 'flex h-auto w-full flex-wrap justify-start gap-1 rounded-lg border bg-white/80 p-1 shadow-sm';
 
 export const moduleTabsTriggerClass =
- 'gap-1.5 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm';
+ 'gap-1.5 rounded-md data-[state=active]:bg-amber-400 data-[state=active]:text-stone-950 data-[state=active]:shadow-sm';
 
 /** Skeleton loading modul */
 export function ModuleLoading({ rows = 3 }: { rows?: number }) {
@@ -224,7 +206,7 @@ export function formatRM(amount: number) {
 export function PrimaryActionButton(props: ComponentProps<typeof Button>) {
  return (
  <Button
- className="bg-amber-500 shadow-sm hover:bg-amber-600"
+ className="bg-amber-500 text-stone-950 shadow-sm hover:bg-amber-400"
  {...props}
  />);
 }
@@ -240,7 +222,7 @@ export function RecordRow({
  return (
  <div
  className={cn(
- 'flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3 text-sm shadow-sm transition-colors hover:bg-muted/30',
+ 'rkj-surface flex flex-wrap items-center justify-between gap-3 rounded-lg px-4 py-3 text-sm transition-colors hover:bg-amber-50/30',
  className)}
  >
  {children}

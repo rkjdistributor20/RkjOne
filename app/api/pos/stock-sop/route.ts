@@ -456,7 +456,7 @@ export async function POST(request: Request) {
  .filter((item: { production_date?: string; item_code?: string; stock_item_id?: string }) => item.production_date)
  .map((item: { production_date?: string; item_code?: string; stock_item_id?: string }) => {
  const code = String(item.item_code ?? '').trim().toUpperCase();
- return `${code || item.stock_item_id}: ${item.production_date}`;
+ return `${code || 'Item stok'}: ${item.production_date}`;
  });
 
  const notes = [
@@ -466,7 +466,7 @@ export async function POST(request: Request) {
  stockEstimate?.count_number ? `AI rujukan: ${stockEstimate.count_number}` : null,
  aiVarianceItems.length
  ? `Beza AI: ${aiVarianceItems.map((item) =>
- `${item.item_code || item.stock_item_id} staf ${formatVarianceQuantity(item.counted_quantity)} ${item.unit}, AI ${formatVarianceQuantity(item.ai_quantity)} ${item.unit}`).join('; ')}`
+ `${item.item_code || 'Item stok'} staf ${formatVarianceQuantity(item.counted_quantity)} ${item.unit}, AI ${formatVarianceQuantity(item.ai_quantity)} ${item.unit}`).join('; ')}`
  : 'Beza AI: tiada',
  body.notes ? String(body.notes) : null,
  ].filter(Boolean).join(' | ');
@@ -507,7 +507,7 @@ export async function POST(request: Request) {
  } else if (countId && requiresManagerApproval) {
  const varianceSummary = aiVarianceItems
  .map((item) =>
- `${item.item_code || item.stock_item_id}: staf ${formatVarianceQuantity(item.counted_quantity)} ${item.unit}, AI ${formatVarianceQuantity(item.ai_quantity)} ${item.unit}`)
+ `${item.item_code || 'Item stok'}: staf ${formatVarianceQuantity(item.counted_quantity)} ${item.unit}, AI ${formatVarianceQuantity(item.ai_quantity)} ${item.unit}`)
  .join('; ');
 
  await db

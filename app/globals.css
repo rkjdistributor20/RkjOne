@@ -7,9 +7,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
+  --font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-heading: "Geist", "Geist Fallback", ui-sans-serif, system-ui, sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -43,7 +43,7 @@
   --color-rkj-gold-bright: #f0c030;
   --color-rkj-gold-light: #fff4d6;
   --color-rkj-black: #141414;
-  --color-rkj-cream: #fafafa;
+  --color-rkj-cream: #f8faf7;
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -78,8 +78,8 @@
   --chart-3: oklch(0.65 0.08 145);
   --chart-4: oklch(0.82 0.1 90);
   --chart-5: oklch(0.55 0.06 85);
-  --radius: 0.75rem;
-  --sidebar: oklch(0.18 0 0);
+  --radius: 0.5rem;
+  --sidebar: oklch(0.15 0.012 115);
   --sidebar-foreground: oklch(0.98 0 0);
   --sidebar-primary: oklch(0.78 0.15 85);
   --sidebar-primary-foreground: oklch(0.18 0 0);
@@ -127,18 +127,81 @@
   * {
     @apply border-border outline-ring/50;
   }
-  body {
+body {
     @apply bg-background text-foreground;
     background-image:
-      radial-gradient(ellipse 80% 50% at 50% -20%, oklch(0.95 0.05 90 / 0.45), transparent),
-      radial-gradient(ellipse 60% 40% at 100% 100%, oklch(0.96 0.02 95 / 0.35), transparent);
+      linear-gradient(135deg, oklch(0.99 0.004 100) 0%, oklch(0.985 0.006 155) 42%, oklch(0.98 0.008 220) 100%),
+      repeating-linear-gradient(90deg, oklch(0.3 0.02 90 / 0.025) 0 1px, transparent 1px 72px);
     background-attachment: fixed;
+    text-rendering: geometricPrecision;
   }
   html {
     @apply font-sans;
   }
   h1, h2, h3, h4 {
     @apply tracking-tight text-foreground;
+    letter-spacing: 0;
+  }
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+  ::selection {
+    background: oklch(0.84 0.13 83 / 0.35);
+    color: oklch(0.18 0 0);
+  }
+}
+
+@layer components {
+  .rkj-dashboard-shell {
+    @apply relative mx-auto w-full max-w-7xl space-y-5;
+  }
+
+  .rkj-dashboard-shell::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(to right, oklch(0.58 0.05 145 / 0.045) 1px, transparent 1px),
+      linear-gradient(to bottom, oklch(0.58 0.05 145 / 0.035) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: linear-gradient(to bottom, black, transparent 70%);
+  }
+
+  .rkj-surface {
+    @apply border bg-card/95 shadow-sm;
+    border-color: oklch(0.86 0.025 96 / 0.85);
+    box-shadow: 0 1px 2px oklch(0.2 0.02 90 / 0.06), 0 16px 42px oklch(0.25 0.03 100 / 0.06);
+  }
+
+  .rkj-panel-head {
+    background:
+      linear-gradient(90deg, oklch(0.91 0.115 88 / 0.18), transparent 35%),
+      linear-gradient(90deg, oklch(0.77 0.08 155 / 0.12), transparent 72%);
+  }
+
+  .rkj-focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary/35;
+  }
+
+  .rkj-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: oklch(0.78 0.12 86 / 0.75) transparent;
+  }
+
+  .rkj-scrollbar::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  .rkj-scrollbar::-webkit-scrollbar-thumb {
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-clip: content-box;
+    background-color: oklch(0.78 0.12 86 / 0.75);
   }
 }
 

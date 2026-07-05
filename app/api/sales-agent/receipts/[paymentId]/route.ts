@@ -10,9 +10,6 @@ export async function GET(
  context: { params: Promise<{ paymentId: string }> }) {
  const profile = await getCurrentProfile();
  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
- if (profile.role !== 'SALES_AGENT') {
- return NextResponse.json({ error: 'Hanya ejen jualan' }, { status: 403 });
- }
 
  const { paymentId } = await context.params;
  const service = await createServiceClient();

@@ -67,7 +67,7 @@ export function RoleProactiveCockpit({
  }
  >
  <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
- <div className="rounded-xl border bg-gradient-to-br from-background via-muted/20 to-primary/5 p-4">
+ <div className="rounded-lg border border-amber-200/70 bg-gradient-to-br from-white via-amber-50/35 to-emerald-50/45 p-4 shadow-sm">
  <div className="flex flex-wrap items-center gap-2">
  <Badge variant="secondary" className="gap-1">
  <BrainCircuit className="h-3.5 w-3.5" />
@@ -82,13 +82,13 @@ export function RoleProactiveCockpit({
  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{ui(cockpit.subtitle)}</p>
 
  <div className="mt-4 space-y-2">
- <div className="rounded-lg border bg-background/80 p-3">
+ <div className="rounded-lg border bg-white/85 p-3 shadow-sm">
  <p className="flex items-start gap-2 text-sm leading-relaxed">
  <Radar className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
  <span>{ui(cockpit.prediction)}</span>
  </p>
  </div>
- <div className="rounded-lg border border-dashed bg-background/70 p-3">
+ <div className="rounded-lg border border-dashed bg-white/70 p-3">
  <p className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
  <LockKeyhole className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
  <span>{ui(cockpit.boundary)}</span>
@@ -98,7 +98,7 @@ export function RoleProactiveCockpit({
  </div>
 
  <div className="grid gap-3 lg:grid-cols-[0.8fr_1.2fr]">
- <div className="rounded-xl border bg-background p-3">
+ <div className="rounded-lg border bg-white/90 p-3 shadow-sm">
  <p className="mb-2 flex items-center gap-2 text-sm font-semibold">
  <ShieldCheck className="h-4 w-4 text-primary" />
  {ui('Signal Hari Ini')}
@@ -109,7 +109,7 @@ export function RoleProactiveCockpit({
  key={`${signal.label}-${signal.href}`}
  href={signal.href}
  className={cn(
- 'rounded-lg border p-2.5 transition hover:-translate-y-0.5 hover:shadow-sm',
+ 'rounded-lg border p-2.5 transition hover:border-amber-300 hover:shadow-sm',
  SIGNAL_TONES[signal.tone])}
  >
  <div className="flex items-center justify-between gap-2">
@@ -121,7 +121,7 @@ export function RoleProactiveCockpit({
  </div>
  </div>
 
- <div className="rounded-xl border bg-background p-3">
+ <div className="rounded-lg border bg-white/90 p-3 shadow-sm">
  <p className="mb-2 flex items-center gap-2 text-sm font-semibold">
  <Target className="h-4 w-4 text-primary" />
  {ui('Tindakan Seterusnya')}
@@ -131,7 +131,7 @@ export function RoleProactiveCockpit({
  <Link
  key={`${action.title}-${action.href}`}
  href={action.href}
- className="group grid gap-2 rounded-lg border bg-muted/10 p-2.5 transition hover:border-primary/50 hover:bg-primary/5 sm:grid-cols-[auto_1fr_auto] sm:items-center"
+ className="group grid gap-2 rounded-lg border bg-white p-2.5 shadow-sm transition hover:border-amber-300 hover:bg-amber-50/35 sm:grid-cols-[auto_1fr_auto] sm:items-center"
  >
  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
  {index + 1}

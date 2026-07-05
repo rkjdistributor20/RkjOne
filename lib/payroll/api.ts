@@ -43,6 +43,9 @@ export async function generatePayrollRun(payload: {
  period_start: string;
  period_end: string;
  branch_id?: string;
+ legal_entity_id?: string;
+ legal_entity_code?: string;
+ report_type?: string;
 }) {
  return fetchJson<{ result: Record<string, unknown> }>('/api/payroll/runs', {
  method: 'POST',
@@ -58,6 +61,22 @@ export async function approvePayrollRun(runId: string) {
 
 export async function fetchPayrollStaff() {
  return fetchJson<{ staff: PayrollStaffRow[] }>('/api/payroll/staff');
+}
+
+export async function updatePayrollStaffPay(
+ staffId: string,
+ payload: {
+ legal_entity_code?: string;
+ worker_type: 'LOCAL' | 'FOREIGN';
+ monthly_amount?: number | null;
+ weekly_amount?: number | null;
+ shift_hours?: number | null;
+ shifts_per_week?: number | null;
+}) {
+ return fetchJson<{ staff: PayrollStaffRow; portal?: unknown }>(`/api/settings/staff/${staffId}`, {
+ method: 'PATCH',
+ body: JSON.stringify(payload),
+ });
 }
 
 export async function fetchCompanyPayroll() {

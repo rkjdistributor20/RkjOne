@@ -237,6 +237,10 @@ export function HqBranchOrderMatrix({
  const regionDrivers = driversForRegion(allDrivers, branch.region_code);
  const selectedDriver =
  branchDrivers[branch.branch_id] ?? branch.default_driver_id ?? '';
+ const driverChoices = regionDrivers.length > 0 ? regionDrivers : allDrivers;
+ const safeSelectedDriver = driverChoices.some((driver) => driver.id === selectedDriver)
+ ? selectedDriver
+ : '';
  const branchSuggested = branch.items.reduce((s, i) => s + suggestedQty(i), 0);
 
  return (
@@ -248,7 +252,7 @@ export function HqBranchOrderMatrix({
  <span>{branch.branch_code}</span>
  {branch.potential_factor != null && (
  <Badge variant="secondary" className="text-[10px]">
- Potensi ×{branch.potential_factor}
+ Potensi x{branch.potential_factor}
  </Badge>)}
  {branch.branch_status === 'INACTIVE' && (
  <Badge variant="outline" className="text-[10px]">
@@ -267,7 +271,7 @@ export function HqBranchOrderMatrix({
  <select
  className="h-9 max-w-[200px] rounded-md border bg-background px-2 text-xs"
  disabled={disabled}
- value={selectedDriver}
+ value={safeSelectedDriver}
  onChange={(e) => setDriver(branch.branch_id, e.target.value)}
  >
  <option value="">Pilih driver...</option>
@@ -275,7 +279,11 @@ export function HqBranchOrderMatrix({
  <option value="" disabled>
  Tiada driver aktif didaftarkan
  </option>)}
- {regionDrivers.map((d) => (
+ {regionDrivers.length === 0 && allDrivers.length > 0 && (
+ <option value="" disabled>
+ Tiada driver khusus kawasan - pilih dari semua driver
+ </option>)}
+ {driverChoices.map((d) => (
  <option key={d.id} value={d.id}>
  {d.full_name} ({d.driver_code})
  </option>))}

@@ -59,6 +59,7 @@ import {
  getCompanyRoleOptions,
 } from '@/lib/auth/role-labels';
 import type { UserRole } from '@/types/enums';
+import { boundSelectValue } from '@/lib/ui/select-utils';
 
 const WEEKDAY_PRESETS = [5, 6, 7] as const;
 const COMPANY_HQ_BRANCH_VALUE = '__COMPANY_HQ__';
@@ -235,12 +236,16 @@ export function AddStaffDialog({
 
  const isKioskEmployer = legalEntityCode === DEFAULT_SALES_LEGAL_ENTITY_CODE;
  const useRkjDefaultPay = legalEntityCode === DEFAULT_SALES_LEGAL_ENTITY_CODE;
+ const branchSelectValues = useMemo(() => branches.map((branch) => branch.id), [branches]);
+ const safeBranchId = isKioskEmployer
+ ? boundSelectValue(branchId, branchSelectValues) ?? ''
+ : COMPANY_HQ_BRANCH_VALUE;
  const codeValid = /^S\d{2,}$/i.test(staffCode.trim());
  const nameValid = fullName.trim().length >= 2;
  const phoneValid = phone.replace(/\D/g, '').length >= 9;
  const idValid = icNumber.trim().length >= 6;
  const jobValid = jobTitle.trim().length >= 2 && department.trim().length >= 2;
- const branchValid = !isKioskEmployer || (Boolean(branchId) && branchId !== COMPANY_HQ_BRANCH_VALUE);
+ const branchValid = !isKioskEmployer || Boolean(safeBranchId);
  const manualMonthlyValid =
  useRkjDefaultPay || workerType !== 'LOCAL' || Number(manualMonthlyAmount) > 0;
  const manualWeeklyValid =
@@ -367,7 +372,7 @@ export function AddStaffDialog({
  emergency_contact_phone: emergencyContactPhone.trim() || null,
  emergency_contact_relation: emergencyContactRelation.trim() || null,
  remarks: workScope.trim() || null,
- branch_id: branchId === COMPANY_HQ_BRANCH_VALUE ? null : branchId,
+ branch_id: safeBranchId === COMPANY_HQ_BRANCH_VALUE ? null : safeBranchId,
  worker_type: workerType,
  legal_entity_code: legalEntityCode,...(!useRkjDefaultPay && workerType === 'LOCAL'
  ? {
@@ -406,7 +411,7 @@ export function AddStaffDialog({
  }
 
  const selectedBranch =
- branchId === COMPANY_HQ_BRANCH_VALUE ? null : branches.find((b) => b.id === branchId);
+ safeBranchId === COMPANY_HQ_BRANCH_VALUE ? null : branches.find((b) => b.id === safeBranchId);
  const selectedLegalEntity = LEGAL_ENTITIES.find((entity) => entity.code === legalEntityCode);
 
  return (
@@ -623,7 +628,7 @@ export function AddStaffDialog({
  {isKioskEmployer ? (
  <div className="space-y-1.5">
  <Label>{isKioskEmployer ? 'Cawangan Kiosk' : 'Lokasi / Cawangan (opsyenal)'}</Label>
- <Select value={branchId} onValueChange={(v) => v && setBranchId(v)}>
+ <Select value={safeBranchId} onValueChange={(v) => v && setBranchId(v)}>
  <SelectTrigger>
  <SelectValue placeholder={isKioskEmployer ? 'Pilih cawangan' : 'Pilih lokasi atau HQ'} />
  </SelectTrigger>

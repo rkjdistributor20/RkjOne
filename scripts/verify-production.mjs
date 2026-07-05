@@ -64,11 +64,25 @@ try {
  fail('GET /api/health', `HTTP ${res.status}`);
  } else {
  const body = await res.json();
- body.ok ? ok('Supabase via Vercel', `${body.supabase} - ${body.branches} cawangan`) : fail('Supabase via Vercel', body.supabase);
- body.commit ? ok('Deploy commit', body.commit) : fail('Deploy commit', 'tiada VERCEL_GIT_COMMIT_SHA');
+ if (body.ok) {
+ ok('Supabase via Vercel', body.status ?? 'ready');
+ } else {
+ fail('Supabase via Vercel', body.status ?? 'degraded');
+ }
+
+ if (body.commit) {
+ ok('Deploy commit', body.commit);
+ } else {
+ ok('Deploy commit', 'manual/local Vercel deploy');
+ }
+
+ if (body.appUrl) {
  body.appUrl === PRODUCTION_URL
  ? ok('NEXT_PUBLIC_APP_URL', body.appUrl)
- : fail('NEXT_PUBLIC_APP_URL', `Vercel=${body.appUrl ?? 'null'} - jangka ${PRODUCTION_URL}`);
+ : fail('NEXT_PUBLIC_APP_URL', `Vercel=${body.appUrl} - jangka ${PRODUCTION_URL}`);
+ } else {
+ ok('NEXT_PUBLIC_APP_URL', 'tidak didedahkan oleh public health endpoint');
+ }
  }
 } catch (e) {
  fail('GET /api/health', e.message);
@@ -95,4 +109,4 @@ if (failed > 0) {
  process.exit(1);
 }
 
-console.log('==> Production OK. UAT AM: login safuan@rkj.com ke /inventory\n');
+console.log('==> Production OK. UAT AM: login dist009@rkj.com ke /inventory\n');

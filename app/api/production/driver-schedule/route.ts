@@ -133,7 +133,7 @@ async function fetchCompanionSchedule(
  pickTotals.set(key, current);
  }
  return {
- item_code: stock?.item_code ?? item.stock_item_id,
+ item_code: stock?.item_code ?? 'ITEM',
  name: stock?.name ?? 'Item stok',
  category: stock?.category ?? null,
  quantity,

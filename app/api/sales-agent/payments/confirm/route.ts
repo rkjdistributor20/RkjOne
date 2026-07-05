@@ -18,9 +18,6 @@ export async function POST(request: Request) {
  }
  const profile = await getCurrentProfile();
  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
- if (profile.role !== 'SALES_AGENT') {
- return NextResponse.json({ error: 'Hanya ejen jualan' }, { status: 403 });
- }
 
  const body = await request.json().catch(() => ({}));
  const paymentId = body.payment_id as string | undefined;

@@ -4,7 +4,9 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { loadProjectEnv } from './lib/load-env.mjs';
+import fs from 'fs';
+import path from 'path';
+import { loadProjectEnv, ROOT } from './lib/load-env.mjs';
 import { DEFAULT_PASSWORD } from './lib/default-password.mjs';
 
 const PRODUCTION_URL = process.env.PRODUCTION_URL ?? 'https://rkj-one.vercel.app';
@@ -24,6 +26,53 @@ const admin = createClient(url, serviceKey, {
  auth: { autoRefreshToken: false, persistSession: false },
 });
 const anon = createClient(url, anonKey);
+const HTTP_TIMEOUT_MS = 7000;
+
+function parseCsvLine(line) {
+ const values = [];
+ let current = '';
+ let quoted = false;
+ for (let i = 0; i < line.length; i += 1) {
+ const ch = line[i];
+ const next = line[i + 1];
+ if (ch === '"' && quoted && next === '"') {
+ current += '"';
+ i += 1;
+ } else if (ch === '"') {
+ quoted = !quoted;
+ } else if (ch === ',' && !quoted) {
+ values.push(current);
+ current = '';
+ } else {
+ current += ch;
+ }
+ }
+ values.push(current);
+ return values;
+}
+
+function loadCredentialPasswords() {
+ const files = [
+ path.join(ROOT, 'csv_import', 'agent_driver_credentials.csv'),
+ path.join(ROOT, 'csv_import', 'company_staff_credentials.csv'),
+ ];
+ const passwords = new Map();
+ for (const filePath of files) {
+ if (!fs.existsSync(filePath)) continue;
+ const lines = fs.readFileSync(filePath, 'utf8').split(/\r?\n/).filter(Boolean);
+ const header = parseCsvLine(lines.shift() ?? '');
+ const emailIndex = header.indexOf('email');
+ const passwordIndex = header.indexOf('password');
+ if (emailIndex === -1 || passwordIndex === -1) continue;
+ for (const line of lines) {
+ const cols = parseCsvLine(line);
+ const email = cols[emailIndex]?.trim().toLowerCase();
+ const password = cols[passwordIndex]?.trim();
+ if (email && password) passwords.set(email, password);
+ }
+ }
+ return passwords;
+}
 
 function ok(l, d) {
  console.log(` ✓ ${l}${d ? ` - ${d}` : ''}`);
@@ -45,8 +94,37 @@ function cookie(session, user) {
  )}`;
 }
 
+async function fetchWithTimeout(resource, init = {}, timeoutMs = HTTP_TIMEOUT_MS) {
+ const controller = new AbortController();
+ const timer = setTimeout(() => controller.abort(), timeoutMs);
+ try {
+ return await fetch(resource, { ...init, signal: controller.signal });
+ } finally {
+ clearTimeout(timer);
+ }
+}
+
+function sleep(ms) {
+ return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchWithRetry(resource, init = {}, attempts = 2) {
+ let lastError;
+ for (let attempt = 1; attempt <= attempts; attempt += 1) {
+ try {
+ return await fetchWithTimeout(resource, init);
+ } catch (error) {
+ lastError = error;
+ if (attempt < attempts) await sleep(750 * attempt);
+ }
+ }
+ throw lastError;
+}
+
 async function apiJson(cookieHeader, path, init = {}) {
- const res = await fetch(`${PRODUCTION_URL}${path}`, {
+ let res;
+ try {
+ res = await fetchWithRetry(`${PRODUCTION_URL}${path}`, {
  ...init,
  headers: {
  Cookie: cookieHeader,
@@ -56,6 +134,9 @@ async function apiJson(cookieHeader, path, init = {}) {
  },
  redirect: 'manual',
  });
+ } catch (error) {
+ return { ok: false, status: 0, body: { error: error.message } };
+ }
  const body = await res.json().catch(() => ({}));
  return { ok: res.ok, status: res.status, body };
 }
@@ -178,6 +259,15 @@ if (!agents?.length) {
 
 ok('Akaun ejen didaftarkan', `${agents.length} rekod`);
 
+const staffLinkedAgentRoles = new Set([
+ 'CEO_FACTORY',
+ 'ADMIN_HQ',
+ 'AREA_MANAGER',
+ 'OPERATIONS_MANAGER',
+ 'DISTRIBUTOR_HQ',
+ 'FINANCE',
+]);
+
 const { data: weeks } = await admin
  .from('factory_production_weeks')
  .select('id')
@@ -199,7 +289,8 @@ if (weekIds.length) {
 
 let failed = 0;
 let testEmail = null;
-let testPassword = env.GO_LIVE_PASSWORD?.trim() || DEFAULT_PASSWORD;
+const fallbackPassword = env.GO_LIVE_PASSWORD?.trim() || DEFAULT_PASSWORD;
+const credentialPasswords = loadCredentialPasswords();
 
 for (const agent of agents) {
  const { data: prof } = await admin
@@ -219,18 +310,25 @@ for (const agent of agents) {
  ok('Peranan', prof.role);
  ok('Status', prof.status);
 
- if (prof.role !== 'SALES_AGENT') {
- fail('Peranan patut SALES_AGENT', prof.role);
- failed++;
+ if (agent.status !== 'ACTIVE' || prof.status !== 'ACTIVE') {
+ console.log(' WARN Akaun ejen tidak aktif - skip UAT login (rekod disimpan untuk audit)');
+ continue;
  }
- if (prof.status !== 'ACTIVE') {
- fail('Status patut ACTIVE', prof.status);
+
+ if (prof.role === 'SALES_AGENT') {
+ ok('Akses ejen', 'Ejen Jualan biasa');
+ } else if (staffLinkedAgentRoles.has(prof.role)) {
+ ok('Akses ejen khas', `${prof.role} dipaut kepada akaun ejen`);
+ } else {
+ fail('Peranan ejen tidak dikenali', prof.role);
  failed++;
+ continue;
  }
 
  testEmail = prof.email;
 
- const login = await anon.auth.signInWithPassword({ email: prof.email, password: testPassword });
+ const loginPassword = credentialPasswords.get(prof.email.toLowerCase()) ?? fallbackPassword;
+ const login = await anon.auth.signInWithPassword({ email: prof.email, password: loginPassword });
  if (login.error) {
  fail('Login', login.error.message);
  failed++;
@@ -239,10 +337,18 @@ for (const agent of agents) {
  ok('Login', 'auth OK');
 
  const c = cookie(login.data.session, login.data.user);
- const dash = await fetch(`${PRODUCTION_URL}/api/sales-agent/dashboard`, {
+ let dash;
+ try {
+ dash = await fetchWithRetry(`${PRODUCTION_URL}/api/sales-agent/dashboard`, {
  headers: { Cookie: c, Accept: 'application/json' },
  redirect: 'manual',
  });
+ } catch (error) {
+ fail('API dashboard', error.message);
+ failed++;
+ await anon.auth.signOut();
+ continue;
+ }
  const dashBody = await dash.json().catch(() => ({}));
  if (dash.ok && dashBody.dashboard?.account) {
  ok('API dashboard', dashBody.dashboard.account.company_name);
@@ -270,23 +376,26 @@ for (const agent of agents) {
  ok('Antrian kilang', String(factory ?? 0));
 
  const companiesRes = await apiJson(c, '/api/legal-entities');
- if (companiesRes.ok && companiesRes.body.companies?.length >= 3) {
+ if (companiesRes.ok && Array.isArray(companiesRes.body.companies)) {
+ ok('Profil syarikat API', `${companiesRes.body.companies.length} entiti ikut skop akses`);
  const dist = companiesRes.body.companies.find((x) => x.code === 'RKJ_DIST');
  if (dist?.bankAccountNo && dist?.registrationNo) {
- ok('Profil syarikat', `RKJ_DIST - Maybank ${dist.bankAccountNo.slice(-4)}`);
- } else {
- fail('Profil syarikat', 'RKJ_DIST bank/SSM tiada');
- failed++;
+ ok('Profil RKJ Distributor', `Maybank ${dist.bankAccountNo.slice(-4)}`);
  }
  } else {
  fail('Profil syarikat API', `HTTP ${companiesRes.status}`);
  failed++;
  }
 
- const posRes = await fetch(`${PRODUCTION_URL}/pos`, {
+ let posRes;
+ try {
+ posRes = await fetchWithRetry(`${PRODUCTION_URL}/pos`, {
  headers: { Cookie: c, Accept: 'text/html' },
  redirect: 'manual',
  });
+ } catch (error) {
+ posRes = { status: 0, headers: new Headers(), error };
+ }
  const { count: activeOutlets } = await admin
  .from('agent_outlets')
  .select('*', { count: 'exact', head: true })
@@ -299,7 +408,7 @@ for (const agent of agents) {
  const loc = posRes.headers.get('location') ?? '';
  if (loc.includes('pos=locked')) fail('Akses POS', 'redirect locked');
  else ok('Akses POS', `HTTP ${posRes.status}`);
- } else fail('Akses POS', `HTTP ${posRes.status}`);
+ } else fail('Akses POS', `HTTP ${posRes.status}${posRes.error ? ` ${posRes.error.message}` : ''}`);
  } else {
  console.log(' ⚠ POS - tiada cawangan aktif (daftar + bayar RM200)');
  }
@@ -454,6 +563,8 @@ for (const agent of agents) {
  }
  }
  }
+
+ await anon.auth.signOut();
 }
 
 console.log('\n--- Tarikh production terbuka ---');

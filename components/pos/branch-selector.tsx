@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import {
  Select,
  SelectContent,
@@ -7,6 +8,7 @@ import {
  SelectTrigger,
  SelectValue,
 } from '@/components/ui/select';
+import { boundSelectValue } from '@/lib/ui/select-utils';
 
 interface BranchSelectorProps {
  branches: Array<{ id: string; branch_code: string; branch_name: string }>;
@@ -19,11 +21,13 @@ export function BranchSelector({
  value,
  onChange,
 }: BranchSelectorProps) {
- const selected = branches.find((b) => b.id === value);
+ const branchSelectValues = useMemo(() => branches.map((branch) => branch.id), [branches]);
+ const safeValue = boundSelectValue(value, branchSelectValues) ?? '';
+ const selected = branches.find((b) => b.id === safeValue);
 
  return (
  <Select
- value={value}
+ value={safeValue}
  onValueChange={(v) => v && onChange(v)}
  >
  <SelectTrigger className="w-full max-w-md">

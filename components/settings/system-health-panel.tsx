@@ -5,9 +5,11 @@ import {
  Activity,
  AlertTriangle,
  CheckCircle2,
+ ClipboardCheck,
  DatabaseBackup,
  LockKeyhole,
  RefreshCw,
+ Rocket,
  ShieldCheck,
  Smartphone,
  ServerCog,
@@ -29,6 +31,10 @@ import type {
  SystemHealthSnapshot,
  SystemHealthStatus,
 } from '@/lib/system/health';
+import type {
+ ProductionReadinessArea,
+ ProductionReadinessStatus,
+} from '@/lib/system/production-readiness';
 
 const sectionIcons: Record<string, typeof ShieldCheck> = {
  security: ShieldCheck,
@@ -64,6 +70,59 @@ function StatusBadge({ status }: { status: SystemHealthStatus }) {
  <Icon className="mr-1 h-3.5 w-3.5" />
  {tone.label}
  </Badge>);
+}
+
+function readinessTone(status: ProductionReadinessStatus) {
+ if (status === 'READY') return {
+ label: 'Sedia',
+ className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+ icon: CheckCircle2,
+ };
+ if (status === 'NEEDS_ACTION') return {
+ label: 'Perlu Tindakan',
+ className: 'border-amber-200 bg-amber-50 text-amber-800',
+ icon: AlertTriangle,
+ };
+ return {
+ label: 'Tersekat',
+ className: 'border-red-200 bg-red-50 text-red-700',
+ icon: XCircle,
+ };
+}
+
+function ReadinessBadge({ status }: { status: ProductionReadinessStatus }) {
+ const tone = readinessTone(status);
+ const Icon = tone.icon;
+ return (
+ <Badge variant="outline" className={tone.className}>
+ <Icon className="mr-1 h-3.5 w-3.5" />
+ {tone.label}
+ </Badge>);
+}
+
+function ReadinessRow({ area }: { area: ProductionReadinessArea }) {
+ return (
+ <div className="rounded-xl border bg-background/85 p-4">
+ <div className="flex flex-wrap items-start justify-between gap-3">
+ <div className="min-w-0">
+ <div className="flex flex-wrap items-center gap-2">
+ <Badge variant="secondary">{area.priority}</Badge>
+ <h4 className="font-semibold text-[#141414]">{area.title}</h4>
+ </div>
+ <p className="mt-1 text-xs text-muted-foreground">Pemilik tindakan: {area.owner}</p>
+ </div>
+ <ReadinessBadge status={area.status} />
+ </div>
+ <p className="mt-3 text-sm text-muted-foreground">{area.summary}</p>
+ <p className="mt-2 text-sm font-medium text-[#7c5a00]">{area.next_step}</p>
+ <div className="mt-3 flex flex-wrap gap-1.5">
+ {area.proof.map((proof) => (
+ <Badge key={proof} variant="outline" className="bg-white/70 text-xs">
+ {proof}
+ </Badge>
+ ))}
+ </div>
+ </div>);
 }
 
 function CheckRow({ item }: { item: SystemHealthCheck }) {
@@ -135,6 +194,7 @@ export function SystemHealthPanel() {
  total: checks.length,
  };
  }, [snapshot]);
+ const readiness = snapshot?.production_readiness;
 
  if (loading) return <ModuleLoading rows={2} />;
 
@@ -211,6 +271,50 @@ export function SystemHealthPanel() {
  icon={DatabaseBackup}
  />
  </KpiGrid>
+
+ {readiness && (
+ <SectionCard
+ title={
+ <span className="flex items-center gap-2">
+ <Rocket className="h-4 w-4 text-[#b88700]" />
+ Production Readiness Center
+ </span>
+ }
+ description="10 kawasan wajib untuk menjadikan RKJ One lebih selamat, pantas, boleh diaudit dan bersedia untuk operasi sebenar."
+ >
+ <div className="grid gap-3 md:grid-cols-[220px_1fr]">
+ <div className="rounded-xl border bg-gradient-to-br from-amber-50 via-white to-emerald-50 p-4">
+ <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-amber-200 bg-white text-amber-700 shadow-sm">
+ <ClipboardCheck className="h-6 w-6" />
+ </div>
+ <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+ Skor kesiapan
+ </p>
+ <p className="mt-1 text-4xl font-semibold tabular-nums text-stone-950">
+ {readiness.score}%
+ </p>
+ <div className="mt-4 space-y-2 text-sm">
+ <div className="flex justify-between">
+ <span className="text-muted-foreground">Sedia</span>
+ <span className="font-semibold text-emerald-700">{readiness.ready}</span>
+ </div>
+ <div className="flex justify-between">
+ <span className="text-muted-foreground">Perlu tindakan</span>
+ <span className="font-semibold text-amber-700">{readiness.needs_action}</span>
+ </div>
+ <div className="flex justify-between">
+ <span className="text-muted-foreground">Tersekat</span>
+ <span className="font-semibold text-red-700">{readiness.blocked}</span>
+ </div>
+ </div>
+ </div>
+ <div className="grid gap-3 xl:grid-cols-2">
+ {readiness.areas.map((area) => (
+ <ReadinessRow key={area.key} area={area} />
+ ))}
+ </div>
+ </div>
+ </SectionCard>)}
 
  <div className="grid gap-4 xl:grid-cols-2">
  {snapshot.sections.map((section) => (

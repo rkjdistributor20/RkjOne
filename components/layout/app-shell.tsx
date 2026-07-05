@@ -67,12 +67,12 @@ interface AppShellProps {
 function SidebarBrand() {
  const { t } = useLanguage();
  return (
- <div className="border-b border-sidebar-border px-4 py-5">
+ <div className="border-b border-white/10 px-4 py-5">
  <BrandLogo size="md" variant="light" />
- <p className="mt-3 text-[11px] font-medium uppercase tracking-wider text-sidebar-foreground/50">
+ <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-200/70">
  {t('layout.est')} {COMPANY.founded} - {COMPANY.hq}
  </p>
- <p className="mt-1 text-xs leading-relaxed text-sidebar-foreground/70">
+ <p className="mt-1 text-xs leading-relaxed text-sidebar-foreground/65">
  {COMPANY.tagline}
  </p>
  </div>);
@@ -88,11 +88,11 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
  const groups = getVisibleNavGroups(profile.role, permissions, profile);
 
  return (
- <nav className="flex flex-col gap-4 px-2">
+ <nav className="flex flex-col gap-4 px-3">
  {groups.map((group) => (
  <section key={group.group} className="space-y-1">
  <div className="px-3">
- <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-sidebar-foreground/45">
+ <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-100/45">
  {navGroupKeys[group.group] ? t(navGroupKeys[group.group].label) : group.label}
  </p>
  <p className="truncate text-[11px] text-sidebar-foreground/35">
@@ -111,12 +111,17 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
  href={item.href}
  onClick={onNavigate}
  className={cn(
- 'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all',
+ 'group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
  active
- ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-sm shadow-black/10'
- : 'text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground')}
+ ? 'bg-amber-400 text-stone-950 shadow-sm shadow-amber-950/20'
+ : 'text-sidebar-foreground/72 hover:bg-white/10 hover:text-white')}
  >
- <Icon className="h-4 w-4 shrink-0" />
+ <span
+ className={cn(
+ 'absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full transition-opacity',
+ active ? 'bg-stone-950/70 opacity-100' : 'bg-amber-300 opacity-0 group-hover:opacity-60')}
+ />
+ <Icon className={cn('h-4 w-4 shrink-0', active ? 'text-stone-950' : 'text-sidebar-foreground/55 group-hover:text-amber-200')} />
  <span className="truncate">
  {navHrefKeys[item.href] ? t(navHrefKeys[item.href]) : item.label}
  </span>
@@ -135,10 +140,10 @@ function UserFooter({ onLogout }: { onLogout: () => void }) {
  ?.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
 
  return (
- <div className="border-t border-sidebar-border p-4">
+ <div className="border-t border-white/10 p-4">
  <Link
  href="/profile"
- className="flex items-center gap-3 rounded-xl p-1 transition-colors hover:bg-sidebar-accent/60"
+ className="flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-white/10"
  >
  <Avatar className="h-9 w-9 ring-2 ring-sidebar-primary/30">
  {profile?.avatar_url ? (
@@ -164,14 +169,14 @@ function UserFooter({ onLogout }: { onLogout: () => void }) {
  {branch && (
  <Badge
  variant="outline"
- className="mt-2 w-full justify-center border-sidebar-border bg-sidebar-accent/50 text-xs text-sidebar-foreground"
+ className="mt-2 w-full justify-center border-white/10 bg-white/5 text-xs text-sidebar-foreground"
  >
  {branch.branch_code} - {branch.branch_name}
  </Badge>)}
  <Button
  variant="ghost"
  size="sm"
- className="mt-2 w-full justify-start text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+ className="mt-2 w-full justify-start text-sidebar-foreground/70 hover:bg-white/10 hover:text-sidebar-foreground"
  onClick={onLogout}
  >
  <LogOut className="mr-2 h-4 w-4" />
@@ -208,16 +213,16 @@ export function AppShell({ children }: AppShellProps) {
  return (
  <div className="flex min-h-screen bg-background">
  <AreaManagerRouteGuard />
- <aside className="hidden w-64 shrink-0 bg-sidebar md:flex md:flex-col">
+ <aside className="hidden w-72 shrink-0 border-r border-white/10 bg-[linear-gradient(180deg,#111411_0%,#17130f_48%,#0f1b17_100%)] md:flex md:flex-col">
  <SidebarBrand />
- <div className="flex-1 overflow-y-auto py-4">
+ <div className="rkj-scrollbar flex-1 overflow-y-auto py-4">
  <NavLinks />
  </div>
  <UserFooter onLogout={handleLogout} />
  </aside>
 
  <div className="flex flex-1 flex-col">
- <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b border-primary/20 bg-background/85 px-4 backdrop-blur-md md:px-6">
+ <header className="sticky top-0 z-20 flex min-h-16 items-center gap-4 border-b border-amber-200/40 bg-background/88 px-4 shadow-sm backdrop-blur-xl md:px-6">
  <Sheet>
  <SheetTrigger
  type="button"
@@ -225,7 +230,7 @@ export function AppShell({ children }: AppShellProps) {
  >
  <Menu className="h-5 w-5" />
  </SheetTrigger>
- <SheetContent side="left" className="w-72 border-sidebar-border bg-sidebar p-0">
+ <SheetContent side="left" className="w-72 border-sidebar-border bg-[linear-gradient(180deg,#111411_0%,#17130f_48%,#0f1b17_100%)] p-0">
  <SidebarBrand />
  <div className="flex-1 overflow-y-auto py-4">
  <NavLinks />
@@ -239,10 +244,10 @@ export function AppShell({ children }: AppShellProps) {
  </div>
 
  <div className="min-w-0 flex-1">
- <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+ <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-amber-700">
  {pageTitle}
  </p>
- <h1 className="truncate text-lg font-bold md:text-xl">
+ <h1 className="truncate text-lg font-semibold text-stone-950 md:text-xl">
  {t('layout.greeting')}, {greeting}
  </h1>
  </div>
@@ -257,7 +262,7 @@ export function AppShell({ children }: AppShellProps) {
 
  <ProfileAvatarReminder />
 
- <main className="flex-1 overflow-y-auto bg-muted/20 p-4 md:p-6">{children}</main>
+ <main className="rkj-scrollbar flex-1 overflow-y-auto bg-transparent p-4 md:p-6">{children}</main>
  </div>
  </div>);
 }

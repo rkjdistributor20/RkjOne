@@ -42,7 +42,13 @@ export interface PayrollLineItem {
  sales_total: number | null;
  hours_worked: number | null;
  ot_hours: number | null;
- staff: { staff_code: string; full_name: string; branch?: { branch_name: string } | null };
+ staff: {
+ staff_code: string;
+ full_name: string;
+ legal_entity_id?: string | null;
+ legal_entity?: { code: string; legal_name?: string | null; name?: string | null } | null;
+ branch?: { branch_name: string } | null;
+ };
 }
 
 export interface PayrollRun {
@@ -51,6 +57,9 @@ export interface PayrollRun {
  period_start: string;
  period_end: string;
  status: string;
+ legal_entity_id?: string | null;
+ report_type?: string | null;
+ legal_entity?: { code: string; legal_name?: string | null; name?: string | null } | null;
  total_gross: number;
  total_deductions: number;
  total_net: number;

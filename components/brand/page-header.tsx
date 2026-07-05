@@ -15,22 +15,15 @@ export function PageHeader({
  return (
  <div
  className={cn(
- 'relative overflow-hidden rounded-2xl border px-5 py-5 md:px-6 md:py-6',
+ 'rkj-surface relative overflow-hidden rounded-lg px-5 py-5 md:px-6 md:py-6',
  className)}
- style={{
- borderColor: `${BRAND_COLORS.gold}55`,
- background: `linear-gradient(to bottom right, ${BRAND_COLORS.goldLight}, ${BRAND_COLORS.cream}, white)`,
- }}
  >
- <div
- className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full blur-2xl"
- style={{ backgroundColor: `${BRAND_COLORS.gold}33` }}
- aria-hidden
- />
+ <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-amber-400 via-emerald-500 to-sky-500" />
+ <div className="pointer-events-none absolute inset-0 rkj-panel-head" aria-hidden />
  <div className="relative space-y-1">
  {badge && (
- <p className="text-xs font-bold uppercase tracking-wider text-primary/80">{badge}</p>)}
- <h2 className="text-2xl font-bold tracking-tight" style={{ color: BRAND_COLORS.black }}>
+ <p className="text-xs font-bold uppercase tracking-[0.18em] text-amber-700">{badge}</p>)}
+ <h2 className="text-2xl font-semibold tracking-tight" style={{ color: BRAND_COLORS.black }}>
  {title}
  </h2>
  {description && (
@@ -54,7 +47,7 @@ export function BrandStatsStrip() {
  ].map((item) => (
  <div
  key={item.label}
- className="group relative overflow-hidden rounded-xl border bg-white/90 px-3 py-3 text-center shadow-sm transition-shadow hover:shadow-md"
+ className="group relative overflow-hidden rounded-lg border bg-white/90 px-3 py-3 text-center shadow-sm transition-shadow hover:shadow-md"
  style={{ borderColor: `${BRAND_COLORS.gold}44` }}
  >
  <div
