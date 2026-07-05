@@ -1,8 +1,8 @@
 {
- "updated": "2026-07-05 01:10:00 +08:00",
- "user_resting": true,
- "resume_reminder": "Bila buka projek: baca RESUME.md bahagian INGATKAN. Prioriti #1: commit+push ~648 fail tempatan ke GitHub (masih 46e3347). Kemudian UAT ejen/AM, iPay88, signup OFF.",
- "commit": "46e3347",
+ "updated": "2026-07-05 14:05:00 +08:00",
+ "user_resting": false,
+ "resume_reminder": "Backup Git siap 96e05cc. Seterusnya: tunggu Vercel deploy, verify:production, UAT ejen/AM, iPay88, signup OFF.",
+ "commit": "96e05cc",
  "branch": "master",
  "production_url": "https://rkj-one.vercel.app",
  "supabase_project": "mtygxueknokcihofdttl",
@@ -75,7 +75,7 @@
  ],
  "resume_file": "RESUME.md",
  "pending_manual": [
- "PRIORITI: git commit + push semua kerja tempatan (~648 fail) ke GitHub",
+ "Tunggu Vercel deploy 96e05cc + npm run verify:production",
  "UAT browser ejen — mod pilot bayaran (docs/UAT_SALES_AGENT.md)",
  "UAT browser AM (docs/UAT_AM.md)",
  "UAT browser payroll UI",

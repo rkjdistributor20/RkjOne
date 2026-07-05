@@ -1,15 +1,14 @@
 # ⏸ Sambung Di Sini - RKJ One ERP
 
-> **🔔 REHAT — 5 Jul 2026 · Baca bahagian ini bila buka projek semula**
+> **🔔 SAMBUNG — 5 Jul 2026 · Backup Git siap `96e05cc`**
 
 ## ⚠️ INGATKAN BILA SAMBUNG (prioriti)
 
-1. **Backup Git belum lengkap** — ~648 fail tempatan belum commit; GitHub masih `46e3347`.  
-   → Tanya: *"commit & push semua ke GitHub"* (~5–15 min, skip build Android/iOS).
+1. ~~**Backup Git**~~ ✓ **Siap** — commit **`96e05cc`** pushed GitHub (729 fail, migrations 00082–00109).
 
-2. **Production live** — https://rkj-one.vercel.app (deploy terkini: `dpl_FkPHYqBiRczGcQZM2cwCjmyAtaoN`).
+2. **Production** — https://rkj-one.vercel.app (Vercel auto-deploy dari push).
 
-3. **Supabase** — migrations **00001–00109** (semak `db:push` jika perlu).
+3. **Supabase** — migrations **00001–00109** (semak `npm run db:push` jika perlu).
 
 4. **Manual belum siap:**
    - UAT browser ejen (`agent001@rkj.com`) — order + bayar mod pilot
@@ -26,11 +25,9 @@
 
 > **CHECKPOINT — Ejen Bayar (Pilot + Live iPay88)**
 
-**Tarikh save:** 25 Jun 2026
-**Branch:** `master` - commit **`46e3347`**
-**Production:** https://rkj-one.vercel.app - deploy **`46e3347`** ✓
-**Verify:** `npm run verify:all` ke **4/4** lulus (25 Jun 2026)
-**Supabase:** `mtygxueknokcihofdttl` - migrations **00001-00081** ✓
+**Branch:** `master` - commit **`96e05cc`**
+**Production:** https://rkj-one.vercel.app
+**Supabase:** `mtygxueknokcihofdttl` - migrations **00001-00109** ✓
 
 ---
 
