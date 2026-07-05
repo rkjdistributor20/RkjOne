@@ -3,7 +3,7 @@
 > **🔔 CHECKPOINT — 6 Jul 2026 · Sync Codex → Cursor → GitHub**
 
 **Branch:** `master`  
-**GitHub terakhir:** `e16a5a9` (sebelum commit sync ini)  
+**GitHub:** `bdddc74` · sync Codex 6 Jul 2026  
 **Production:** https://rkj-one.vercel.app · deploy **`dpl_HcM7sQo8Pzbfaffiwfcg26Zjp2nT`** ✓  
 **Supabase:** `mtygxueknokcihofdttl` · migrations **00001–00110** + HRMIS/leave (lihat folder migrations)
 

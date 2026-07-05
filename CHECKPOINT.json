@@ -3,7 +3,7 @@
   "source": "codex-sync-cursor",
   "user_resting": false,
   "resume_reminder": "Kerja Codex disimpan ke GitHub. Baca RESUME.md. Jalankan npm run verify:readiness + db:push untuk migration 00110/HRMIS. UAT browser dashboard redesign + HR self-service + payroll studio.",
-  "commit": "pending-after-push",
+  "commit": "bdddc74",
   "branch": "master",
   "production_url": "https://rkj-one.vercel.app",
   "supabase_project": "mtygxueknokcihofdttl",
