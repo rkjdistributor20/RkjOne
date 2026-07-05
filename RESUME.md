@@ -3,7 +3,7 @@
 > **🔔 REHAT — 6 Jul 2026 · Semua disimpan (GitHub + Vercel + Supabase)**
 
 **Branch:** `master`  
-**GitHub:** `400941e` · UAT penuh + order fix  
+**GitHub:** `d2538f6` · kod `400941e` + checkpoint rehat  
 **Production:** https://rkj-one.vercel.app · deploy **`dpl_9hkEfehyzVgdRz1CPGWmQBER35Wc`** ✓  
 **Supabase:** `mtygxueknokcihofdttl` · migrations **00001–00111** applied
 
@@ -104,7 +104,7 @@ Cursor **tidak** sync chat automatik dengan Codex. Continuity melalui:
 
 | Connection | Status |
 |------------|--------|
-| **GitHub** | `400941e` on `master` — https://github.com/rkjdistributor20/RkjOne |
+| **GitHub** | `d2538f6` on `master` — https://github.com/rkjdistributor20/RkjOne |
 | **Vercel** | Live — https://rkj-one.vercel.app · `dpl_9hkEfehyzVgdRz1CPGWmQBER35Wc` |
 | **Supabase** | `mtygxueknokcihofdttl` · migrations **00111** applied |
 | **Codex ↔ Cursor** | Sync melalui Git + `RESUME.md` + `CHECKPOINT.json` (bukan chat) |

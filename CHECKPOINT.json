@@ -3,7 +3,7 @@
   "source": "cursor-rest-save",
   "user_resting": true,
   "resume_reminder": "Baca RESUME.md. UAT automatik sudah lulus. Seterusnya: UAT browser, FPX live, signup OFF, Hari H 36.",
-  "commit": "400941e",
+  "commit": "d2538f6",
   "branch": "master",
   "production_url": "https://rkj-one.vercel.app",
   "supabase_project": "mtygxueknokcihofdttl",
@@ -17,7 +17,7 @@
     "verified_at": "2026-07-06 01:10 +08"
   },
   "connections_saved": {
-    "github": "master @ 400941e (+ docs checkpoint pending push)",
+    "github": "master @ d2538f6",
     "vercel": "dpl_9hkEfehyzVgdRz1CPGWmQBER35Wc — rkj-one.vercel.app",
     "supabase": "mtygxueknokcihofdttl — migrations 00111 applied",
     "codex_cursor": "Continuity via RESUME.md + CHECKPOINT.json + Git (no auto chat sync)"
