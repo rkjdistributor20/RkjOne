@@ -8,7 +8,7 @@
   "production_url": "https://rkj-one.vercel.app",
   "supabase_project": "mtygxueknokcihofdttl",
   "migrations": "00001-00111 - db up to date (6 Jul 2026)",
-  "latest_deployment": "dpl_5mf7Bgh9BwdJk8p7CeLW23MxLQPU",
+  "latest_deployment": "dpl_8EcMpgpouxAq4zey94unmRtVLnF7",
   "github": "https://github.com/rkjdistributor20/RkjOne",
   "last_live_check": {
     "ok": true,
@@ -18,7 +18,7 @@
   },
   "connections_saved": {
     "github": "master @ 4e4e02f",
-    "vercel": "dpl_5mf7Bgh9BwdJk8p7CeLW23MxLQPU - rkj-one.vercel.app",
+    "vercel": "dpl_8EcMpgpouxAq4zey94unmRtVLnF7 - rkj-one.vercel.app",
     "supabase": "mtygxueknokcihofdttl - migrations 00111 applied",
     "codex_cursor": "Continuity via RESUME.md + CHECKPOINT.json + Git (no auto chat sync)"
   },

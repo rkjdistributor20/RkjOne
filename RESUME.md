@@ -6,6 +6,7 @@
 - Tetapan > Kesihatan Sistem kini ada **Launch Control & UAT Owner** supaya owner/admin nampak baki kerja sebenar sebelum go-live.
 - Checklist baru meliputi UAT browser semua dashboard, pilot POS BR011, payment gateway live, Play Store/App Store, Supabase lockdown, go-live 36 cawangan dan checkpoint/backup.
 - Semakan lulus: `npx tsc --noEmit --pretty false`, targeted ESLint, `npm run verify:ui-polish`, `npm run verify:readiness`, `npm run system:audit`, `npm run build`, `npm run verify:production` 6/6.
+- Production deployment: `dpl_8EcMpgpouxAq4zey94unmRtVLnF7` aliased ke https://rkj-one.vercel.app.
 - Fail local/sensitif yang masih tidak dipush: `outputs/`, `scripts/reset-owner-password.mjs`, serta perubahan lama pada `components/auth/login-form.tsx` dan `package.json`.
 
 ---
