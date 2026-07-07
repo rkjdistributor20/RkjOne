@@ -2728,6 +2728,100 @@ const enText: Record<string, string> = {
   "dari tarikh production. Stok di bawah sudah luput - jangan dijual. Tolak melalui tab":
     "from the production date. The stock below has expired - do not sell it. Reject through the tab",
   "dari tutup syif terakhir": "from the last closed shift",
+  "Semak Kelulusan": "Review Approvals",
+  "Pemilik kerja": "Work owner",
+  "Masuk campur bila": "Intervene when",
+  "OM Roti Kaya Junus + Area Manager": "Roti Kaya Junus OM + Area Manager",
+  "RKJ Manufacturing Sdn Bhd": "RKJ Manufacturing Sdn Bhd",
+  "Terima order HQ, rancang production, rekod penggunaan bahan mentah dan sahkan serahan kepada distributor.":
+    "Receive HQ orders, plan production, record raw material usage and confirm handoff to Distributor.",
+  "Semak kapasiti, kos bahan, isu production besar dan keputusan supplier strategik.":
+    "Review capacity, material costs, major production issues and strategic supplier decisions.",
+  "OM Distributor + Driver Lead + Manager Maintenance":
+    "Distributor OM + Driver Lead + Maintenance Manager",
+  "Urus penerimaan dari kilang, dispatch ke kiosk/ejen, POD driver, group rate ejen dan langganan POS.":
+    "Manage receiving from the factory, dispatch to kiosks/agents, driver POD, agent group rates and POS subscriptions.",
+  "Route gagal, driver tidak cukup, ejen khas bermasalah, atau group rate memberi kesan margin.":
+    "Route failure, insufficient drivers, problematic Special Agent, or group rate affecting margin.",
+  "Mengikut majikan legal": "By legal employer",
+  "Tambah staf, lengkapkan profil HR, tetapkan role/access, proses payroll dan distribute payslip.":
+    "Add staff, complete HR profiles, set role/access, process payroll and distribute payslips.",
+  "Staf salah syarikat, akses tidak betul, payroll luar biasa, atau pertukaran role berisiko.":
+    "Staff under the wrong company, incorrect access, unusual payroll, or risky role changes.",
+  "Semua syarikat berkaitan": "All related companies",
+  "Sahkan QR manual, padan bank-in, semak tunai tertunggak dan sediakan laporan kewangan.":
+    "Verify manual QR, match bank-ins, review outstanding cash and prepare finance reports.",
+  "Semak exception besar, approve polisi bayaran dan pastikan duit masuk akaun syarikat betul.":
+    "Review major exceptions, approve payment policies and ensure money goes into the correct company account.",
+  "Tunai tertunggak tinggi, mismatch bank-in, bayaran ejen tidak jelas, atau refund luar biasa.":
+    "High outstanding cash, bank-in mismatch, unclear agent payment, or unusual refund.",
+  "Admin HQ + HR + OM mengikut skop": "HQ Admin + HR + OM by scope",
+  "Roti Kaya Junus Group": "Roti Kaya Junus Group",
+  "Menjadi pemutus akhir untuk perkara legal, delete/archive sensitif dan perubahan polisi sistem.":
+    "Act as final decision-maker for legal matters, sensitive delete/archive actions and system policy changes.",
+  "Semua tindakan besar ada audit": "All major actions have audit records",
+  "AM ada scorecard, OM ada command center":
+    "AM has a scorecard, OM has a command center",
+  "Cash collection mesti ada bukti": "Cash collection must have proof",
+  "Agent dan harga dikawal distributor":
+    "Agents and pricing are controlled by Distributor",
+  "Kawalan Pengurusan Owner": "Owner Management Control",
+  "Owner hanya perlu nampak exception besar, skor AM/OM/Admin dan bukti kerja. Kerja harian diselesaikan oleh role yang betul.":
+    "The owner only needs to see major exceptions, AM/OM/Admin scores and work evidence. Daily work is handled by the correct role.",
+  "OM bukan sekadar lihat laporan; OM perlu memantau AM, sahkan exception, dan pastikan isu tidak sampai kepada owner tanpa tindakan awal.":
+    "OM is not just reading reports; OM must monitor AMs, approve exceptions and ensure issues do not reach the owner without early action.",
+  "Semak Laporan": "Review Reports",
+  "Skor Kawalan": "Control Score",
+  "Operasi terkawal. Teruskan review harian.":
+    "Operations are under control. Continue the daily review.",
+  "Semak status syif terbuka.": "Check open shift status.",
+  "Liputan syif": "Shift coverage",
+  "Stok Risiko": "Stock Risk",
+  "stok rendah": "low stock",
+  "AM perlu selesaikan sebelum jualan terganggu.":
+    "AM must resolve it before sales are disrupted.",
+  menunggu: "waiting",
+  "dalam perjalanan": "in transit",
+  "OM Command Center": "OM Command Center",
+  "Semak semua AM, kejar cawangan merah, sahkan exception stok/cash/staf, dan pastikan isu selesai sebelum owner perlu campur tangan.":
+    "Review all AMs, chase red branches, approve stock/cash/staff exceptions, and ensure issues are resolved before the owner needs to intervene.",
+  "senarai tindakan harian, approval/reject, catatan follow-up dan status selesai.":
+    "daily action list, approvals/rejections, follow-up notes and completed status.",
+  "Urus user, dokumen, role dan tetapan tetapi setiap perubahan sensitif perlu ada sebab dan rekod audit.":
+    "Manage users, documents, roles and settings, but every sensitive change needs a reason and audit record.",
+  "Cash Collection & Voucher Proof": "Cash Collection & Voucher Proof",
+  "Selasa/Khamis: AM lengkapkan kutipan cash, voucher penggunaan cash dan bank-in baki; Finance semak bukti.":
+    "Tuesday/Thursday: AM completes cash collection, cash-use vouchers and balance bank-in; Finance checks the proof.",
+  "Naik kepada AM": "Escalate to AM",
+  "Naik kepada OM": "Escalate to OM",
+  "Naik kepada Admin": "Escalate to Admin",
+  "Stok rendah, staf tidak hadir, POS belum buka, delivery lewat bawah 1 hari.":
+    "Low stock, staff absent, POS not opened, or delivery delayed under 1 day.",
+  "Stok kritikal berulang, mismatch stok/cash, cawangan tutup, AM tidak bertindak.":
+    "Repeated critical stock, stock/cash mismatch, closed branch, or AM not acting.",
+  "Role/access salah, delete/update sensitif, dokumen tidak boleh dibuka atau data bercampur syarikat.":
+    "Wrong role/access, sensitive delete/update, documents cannot be opened or company data is mixed.",
+  "AI Operating Map RKJ One": "RKJ One AI Operating Map",
+  "Pengguna Fokus": "Focus Users",
+  "Sediakan produk, kawal bahan mentah, rekod stock card dan sahkan output production.":
+    "Prepare products, control raw materials, record stock cards and confirm production output.",
+  "Urus HQ Distributor, logistik, driver, agent, group rate dan aliran stok ke cawangan.":
+    "Manage Distributor HQ, logistics, drivers, agents, group rates and stock flow to branches.",
+  "Setiap cawangan ada profile sendiri; BM dan OM hanya update data bawah cawangan yang diberi.":
+    "Each branch has its own profile; BM and OM only update data for assigned branches.",
+  "Handoff Operasi": "Operations Handoff",
+  "Setiap pindahan mesti ada bukti dan owner tindakan.":
+    "Every handoff must have proof and an action owner.",
+  Bukti: "Proof",
+  "Production siap ke HQ Distributor": "Production ready for HQ Distributor",
+  "Stok bergerak ke cawangan": "Stock moves to branches",
+  "Control Guardrail": "Control Guardrail",
+  "Rule owner supaya sistem kekal kemas dan boleh audit.":
+    "Owner rules so the system stays tidy and auditable.",
+  "Setiap pengguna hanya nampak syarikat legal yang berkaitan dengan profile mereka.":
+    "Each user only sees legal companies related to their profile.",
+  "Roti Kaya Junus perlu ada profile cawangan; dokumen cawangan duduk bawah profile cawangan.":
+    "Roti Kaya Junus needs branch profiles; branch documents sit under each branch profile.",
   "Terima Stok": "Receive Stock",
   "Kiraan Stok": "Stock Count",
   "Jualan POS": "POS Sales",
