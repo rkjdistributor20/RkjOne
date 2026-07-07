@@ -9,6 +9,22 @@
 
 ---
 
+# Codex Resume - 2026-07-07 15:17 MYT
+
+Status terbaru selepas sambung kerja:
+
+- GitHub master: `f0ec65c` (`test: harden role and agent UAT login`)
+- `npm run verify:login` lulus 14/14; akaun aktif utama setiap peranan boleh login.
+- `npm run uat:sales-agent` lulus; Ejen Khas Muhammad `mfg010@rkj.com` berjaya login dan akses Portal Ejen/POS.
+- `npm run verify:all` lulus 6/6: readiness, production, AM, sales agent, payroll dan go-live 36.
+- Skrip UAT kini baca password go-live dari fail temp lokal baris pertama sahaja, tanpa simpan password dalam checkpoint.
+- Skrip UAT Portal Ejen kini guna cookie Supabase SSR `base64url`, jadi API yang sebelum ini redirect 307 kini lulus.
+- Folder `outputs/` masih local dan tidak dipush.
+
+Sambung seterusnya: teruskan UAT browser/manual atau kerja dashboard baharu tanpa perlu ulang pembaikan login ejen.
+
+---
+
 ## ✅ Siap (Codex + Cursor)
 
 | Modul | Status |
