@@ -1,5 +1,15 @@
 # ⏸ Sambung Di Sini — RKJ One ERP
 
+## Update terbaru - 2026-07-07 18:13 MYT
+
+- Commit kod terbaru: `4e4e02f` (`feat: add launch control to system health`)
+- Tetapan > Kesihatan Sistem kini ada **Launch Control & UAT Owner** supaya owner/admin nampak baki kerja sebenar sebelum go-live.
+- Checklist baru meliputi UAT browser semua dashboard, pilot POS BR011, payment gateway live, Play Store/App Store, Supabase lockdown, go-live 36 cawangan dan checkpoint/backup.
+- Semakan lulus: `npx tsc --noEmit --pretty false`, targeted ESLint, `npm run verify:ui-polish`, `npm run verify:readiness`, `npm run system:audit`, `npm run build`, `npm run verify:production` 6/6.
+- Fail local/sensitif yang masih tidak dipush: `outputs/`, `scripts/reset-owner-password.mjs`, serta perubahan lama pada `components/auth/login-form.tsx` dan `package.json`.
+
+---
+
 ## Update terbaru - 2026-07-07 17:46 MYT
 
 - Commit kod terbaru: `18d24fa` (`feat: refine role workflow SOP panel`)

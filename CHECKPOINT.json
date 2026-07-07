@@ -1,9 +1,9 @@
 {
-  "updated": "2026-07-07 17:46:16 +08:00",
+  "updated": "2026-07-07 18:13:08 +08:00",
   "source": "codex-uat-save",
   "user_resting": false,
-  "resume_reminder": "Baca RESUME.md. Governance aliran kerja dinaik taraf: SLA, exception flow, approval matrix, audit bukti kerja, Approval & Exception Center dan panel SOP role berpandu. TypeScript, targeted ESLint, UI polish, build dan verify:production lulus. Git code commit 18d24fa. Fail credential/output sensitif tidak dipush.",
-  "commit": "18d24fa",
+  "resume_reminder": "Baca RESUME.md. Tetapan > Kesihatan Sistem kini ada Launch Control & UAT Owner untuk baki kerja go-live, pilot POS, payment live, store release, Supabase lockdown, 36 cawangan dan checkpoint. TypeScript, targeted ESLint, UI polish, readiness, system audit, build dan verify:production lulus. Git code commit 4e4e02f. Fail credential/output sensitif tidak dipush.",
+  "commit": "4e4e02f",
   "branch": "master",
   "production_url": "https://rkj-one.vercel.app",
   "supabase_project": "mtygxueknokcihofdttl",
@@ -17,7 +17,7 @@
     "verified_at": "2026-07-06 01:19 +08"
   },
   "connections_saved": {
-    "github": "master @ 18d24fa",
+    "github": "master @ 4e4e02f",
     "vercel": "dpl_5mf7Bgh9BwdJk8p7CeLW23MxLQPU - rkj-one.vercel.app",
     "supabase": "mtygxueknokcihofdttl - migrations 00111 applied",
     "codex_cursor": "Continuity via RESUME.md + CHECKPOINT.json + Git (no auto chat sync)"
@@ -32,6 +32,7 @@
     "mobile_readiness": "54/54"
   },
   "codex_work_saved": [
+    "Launch Control & UAT Owner - Tetapan > Kesihatan Sistem kini papar kerja sebenar sebelum go-live: UAT browser, pilot POS BR011, payment live, Play/App Store, Supabase lockdown, 36 cawangan dan checkpoint",
     "Workflow SOP Panel - arahan role dipandu dengan fokus operasi, mula dari langkah pertama, bukti akhir, pemilik tugas dan bukti kerja untuk semua dashboard pengguna",
     "Workflow Governance Cockpit - SLA, exception flow, approval matrix dan audit bukti kerja untuk Owner/Admin, HQ Distributor, Driver, OM, AM, Staf Jualan, HR, Finance dan Ejen",
     "Kelulusan dinaik taraf menjadi Approval & Exception Center dengan umur permintaan, SLA, owner tindakan, bukti wajib dan eskalasi",
