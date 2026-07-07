@@ -337,6 +337,160 @@ const enText: Record<string, string> = {
     "Review/edit the amount above before confirming",
   "Semakan AI": "AI Review",
   "Semakan OK": "Review OK",
+  "Perlu Tindakan": "Needs Action",
+  "Buat Sekarang": "Do Now",
+  "Kawalan berfungsi": "Controls are working",
+  "Migrasi DB": "DB Migrations",
+  Dijana: "Generated",
+  semakan: "checks",
+  tindakan: "actions",
+  Tunggu: "Waiting",
+  Pemilik: "Owner",
+  "Kesihatan sistem dikemas kini": "System health updated",
+  "Gagal muat kesihatan sistem": "Failed to load system health",
+  "Kesihatan Sistem": "System Health",
+  "Pusat Kesihatan Sistem": "System Health Center",
+  "Launch Control & UAT Owner": "Launch Control & UAT Owner",
+  "Status Go-Live": "Go-Live Status",
+  "Senarai kerja sebenar sebelum go-live: apa sudah selesai, apa perlu dibuat sekarang dan apa masih menunggu pihak luar.":
+    "A practical pre-go-live list: what is done, what needs action now and what is still waiting on external parties.",
+  "Gunakan panel ini sebagai senarai semak harian owner sebelum sistem dibuka kepada staf real.":
+    "Use this panel as the owner's daily checklist before the system is opened to real staff.",
+  "Production Readiness Center": "Production Readiness Center",
+  "10 kawasan wajib untuk menjadikan RKJ One lebih selamat, pantas, boleh diaudit dan bersedia untuk operasi sebenar.":
+    "10 mandatory areas to make RKJ One safer, faster, auditable and ready for real operations.",
+  "Skor kesiapan": "Readiness score",
+  "UAT browser semua dashboard": "Browser UAT for all dashboards",
+  "Pilot POS BR011 RNR Sg Nyiur Arah Utara":
+    "BR011 RNR Sg Nyiur Northbound POS Pilot",
+  "Payment gateway live": "Live payment gateway",
+  "Play Store & App Store release": "Play Store & App Store release",
+  "Kunci akses production": "Lock down production access",
+  "Go-live 36 cawangan": "Go-live for 36 branches",
+  "Checkpoint & backup kerja": "Work checkpoint & backup",
+  "Owner / Pentadbir Utama": "Owner / Main Administrator",
+  "AM / OM / Staf Testing": "AM / OM / Testing Staff",
+  "Finance / Owner": "Finance / Owner",
+  "Owner / Admin Teknikal": "Owner / Technical Admin",
+  "Admin Teknikal": "Technical Admin",
+  "Owner / OM / AM": "Owner / OM / AM",
+  "Codex / Admin Teknikal": "Codex / Technical Admin",
+  "Semak dashboard Owner, HQ Distributor, Kilang, OM, AM, Driver, Staf Jualan, HR, Finance dan Ejen supaya tiada teks pelik atau flow tersangkut.":
+    "Check the Owner, Distributor HQ, Factory, OM, AM, Driver, Sales Staff, HR, Finance and Agent dashboards so no strange text or blocked flow remains.",
+  "Login ikut role satu demi satu, buat rekod isu kecil, kemudian refresh production selepas fix.":
+    "Log in role by role, record small issues, then refresh production after fixes.",
+  "Uji SOP sebenar: buka syif, kira stok permulaan, sahkan stok driver jika ada, jualan tunai/QR manual, rehat, mid-shift, tutup syif dan payroll time.":
+    "Test the real SOP: open shift, count opening stock, confirm driver stock if any, cash/manual QR sales, breaks, mid-shift, close shift and payroll time.",
+  "Guna akaun staf testing, kekalkan QR payment manual, dan pastikan AM/OM sahkan exception stok.":
+    "Use the testing staff account, keep QR payment manual, and ensure AM/OM approve stock exceptions.",
+  "Konfigurasi payment ditemui, tetapi transaksi live masih perlu diuji dengan callback/webhook dan settlement company account.":
+    "Payment configuration was found, but live transactions still need callback/webhook and company-account settlement testing.",
+  "Payment online belum dibuka untuk operasi real sehingga merchant approved dan key rasmi dimasukkan.":
+    "Online payment is not open for real operations until the merchant is approved and official keys are entered.",
+  "Buat transaksi kecil, semak webhook, resit, laporan collection dan bank settlement.":
+    "Run a small transaction and check webhook, receipt, collection report and bank settlement.",
+  "Tunggu approval merchant Billplz/Fiuu/iPay88, kemudian masukkan merchant key di Vercel.":
+    "Wait for Billplz/Fiuu/iPay88 merchant approval, then enter merchant keys in Vercel.",
+  "PWA dan Android shell boleh disiapkan, tetapi akaun organisasi Google/Apple bergantung pada D-U-N-S 9 digit dan verification.":
+    "The PWA and Android shell can be prepared, but Google/Apple organization accounts depend on the 9-digit D-U-N-S and verification.",
+  "Sambung Google Play Console dan Apple Developer sebaik sahaja nombor D-U-N-S diterima.":
+    "Resume Google Play Console and Apple Developer as soon as the D-U-N-S number is received.",
+  "Sistem testing owner tidak disekat, tetapi sebelum go-live perlu pastikan signup awam OFF, RLS aktif dan role sensitif diuji.":
+    "Owner testing is not blocked, but before go-live public signup must be OFF, RLS active and sensitive roles tested.",
+  "Semak Supabase Auth, RLS policy, service role usage dan audit log sebelum buka kepada staf real.":
+    "Check Supabase Auth, RLS policies, service-role usage and audit logs before opening to real staff.",
+  "Data cawangan, staf, role dan profile syarikat perlu disahkan sebelum sistem digunakan di semua kiosk.":
+    "Branch, staff, role and company-profile data must be verified before the system is used across all kiosks.",
+  "Mulakan dari pilot 1 cawangan, kemudian tambah batch kawasan selepas SOP POS dan stock count stabil.":
+    "Start with a one-branch pilot, then add area batches once POS SOP and stock counts are stable.",
+  "Rekod kerja, migration dan resume perlu sentiasa dikemaskini supaya kerja boleh disambung tanpa kehilangan konteks.":
+    "Work records, migrations and resume notes must stay updated so work can continue without losing context.",
+  "Update CHECKPOINT.json dan RESUME.md selepas perubahan besar atau deploy.":
+    "Update CHECKPOINT.json and RESUME.md after major changes or deployments.",
+  "Role dashboard": "Role dashboard",
+  "POS flow": "POS flow",
+  "Branch profile": "Branch profile",
+  "Manual QR": "Manual QR",
+  "Shift SOP": "Shift SOP",
+  "Merchant approval": "Merchant approval",
+  Webhook: "Webhook",
+  Settlement: "Settlement",
+  "D-U-N-S": "D-U-N-S",
+  "Play Console": "Play Console",
+  "Apple Developer": "Apple Developer",
+  "Supabase Auth": "Supabase Auth",
+  RLS: "RLS",
+  "Audit log": "Audit log",
+  "36 cawangan": "36 branches",
+  "AM area": "AM area",
+  Training: "Training",
+  schema_migrations: "schema_migrations",
+  "UAT role sebenar": "Real role UAT",
+  "Akses ikut syarikat": "Company-scoped access",
+  "Audit perubahan sensitif": "Sensitive-change audit",
+  "Backup dan pemulihan": "Backup and recovery",
+  "POS, offline dan manual payment": "POS, offline and manual payment",
+  "Payroll tiga syarikat": "Payroll for three companies",
+  "PWA, Android dan iOS": "PWA, Android and iOS",
+  "Monitoring dan alert": "Monitoring and alerts",
+  "Training mode dan rollout staf": "Training mode and staff rollout",
+  "Pentadbir Utama": "Main Administrator",
+  "Admin / HR": "Admin / HR",
+  "Admin / Owner": "Admin / Owner",
+  "OM / AM": "OM / AM",
+  "HR / Finance": "HR / Finance",
+  "HR / AM": "HR / AM",
+  "Login dan dashboard perlu diuji untuk owner, AM, OM, HR, Finance, staf POS, driver, kilang dan ejen.":
+    "Login and dashboards must be tested for owner, AM, OM, HR, Finance, POS staff, driver, factory and agent.",
+  "Jalankan UAT ikut peranan sebelum buka real operation.":
+    "Run role-based UAT before opening real operations.",
+  "Data perlu kekal berasingan antara RKJ Manufacturing, RKJ Distributor dan Roti Kaya Junus.":
+    "Data must remain separated between RKJ Manufacturing, RKJ Distributor and Roti Kaya Junus.",
+  "Semak role, legal entity dan branch scope selepas daftar staf baharu.":
+    "Review role, legal entity and branch scope after registering new staff.",
+  "Perubahan stok, staf, akses, gaji, dokumen dan delete/archive perlu ada rekod audit.":
+    "Stock, staff, access, payroll, document and delete/archive changes need audit records.",
+  "Pastikan setiap dialog sensitif meminta sebab dan simpan actor/time.":
+    "Ensure every sensitive dialog asks for a reason and stores actor/time.",
+  "Sebelum deploy besar, migration bundle dan checkpoint mesti dikemaskini.":
+    "Before a major deploy, the migration bundle and checkpoint must be updated.",
+  "Run npm run bundle:migrations, update CHECKPOINT.json dan RESUME.md.":
+    "Run npm run bundle:migrations, update CHECKPOINT.json and RESUME.md.",
+  "POS perlu boleh terus jualan selepas SOP stok disahkan, dengan manual QR/tunai semasa payment gateway belum live.":
+    "POS must allow sales after stock SOP is confirmed, using manual QR/cash while the payment gateway is not live.",
+  "Uji BR011 dan 2 cawangan lain: buka syif, kira stok, jual, refund, tutup syif.":
+    "Test BR011 and 2 other branches: open shift, count stock, sell, refund and close shift.",
+  "Online payment jangan dipaksa live sehingga merchant approved dan webhook disahkan.":
+    "Do not force online payment live until the merchant is approved and webhook is verified.",
+  "Kekalkan QR manual dahulu. Aktifkan online payment hanya selepas transaksi sandbox/live berjaya masuk laporan.":
+    "Keep manual QR first. Activate online payment only after sandbox/live transactions enter reports successfully.",
+  "Payroll perlu jelas ikut legal entity, staff type, elaun, potongan, cuti dan payslip.":
+    "Payroll must be clear by legal entity, staff type, allowances, deductions, leave and payslip.",
+  "Uji generate draft payroll untuk setiap syarikat dan preview payslip sebelum finalize.":
+    "Test generating draft payroll for every company and preview payslips before finalizing.",
+  "Aplikasi boleh disiapkan, tetapi store submission organisasi masih bergantung pada D-U-N-S dan akaun developer approved.":
+    "The app can be prepared, but organization store submission still depends on D-U-N-S and approved developer accounts.",
+  "Run npm run mobile:readiness selepas D-U-N-S diterima dan sebelum submit store.":
+    "Run npm run mobile:readiness after D-U-N-S is received and before store submission.",
+  "Owner perlu nampak status health, stok kritikal, payment tertunggak dan isu cawangan tanpa buka semua modul.":
+    "The owner needs to see health status, critical stock, outstanding payments and branch issues without opening every module.",
+  "Semak Tetapan > Kesihatan Sistem dan Dashboard Owner setiap hari semasa pilot.":
+    "Check Settings > System Health and the Owner Dashboard every day during the pilot.",
+  "Staf perlu dilatih guna SOP sebenar tanpa dedah rahsia syarikat atau mengganggu operasi real.":
+    "Staff must be trained with real SOP without exposing company secrets or disrupting real operations.",
+  "Buat pilot 1 cawangan, kemudian tambah 3 AM, kemudian buka ikut kawasan.":
+    "Pilot 1 branch, then add 3 AMs, then open by area.",
+  "legal entity": "legal entities",
+  "profil aktif": "active profiles",
+  "migration database": "database migrations",
+  "Billplz/Fiuu/iPay88/Razer env": "Billplz/Fiuu/iPay88/Razer env",
+  "Webhook paid status": "Webhook paid status",
+  "PWA manifest": "PWA manifest",
+  "Android shell": "Android shell",
+  "App Store documents": "App Store documents",
+  "Reviewer account": "Reviewer account",
+  "Pilot BR011": "Pilot BR011",
+  "Manual SOP POS": "Manual POS SOP",
   "Semak sambungan database dan sesi pentadbir utama.":
     "Check the database connection and Main Administrator session.",
   Pengeluaran: "Production",

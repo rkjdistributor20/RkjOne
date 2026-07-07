@@ -27,7 +27,9 @@ import {
   ModuleLoading,
   SectionCard,
 } from "@/components/shared/module-ui";
+import { useLanguage } from "@/components/i18n/language-provider";
 import { fetchSystemHealth } from "@/lib/settings/api";
+import { translateLegacyUiText } from "@/lib/i18n/legacy-ui-text";
 import type {
   LaunchControlItem,
   LaunchControlStatus,
@@ -49,6 +51,8 @@ const sectionIcons: Record<string, typeof ShieldCheck> = {
   operations: ServerCog,
 };
 
+type UiText = (text: string) => string;
+
 function statusTone(status: SystemHealthStatus) {
   if (status === "PASS")
     return {
@@ -69,13 +73,19 @@ function statusTone(status: SystemHealthStatus) {
   };
 }
 
-function StatusBadge({ status }: { status: SystemHealthStatus }) {
+function StatusBadge({
+  status,
+  ui,
+}: {
+  status: SystemHealthStatus;
+  ui: UiText;
+}) {
   const tone = statusTone(status);
   const Icon = tone.icon;
   return (
     <Badge variant="outline" className={tone.className}>
       <Icon className="mr-1 h-3.5 w-3.5" />
-      {tone.label}
+      {ui(tone.label)}
     </Badge>
   );
 }
@@ -100,13 +110,19 @@ function readinessTone(status: ProductionReadinessStatus) {
   };
 }
 
-function ReadinessBadge({ status }: { status: ProductionReadinessStatus }) {
+function ReadinessBadge({
+  status,
+  ui,
+}: {
+  status: ProductionReadinessStatus;
+  ui: UiText;
+}) {
   const tone = readinessTone(status);
   const Icon = tone.icon;
   return (
     <Badge variant="outline" className={tone.className}>
       <Icon className="mr-1 h-3.5 w-3.5" />
-      {tone.label}
+      {ui(tone.label)}
     </Badge>
   );
 }
@@ -131,18 +147,30 @@ function launchTone(status: LaunchControlStatus) {
   };
 }
 
-function LaunchBadge({ status }: { status: LaunchControlStatus }) {
+function LaunchBadge({
+  status,
+  ui,
+}: {
+  status: LaunchControlStatus;
+  ui: UiText;
+}) {
   const tone = launchTone(status);
   const Icon = tone.icon;
   return (
     <Badge variant="outline" className={tone.className}>
       <Icon className="mr-1 h-3.5 w-3.5" />
-      {tone.label}
+      {ui(tone.label)}
     </Badge>
   );
 }
 
-function LaunchControlRow({ item }: { item: LaunchControlItem }) {
+function LaunchControlRow({
+  item,
+  ui,
+}: {
+  item: LaunchControlItem;
+  ui: UiText;
+}) {
   return (
     <div className="rounded-2xl border bg-background/90 p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -151,24 +179,24 @@ function LaunchControlRow({ item }: { item: LaunchControlItem }) {
             <Badge variant="secondary" className="bg-stone-100 text-stone-700">
               {item.priority}
             </Badge>
-            <h4 className="font-semibold text-[#141414]">{item.title}</h4>
+            <h4 className="font-semibold text-[#141414]">{ui(item.title)}</h4>
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
-            Pemilik: {item.owner}
+            {ui("Pemilik")}: {ui(item.owner)}
           </p>
         </div>
-        <LaunchBadge status={item.status} />
+        <LaunchBadge status={item.status} ui={ui} />
       </div>
       <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-        {item.summary}
+        {ui(item.summary)}
       </p>
       <div className="mt-3 rounded-xl border border-amber-100 bg-amber-50/55 p-3 text-sm font-medium leading-relaxed text-[#7c5a00]">
-        {item.next_step}
+        {ui(item.next_step)}
       </div>
       <div className="mt-3 flex flex-wrap gap-1.5">
         {item.proof.map((proof) => (
           <Badge key={proof} variant="outline" className="bg-white/75 text-xs">
-            {proof}
+            {ui(proof)}
           </Badge>
         ))}
       </div>
@@ -176,29 +204,35 @@ function LaunchControlRow({ item }: { item: LaunchControlItem }) {
   );
 }
 
-function ReadinessRow({ area }: { area: ProductionReadinessArea }) {
+function ReadinessRow({
+  area,
+  ui,
+}: {
+  area: ProductionReadinessArea;
+  ui: UiText;
+}) {
   return (
     <div className="rounded-xl border bg-background/85 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary">{area.priority}</Badge>
-            <h4 className="font-semibold text-[#141414]">{area.title}</h4>
+            <h4 className="font-semibold text-[#141414]">{ui(area.title)}</h4>
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
-            Pemilik tindakan: {area.owner}
+            {ui("Pemilik tindakan")}: {ui(area.owner)}
           </p>
         </div>
-        <ReadinessBadge status={area.status} />
+        <ReadinessBadge status={area.status} ui={ui} />
       </div>
-      <p className="mt-3 text-sm text-muted-foreground">{area.summary}</p>
+      <p className="mt-3 text-sm text-muted-foreground">{ui(area.summary)}</p>
       <p className="mt-2 text-sm font-medium text-[#7c5a00]">
-        {area.next_step}
+        {ui(area.next_step)}
       </p>
       <div className="mt-3 flex flex-wrap gap-1.5">
         {area.proof.map((proof) => (
           <Badge key={proof} variant="outline" className="bg-white/70 text-xs">
-            {proof}
+            {ui(proof)}
           </Badge>
         ))}
       </div>
@@ -206,38 +240,44 @@ function ReadinessRow({ area }: { area: ProductionReadinessArea }) {
   );
 }
 
-function CheckRow({ item }: { item: SystemHealthCheck }) {
+function CheckRow({ item, ui }: { item: SystemHealthCheck; ui: UiText }) {
   return (
     <div className="grid gap-3 rounded-xl border bg-background/80 p-3 md:grid-cols-[180px_1fr_auto] md:items-start">
       <div className="space-y-1">
-        <p className="text-sm font-semibold text-[#141414]">{item.label}</p>
-        <StatusBadge status={item.status} />
+        <p className="text-sm font-semibold text-[#141414]">{ui(item.label)}</p>
+        <StatusBadge status={item.status} ui={ui} />
       </div>
       <div className="space-y-1 text-sm">
-        <p className="text-muted-foreground">{item.detail}</p>
+        <p className="text-muted-foreground">{ui(item.detail)}</p>
         {item.action && (
-          <p className="font-medium text-[#7c5a00]">{item.action}</p>
+          <p className="font-medium text-[#7c5a00]">{ui(item.action)}</p>
         )}
       </div>
     </div>
   );
 }
 
-function SectionBlock({ section }: { section: SystemHealthSection }) {
+function SectionBlock({
+  section,
+  ui,
+}: {
+  section: SystemHealthSection;
+  ui: UiText;
+}) {
   const Icon = sectionIcons[section.key] ?? Activity;
   return (
     <SectionCard
       title={
         <span className="flex items-center gap-2">
           <Icon className="h-4 w-4 text-[#b88700]" />
-          {section.title}
+          {ui(section.title)}
         </span>
       }
-      description={section.description}
+      description={ui(section.description)}
     >
       <div className="space-y-3">
         {section.checks.map((item) => (
-          <CheckRow key={item.key} item={item} />
+          <CheckRow key={item.key} item={item} ui={ui} />
         ))}
       </div>
     </SectionCard>
@@ -245,26 +285,36 @@ function SectionBlock({ section }: { section: SystemHealthSection }) {
 }
 
 export function SystemHealthPanel() {
+  const { locale } = useLanguage();
   const [snapshot, setSnapshot] = useState<SystemHealthSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const ui = useCallback(
+    (text: string) => translateLegacyUiText(text, locale),
+    [locale],
+  );
 
-  const load = useCallback(async (silent = false) => {
-    if (silent) setRefreshing(true);
-    else setLoading(true);
-    try {
-      const data = await fetchSystemHealth();
-      setSnapshot(data.snapshot);
-      if (silent) toast.success("Kesihatan sistem dikemas kini");
-    } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : "Gagal muat kesihatan sistem";
-      toast.error(msg);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
+  const load = useCallback(
+    async (silent = false) => {
+      if (silent) setRefreshing(true);
+      else setLoading(true);
+      try {
+        const data = await fetchSystemHealth();
+        setSnapshot(data.snapshot);
+        if (silent) toast.success(ui("Kesihatan sistem dikemas kini"));
+      } catch (err) {
+        const msg =
+          err instanceof Error
+            ? err.message
+            : ui("Gagal muat kesihatan sistem");
+        toast.error(ui(msg));
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [ui],
+  );
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -291,8 +341,8 @@ export function SystemHealthPanel() {
   if (!snapshot) {
     return (
       <SectionCard
-        title="Kesihatan Sistem"
-        description="Data belum dapat dimuatkan."
+        title={ui("Kesihatan Sistem")}
+        description={ui("Data belum dapat dimuatkan.")}
         action={
           <Button
             variant="outline"
@@ -300,12 +350,12 @@ export function SystemHealthPanel() {
             disabled={refreshing}
           >
             <RefreshCw className="mr-2 h-4 w-4" />
-            Cuba Semula
+            {ui("Cuba Semula")}
           </Button>
         }
       >
         <p className="text-sm text-muted-foreground">
-          Semak sambungan database dan sesi pentadbir utama.
+          {ui("Semak sambungan database dan sesi pentadbir utama.")}
         </p>
       </SectionCard>
     );
@@ -314,8 +364,10 @@ export function SystemHealthPanel() {
   return (
     <div className="space-y-5">
       <SectionCard
-        title="Pusat Kesihatan Sistem"
-        description="Audit ringkas untuk keselamatan, akses, backup, mobile app, payment dan operasi harian. Nilai rahsia tidak dipaparkan."
+        title={ui("Pusat Kesihatan Sistem")}
+        description={ui(
+          "Audit ringkas untuk keselamatan, akses, backup, mobile app, payment dan operasi harian. Nilai rahsia tidak dipaparkan.",
+        )}
         action={
           <Button
             variant="outline"
@@ -325,23 +377,26 @@ export function SystemHealthPanel() {
             <RefreshCw
               className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
             />
-            Refresh
+            {ui("Refresh")}
           </Button>
         }
       >
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <StatusBadge status={snapshot.overall} />
-              <Badge variant="secondary">{totals.total} semakan</Badge>
+              <StatusBadge status={snapshot.overall} ui={ui} />
+              <Badge variant="secondary">{ui(`${totals.total} semakan`)}</Badge>
               <Badge variant="outline">
-                Dijana {new Date(snapshot.generated_at).toLocaleString("ms-MY")}
+                {ui("Dijana")}{" "}
+                {new Date(snapshot.generated_at).toLocaleString(
+                  locale === "en" ? "en-MY" : "ms-MY",
+                )}
               </Badge>
             </div>
             <p className="mt-2 text-sm text-muted-foreground">
-              Fokus utama: pastikan staf hanya nampak modul mereka, backup
-              wujud, mobile readiness lulus, dan payment gateway kekal manual
-              sehingga merchant benar-benar approved.
+              {ui(
+                "Fokus utama: pastikan staf hanya nampak modul mereka, backup wujud, mobile readiness lulus, dan payment gateway kekal manual sehingga merchant benar-benar approved.",
+              )}
             </p>
           </div>
         </div>
@@ -349,30 +404,32 @@ export function SystemHealthPanel() {
 
       <KpiGrid cols={4}>
         <KpiCard
-          title="Semakan OK"
+          title={ui("Semakan OK")}
           value={totals.pass}
-          description="Kawalan berfungsi"
+          description={ui("Kawalan berfungsi")}
           icon={CheckCircle2}
           variant="success"
         />
         <KpiCard
-          title="Perlu Pantau"
+          title={ui("Perlu Pantau")}
           value={totals.warn}
-          description="Bukan gagal, tetapi perlu tindakan owner/admin"
+          description={ui("Bukan gagal, tetapi perlu tindakan owner/admin")}
           icon={AlertTriangle}
           variant="warning"
         />
         <KpiCard
-          title="Perlu Baiki"
+          title={ui("Perlu Baiki")}
           value={totals.fail}
-          description="Jangan deploy jika kritikal"
+          description={ui("Jangan deploy jika kritikal")}
           icon={XCircle}
           variant={totals.fail > 0 ? "danger" : "success"}
         />
         <KpiCard
-          title="Migrasi DB"
+          title={ui("Migrasi DB")}
           value={snapshot.counters.migrations}
-          description={`${snapshot.counters.branches ?? 0} cawangan, ${snapshot.counters.active_profiles ?? 0} profil aktif`}
+          description={ui(
+            `${snapshot.counters.branches ?? 0} cawangan, ${snapshot.counters.active_profiles ?? 0} profil aktif`,
+          )}
           icon={DatabaseBackup}
         />
       </KpiGrid>
@@ -381,10 +438,12 @@ export function SystemHealthPanel() {
         title={
           <span className="flex items-center gap-2">
             <FileCheck2 className="h-4 w-4 text-[#b88700]" />
-            Launch Control & UAT Owner
+            {ui("Launch Control & UAT Owner")}
           </span>
         }
-        description="Senarai kerja sebenar sebelum go-live: apa sudah selesai, apa perlu dibuat sekarang dan apa masih menunggu pihak luar."
+        description={ui(
+          "Senarai kerja sebenar sebelum go-live: apa sudah selesai, apa perlu dibuat sekarang dan apa masih menunggu pihak luar.",
+        )}
       >
         <div className="grid gap-3 lg:grid-cols-[260px_1fr]">
           <div className="rounded-2xl border bg-gradient-to-br from-stone-950 via-stone-900 to-amber-950 p-5 text-white shadow-sm">
@@ -392,14 +451,15 @@ export function SystemHealthPanel() {
               <Rocket className="h-6 w-6" />
             </div>
             <p className="mt-5 text-xs font-semibold uppercase tracking-[0.2em] text-amber-100/75">
-              Status Go-Live
+              {ui("Status Go-Live")}
             </p>
             <p className="mt-2 text-3xl font-semibold">
-              {snapshot.launch_control.action} tindakan
+              {ui(`${snapshot.launch_control.action} tindakan`)}
             </p>
             <p className="mt-2 text-sm leading-relaxed text-stone-200">
-              Gunakan panel ini sebagai senarai semak harian owner sebelum
-              sistem dibuka kepada staf real.
+              {ui(
+                "Gunakan panel ini sebagai senarai semak harian owner sebelum sistem dibuka kepada staf real.",
+              )}
             </p>
             <div className="mt-5 grid grid-cols-3 gap-2 text-center text-sm">
               <div className="rounded-xl border border-white/10 bg-white/10 p-3">
@@ -407,7 +467,7 @@ export function SystemHealthPanel() {
                   {snapshot.launch_control.done}
                 </p>
                 <p className="text-[11px] uppercase tracking-wide text-stone-300">
-                  Selesai
+                  {ui("Selesai")}
                 </p>
               </div>
               <div className="rounded-xl border border-white/10 bg-white/10 p-3">
@@ -415,7 +475,7 @@ export function SystemHealthPanel() {
                   {snapshot.launch_control.action}
                 </p>
                 <p className="text-[11px] uppercase tracking-wide text-stone-300">
-                  Tindakan
+                  {ui("Tindakan")}
                 </p>
               </div>
               <div className="rounded-xl border border-white/10 bg-white/10 p-3">
@@ -423,14 +483,14 @@ export function SystemHealthPanel() {
                   {snapshot.launch_control.waiting}
                 </p>
                 <p className="text-[11px] uppercase tracking-wide text-stone-300">
-                  Tunggu
+                  {ui("Tunggu")}
                 </p>
               </div>
             </div>
           </div>
           <div className="grid gap-3 xl:grid-cols-2">
             {snapshot.launch_control.items.map((item) => (
-              <LaunchControlRow key={item.key} item={item} />
+              <LaunchControlRow key={item.key} item={item} ui={ui} />
             ))}
           </div>
         </div>
@@ -441,10 +501,12 @@ export function SystemHealthPanel() {
           title={
             <span className="flex items-center gap-2">
               <Rocket className="h-4 w-4 text-[#b88700]" />
-              Production Readiness Center
+              {ui("Production Readiness Center")}
             </span>
           }
-          description="10 kawasan wajib untuk menjadikan RKJ One lebih selamat, pantas, boleh diaudit dan bersedia untuk operasi sebenar."
+          description={ui(
+            "10 kawasan wajib untuk menjadikan RKJ One lebih selamat, pantas, boleh diaudit dan bersedia untuk operasi sebenar.",
+          )}
         >
           <div className="grid gap-3 md:grid-cols-[220px_1fr]">
             <div className="rounded-xl border bg-gradient-to-br from-amber-50 via-white to-emerald-50 p-4">
@@ -452,26 +514,30 @@ export function SystemHealthPanel() {
                 <ClipboardCheck className="h-6 w-6" />
               </div>
               <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Skor kesiapan
+                {ui("Skor kesiapan")}
               </p>
               <p className="mt-1 text-4xl font-semibold tabular-nums text-stone-950">
                 {readiness.score}%
               </p>
               <div className="mt-4 space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Sedia</span>
+                  <span className="text-muted-foreground">{ui("Sedia")}</span>
                   <span className="font-semibold text-emerald-700">
                     {readiness.ready}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Perlu tindakan</span>
+                  <span className="text-muted-foreground">
+                    {ui("Perlu tindakan")}
+                  </span>
                   <span className="font-semibold text-amber-700">
                     {readiness.needs_action}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Tersekat</span>
+                  <span className="text-muted-foreground">
+                    {ui("Tersekat")}
+                  </span>
                   <span className="font-semibold text-red-700">
                     {readiness.blocked}
                   </span>
@@ -480,7 +546,7 @@ export function SystemHealthPanel() {
             </div>
             <div className="grid gap-3 xl:grid-cols-2">
               {readiness.areas.map((area) => (
-                <ReadinessRow key={area.key} area={area} />
+                <ReadinessRow key={area.key} area={area} ui={ui} />
               ))}
             </div>
           </div>
@@ -489,7 +555,7 @@ export function SystemHealthPanel() {
 
       <div className="grid gap-4 xl:grid-cols-2">
         {snapshot.sections.map((section) => (
-          <SectionBlock key={section.key} section={section} />
+          <SectionBlock key={section.key} section={section} ui={ui} />
         ))}
       </div>
     </div>
