@@ -2837,6 +2837,98 @@ const enText: Record<string, string> = {
   Kg: "Kg",
 };
 
+const msText: Record<string, string> = Object.entries(enText).reduce(
+  (translations, [ms, en]) => {
+    if (en !== ms && !translations[en]) {
+      translations[en] = ms;
+    }
+    return translations;
+  },
+  {
+    "AI Proactive Cockpit": "Kokpit AI Proaktif",
+    "AI Proactive Assistant": "Pembantu AI Proaktif",
+    "AI Presence Check": "Semakan Kehadiran AI",
+    "Control Center": "Pusat Kawalan",
+    "Owner Command Center": "Pusat Kawalan Owner",
+    "Owner Control Center": "Pusat Kawalan Owner",
+    "Group Control Center": "Pusat Kawalan Kumpulan",
+    "Group Control": "Kawalan Kumpulan",
+    "Open Main Focus": "Buka Fokus Utama",
+    "Main Work Path": "Laluan kerja utama",
+    "Today's Signals": "Signal Hari Ini",
+    "Next Actions": "Tindakan Seterusnya",
+    "Daily Work Rhythm": "Ritma Kerja Harian",
+    "Work Relationships": "Hubungan Kerja",
+    "Exception & SLA Center": "Pusat Exception & SLA",
+    "Live audit": "Audit hidup",
+    "Approval Matrix": "Matriks Kelulusan",
+    "Audit & Work Proof": "Audit & Bukti Kerja",
+    Review: "Semakan",
+    Audit: "Audit",
+    "Audit HR syarikat": "Audit HR syarikat",
+    "Audit dokumen dan legal entity": "Audit dokumen dan entiti legal",
+    "Audit hasil": "Semakan hasil",
+    "Audit kerja AM/OM/Admin": "Audit kerja AM/OM/Admin",
+    "Audit kutipan tunai AM": "Audit kutipan tunai AM",
+    "Audit result": "Semakan hasil",
+    "Audit outcomes": "Semakan hasil",
+    "Exception cawangan kepada AM/OM": "Pengecualian cawangan kepada AM/OM",
+    "Exception kumpulan berisiko tinggi":
+      "Pengecualian kumpulan berisiko tinggi",
+    "Exception production": "Pengecualian production",
+    "Branch exceptions to AM/OM": "Pengecualian cawangan kepada AM/OM",
+    "Production exception": "Pengecualian production",
+    "High-risk group exception": "Pengecualian kumpulan berisiko tinggi",
+    "Owner / HQ": "Pemilik / HQ",
+    "OM / Owner for high risk": "OM / Pemilik untuk risiko tinggi",
+    "OM / Owner untuk risiko tinggi": "OM / Pemilik untuk risiko tinggi",
+    "Roti Kaya Junus Group": "Kumpulan Roti Kaya Junus",
+    "Roti Kaya Junus Group - RKJ, RKJ Distributor dan RKJ Manufacturing":
+      "Kumpulan Roti Kaya Junus - RKJ, RKJ Distributor dan RKJ Manufacturing",
+    "Owner Management Control": "Kawalan Pengurusan Owner",
+    "Management Control": "Kawalan Pengurusan",
+    "Logistics Command Center": "Command Center Logistik",
+    "Production Readiness Center": "Pusat Kesiapan Production",
+    "System Health Center": "Pusat Kesihatan Sistem",
+    "Launch Control & UAT Owner": "Kawalan Launch & UAT Owner",
+    "Staff Login": "Log Masuk Pengguna",
+    Staff: "Staf",
+    Branches: "Cawangan",
+    Branch: "Cawangan",
+    Company: "Syarikat",
+    Companies: "Syarikat",
+    Payroll: "Gaji",
+    "Payroll & Payslips": "Gaji & Payslip",
+    "Human Resources": "Sumber Manusia",
+    "Sales Agent": "Ejen Jualan",
+    "Agent Portal": "Portal Ejen",
+    Factory: "Kilang",
+    Logistics: "Logistik",
+    Inventory: "Inventori",
+    Finance: "Kewangan",
+    Approvals: "Kelulusan",
+    Settings: "Tetapan",
+    Reports: "Laporan",
+    Dashboard: "Papan Pemuka",
+    Open: "Buka",
+    Close: "Tutup",
+    Search: "Cari",
+    Save: "Simpan",
+    Submit: "Hantar",
+    Update: "Kemaskini",
+    Actions: "Tindakan",
+    Summary: "Ringkasan",
+    History: "Sejarah",
+    Status: "Status",
+    Active: "Aktif",
+    Inactive: "Tidak Aktif",
+    Waiting: "Menunggu",
+    Completed: "Selesai",
+    Critical: "Kritikal",
+    Low: "Rendah",
+  } as Record<string, string>,
+);
+
 const patterns: Array<[RegExp, (...matches: string[]) => string]> = [
   [/^(\d+) transaksi hari ini$/i, (count) => `${count} transactions today`],
   [
@@ -3127,24 +3219,292 @@ const patterns: Array<[RegExp, (...matches: string[]) => string]> = [
   ],
 ];
 
-export function translateLegacyUiText(text: string, locale: Locale) {
-  if (locale !== "en") return text;
+const msPatterns: Array<[RegExp, (...matches: string[]) => string]> = [
+  [/^(\d+) transactions today$/i, (count) => `${count} transaksi hari ini`],
+  [
+    /^(\d+) transactions recorded today\.$/i,
+    (count) => `${count} transaksi direkod hari ini.`,
+  ],
+  [/^(\d+) companies$/i, (count) => `${count} syarikat`],
+  [/^(\d+) branches$/i, (count) => `${count} cawangan`],
+  [/^(\d+) kiosks$/i, (count) => `${count} kiosk`],
+  [/^(\d+) staff$/i, (count) => `${count} staf`],
+  [/^(\d+) drivers$/i, (count) => `${count} driver`],
+  [/^(\d+) documents$/i, (count) => `${count} dokumen`],
+  [/^(\d+) active$/i, (count) => `${count} aktif`],
+  [/^(\d+) waiting$/i, (count) => `${count} menunggu`],
+  [/^(\d+) in transit$/i, (count) => `${count} dalam perjalanan`],
+  [
+    /^(\d+) waiting - (\d+) in transit$/i,
+    (pending, transit) => `${pending} menunggu - ${transit} dalam perjalanan`,
+  ],
+  [/^Today sales: (.+)$/i, (value) => `Jualan hari ini: ${value}`],
+  [/^Shift: (.+)$/i, (value) => `Syif: ${value}`],
+  [/^Week (.+)$/i, (value) => `Minggu ${value}`],
+  [
+    /^(.+) - (\d+) branches$/i,
+    (area, count) => `${translateLegacyUiText(area, "ms")} - ${count} cawangan`,
+  ],
+  [
+    /^(.+) - (\d+) kiosks$/i,
+    (area, count) => `${translateLegacyUiText(area, "ms")} - ${count} kiosk`,
+  ],
+  [/^Open (.+)$/i, (thing) => `Buka ${translateLegacyUiText(thing, "ms")}`],
+  [
+    /^Add (.+)$/i,
+    (thing) => `Tambah ${translateLegacyUiText(thing, "ms").toLowerCase()}`,
+  ],
+  [
+    /^Save (.+)$/i,
+    (thing) => `Simpan ${translateLegacyUiText(thing, "ms").toLowerCase()}`,
+  ],
+  [
+    /^Submit (.+)$/i,
+    (thing) => `Hantar ${translateLegacyUiText(thing, "ms").toLowerCase()}`,
+  ],
+  [
+    /^Review (.+)$/i,
+    (thing) => `Semak ${translateLegacyUiText(thing, "ms").toLowerCase()}`,
+  ],
+  [
+    /^Confirm (.+)$/i,
+    (thing) => `Sahkan ${translateLegacyUiText(thing, "ms").toLowerCase()}`,
+  ],
+  [
+    /^Manage (.+)$/i,
+    (thing) => `Urus ${translateLegacyUiText(thing, "ms").toLowerCase()}`,
+  ],
+  [
+    /^Select (.+)$/i,
+    (thing) => `Pilih ${translateLegacyUiText(thing, "ms").toLowerCase()}`,
+  ],
+  [
+    /^No (.+)$/i,
+    (thing) => `Tiada ${translateLegacyUiText(thing, "ms").toLowerCase()}`,
+  ],
+  [
+    /^(.+) not found$/i,
+    (thing) => `${translateLegacyUiText(thing, "ms")} tidak dijumpai`,
+  ],
+  [
+    /^(.+) is required$/i,
+    (thing) => `${translateLegacyUiText(thing, "ms")} diperlukan`,
+  ],
+  [
+    /^(.+) pending approval$/i,
+    (thing) => `${translateLegacyUiText(thing, "ms")} menunggu kelulusan`,
+  ],
+  [
+    /^(.+) can view$/i,
+    (thing) => `${translateLegacyUiText(thing, "ms")} boleh lihat`,
+  ],
+  [
+    /^Balance:? (.+)$/i,
+    (value) => `Baki: ${translateLegacyUiText(value, "ms")}`,
+  ],
+];
 
+const enFallbackPhrases: Array<[string, string]> = [
+  ["tunai tertunggak", "outstanding cash"],
+  ["bahan mentah", "raw materials"],
+  ["staf jualan", "sales staff"],
+  ["Ejen Khas", "Special Agent"],
+  ["ejen khas", "special agent"],
+  ["Area Manager", "Area Manager"],
+  ["Pengurus Kawasan", "Area Manager"],
+  ["Pengurus Operasi", "Operations Manager"],
+  ["Pentadbir Utama", "Main Administrator"],
+  ["pengguna", "user"],
+  ["syarikat", "company"],
+  ["cawangan", "branch"],
+  ["kawasan", "area"],
+  ["kiosk", "kiosk"],
+  ["kilang", "factory"],
+  ["pemandu", "driver"],
+  ["driver", "driver"],
+  ["ejen", "agent"],
+  ["stok", "stock"],
+  ["jualan", "sales"],
+  ["bayaran", "payment"],
+  ["kelulusan", "approval"],
+  ["penghantaran", "delivery"],
+  ["gaji", "payroll"],
+  ["tugasan", "task"],
+  ["pemilik", "owner"],
+  ["laporan", "report"],
+  ["bukti", "proof"],
+  ["kerja", "work"],
+  ["hari", "day"],
+  ["mingguan", "weekly"],
+  ["harian", "daily"],
+  ["menunggu", "waiting"],
+  ["pengurusan", "management"],
+  ["pentadbir", "administrator"],
+  ["utama", "main"],
+  ["kewangan", "finance"],
+  ["bahan", "materials"],
+  ["mentah", "raw"],
+  ["pindahan", "transfer"],
+  ["syif", "shift"],
+  ["laluan", "route"],
+  ["tindakan", "action"],
+  ["penerima", "receiver"],
+  ["diterima", "received"],
+  ["dipadan", "matched"],
+  ["disahkan", "approved"],
+  ["direkod", "recorded"],
+  ["ditetapkan", "assigned"],
+  ["tersekat", "blocked"],
+  ["bermasalah", "problematic"],
+  ["berisiko", "risky"],
+  ["tertinggal", "missed"],
+  ["tertangguh", "delayed"],
+  ["semak", "review"],
+  ["sahkan", "approve"],
+  ["pantau", "monitor"],
+  ["urus", "manage"],
+  ["rekod", "record"],
+  ["luluskan", "approve"],
+  ["tolak", "reject"],
+  ["hantar", "submit"],
+  ["terima", "receive"],
+  ["buka", "open"],
+  ["tutup", "close"],
+  ["mula", "start"],
+  ["tamat", "end"],
+  ["belum", "not yet"],
+  ["perlu", "need to"],
+  ["wajib", "must"],
+  ["boleh", "can"],
+  ["hanya", "only"],
+  ["semua", "all"],
+  ["sebelum", "before"],
+  ["selepas", "after"],
+  ["jika", "if"],
+  ["supaya", "so that"],
+  ["apabila", "when"],
+  ["tanpa", "without"],
+  ["dengan", "with"],
+  ["dalam", "in"],
+  ["kepada", "to"],
+  ["daripada", "from"],
+  ["untuk", "for"],
+  ["oleh", "by"],
+  ["ikut", "by"],
+  ["dan", "and"],
+  ["atau", "or"],
+];
+
+const msFallbackPhrases: Array<[string, string]> = [
+  ["outstanding cash", "tunai tertunggak"],
+  ["high-risk group exception", "pengecualian kumpulan berisiko tinggi"],
+  ["branch exceptions", "pengecualian cawangan"],
+  ["production exception", "pengecualian production"],
+  ["raw materials", "bahan mentah"],
+  ["sales staff", "staf jualan"],
+  ["Special Agent", "Ejen Khas"],
+  ["Main Administrator", "Pentadbir Utama"],
+  ["Area Manager", "Pengurus Kawasan"],
+  ["Operations Manager", "Pengurus Operasi"],
+  ["Control Center", "Pusat Kawalan"],
+  ["Command Center", "Pusat Kawalan"],
+  ["Owner", "Owner"],
+  ["Dashboard", "Papan Pemuka"],
+  ["Company", "Syarikat"],
+  ["Branch", "Cawangan"],
+  ["Branches", "Cawangan"],
+  ["Staff", "Staf"],
+  ["Driver", "Driver"],
+  ["Agent", "Ejen"],
+  ["Factory", "Kilang"],
+  ["Logistics", "Logistik"],
+  ["Finance", "Kewangan"],
+  ["Payroll", "Gaji"],
+  ["Stock", "Stok"],
+  ["Cash", "Tunai"],
+  ["Sales", "Jualan"],
+  ["Payment", "Bayaran"],
+  ["Approval", "Kelulusan"],
+  ["Approvals", "Kelulusan"],
+  ["Report", "Laporan"],
+  ["Reports", "Laporan"],
+  ["Proof", "Bukti"],
+  ["Work", "Kerja"],
+  ["Task", "Tugasan"],
+  ["Tasks", "Tugasan"],
+  ["Route", "Laluan"],
+  ["Delivery", "Penghantaran"],
+  ["Review", "Semak"],
+  ["Approve", "Luluskan"],
+  ["Confirm", "Sahkan"],
+  ["Monitor", "Pantau"],
+  ["Manage", "Urus"],
+  ["Record", "Rekod"],
+  ["Submit", "Hantar"],
+  ["Receive", "Terima"],
+  ["Open", "Buka"],
+  ["Close", "Tutup"],
+  ["Start", "Mula"],
+  ["End", "Tamat"],
+  ["Daily", "Harian"],
+  ["Weekly", "Mingguan"],
+  ["Waiting", "Menunggu"],
+  ["Blocked", "Tersekat"],
+  ["Risk", "Risiko"],
+  ["Sensitive", "Sensitif"],
+  ["Access", "Akses"],
+  ["Settings", "Tetapan"],
+  ["and", "dan"],
+  ["or", "atau"],
+  ["before", "sebelum"],
+  ["after", "selepas"],
+  ["with", "dengan"],
+  ["without", "tanpa"],
+];
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function applyFallbackPhrases(
+  text: string,
+  replacements: Array<[string, string]>,
+) {
+  let output = text;
+  for (const [source, target] of [...replacements].sort(
+    (a, b) => b[0].length - a[0].length,
+  )) {
+    output = output.replace(
+      new RegExp(`\\b${escapeRegExp(source)}\\b`, "gi"),
+      target,
+    );
+  }
+  return output !== text ? output : null;
+}
+
+export function translateLegacyUiText(text: string, locale: Locale) {
   const prefix = text.match(/^\s*/)?.[0] ?? "";
   const suffix = text.match(/\s*$/)?.[0] ?? "";
   const body = text.slice(prefix.length, text.length - suffix.length);
   const normalized = body.replace(/\s+/g, " ").trim();
   if (!normalized) return text;
 
-  const exact = enText[normalized];
+  const exact = locale === "en" ? enText[normalized] : msText[normalized];
   if (exact) return `${prefix}${exact}${suffix}`;
 
-  for (const [pattern, translate] of patterns) {
+  const localePatterns = locale === "en" ? patterns : msPatterns;
+  for (const [pattern, translate] of localePatterns) {
     const patternMatch = normalized.match(pattern);
     if (patternMatch) {
       return `${prefix}${translate(...patternMatch.slice(1))}${suffix}`;
     }
   }
+
+  const fallback = applyFallbackPhrases(
+    normalized,
+    locale === "en" ? enFallbackPhrases : msFallbackPhrases,
+  );
+  if (fallback) return `${prefix}${fallback}${suffix}`;
 
   return text;
 }
@@ -3153,6 +3513,8 @@ export function hasLegacyTranslation(text: string) {
   const normalized = text.replace(/\s+/g, " ").trim();
   return (
     Boolean(enText[normalized]) ||
-    patterns.some(([pattern]) => pattern.test(normalized))
+    Boolean(msText[normalized]) ||
+    patterns.some(([pattern]) => pattern.test(normalized)) ||
+    msPatterns.some(([pattern]) => pattern.test(normalized))
   );
 }
