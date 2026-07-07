@@ -16,6 +16,7 @@ const env = loadProjectEnv();
 const url = env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY;
 const anonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const GO_LIVE_PASSWORD_FILE = path.join(ROOT, 'csv_import', '.go-live-temp-password.txt');
 
 if (!url || !serviceKey || !anonKey) {
  console.error('Missing Supabase env');
@@ -74,6 +75,27 @@ function loadCredentialPasswords() {
  return passwords;
 }
 
+function readGoLivePassword() {
+ if (env.GO_LIVE_PASSWORD?.trim()) return env.GO_LIVE_PASSWORD.trim();
+ if (fs.existsSync(GO_LIVE_PASSWORD_FILE)) {
+ const password = fs
+ .readFileSync(GO_LIVE_PASSWORD_FILE, 'utf8')
+ .split('\n')
+ .map((line) => line.trim())
+ .find((line) => line && !line.startsWith('#'));
+ if (password) return password;
+ }
+ return DEFAULT_PASSWORD;
+}
+
+function toBase64Url(value) {
+ return Buffer.from(value, 'utf8')
+ .toString('base64')
+ .replace(/\+/g, '-')
+ .replace(/\//g, '_')
+ .replace(/=+$/g, '');
+}
+
 function ok(l, d) {
  console.log(` ✓ ${l}${d ? ` - ${d}` : ''}`);
 }
@@ -83,15 +105,15 @@ function fail(l, d) {
 
 function cookie(session, user) {
  const ref = new URL(url).hostname.split('.')[0];
- return `sb-${ref}-auth-token=${encodeURIComponent(
- JSON.stringify({
+ const payload = JSON.stringify({
  access_token: session.access_token,
  refresh_token: session.refresh_token,
  expires_at: session.expires_at,
+ expires_in: session.expires_in,
  token_type: 'bearer',
  user,
- })
- )}`;
+ });
+ return `sb-${ref}-auth-token=${encodeURIComponent(`base64-${toBase64Url(payload)}`)}`;
 }
 
 async function fetchWithTimeout(resource, init = {}, timeoutMs = HTTP_TIMEOUT_MS) {
@@ -290,7 +312,7 @@ if (weekIds.length) {
 let failed = 0;
 let testEmail = null;
 let stockOrderFlowDone = false;
-const fallbackPassword = env.GO_LIVE_PASSWORD?.trim() || DEFAULT_PASSWORD;
+const fallbackPassword = readGoLivePassword();
 const credentialPasswords = loadCredentialPasswords();
 
 for (const agent of agents) {
@@ -328,8 +350,15 @@ for (const agent of agents) {
 
  testEmail = prof.email;
 
- const loginPassword = credentialPasswords.get(prof.email.toLowerCase()) ?? fallbackPassword;
- const login = await anon.auth.signInWithPassword({ email: prof.email, password: loginPassword });
+ const credentialPassword = credentialPasswords.get(prof.email.toLowerCase());
+ const loginCandidates = credentialPassword && credentialPassword !== fallbackPassword
+ ? [credentialPassword, fallbackPassword]
+ : [fallbackPassword];
+ let login = null;
+ for (const loginPassword of loginCandidates) {
+ login = await anon.auth.signInWithPassword({ email: prof.email, password: loginPassword });
+ if (!login.error) break;
+ }
  if (login.error) {
  fail('Login', login.error.message);
  failed++;

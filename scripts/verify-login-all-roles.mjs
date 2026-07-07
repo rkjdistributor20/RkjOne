@@ -15,6 +15,7 @@ import { DEFAULT_PASSWORD } from './lib/default-password.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
+const GO_LIVE_PASSWORD_FILE = path.join(ROOT, 'csv_import', '.go-live-temp-password.txt');
 
 const AM_ALLOWED = [
  '/dashboard',
@@ -31,18 +32,18 @@ const AM_BLOCKED = ['/pos', '/factory', '/warehouse', '/fleet', '/finance', '/pa
 /** Satu atau lebih akaun per peranan */
 const TEST_MATRIX = [
  { role: 'SUPER_ADMIN', email: 'matisa@rkj.com', label: 'HQ Pentadbir Utama' },
- { role: 'ADMIN', email: 'norashikin@rkj.com', label: 'HQ Admin' },
  { role: 'HR', email: 'mohdali@rkj.com', label: 'HQ HR' },
- { role: 'OPERATION_MANAGER', email: 'ibrahim@rkj.com', label: 'HQ Operasi' },
- { role: 'CEO_FACTORY', email: 'muhammad@rkj.com', label: 'HQ Kilang' },
+ { role: 'OPERATION_MANAGER', email: 'dist003@rkj.com', label: 'OM Distributor' },
+ { role: 'OPERATION_MANAGER', email: 'mfg003@rkj.com', label: 'OM Kilang' },
+ { role: 'CEO_FACTORY', email: 'mfg010@rkj.com', label: 'CEO Kilang' },
  { role: 'AREA_MANAGER', email: 'dist009@rkj.com', label: 'AM Utara', region: 'UTARA' },
  { role: 'AREA_MANAGER', email: 'dist001@rkj.com', label: 'AM Tengah', region: 'TENGAH' },
  { role: 'AREA_MANAGER', email: 'dist010@rkj.com', label: 'AM Selatan', region: 'SELATAN' },
- { role: 'DRIVER', email: 'd001@rkj.com', label: 'Pemandu D001' },
- { role: 'DRIVER', email: 'd002@rkj.com', label: 'Pemandu D002' },
+ { role: 'DRIVER', email: 'mfg001@rkj.com', label: 'Pemandu Abdul Samad' },
+ { role: 'DRIVER', email: 'mfg006@rkj.com', label: 'Pembantu Pemandu Nadzir' },
  { role: 'STAFF', email: 's001@rkj.com', label: 'Staf S001' },
  { role: 'STAFF', email: 's052@rkj.com', label: 'Staf S052' },
- { role: 'SALES_AGENT', email: 'agent001@rkj.com', label: 'Ejen Nur Aisha' },
+ { role: 'SALES_AGENT', email: 'ejen.ag008@rkjdistributor.my', label: 'Ejen Aktif AG008' },
 ];
 
 function loadEnvFile(filePath) {
@@ -66,6 +67,17 @@ function loadEnvFile(filePath) {
  return out;
 }
 
+function readGoLivePassword() {
+ if (process.env.GO_LIVE_PASSWORD?.trim()) return process.env.GO_LIVE_PASSWORD.trim();
+ if (!fs.existsSync(GO_LIVE_PASSWORD_FILE)) return DEFAULT_PASSWORD;
+ const line = fs
+ .readFileSync(GO_LIVE_PASSWORD_FILE, 'utf8')
+ .split('\n')
+ .map((l) => l.trim())
+ .find((l) => l && !l.startsWith('#'));
+ return line || DEFAULT_PASSWORD;
+}
+
 function amCanAccess(pathname) {
  return AM_ALLOWED.some(
  (p) => pathname === p || pathname.startsWith(`${p}/`)
@@ -86,11 +98,11 @@ async function findUserByEmail(admin, email) {
  return null;
 }
 
-async function resetUserPassword(admin, email) {
+async function resetUserPassword(admin, email, password) {
  const user = await findUserByEmail(admin, email);
  if (!user) return { ok: false, reason: 'Auth user tiada' };
  const { error } = await admin.auth.admin.updateUserById(user.id, {
- password: DEFAULT_PASSWORD,
+ password,
  email_confirm: true,
  });
  if (error) return { ok: false, reason: error.message };
@@ -98,7 +110,7 @@ async function resetUserPassword(admin, email) {
  return { ok: true, userId: user.id };
 }
 
-async function testLogin(url, anonKey, admin, entry, autoFix) {
+async function testLogin(url, anonKey, admin, entry, autoFix, password) {
  const issues = [];
  const client = createClient(url, anonKey, {
  auth: { persistSession: false, autoRefreshToken: false },
@@ -106,7 +118,7 @@ async function testLogin(url, anonKey, admin, entry, autoFix) {
 
  let { data: authData, error: authErr } = await client.auth.signInWithPassword({
  email: entry.email,
- password: DEFAULT_PASSWORD,
+ password,
  });
 
  if (authErr) {
@@ -117,14 +129,14 @@ async function testLogin(url, anonKey, admin, entry, autoFix) {
  msg.includes('Email not confirmed');
 
  if (credFail && autoFix) {
- const fixed = await resetUserPassword(admin, entry.email);
+ const fixed = await resetUserPassword(admin, entry.email, password);
  if (fixed.ok) {
  ({ data: authData, error: authErr } = await client.auth.signInWithPassword({
  email: entry.email,
- password: DEFAULT_PASSWORD,
+ password,
  }));
  if (!authErr) {
- issues.push('AUTO-FIX: password direset ke lalai');
+ issues.push('AUTO-FIX: password direset ke go-live/UAT');
  }
  } else {
  issues.push(`Auth gagal: ${msg} - fix gagal: ${fixed.reason}`);
@@ -241,6 +253,7 @@ if (!url || !anonKey || !serviceKey) {
 const admin = createClient(url, serviceKey, {
  auth: { persistSession: false, autoRefreshToken: false },
 });
+const password = readGoLivePassword();
 
 console.log('\n=== RKJ One - Uji Login Semua Peranan ===\n');
 console.log(`Auto-baiki password: ${autoFix ? 'YA' : 'TIDAK'}\n`);
@@ -251,7 +264,7 @@ let failed = 0;
 let fixed = 0;
 
 for (const entry of TEST_MATRIX) {
- const result = await testLogin(url, anonKey, admin, entry, autoFix);
+ const result = await testLogin(url, anonKey, admin, entry, autoFix, password);
  results.push({ entry, result });
 
  const fixNote = result.issues.find((i) => i.startsWith('AUTO-FIX'));
@@ -279,6 +292,7 @@ const { data: financeProfiles } = await admin
  .from('profiles')
  .select('email, full_name')
  .eq('role', 'FINANCE')
+ .eq('status', 'ACTIVE')
  .limit(3);
 
 if (!financeProfiles?.length) {
@@ -286,7 +300,7 @@ if (!financeProfiles?.length) {
 } else {
  for (const fp of financeProfiles) {
  const entry = { role: 'FINANCE', email: fp.email, label: 'Kewangan' };
- const result = await testLogin(url, anonKey, admin, entry, autoFix);
+ const result = await testLogin(url, anonKey, admin, entry, autoFix, password);
  if (result.ok) {
  passed += 1;
  console.log(` ✓ ${fp.email} (${fp.full_name})`);
