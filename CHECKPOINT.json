@@ -1,9 +1,9 @@
 {
-  "updated": "2026-07-07 16:15:55 +08:00",
+  "updated": "2026-07-07 17:16:09 +08:00",
   "source": "codex-uat-save",
   "user_resting": false,
-  "resume_reminder": "Baca RESUME.md. Dashboard aliran kerja HQ Distributor, Driver, OM, AM dan Staf Jualan sudah dinaik taraf. Targeted lint, TypeScript, UI polish dan build production lulus. Git master 525b87d. Fail credential/output sensitif tidak dipush.",
-  "commit": "525b87d",
+  "resume_reminder": "Baca RESUME.md. Governance aliran kerja dinaik taraf: SLA, exception flow, approval matrix, audit bukti kerja dan Approval & Exception Center. TypeScript, targeted ESLint, UI polish, build dan verify:production lulus. Git code commit 3d2a663. Fail credential/output sensitif tidak dipush.",
+  "commit": "3d2a663",
   "branch": "master",
   "production_url": "https://rkj-one.vercel.app",
   "supabase_project": "mtygxueknokcihofdttl",
@@ -17,7 +17,7 @@
     "verified_at": "2026-07-06 01:19 +08"
   },
   "connections_saved": {
-    "github": "master @ 525b87d",
+    "github": "master @ 3d2a663",
     "vercel": "dpl_5mf7Bgh9BwdJk8p7CeLW23MxLQPU - rkj-one.vercel.app",
     "supabase": "mtygxueknokcihofdttl - migrations 00111 applied",
     "codex_cursor": "Continuity via RESUME.md + CHECKPOINT.json + Git (no auto chat sync)"
@@ -32,6 +32,8 @@
     "mobile_readiness": "54/54"
   },
   "codex_work_saved": [
+    "Workflow Governance Cockpit - SLA, exception flow, approval matrix dan audit bukti kerja untuk Owner/Admin, HQ Distributor, Driver, OM, AM, Staf Jualan, HR, Finance dan Ejen",
+    "Kelulusan dinaik taraf menjadi Approval & Exception Center dengan umur permintaan, SLA, owner tindakan, bukti wajib dan eskalasi",
     "Role Proactive Cockpit dikemaskini: laluan kerja, ritma harian dan hubungan handoff untuk HQ Distributor, Driver, OM, AM, Staf Jualan dan Ejen",
     "UAT login guardrail dikemaskini: verify:login guna akaun aktif + password go-live temp lokal",
     "Portal Ejen UAT cookie Supabase SSR base64url dikemaskini - hilang HTTP 307 dan Ejen Khas mfg010 lulus",

@@ -1,5 +1,16 @@
 # ⏸ Sambung Di Sini — RKJ One ERP
 
+## Update terbaru - 2026-07-07 17:16 MYT
+
+- Commit kod terbaru: `3d2a663` (`feat: add workflow governance cockpit`)
+- AI Proactive Cockpit kini ada SLA, exception flow, approval matrix dan audit bukti kerja untuk Owner/Admin, HQ Distributor, Driver, OM, AM, Staf Jualan, HR, Finance dan Ejen.
+- Halaman Kelulusan dinaik taraf menjadi **Approval & Exception Center** dengan umur permintaan, SLA, owner tindakan, bukti wajib dan eskalasi.
+- Label `POS_SHIFT_STAFF` kini dipaparkan sebagai `Staf Dalam Syif POS`, bukan kod teknikal.
+- Semakan lulus: `npx tsc --noEmit --pretty false`, targeted ESLint, `npm run verify:ui-polish`, `npm run build`, `npm run verify:production`.
+- Fail local/sensitif yang masih tidak dipush: `outputs/`, `scripts/reset-owner-password.mjs`, serta perubahan lama pada `components/auth/login-form.tsx` dan `package.json`.
+
+---
+
 > **🔔 REHAT — 6 Jul 2026 · Semua disimpan (GitHub + Vercel + Supabase)**
 
 ## Update terbaru - 2026-07-07 16:15 MYT
