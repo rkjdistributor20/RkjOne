@@ -2,6 +2,14 @@
 
 > **🔔 REHAT — 6 Jul 2026 · Semua disimpan (GitHub + Vercel + Supabase)**
 
+## Update terbaru - 2026-07-07 16:15 MYT
+
+- Commit terbaru: `525b87d` (`feat: clarify role workflow cockpit`)
+- Dashboard role dinaik taraf untuk jelaskan hubungan kerja HQ Distributor, Driver, OM, AM, Staf Jualan dan Ejen.
+- AI Proactive Cockpit kini ada laluan kerja utama, ritma kerja harian, signal hari ini dan hubungan handoff antara role.
+- Semakan lulus: `npx tsc --noEmit --pretty false`, targeted ESLint, `npm run verify:ui-polish`, `npm run build`.
+- Nota: fail credential/output sensitif masih local dan tidak dipush.
+
 **Branch:** `master`  
 **GitHub:** `d2538f6` · kod `400941e` + checkpoint rehat  
 **Production:** https://rkj-one.vercel.app · deploy **`dpl_9hkEfehyzVgdRz1CPGWmQBER35Wc`** ✓  
