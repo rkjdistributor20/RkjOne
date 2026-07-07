@@ -1,24 +1,24 @@
 {
-  "updated": "2026-07-07 18:13:08 +08:00",
+  "updated": "2026-07-07 19:12:41 +08:00",
   "source": "codex-uat-save",
   "user_resting": false,
-  "resume_reminder": "Baca RESUME.md. Tetapan > Kesihatan Sistem kini ada Launch Control & UAT Owner untuk baki kerja go-live, pilot POS, payment live, store release, Supabase lockdown, 36 cawangan dan checkpoint. TypeScript, targeted ESLint, UI polish, readiness, system audit, build dan verify:production lulus. Git code commit 4e4e02f. Fail credential/output sensitif tidak dipush.",
-  "commit": "4e4e02f",
+  "resume_reminder": "Baca RESUME.md. Tetapan > Kesihatan Sistem / Launch Control kini ikut BM/EN dengan lebih lengkap, termasuk status, KPI, readiness, launch items dan toast. TypeScript, targeted ESLint, UI polish, readiness, system audit, build dan verify:production lulus. Git code commit 38fa406. Fail credential/output sensitif tidak dipush.",
+  "commit": "38fa406",
   "branch": "master",
   "production_url": "https://rkj-one.vercel.app",
   "supabase_project": "mtygxueknokcihofdttl",
   "migrations": "00001-00111 - db up to date (6 Jul 2026)",
-  "latest_deployment": "dpl_8EcMpgpouxAq4zey94unmRtVLnF7",
+  "latest_deployment": "dpl_3toJ5JTTVBaytc4teNJbn5mhoGmC",
   "github": "https://github.com/rkjdistributor20/RkjOne",
   "last_live_check": {
     "ok": true,
     "status": "ready",
     "appUrl": "https://rkj-one.vercel.app",
-    "verified_at": "2026-07-06 01:19 +08"
+    "verified_at": "2026-07-07 19:12 +08"
   },
   "connections_saved": {
-    "github": "master @ 4e4e02f",
-    "vercel": "dpl_8EcMpgpouxAq4zey94unmRtVLnF7 - rkj-one.vercel.app",
+    "github": "master @ 38fa406",
+    "vercel": "dpl_3toJ5JTTVBaytc4teNJbn5mhoGmC - rkj-one.vercel.app",
     "supabase": "mtygxueknokcihofdttl - migrations 00111 applied",
     "codex_cursor": "Continuity via RESUME.md + CHECKPOINT.json + Git (no auto chat sync)"
   },
@@ -32,6 +32,7 @@
     "mobile_readiness": "54/54"
   },
   "codex_work_saved": [
+    "Bilingual Launch Control - Tetapan > Kesihatan Sistem kini translate penuh BM/EN untuk KPI, launch control, readiness, status badge, owner/action text dan toast",
     "Launch Control & UAT Owner - Tetapan > Kesihatan Sistem kini papar kerja sebenar sebelum go-live: UAT browser, pilot POS BR011, payment live, Play/App Store, Supabase lockdown, 36 cawangan dan checkpoint",
     "Workflow SOP Panel - arahan role dipandu dengan fokus operasi, mula dari langkah pertama, bukti akhir, pemilik tugas dan bukti kerja untuk semua dashboard pengguna",
     "Workflow Governance Cockpit - SLA, exception flow, approval matrix dan audit bukti kerja untuk Owner/Admin, HQ Distributor, Driver, OM, AM, Staf Jualan, HR, Finance dan Ejen",

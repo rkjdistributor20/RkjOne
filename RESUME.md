@@ -1,5 +1,16 @@
 # ⏸ Sambung Di Sini — RKJ One ERP
 
+## Update terbaru - 2026-07-07 19:12 MYT
+
+- Commit kod terbaru: `38fa406` (`feat: translate system health launch control`)
+- Tetapan > Kesihatan Sistem kini lebih lengkap dalam mod BM/EN: status badge, KPI, Launch Control & UAT Owner, Production Readiness Center, owner/action text, bukti kerja dan toast refresh.
+- Semakan lulus: `npx tsc --noEmit --pretty false`, targeted ESLint, `npm run verify:ui-polish`, `npm run verify:readiness`, `npm run system:audit`, `npm run build`, `npm run verify:production` 6/6.
+- Production deployment: `dpl_3toJ5JTTVBaytc4teNJbn5mhoGmC` aliased ke https://rkj-one.vercel.app.
+- Vercel logs 30 minit: tiada runtime error/log ditemui.
+- Fail local/sensitif yang masih tidak dipush: `outputs/`, `scripts/reset-owner-password.mjs`, serta perubahan lama pada `components/auth/login-form.tsx` dan `package.json`.
+
+---
+
 ## Update terbaru - 2026-07-07 18:13 MYT
 
 - Commit kod terbaru: `4e4e02f` (`feat: add launch control to system health`)
