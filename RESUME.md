@@ -1,5 +1,15 @@
 # ⏸ Sambung Di Sini — RKJ One ERP
 
+## Update terbaru - 2026-07-07 17:46 MYT
+
+- Commit kod terbaru: `18d24fa` (`feat: refine role workflow SOP panel`)
+- Panel **Aliran Kerja & SOP Harian** dinaik taraf untuk semua dashboard role: fokus operasi, mula dari langkah pertama, bukti akhir, SOP cepat, pemilik tugas dan bukti kerja.
+- Panel SOP kini ikut bahasa BM/EN melalui legacy translation dan lebih jelas untuk Owner/Admin, HQ Distributor, Driver, OM, AM, Staf Jualan, HR, Finance, Kilang dan Ejen.
+- Semakan lulus: `npx tsc --noEmit --pretty false`, targeted ESLint, `npm run verify:ui-polish`, `npm run build`, `npm run verify:production` 6/6.
+- GitHub master: `18d24fa`; production health OK di https://rkj-one.vercel.app.
+
+---
+
 ## Update terbaru - 2026-07-07 17:16 MYT
 
 - Commit kod terbaru: `3d2a663` (`feat: add workflow governance cockpit`)
