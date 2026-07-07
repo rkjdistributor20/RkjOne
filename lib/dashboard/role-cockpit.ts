@@ -2,6 +2,12 @@ import type { UserRole } from "@/types/enums";
 import type { DashboardStats } from "@/types/database";
 import type { RoleWorkflow } from "@/lib/dashboard/role-workflows";
 import { LEGAL_ENTITIES } from "@/lib/brand/legal-entities";
+import {
+  EXCEPTION_STATUS_FLOW,
+  approvalMatrixForRole,
+  type ApprovalMatrixRule,
+  type GovernanceTone,
+} from "@/lib/workflow/exception-governance";
 
 export type RoleCockpitSignal = {
   label: string;
@@ -34,6 +40,23 @@ export type RoleCockpitRhythm = {
   href: string;
 };
 
+export type RoleCockpitSla = {
+  title: string;
+  target: string;
+  owner: string;
+  trigger: string;
+  href: string;
+  tone: GovernanceTone;
+};
+
+export type RoleCockpitAuditControl = {
+  title: string;
+  evidence: string;
+  risk: string;
+  href: string;
+  tone: GovernanceTone;
+};
+
 export type RoleCockpit = {
   title: string;
   subtitle: string;
@@ -46,6 +69,10 @@ export type RoleCockpit = {
   actions: RoleCockpitAction[];
   handoffs: RoleCockpitHandoff[];
   rhythm: RoleCockpitRhythm[];
+  exceptionFlow: string[];
+  slaRules: RoleCockpitSla[];
+  approvalMatrix: ApprovalMatrixRule[];
+  auditControls: RoleCockpitAuditControl[];
 };
 
 export type RoleCockpitInput = {
@@ -706,6 +733,500 @@ function buildRhythm(input: RoleCockpitInput): RoleCockpitRhythm[] {
   }));
 }
 
+function buildSlaRules(input: RoleCockpitInput): RoleCockpitSla[] {
+  const { role, legalEntityCode } = input;
+
+  if (role === "SUPER_ADMIN" || role === "ADMIN") {
+    return [
+      {
+        title: "Exception kumpulan berisiko tinggi",
+        target: "2 jam",
+        owner: "OM / HR / Finance sebelum owner",
+        trigger:
+          "Jualan jatuh, stok kritikal, tunai tertunggak, access sensitif atau payroll final.",
+        href: "/approvals",
+        tone: "danger",
+      },
+      {
+        title: "Delegation matrix tidak jelas",
+        target: "Hari sama",
+        owner: "Pentadbir Utama",
+        trigger:
+          "Jika tugasan masih menunggu owner walaupun patut selesai oleh OM, AM, HR atau Finance.",
+        href: "/settings",
+        tone: "warning",
+      },
+      {
+        title: "Audit dokumen dan legal entity",
+        target: "Bulanan",
+        owner: "Admin / HR",
+        trigger:
+          "SSM, lesen, permit cawangan, polisi gaji, rate ejen atau dokumen profile luput.",
+        href: "/reports",
+        tone: "default",
+      },
+    ];
+  }
+
+  if (role === "OPERATION_MANAGER" && legalEntityCode === "RKJ_DIST") {
+    return [
+      {
+        title: "Route driver dan POD lewat",
+        target: "30-60 minit",
+        owner: "HQ Distributor / OM Distributor",
+        trigger:
+          "Driver belum keluar, kiosk tutup, POD tidak lengkap atau pickup point ejen gagal.",
+        href: "/fleet",
+        tone: "danger",
+      },
+      {
+        title: "Order ejen atau cawangan tersekat",
+        target: "Hari sama",
+        owner: "HQ Distributor",
+        trigger:
+          "Bayaran ejen, group rate, pre-order, cross-dock atau stok belum dipadankan dengan route.",
+        href: "/sales-agent",
+        tone: "warning",
+      },
+      {
+        title: "Beza stok antara driver dan penerima",
+        target: "90 minit",
+        owner: "AM kawasan kemudian OM",
+        trigger:
+          "Kuantiti driver tidak sama dengan kiraan staf/ejen atau production date bercampur.",
+        href: "/approvals",
+        tone: "warning",
+      },
+      {
+        title: "Kapasiti driver tidak cukup",
+        target: "Sebelum route diterbit",
+        owner: "OM Distributor",
+        trigger:
+          "Hentian terlalu banyak, helper driver diperlukan atau driver kilang ganti perlu diaktifkan.",
+        href: "/fleet",
+        tone: "info",
+      },
+    ];
+  }
+
+  if (role === "DRIVER") {
+    return [
+      {
+        title: "Load stok tidak sama dengan arahan",
+        target: "Sebelum keluar",
+        owner: "Driver + HQ Distributor",
+        trigger:
+          "Jumlah stok, batch atau hentian tidak sama dengan arahan route di dashboard.",
+        href: "/fleet",
+        tone: "danger",
+      },
+      {
+        title: "Update setiap hentian",
+        target: "Serta-merta",
+        owner: "Driver",
+        trigger:
+          "Setiap sampai, serah, gagal serah, kiosk tutup atau pickup point agent selesai.",
+        href: "/fleet",
+        tone: "info",
+      },
+      {
+        title: "Kerosakan kenderaan / route berubah",
+        target: "15 minit",
+        owner: "Driver kepada HQ / Maintenance",
+        trigger:
+          "Kenderaan rosak, jalan tutup, helper tidak hadir atau masa serahan lari dari jadual.",
+        href: "/maintenance",
+        tone: "warning",
+      },
+    ];
+  }
+
+  if (role === "AREA_MANAGER") {
+    return [
+      {
+        title: "POS cawangan belum buka",
+        target: "30 minit dari jadual",
+        owner: "AM kawasan",
+        trigger:
+          "Staf belum mula perniagaan, stok pembukaan belum disahkan atau staf tidak hadir.",
+        href: "/pos",
+        tone: "danger",
+      },
+      {
+        title: "Beza stok cawangan",
+        target: "90 minit",
+        owner: "AM kawasan",
+        trigger:
+          "Opening, midsyif, closing atau delivery tidak sama dengan AI/sistem.",
+        href: "/inventory",
+        tone: "warning",
+      },
+      {
+        title: "Staf dan jadual kawasan",
+        target: "Mingguan",
+        owner: "AM kawasan",
+        trigger:
+          "Roster, spring cleaning, meeting highway atau pindah staf cawangan perlu disusun.",
+        href: "/shifts?tab=roster",
+        tone: "default",
+      },
+      {
+        title: "Cash collection kawasan",
+        target: "Hari sama",
+        owner: "AM + Finance",
+        trigger:
+          "Tunai tertunggak, voucher penggunaan cash, bank-in atau slip tidak lengkap.",
+        href: "/finance",
+        tone: "warning",
+      },
+    ];
+  }
+
+  if (role === "STAFF") {
+    return [
+      {
+        title: "Pengesahan stok sebelum jualan",
+        target: "Sebelum POS dibuka",
+        owner: "Staf jualan",
+        trigger:
+          "Mula syif, delivery semasa kiosk tutup atau stok pembukaan belum dikira.",
+        href: "/pos",
+        tone: "danger",
+      },
+      {
+        title: "Laporan keluar kiosk",
+        target: "Sebelum tinggalkan kiosk",
+        owner: "Staf jualan",
+        trigger:
+          "Rehat, makan, solat, tandas, ambil stok atau keluar atas arahan AM.",
+        href: "/pos",
+        tone: "warning",
+      },
+      {
+        title: "Kiraan midsyif dan tutup syif",
+        target: "Ikut prompt POS",
+        owner: "Staf jualan",
+        trigger:
+          "POS minta kiraan roti, kaya, butter dan packaging mengikut production date.",
+        href: "/pos",
+        tone: "info",
+      },
+    ];
+  }
+
+  if (role === "SALES_AGENT") {
+    return [
+      {
+        title: "Order stok dan group rate",
+        target: "Sebelum cut-off order",
+        owner: "Ejen / HQ Distributor",
+        trigger:
+          "Ejen buat order, pilih pickup point, atau Ejen Khas order tanpa bayaran.",
+        href: "/sales-agent",
+        tone: "info",
+      },
+      {
+        title: "POS outlet ejen",
+        target: "Hari sama",
+        owner: "Ejen / HQ Distributor",
+        trigger:
+          "Outlet POS aktif, staf jualan ejen dipaut atau langganan POS RM200/cawangan.",
+        href: "/sales-agent",
+        tone: "warning",
+      },
+      {
+        title: "Penerimaan stok ejen",
+        target: "Serta-merta selepas driver sampai",
+        owner: "Ejen / Staf outlet",
+        trigger:
+          "Stok diterima dari driver, pickup point berubah atau kuantiti tidak sama.",
+        href: "/sales-agent",
+        tone: "default",
+      },
+    ];
+  }
+
+  if (role === "OPERATION_MANAGER" && legalEntityCode === "RKJ_MFG") {
+    return [
+      {
+        title: "Order HQ belum masuk jadual kilang",
+        target: "Hari sama",
+        owner: "OM Kilang",
+        trigger:
+          "Order ramalan/pre-order tidak masuk production schedule atau minggu belum diterbit.",
+        href: "/factory",
+        tone: "danger",
+      },
+      {
+        title: "Bahan mentah kritikal",
+        target: "Sebelum production",
+        owner: "OM Kilang / Store",
+        trigger:
+          "Roti, kaya, butter, packaging atau bahan supplier tidak cukup untuk batch.",
+        href: "/factory",
+        tone: "warning",
+      },
+      {
+        title: "Handoff stok siap",
+        target: "Sebelum route Distributor",
+        owner: "Kilang + HQ Distributor",
+        trigger:
+          "Batch siap, reject, kuantiti siap atau stok perlu serah ke cross-dock.",
+        href: "/warehouse",
+        tone: "info",
+      },
+    ];
+  }
+
+  if (role === "HR") {
+    return [
+      {
+        title: "Permohonan cuti dan masalah kehadiran",
+        target: "Hari sama",
+        owner: "HR / AM",
+        trigger:
+          "Staf hantar cuti, laporan kehadiran, medical, MC atau pembetulan masa kerja.",
+        href: "/hr",
+        tone: "warning",
+      },
+      {
+        title: "Payroll exception",
+        target: "Sebelum jana payslip",
+        owner: "HR + Finance",
+        trigger:
+          "OT, potongan rehat lebih masa, cuti tanpa gaji, gaji syarikat berbeza atau staf baru.",
+        href: "/hr?tab=payroll",
+        tone: "danger",
+      },
+    ];
+  }
+
+  if (role === "FINANCE") {
+    return [
+      {
+        title: "Bank-in dan tunai tertunggak",
+        target: "Hari sama",
+        owner: "Finance",
+        trigger:
+          "Cash collection belum dipadan, QR manual belum sah atau voucher cash belum lengkap.",
+        href: "/finance",
+        tone: "danger",
+      },
+      {
+        title: "Payroll payout readiness",
+        target: "Sebelum payroll final",
+        owner: "Finance + HR",
+        trigger:
+          "Payslip preview, bank staff, potongan, elaun dan jumlah bersih perlu disahkan.",
+        href: "/hr?tab=payroll",
+        tone: "warning",
+      },
+    ];
+  }
+
+  return [
+    {
+      title: "Tugasan role belum selesai",
+      target: "Hari sama",
+      owner: input.workflow.label,
+      trigger:
+        "Ada step SOP, kelulusan, stok, syif atau laporan yang belum lengkap.",
+      href: input.workflow.steps[0]?.href ?? "/dashboard",
+      tone: "default",
+    },
+  ];
+}
+
+function buildAuditControls(
+  input: RoleCockpitInput,
+): RoleCockpitAuditControl[] {
+  const { role, legalEntityCode } = input;
+
+  const base: RoleCockpitAuditControl[] = [
+    {
+      title: "Jejak masa dan pemilik tugas",
+      evidence:
+        "Setiap tindakan penting mesti ada masa mula/tamat, nama pengguna dan status akhir.",
+      risk: "Jika tiada timestamp, sukar tentukan siapa bertanggungjawab bila isu berlaku.",
+      href: "/reports",
+      tone: "default",
+    },
+  ];
+
+  if (role === "STAFF") {
+    return [
+      {
+        title: "Bukti buka POS dan mula perniagaan",
+        evidence:
+          "Masa mula kerja, kiraan stok pembukaan, delivery diterima dan status POS terbuka.",
+        risk: "Jualan tidak boleh bermula tanpa stok disahkan dan masa kerja direkod.",
+        href: "/pos",
+        tone: "danger",
+      },
+      {
+        title: "Kiraan stok ikut production date",
+        evidence:
+          "Opening, midsyif dan closing untuk roti, kaya, butter serta packaging.",
+        risk: "Beza stok perlu tunggu AM/OM sebelum menjadi stok rasmi.",
+        href: "/pos",
+        tone: "warning",
+      },
+      {
+        title: "Keluar kiosk direkod",
+        evidence:
+          "Sebab keluar, masa keluar, masa kembali dan pengecualian ambil stok.",
+        risk: "Lebih 1 jam tanpa alasan sah boleh masuk kiraan potongan gaji.",
+        href: "/pos",
+        tone: "info",
+      },
+    ];
+  }
+
+  if (role === "DRIVER") {
+    return [
+      {
+        title: "Proof of delivery setiap hentian",
+        evidence:
+          "Masa sampai, penerima, kuantiti, status kiosk tutup dan bukti serahan.",
+        risk: "POD kosong menyebabkan stok tidak boleh disahkan oleh cawangan/ejen.",
+        href: "/fleet",
+        tone: "danger",
+      },
+      {
+        title: "Kenderaan dan helper driver",
+        evidence:
+          "Driver utama, pembantu, kenderaan, route dan isu kenderaan direkod.",
+        risk: "Route bercampur tanpa rekod menyukarkan audit penghantaran.",
+        href: "/fleet",
+        tone: "warning",
+      },
+    ];
+  }
+
+  if (role === "AREA_MANAGER") {
+    return [
+      {
+        title: "Approval stok cawangan",
+        evidence:
+          "Kiraan staf, AI estimate, reason beza stok dan keputusan AM/OM.",
+        risk: "Stok rasmi boleh tersasar jika approval dibuat tanpa semakan batch.",
+        href: "/approvals",
+        tone: "warning",
+      },
+      {
+        title: "Kawalan staf kawasan",
+        evidence:
+          "Roster, masuk syif, pindah cawangan, cuti, masalah kehadiran dan tindakan AM.",
+        risk: "Payroll dan operasi bercanggah jika staf bekerja luar kawasan tanpa kelulusan.",
+        href: "/shifts",
+        tone: "info",
+      },
+      {
+        title: "Cash dan voucher kawasan",
+        evidence:
+          "Collection, cash usage voucher, slip bank-in dan baki tunai.",
+        risk: "Tunai tertunggak tanpa bukti perlu escalate kepada Finance/OM.",
+        href: "/finance",
+        tone: "danger",
+      },
+    ];
+  }
+
+  if (role === "OPERATION_MANAGER" && legalEntityCode === "RKJ_DIST") {
+    return [
+      {
+        title: "Route command center",
+        evidence:
+          "Order kilang, DO cawangan, ejen, driver, pickup point dan status POD.",
+        risk: "Jika route tidak lengkap, cawangan dan ejen mungkin tidak terima stok.",
+        href: "/fleet",
+        tone: "danger",
+      },
+      {
+        title: "Agent access dan group rate",
+        evidence:
+          "Jenis ejen, group rate, langganan POS, outlet, staf jualan dan status bayaran.",
+        risk: "Ejen biasa dan Ejen Khas tidak boleh bercampur akses atau bayaran.",
+        href: "/sales-agent",
+        tone: "warning",
+      },
+      {
+        title: "Cross-dock handoff",
+        evidence:
+          "Batch kilang diterima, kuantiti pecahan, route dan driver ditetapkan.",
+        risk: "Stok dari kilang tidak boleh terus dianggap sampai cawangan tanpa POD.",
+        href: "/warehouse",
+        tone: "info",
+      },
+    ];
+  }
+
+  if (role === "OPERATION_MANAGER" && legalEntityCode === "RKJ_MFG") {
+    return [
+      {
+        title: "Batch production trail",
+        evidence:
+          "Order HQ, production date, bahan mentah keluar, batch siap dan reject.",
+        risk: "Stok siap tidak boleh dihantar tanpa batch dan kuantiti sah.",
+        href: "/factory",
+        tone: "danger",
+      },
+      {
+        title: "Raw material usage",
+        evidence:
+          "Resipi, penggunaan bahan, stok supplier, packaging dan baki store.",
+        risk: "Kos production dan stok kilang tidak tepat jika penggunaan tidak direkod.",
+        href: "/factory",
+        tone: "warning",
+      },
+    ];
+  }
+
+  if (role === "SALES_AGENT") {
+    return [
+      {
+        title: "Profil ejen dan outlet POS",
+        evidence:
+          "Company ejen, PIC, rate, POS outlet, pickup point dan staf jualan.",
+        risk: "Order dan route tidak tepat jika profile atau pickup point tidak dikemaskini.",
+        href: "/sales-agent",
+        tone: "warning",
+      },
+      {
+        title: "Penerimaan stok ejen",
+        evidence:
+          "Driver, kuantiti diterima, production date dan laporan beza stok.",
+        risk: "Beza stok ejen perlu menunggu HQ Distributor sebelum rasmi.",
+        href: "/sales-agent",
+        tone: "info",
+      },
+    ];
+  }
+
+  if (role === "HR" || role === "FINANCE") {
+    return [
+      {
+        title: "Payroll audit trail",
+        evidence:
+          "Attendance, leave, OT, deduction, allowance, payslip preview dan final approval.",
+        risk: "Gaji tiga syarikat perlu jelas mengikut legal employer masing-masing.",
+        href: "/hr?tab=payroll",
+        tone: "danger",
+      },
+      {
+        title: "Data pekerja dan akses",
+        evidence:
+          "Profile staf, role, company, leave balance, access level dan status aktif.",
+        risk: "Akses salah boleh buka data syarikat lain kepada pengguna tidak berkaitan.",
+        href: "/hr",
+        tone: "warning",
+      },
+    ];
+  }
+
+  return base;
+}
+
 export function buildRoleCockpit(input: RoleCockpitInput): RoleCockpit {
   const companyScope =
     input.workflow.companyScope || legalEntityLabel(input.legalEntityCode);
@@ -728,5 +1249,9 @@ export function buildRoleCockpit(input: RoleCockpitInput): RoleCockpit {
     actions,
     handoffs: buildHandoffs(input),
     rhythm: buildRhythm(input),
+    exceptionFlow: [...EXCEPTION_STATUS_FLOW],
+    slaRules: buildSlaRules(input),
+    approvalMatrix: approvalMatrixForRole(input.role),
+    auditControls: buildAuditControls(input),
   };
 }

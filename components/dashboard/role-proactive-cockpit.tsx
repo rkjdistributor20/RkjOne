@@ -2,12 +2,16 @@
 
 import Link from "next/link";
 import {
+  AlarmClock,
   ArrowRight,
   BrainCircuit,
   Building2,
   CheckCircle2,
+  ClipboardCheck,
   Clock3,
+  FileSearch,
   Handshake,
+  ListChecks,
   LockKeyhole,
   Network,
   Radar,
@@ -19,7 +23,9 @@ import type { DashboardStats } from "@/types/database";
 import type { RoleWorkflow } from "@/lib/dashboard/role-workflows";
 import {
   buildRoleCockpit,
+  type RoleCockpitAuditControl,
   type RoleCockpitHandoff,
+  type RoleCockpitSla,
   type RoleCockpitSignal,
 } from "@/lib/dashboard/role-cockpit";
 import { useLanguage } from "@/components/i18n/language-provider";
@@ -43,6 +49,17 @@ const HANDOFF_TONES: Record<RoleCockpitHandoff["tone"], string> = {
   danger: "border-red-200 bg-red-50 text-red-950",
   info: "border-sky-200 bg-sky-50 text-sky-950",
 };
+
+const GOVERNANCE_TONES: Record<RoleCockpitSla["tone"], string> = {
+  default: "border-stone-200 bg-white text-stone-950",
+  success: "border-emerald-200 bg-emerald-50 text-emerald-950",
+  warning: "border-amber-300 bg-amber-50 text-amber-950",
+  danger: "border-red-200 bg-red-50 text-red-950",
+  info: "border-sky-200 bg-sky-50 text-sky-950",
+};
+
+const AUDIT_TONES: Record<RoleCockpitAuditControl["tone"], string> =
+  GOVERNANCE_TONES;
 
 export function RoleProactiveCockpit({
   role,
@@ -310,6 +327,140 @@ export function RoleProactiveCockpit({
                         <ArrowRight className="h-4 w-4 text-muted-foreground transition group-hover:translate-x-0.5" />
                       )}
                     </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+          <div className="rounded-lg border bg-white p-4 shadow-sm">
+            <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <p className="flex items-center gap-2 text-sm font-semibold">
+                  <ListChecks className="h-4 w-4 text-amber-700" />
+                  {ui("Pusat Exception & SLA")}
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  {ui(
+                    "Setiap isu perlu bergerak ikut status, pemilik tugas dan masa sasaran supaya kerja tidak tersekat.",
+                  )}
+                </p>
+              </div>
+              <Badge variant="outline" className="border-amber-200 bg-amber-50">
+                {ui("Audit hidup")}
+              </Badge>
+            </div>
+
+            <div className="mb-4 flex flex-wrap gap-2">
+              {cockpit.exceptionFlow.map((status, index) => (
+                <div
+                  key={`${status}-${index}`}
+                  className="flex items-center gap-2 rounded-full border bg-stone-50 px-3 py-1.5 text-xs"
+                >
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+                    {index + 1}
+                  </span>
+                  {ui(status)}
+                </div>
+              ))}
+            </div>
+
+            <div className="grid gap-2 md:grid-cols-2">
+              {cockpit.slaRules.map((rule) => (
+                <Link
+                  key={`${rule.title}-${rule.href}`}
+                  href={rule.href}
+                  className={cn(
+                    "rounded-lg border p-3 transition hover:border-amber-300 hover:shadow-sm",
+                    GOVERNANCE_TONES[rule.tone],
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold">{ui(rule.title)}</p>
+                      <p className="mt-1 text-xs leading-relaxed opacity-80">
+                        {ui(rule.trigger)}
+                      </p>
+                    </div>
+                    <AlarmClock className="h-4 w-4 shrink-0 opacity-70" />
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+                    <Badge variant="outline" className="bg-white/70">
+                      {ui("SLA")}: {ui(rule.target)}
+                    </Badge>
+                    <Badge variant="outline" className="bg-white/70">
+                      {ui("Owner")}: {ui(rule.owner)}
+                    </Badge>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div className="rounded-lg border bg-white p-4 shadow-sm">
+              <p className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                <ClipboardCheck className="h-4 w-4 text-emerald-700" />
+                {ui("Matriks Kelulusan")}
+              </p>
+              <div className="space-y-2">
+                {cockpit.approvalMatrix.map((rule) => (
+                  <Link
+                    key={rule.id}
+                    href={rule.href}
+                    className={cn(
+                      "block rounded-lg border p-3 transition hover:border-amber-300 hover:shadow-sm",
+                      GOVERNANCE_TONES[rule.tone],
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm font-semibold">
+                        {ui(rule.trigger)}
+                      </p>
+                      <Badge
+                        variant="outline"
+                        className="bg-white/70 text-[10px]"
+                      >
+                        {ui(rule.sla)}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-xs leading-relaxed opacity-80">
+                      {ui(rule.firstOwner)}{" "}
+                      <ArrowRight className="mx-1 inline h-3 w-3" />
+                      {ui(rule.finalOwner)}
+                    </p>
+                    <p className="mt-2 text-[11px] leading-relaxed opacity-75">
+                      {ui("Bukti wajib")}: {ui(rule.evidence)}
+                    </p>
+                  </Link>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-lg border bg-white p-4 shadow-sm">
+              <p className="mb-3 flex items-center gap-2 text-sm font-semibold">
+                <FileSearch className="h-4 w-4 text-sky-700" />
+                {ui("Audit & Bukti Kerja")}
+              </p>
+              <div className="space-y-2">
+                {cockpit.auditControls.map((control) => (
+                  <Link
+                    key={`${control.title}-${control.href}`}
+                    href={control.href}
+                    className={cn(
+                      "block rounded-lg border p-3 transition hover:border-amber-300 hover:shadow-sm",
+                      AUDIT_TONES[control.tone],
+                    )}
+                  >
+                    <p className="text-sm font-semibold">{ui(control.title)}</p>
+                    <p className="mt-1 text-xs leading-relaxed opacity-80">
+                      {ui(control.evidence)}
+                    </p>
+                    <p className="mt-2 rounded-md border border-current/10 bg-white/60 px-2 py-1.5 text-[11px] leading-relaxed opacity-80">
+                      {ui("Risiko")}: {ui(control.risk)}
+                    </p>
                   </Link>
                 ))}
               </div>
