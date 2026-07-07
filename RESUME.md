@@ -114,13 +114,13 @@ Cursor **tidak** sync chat automatik dengan Codex. Continuity melalui:
 ---
 
 *Sejarah checkpoint lama: lihat `CHECKPOINT.json` → `last_work` · `RESUME_2026-06-29_DRIVER_PRODUCTION.md`*
-# Codex Final Save - 2026-07-06 01:19 MYT
+# Codex Resume - 2026-07-07 14:01 MYT
 
 Semua connection utama sudah disemak dan disimpan untuk sambung kerja selepas rehat.
 
 - Production URL: https://rkj-one.vercel.app
 - Vercel live deployment: `dpl_5mf7Bgh9BwdJk8p7CeLW23MxLQPU` - status Ready
-- GitHub master/code checkpoint: `960f964`
+- GitHub master/code checkpoint: `8e39e76`
 - Production verification: `npm run verify:production` lulus 6/6
 - Supabase: project `mtygxueknokcihofdttl`, migrations 00001-00111 applied, health check ready melalui production
 - Credential CSV, restore folder dan reviewer-account output dilindungi dalam `.gitignore`; jangan push fail sensitif.
