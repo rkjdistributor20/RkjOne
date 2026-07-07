@@ -121,6 +121,54 @@ const enText: Record<string, string> = {
   "Bukti dan laporan": "Evidence and reports",
   "Tugas utama role": "Main role task",
   "Rekod bukti kerja": "Record work evidence",
+  "Fokus operasi": "Operational Focus",
+  "Mula dari": "Start From",
+  "Bukti akhir": "Final Evidence",
+  "SOP Role": "Role SOP",
+  "Baca arahan": "Read Instructions",
+  "Pastikan skop syarikat, cawangan dan role betul sebelum mula.":
+    "Confirm the company, branch and role scope before starting.",
+  "Setiap tindakan penting perlu ada masa, staf dan catatan ringkas.":
+    "Every important action needs a timestamp, staff record and short note.",
+  "Naikkan exception": "Escalate Exception",
+  "Jika luar SOP, hantar kepada AM, OM, HR, Finance atau owner mengikut skop.":
+    "If it falls outside SOP, send it to AM, OM, HR, Finance or the owner according to scope.",
+  "Langkah kerja": "Work Steps",
+  "Ikut urutan dan rekod bukti sebelum tanda selesai.":
+    "Follow the sequence and record evidence before marking it complete.",
+  langkah: "steps",
+  "Pemilik tugas": "Task Owner",
+  "Bukti kerja": "Work Evidence",
+  "Staf rekod terus, AM/OM sahkan exception.":
+    "Staff record directly, AM/OM approve exceptions.",
+  "AM/OM semak beza stok sebelum rasmi.":
+    "AM/OM review stock differences before they become official.",
+  "Driver update status, HQ Distributor pantau route.":
+    "Driver updates status, Distributor HQ monitors the route.",
+  "Perkara sensitif naik kepada AM, OM atau owner.":
+    "Sensitive matters escalate to AM, OM or the owner.",
+  "Rekod bukti wajib sebelum pembayaran disahkan.":
+    "Evidence must be recorded before payment is confirmed.",
+  "Kilang rekod batch, bahan dan serahan rasmi.":
+    "Factory records batch, materials and official handoff.",
+  "Ikut skop role dan rekod bukti kerja.":
+    "Follow the role scope and record work evidence.",
+  "Resit, kiraan stok dan status syif dikemaskini.":
+    "Receipt, stock count and shift status are updated.",
+  "Baki stok, sebab pelarasan dan kelulusan direkod.":
+    "Stock balance, adjustment reason and approval are recorded.",
+  "POD, masa hantar dan beza stok disahkan.":
+    "POD, delivery time and stock differences are confirmed.",
+  "Gambar isu, status tindakan dan kos direkod.":
+    "Issue photos, action status and cost are recorded.",
+  "Rekod staf, cuti, kehadiran dan payroll lengkap.":
+    "Staff, leave, attendance and payroll records are complete.",
+  "Order, batch production dan bahan mentah dipadankan.":
+    "Orders, production batches and raw materials are matched.",
+  "Laporan boleh diaudit dan dimuat turun.":
+    "Reports are auditable and downloadable.",
+  "Catatan kerja dan status tugasan dikemaskini.":
+    "Work notes and task status are updated.",
   Pagi: "Morning",
   "Sebelum route": "Before route",
   "Tengah hari": "Midday",
