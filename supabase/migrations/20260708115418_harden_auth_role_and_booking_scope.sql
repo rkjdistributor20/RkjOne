@@ -121,4 +121,4 @@ with check (
   or public.user_role() in ('SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER', 'HR', 'FINANCE', 'CEO_FACTORY', 'MAINTENANCE_MANAGER')
   or public.has_branch_access(branch_id)
  )
-);
+);;

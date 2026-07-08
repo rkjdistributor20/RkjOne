@@ -123,6 +123,9 @@ export function getVisibleNavItems(
  if (item.href === '/sales-agent') {
  return canAccessSalesAgent(role);
  }
+ if (item.href === '/pos' && role === 'AREA_MANAGER') {
+ return true;
+ }
  if (item.href === '/factory') {
  return canAccessFactoryNav(role);
  }

@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { callRpc } from '@/lib/supabase/rpc';
 import { getCurrentProfile } from '@/lib/auth/session';
 import {
+ assertAreaManagerScheduledForPos,
  assertCanAccessPosBranch,
  canApprovePosShiftStaff,
  posAccessErrorStatus,
@@ -122,11 +123,21 @@ export async function POST(request: Request) {
  }
 
  const db = supabase as any;
+ let amSchedule: Awaited<ReturnType<typeof assertAreaManagerScheduledForPos>> = null;
+ try {
+ amSchedule = await assertAreaManagerScheduledForPos(supabase, profile, branchId);
+ } catch (err) {
+ return NextResponse.json(
+ { error: err instanceof Error ? err.message : 'Jadual syif AM diperlukan sebelum guna POS' },
+ { status: posAccessErrorStatus(err) });
+ }
+
+ const openingStaffId = body.staff_id ?? amSchedule?.staffId ?? null;
 
  const { data, error } = await callRpc(supabase, 'open_pos_shift', {
  p_branch_id: branchId,
  p_opening_cash: openingCash,
- p_staff_id: body.staff_id ?? null,
+ p_staff_id: openingStaffId,
  });
 
  if (error || !data) {
@@ -143,11 +154,11 @@ export async function POST(request: Request) {
  }) | null;
 
  if (shift) {
- const { data: linkedStaff, error: linkedStaffError } = body.staff_id
+ const { data: linkedStaff, error: linkedStaffError } = openingStaffId
  ? await db
  .from('staff')
  .select('id, profile_id, full_name, branch_id, status')
- .eq('id', body.staff_id)
+ .eq('id', openingStaffId)
  .eq('status', 'ACTIVE')
  .maybeSingle()
  : await db
@@ -162,7 +173,9 @@ export async function POST(request: Request) {
  return NextResponse.json({ error: linkedStaffError.message }, { status: 400 });
  }
 
- const shouldRecordOpeningMember = linkedStaff?.branch_id === shift.branch_id;
+ const shouldRecordOpeningMember =
+ linkedStaff?.branch_id === shift.branch_id ||
+ (profile.role === 'AREA_MANAGER' && linkedStaff?.id === amSchedule?.staffId);
  const isApprovedNow = canApprovePosShiftStaff(profile.role);
  const openingMemberStatus = isApprovedNow ? 'ACTIVE' : 'PENDING_APPROVAL';
 
@@ -283,6 +296,7 @@ export async function PATCH(request: Request) {
 
  try {
  await assertCanAccessPosBranch(supabase, profile, shift.branch_id);
+ await assertAreaManagerScheduledForPos(supabase, profile, shift.branch_id);
  } catch (err) {
  return NextResponse.json(
  { error: err instanceof Error ? err.message : 'Akses cawangan ditolak' },

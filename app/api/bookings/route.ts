@@ -3,10 +3,19 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getCurrentProfile } from '@/lib/auth/session';
 import { applyBranchIdsFilter, resolveScopedBranches } from '@/lib/auth/branch-scope';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
-
-const BOOKING_TYPES = new Set(['GENERAL', 'CUSTOMER', 'EVENT', 'MAINTENANCE', 'SALES_AGENT', 'DELIVERY', 'OTHER']);
-const BOOKING_STATUS = new Set(['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED', 'NO_SHOW']);
-const BOOKING_PRIORITY = new Set(['LOW', 'NORMAL', 'HIGH', 'URGENT']);
+import {
+ BOOKING_PRIORITY_VALUES,
+ BOOKING_STATUS_VALUES,
+ BOOKING_TYPE_VALUES,
+ bookingValidationResponse,
+ cleanString,
+ isDuplicateBookingError,
+ parseDateValue,
+ parseEnumValue,
+ parseExpectedPax,
+ parseMetadata,
+ parseTimeValue,
+} from '@/lib/bookings/validation';
 const CREATE_ROLES = new Set([
  'SUPER_ADMIN',
  'ADMIN',
@@ -45,28 +54,10 @@ type BookingResult = {
  error: { message: string } | null;
 };
 
-function cleanString(value: unknown, max = 255) {
- if (typeof value !== 'string') return null;
- const text = value.trim();
- if (!text) return null;
- return text.slice(0, max);
-}
-
-function normalizeEnum(value: unknown, allowed: Set<string>, fallback: string) {
- if (typeof value !== 'string') return fallback;
- const normalized = value.trim().toUpperCase();
- return allowed.has(normalized) ? normalized : fallback;
-}
-
 function bookingNumber() {
  const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
  const rand = Math.random().toString(36).slice(2, 8).toUpperCase();
  return `BK-${stamp}-${rand}`;
-}
-
-function asMetadata(value: unknown) {
- if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
- return value as Record<string, unknown>;
 }
 
 async function resolveAssignee(
@@ -108,9 +99,21 @@ export async function GET(request: Request) {
 
  const { searchParams } = new URL(request.url);
  const requestedBranchId = cleanString(searchParams.get('branch_id'));
- const status = normalizeEnum(searchParams.get('status'), BOOKING_STATUS, '');
- const fromDate = cleanString(searchParams.get('from'), 20);
- const toDate = cleanString(searchParams.get('to'), 20);
+ let status: string | null;
+ let fromDate: string | null;
+ let toDate: string | null;
+ try {
+  status = parseEnumValue('status', searchParams.get('status'), BOOKING_STATUS_VALUES, { optional: true });
+  fromDate = parseDateValue('from', searchParams.get('from'), { optional: true });
+  toDate = parseDateValue('to', searchParams.get('to'), { optional: true });
+  if (fromDate && toDate && fromDate > toDate) {
+   return NextResponse.json({ error: 'Tarikh from tidak boleh selepas tarikh to' }, { status: 400 });
+  }
+ } catch (error) {
+  const validation = bookingValidationResponse(error);
+  if (validation) return NextResponse.json(validation.body, { status: validation.status });
+  throw error;
+ }
 
  const supabase = await createClient();
  let scope;
@@ -147,12 +150,33 @@ export async function POST(request: Request) {
  }
 
  const body = await request.json().catch(() => ({}));
- const title = cleanString(body.title, 180);
- const scheduledDate = cleanString(body.scheduled_date, 20);
+ let title: string | null;
+ let scheduledDate: string;
+ let scheduledTime: string | null;
+ let bookingType: string;
+ let status: string;
+ let priority: string;
+ let expectedPax: number | null;
+ let metadata: Record<string, unknown>;
  const requestedBranchId = cleanString(body.branch_id);
 
- if (!title || !scheduledDate) {
-  return NextResponse.json({ error: 'Tajuk dan tarikh booking wajib' }, { status: 400 });
+ try {
+  title = cleanString(body.title, 180);
+ scheduledDate = parseDateValue('Tarikh booking', body.scheduled_date);
+ scheduledTime = parseTimeValue('Masa booking', body.scheduled_time);
+  bookingType = parseEnumValue('booking_type', body.booking_type, BOOKING_TYPE_VALUES, { defaultValue: 'GENERAL' }) ?? 'GENERAL';
+  status = parseEnumValue('status', body.status, BOOKING_STATUS_VALUES, { defaultValue: 'PENDING' }) ?? 'PENDING';
+  priority = parseEnumValue('priority', body.priority, BOOKING_PRIORITY_VALUES, { defaultValue: 'NORMAL' }) ?? 'NORMAL';
+  expectedPax = parseExpectedPax(body.expected_pax);
+  metadata = parseMetadata(body.metadata, {}) ?? {};
+  if (!title) throw new Error('Tajuk booking wajib diisi');
+  if (status !== 'PENDING') {
+   return NextResponse.json({ error: 'Booking baharu mesti bermula dengan status PENDING' }, { status: 400 });
+  }
+ } catch (error) {
+  const validation = bookingValidationResponse(error);
+  if (validation) return NextResponse.json(validation.body, { status: validation.status });
+  return NextResponse.json({ error: error instanceof Error ? error.message : 'Input booking tidak sah' }, { status: 400 });
  }
 
  const supabase = await createClient();
@@ -170,35 +194,37 @@ export async function POST(request: Request) {
   return NextResponse.json({ error: error instanceof Error ? error.message : 'Pengguna tugasan tidak sah' }, { status: 403 });
  }
 
- const expectedPax = Number(body.expected_pax);
  const row = {
   organization_id: profile.organization_id,
   branch_id: branchId,
   created_by: profile.id,
   assigned_to: assignedTo,
-  booking_type: normalizeEnum(body.booking_type, BOOKING_TYPES, 'GENERAL'),
-  status: normalizeEnum(body.status, BOOKING_STATUS, 'PENDING'),
-  priority: normalizeEnum(body.priority, BOOKING_PRIORITY, 'NORMAL'),
+  booking_type: bookingType,
+  status,
+  priority,
   title,
   description: cleanString(body.description, 2000),
   customer_name: cleanString(body.customer_name),
   customer_phone: cleanString(body.customer_phone, 60),
   customer_email: cleanString(body.customer_email),
   scheduled_date: scheduledDate,
-  scheduled_time: cleanString(body.scheduled_time, 20),
-  expected_pax: Number.isFinite(expectedPax) && expectedPax >= 0 ? Math.trunc(expectedPax) : null,
+  scheduled_time: scheduledTime,
+  expected_pax: expectedPax,
   source: cleanString(body.source, 80) ?? 'API',
   notes: cleanString(body.notes, 2000),
-  metadata: asMetadata(body.metadata),
+  metadata,
  };
 
  let booking: Record<string, unknown> | null = null;
  let bookingError: { message: string } | null = null;
 
- for (let attempt = 0; attempt < 5; attempt += 1) {
+ const customBookingNumber = cleanString(body.booking_number, 80);
+ const attempts = customBookingNumber ? 1 : 5;
+
+ for (let attempt = 0; attempt < attempts; attempt += 1) {
   const result = await (supabase as SupabaseClient)
    .from('bookings' as never)
-   .insert({ ...row, booking_number: cleanString(body.booking_number, 80) ?? bookingNumber() } as never)
+   .insert({ ...row, booking_number: customBookingNumber ?? bookingNumber() } as never)
    .select(BOOKING_SELECT)
    .single() as BookingResult;
 
@@ -208,7 +234,10 @@ export async function POST(request: Request) {
   }
 
   bookingError = result.error;
-  if (!result.error?.message.includes('duplicate key')) break;
+  if (customBookingNumber && isDuplicateBookingError(result.error?.message)) {
+   return NextResponse.json({ error: 'Nombor booking sudah wujud' }, { status: 409 });
+  }
+  if (!isDuplicateBookingError(result.error?.message)) break;
  }
 
  if (!booking) return NextResponse.json({ error: bookingError?.message ?? 'Gagal cipta booking' }, { status: 500 });

@@ -124,6 +124,7 @@ export function PosTerminal() {
  const showBranchPicker = profile ? needsBranchPicker(profile) : false;
  const showRejectTab = profile ? canUsePosRejectStock(profile.role) : false;
  const canViewFullHistory = canViewFullPosHistory(profile?.role);
+ const isAreaManagerEmergencyPos = profile?.role === 'AREA_MANAGER';
  const canBypassPosSop = profile?.role === 'SUPER_ADMIN';
  const shiftRequired = !shift;
  const blockingStockCheck = requiredStockCheck === 'OPENING';
@@ -559,6 +560,11 @@ export function PosTerminal() {
  onOpenShift={() => setOpenShiftOpen(true)}
  onCloseShift={() => setCloseShiftOpen(true)}
  />
+
+ {isAreaManagerEmergencyPos && (
+ <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+ <span className="font-semibold">Mode ganti staf:</span> AM mesti ada jadual syif diluluskan untuk cawangan hari ini sebelum buka syif POS atau rekod jualan.
+ </div>)}
 
  <ExpiredStockAlert
  summary={expirySummary}

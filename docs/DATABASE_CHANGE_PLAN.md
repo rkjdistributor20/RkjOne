@@ -135,7 +135,7 @@ Rollback SQL is included as comments in `docs/booking_api_migration_draft.sql`.
 
 ## Review Required Before Running
 
-- Backend AI: update API validation for branch/org, assignee/org, duplicate booking number, and invalid enum/date/time.
+- Backend AI: API validation for branch/org, assignee/org, duplicate booking number, invalid enum/date/time, and lifecycle status is implemented. Remaining DB work is RLS/migration verification.
 - Security AI: confirm RLS policy does not permit BOLA/IDOR.
 - QA AI: test create/update/read paths with Admin, Area Manager, Staff creator, Staff non-creator, Sales Agent, and anonymous user.
 - Owner/PM: approve status lifecycle behavior before enforcing terminal timestamp constraints.

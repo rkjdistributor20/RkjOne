@@ -27,6 +27,19 @@ export async function createEmployeeHrServiceRequest(
  });
 }
 
+export async function cancelEmployeeHrServiceRequest(requestId: string) {
+ return fetchJson<{ request: EmployeeHrServiceRequest }>(
+ `/api/hr/self-service/requests/${requestId}`,
+ {
+ method: 'PATCH',
+ body: JSON.stringify({
+ status: 'CANCELLED',
+ reviewer_note: 'Dibatalkan oleh staf melalui HRMIS kendiri.',
+ }),
+ },
+ );
+}
+
 export async function fetchEmployeeHrServiceRequests() {
  return fetchJson<{ requests: EmployeeHrServiceRequest[] }>('/api/hr/self-service/requests');
 }

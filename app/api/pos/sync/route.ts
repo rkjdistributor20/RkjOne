@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { callRpc } from '@/lib/supabase/rpc';
 import { getCurrentProfile } from '@/lib/auth/session';
 import {
+ assertAreaManagerScheduledForPos,
  assertCanAccessPosBranch,
 } from '@/lib/pos/access';
 import type { OfflineSalePayload } from '@/lib/pos/types';
@@ -34,6 +35,7 @@ export async function POST(request: Request) {
  if (!checkedBranches.has(sale.branchId)) {
  try {
  await assertCanAccessPosBranch(supabase, profile, sale.branchId);
+ await assertAreaManagerScheduledForPos(supabase, profile, sale.branchId);
  checkedBranches.add(sale.branchId);
  } catch (err) {
  failed.push({

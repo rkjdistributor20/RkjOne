@@ -10,7 +10,7 @@ Dokumen ini menjadi rujukan owner dan pentadbir utama sebelum sistem digunakan s
    - Security headers aktif.
    - Fail rahsia tidak dijejak git.
    - Profil syarikat berasingan.
-   - Health endpoint aktif.
+   - Health endpoint aktif melalui service-side Supabase check.
    - Checkpoint dan migrasi database tersedia.
 4. Jika ada status `Perlu Baiki`, jangan deploy production sehingga isu itu disemak.
 
@@ -34,6 +34,11 @@ Semak setiap kategori pengguna:
 - Staf Roti Kaya Junus hanya nampak kiosk, POS, inventori cawangan, syif dan maintenance cawangan.
 - Ejen hanya nampak portal ejen dan outlet/POS yang dipautkan.
 - Pentadbir Utama boleh melihat semua untuk tujuan test, audit dan pembetulan.
+
+Rujukan UAT HRMIS lengkap:
+
+- [`UAT_HRMIS_3_COMPANY.md`](./UAT_HRMIS_3_COMPANY.md) - semak majikan legal, permohonan HR, cuti, AM emergency POS, OM fallback dan negative access test.
+- [`SOP_HRMIS_3_COMPANY.md`](./SOP_HRMIS_3_COMPANY.md) - SOP operasi HRMIS tiga syarikat.
 
 ## 4. Backup & Recovery
 

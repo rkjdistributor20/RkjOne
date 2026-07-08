@@ -44,6 +44,71 @@ export function posAccessErrorStatus(error: unknown, fallback = 403) {
  return error instanceof PosAccessError ? error.status : fallback;
 }
 
+function malaysiaDate(value = new Date()) {
+ return new Intl.DateTimeFormat('en-CA', {
+ timeZone: 'Asia/Kuala_Lumpur',
+ year: 'numeric',
+ month: '2-digit',
+ day: '2-digit',
+ }).format(value);
+}
+
+export async function assertAreaManagerScheduledForPos(
+ supabase: SupabaseClient,
+ profile: Pick<Profile, 'id' | 'organization_id' | 'role'>,
+ branchId: string,
+ shiftDate = malaysiaDate()) {
+ if (profile.role !== 'AREA_MANAGER') return null;
+
+ const { data: staffRows, error: staffError } = await supabase
+ .from('staff')
+ .select('id, full_name')
+ .eq('organization_id', profile.organization_id)
+ .eq('profile_id', profile.id)
+ .eq('status', 'ACTIVE');
+
+ if (staffError) {
+ throw new Error(staffError.message);
+ }
+
+ const staffIds = (staffRows ?? [])
+ .map((row: { id?: string | null }) => row.id)
+ .filter((id: string | null | undefined): id is string => Boolean(id));
+
+ if (!staffIds.length) {
+ throw new PosAccessError(
+ 'Akaun AM belum dipautkan kepada rekod staf aktif. Tambah AM sebagai staf dan masukkan ke jadual syif sebelum guna POS.',
+ 403);
+ }
+
+ const { data: scheduledShift, error: scheduleError } = await supabase
+ .from('staff_shifts')
+ .select('id, staff_id')
+ .eq('organization_id', profile.organization_id)
+ .eq('branch_id', branchId)
+ .eq('shift_date', shiftDate)
+ .eq('status', 'APPROVED')
+ .in('staff_id', staffIds)
+ .limit(1)
+ .maybeSingle();
+
+ if (scheduleError) {
+ throw new Error(scheduleError.message);
+ }
+
+ if (!scheduledShift) {
+ throw new PosAccessError(
+ `AM perlu ada jadual syif diluluskan untuk cawangan ini pada ${shiftDate} sebelum guna POS.`,
+ 403);
+ }
+
+ return {
+ staffId: scheduledShift.staff_id as string,
+ staffShiftId: scheduledShift.id as string,
+ shiftDate,
+ };
+}
+
 export async function assertCanAccessPosBranch(
  supabase: SupabaseClient,
  profile: Pick<Profile, 'organization_id' | 'role' | 'region_id' | 'branch_id'>,

@@ -1,5 +1,5 @@
 -- RKJ One M5: payment session, cancel, refund lifecycle.
--- Reviewed and applied to Supabase production during M6 release gate on 2026-07-08.
+-- Reviewed during M6 release gate on 2026-07-08.
 
 ALTER TABLE public.agent_online_payments
  ADD COLUMN IF NOT EXISTS provider TEXT,
@@ -179,4 +179,4 @@ $$;
 REVOKE ALL ON FUNCTION public.cancel_agent_payment(UUID, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.refund_agent_payment(UUID, TEXT, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.cancel_agent_payment(UUID, TEXT, TEXT) TO service_role;
-GRANT EXECUTE ON FUNCTION public.refund_agent_payment(UUID, TEXT, TEXT, TEXT) TO service_role;
+GRANT EXECUTE ON FUNCTION public.refund_agent_payment(UUID, TEXT, TEXT, TEXT) TO service_role;;

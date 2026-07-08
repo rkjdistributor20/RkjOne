@@ -40,8 +40,9 @@ Tandakan `[ ]` ke `[x]` bila lulus.
 ### 1. Login & menu sidebar
 
 - [ ] Login berjaya
-- [ ] Sidebar **hanya** menu AM: Papan Pemuka, Inventori, Syif, Kelulusan, Tetapan
-- [ ] **Tiada** Kilang, HQ Distributor, Logistik, POS (URL `/pos`, `/fleet` ke blocked / redirect)
+- [ ] Sidebar menu AM: Papan Pemuka, POS, Inventori, Syif, Kelulusan, Tetapan, dan modul kawasan lain yang dibenarkan
+- [ ] **Tiada** Kilang, HQ Distributor, Logistik (URL `/fleet` ke blocked / redirect)
+- [ ] POS untuk AM hanya digunakan sebagai **ganti staf jualan/emergency** selepas AM masukkan diri dalam jadual syif cawangan hari tersebut
 
 ### 2. Papan Pemuka
 
@@ -92,6 +93,14 @@ Tandakan `[ ]` ke `[x]` bila lulus.
 
 - [ ] Syif - senarai cawangan kawasan sahaja
 - [ ] Kelulusan - item dalam skop kawasan
+
+### 5a. POS Emergency AM
+
+- [ ] AM buka `/pos` dan pilih cawangan dalam kawasan sendiri
+- [ ] Jika AM belum ada jadual syif diluluskan untuk hari ini, sistem halang buka syif POS / jualan
+- [ ] AM tambah diri dalam jadual syif cawangan hari ini dan luluskan mengikut SOP
+- [ ] Selepas jadual syif diluluskan, AM boleh buka syif POS sebagai PIC ganti staf
+- [ ] AM tidak boleh guna POS cawangan luar kawasan
 
 ### 6. Tetapan Staf
 

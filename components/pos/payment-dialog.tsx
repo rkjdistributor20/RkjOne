@@ -9,6 +9,7 @@ import {
  getOfflineQueue,
 } from '@/lib/pos/offline-queue';
 import { formatRM, generateOfflineId } from '@/lib/pos/utils';
+import { useAuthStore } from '@/stores/auth-store';
 import { usePosStore } from '@/stores/pos-store';
 import type { PaymentMethod, SaleResult } from '@/lib/pos/types';
 import { Button } from '@/components/ui/button';
@@ -80,6 +81,7 @@ export function PaymentDialog({
  branchId,
  onSuccess,
 }: PaymentDialogProps) {
+ const profile = useAuthStore((s) => s.profile);
  const cart = usePosStore((s) => s.cart);
  const shift = usePosStore((s) => s.shift);
  const clearCart = usePosStore((s) => s.clearCart);
@@ -121,6 +123,8 @@ export function PaymentDialog({
  ? 'Jumlah bayaran tidak sah.'
  : method !== 'CASH' && !isOnline
  ? 'QR manual perlu online untuk rekod audit dan pengesahan kewangan.'
+ : profile?.role === 'AREA_MANAGER' && !isOnline
+ ? 'AM emergency POS perlu online supaya jadual syif boleh disahkan.'
  : paidAmount < total
  ? `Bayaran kurang ${formatRM(shortfall)}.`
  : null;

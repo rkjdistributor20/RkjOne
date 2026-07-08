@@ -32,9 +32,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
  try {
  const profile = await getCurrentProfile();
  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
- if (!REVIEW_ROLES.has(profile.role)) {
- return NextResponse.json({ error: 'Tiada akses untuk proses permohonan HR.' }, { status: 403 });
- }
+ const isReviewer = REVIEW_ROLES.has(profile.role);
 
  const { id } = await context.params;
  const body = await request.json().catch(() => ({}));
@@ -53,7 +51,17 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
  if (!existing) return NextResponse.json({ error: 'Permohonan HR tidak ditemui.' }, { status: 404 });
 
  const row = existing as HrServiceRequest;
- if (profile.role === 'AREA_MANAGER') {
+ if (!isReviewer) {
+ if (row.profile_id !== profile.id) {
+ return NextResponse.json({ error: 'Tiada akses untuk permohonan HR ini.' }, { status: 403 });
+ }
+ if (status !== 'CANCELLED') {
+ return NextResponse.json({ error: 'Staf hanya boleh batalkan permohonan sendiri.' }, { status: 403 });
+ }
+ if (!['SUBMITTED', 'IN_REVIEW'].includes(row.status)) {
+ return NextResponse.json({ error: 'Permohonan yang sudah diproses tidak boleh dibatalkan oleh staf.' }, { status: 400 });
+ }
+ } else if (profile.role === 'AREA_MANAGER') {
  const scope = await resolveScopedBranches(service, profile);
  if (!row.branch_id || !scope.branchIds?.includes(row.branch_id)) {
  return NextResponse.json({ error: 'Permohonan ini di luar kawasan anda.' }, { status: 403 });
@@ -64,7 +72,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
  .from('hr_service_requests')
  .update({
  status,
- reviewer_note: reviewerNote,
+ reviewer_note: reviewerNote ?? (!isReviewer ? 'Dibatalkan oleh staf melalui HRMIS kendiri.' : null),
  reviewed_by: profile.id,
  reviewed_at: new Date().toISOString(),
  updated_at: new Date().toISOString(),

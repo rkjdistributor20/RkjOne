@@ -19,6 +19,8 @@ The database hardening draft is directionally correct: it adds explicit grants, 
 
 Do not promote the draft SQL into a real migration yet. The highest risks are RLS/API mismatch for `AREA_MANAGER`, reference validation trigger behavior under existing `profiles` RLS, and status lifecycle inconsistencies between the current API and the proposed DB rules.
 
+API hardening update on 2026-07-08: invalid booking `status`, `priority`, date, time, metadata and pax now return `400`; new bookings must start as `PENDING`; duplicate custom `booking_number` returns `409`; and status transitions are manager-only. `NO_SHOW` uses `completed_at` as the closure timestamp until a dedicated event log or `no_show_at` column is added. DB/RLS findings below still need migration/advisor verification before production database changes.
+
 References checked:
 
 - Supabase changelog: explicit grants for public schema Data API access become required for new projects from 2026-05-30 and existing projects on 2026-10-30.
@@ -128,4 +130,3 @@ Required before release:
 3. Resolve `assigned_to` validation path so valid same-org assignment works for intended roles.
 4. Add API validation for invalid enum/date/time and duplicate booking number.
 5. Run local/staging RLS tests before any Supabase production push.
-

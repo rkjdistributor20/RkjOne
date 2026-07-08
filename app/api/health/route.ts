@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
@@ -8,7 +8,7 @@ export async function GET() {
  let supabaseOk = false;
 
  try {
- const supabase = await createClient();
+ const supabase = await createServiceClient();
  const { error } = await supabase.from('branches').select('id', { head: true }).limit(1);
  supabaseOk = !error;
  } catch {

@@ -556,6 +556,14 @@ function CompanyFocusPanel({
  const companyLocal = selectedCompany?.summary.local ?? 0;
  const companyForeign = selectedCompany?.summary.foreign ?? 0;
  const companyAgents = selectedCompany?.agents.length ?? 0;
+ const selectedCompanyFocus =
+ selectedCompany?.code === 'RKJ'
+ ? 'Kiosk, POS, syif dan staf jualan cawangan'
+ : selectedCompany?.code === 'RKJ_DIST'
+ ? 'HQ Distributor, AM, driver, fleet, maintenance dan ejen'
+ : selectedCompany?.code === 'RKJ_MFG'
+ ? 'Kilang, produksi, gudang kilang dan pekerja manufacturing'
+ : 'Scope operasi syarikat';
  const companyPendingRequests = selectedCompany
  ? data.service_requests.filter((request) =>
  request.legal_entity_code === selectedCompany.code &&
@@ -589,6 +597,10 @@ function CompanyFocusPanel({
  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-700">Syarikat aktif</p>
  <h3 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">{selectedCompany.legal_name}</h3>
  <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{selectedCompany.scope ?? selectedCompany.name}</p>
+ <div className="mt-3 flex flex-wrap gap-2">
+ <Badge variant="secondary">Majikan legal: {selectedCompany.code}</Badge>
+ <Badge variant="outline">{selectedCompanyFocus}</Badge>
+ </div>
  </div>
  <Badge variant={selectedCompany.status === 'ACTIVE' ? 'default' : 'secondary'}>{selectedCompany.status}</Badge>
  </div>
@@ -793,6 +805,7 @@ function HrCommandCenter({
  const activeRequests = data.service_requests.filter((request) =>
  ['SUBMITTED', 'IN_REVIEW'].includes(request.status));
  const urgentRequests = activeRequests.filter((request) => request.priority === 'HIGH');
+ const companyCodes = data.companies.map((company) => company.code).join(' / ') || 'RKJ / RKJ_DIST / RKJ_MFG';
  const incompleteProfiles = data.companies.reduce(
  (total, company) => total + Math.max(0, company.summary.total - company.summary.profile_complete),
  0,
@@ -857,7 +870,7 @@ function HrCommandCenter({
  Kawalan pekerja, gaji dan servis HR
  </h2>
  <p className="mt-2 max-w-xl text-sm leading-relaxed text-stone-300">
- Paparan ini memecahkan staf mengikut syarikat legal, memantau permohonan pekerja dan menjaga rekod HR supaya operasi tidak bercampur.
+ Paparan ini memecahkan staf mengikut majikan legal, memantau permohonan pekerja dan menjaga rekod HR supaya payroll, cuti dan dokumen tidak bercampur.
  </p>
  </div>
  </div>
@@ -896,7 +909,7 @@ function HrCommandCenter({
  <Badge className="bg-white text-stone-950 hover:bg-white">{activeCompanies}/{data.summary.total_companies}</Badge>
  </div>
  <p className="mt-2 text-3xl font-semibold">{data.summary.total_people}</p>
- <p className="mt-1 text-sm text-stone-300">rekod HR merentas 3 syarikat</p>
+ <p className="mt-1 text-sm text-stone-300">rekod HR merentas {companyCodes}</p>
  </div>
  <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
  <div className="flex items-center justify-between gap-3">

@@ -22,7 +22,7 @@ Status key: `Todo`, `In Progress`, `Review`, `Blocked`, `Done`.
 |----|--------|-------|------|------------|
 | M2.1 | Done | Security/Backend AI | Semak auth flow. | Protected API routes return JSON `401`, browser pages redirect to `/login`, signed webhooks can reach route validation. |
 | M2.2 | Done | Security/Backend AI | Semak role user/admin. | New auth bootstrap no longer trusts user-editable metadata for role assignment; existing admin/user route checks reviewed. |
-| M2.3 | Review | Database/Security AI | Semak database schema. | New migration drafts booking reference validation, assigned booking index, and RLS alignment; DB execution pending local/remote Supabase verification. |
+| M2.3 | Done | Database/Security AI | Semak database schema. | Remote migration history is aligned; booking/payment hardening and production RLS advisor fix are applied; Supabase advisor error-level is clean. |
 | M2.4 | Done | Backend/Security AI | Pastikan user hanya boleh akses data sendiri. | Branch scope rejects cross-organization branch IDs; booking assignee must be active and same organization; assigned users can read assigned bookings. |
 
 ## Milestone 2B - Booking API Backend
@@ -31,11 +31,11 @@ Status key: `Todo`, `In Progress`, `Review`, `Blocked`, `Done`.
 |----|--------|-------|------|------------|
 | BK-001 | Done | Backend AI | Create API-only booking table and routes. | `GET/POST /api/bookings`, `GET/PATCH /api/bookings/[id]`, Supabase migration, build passes. |
 | BK-002 | Review | QA AI | Review booking API for edge cases. | Findings recorded in this task board and QA checklist. |
-| BK-003 | Review | Backend AI | Tighten booking RLS update policy. | DB policy cannot allow broader updates than API role rules. |
+| BK-003 | Done | Backend AI | Tighten booking RLS update policy. | Production `bookings_update_scope` now limits manager, Area Manager branch scope, and creator-owned active booking updates. |
 | BK-004 | Done | Backend AI | Validate HQ requested `branch_id` belongs to same organization. | POST/PATCH/GET branch filters reject cross-org branch UUIDs. |
 | BK-005 | Done | Backend AI | Validate `assigned_to` profile. | Assigned user must belong to same organization and allowed role/scope. |
-| BK-006 | Todo | Backend AI | Return explicit validation errors for invalid enum/date/time. | Invalid `status`, `priority`, date, and time return `400`, not silent fallback or DB-only error. |
-| BK-007 | Todo | Backend AI | Decide booking status lifecycle rules. | Create cannot silently produce final states without matching timestamps and role approval. |
+| BK-006 | Done | Backend AI | Return explicit validation errors for invalid enum/date/time. | Invalid `status`, `priority`, date, time, metadata and pax now return `400`; duplicate custom `booking_number` returns `409`. |
+| BK-007 | Done | Backend AI | Decide booking status lifecycle rules. | Create starts as `PENDING`; status changes are manager-only with `PENDING -> CONFIRMED/CANCELLED` and `CONFIRMED -> COMPLETED/CANCELLED/NO_SHOW`. |
 | BK-008 | Done | Backend/Platform AI | Decide API auth behavior for external clients. | `/api/*` either returns JSON 401 for API clients or documents redirect-only browser behavior. |
 
 ## Milestone 3 - Booking Workflow UI
@@ -70,7 +70,7 @@ Status key: `Todo`, `In Progress`, `Review`, `Blocked`, `Done`.
 |----|--------|-------|------|------------|
 | SEC-001 | Done | Security AI | Audit branch scope helper for HQ branch validation. | Shared helper cannot create cross-org references. |
 | SEC-002 | Review | Security AI | Audit `assigned_to`/profile reference fields across modules. | Booking cross-org profile references are blocked in API and draft RLS migration; other modules remain backlog. |
-| SEC-003 | Review | Security AI | Review RLS policies for newest migrations. | Latest booking hardening migration drafted; needs DB advisor/local apply verification. |
+| SEC-003 | Done | Security AI | Review RLS policies for newest migrations. | `20260708150423_production_rls_advisor_fixes.sql` applied; RLS enabled for exposed branch/fleet master tables and advisor error-level returns no issues. |
 
 ## Milestone 5 - Payment Lifecycle
 
@@ -79,14 +79,14 @@ Status key: `Todo`, `In Progress`, `Review`, `Blocked`, `Done`.
 | M5.1 | Done | Backend AI | Payment intent/session. | `POST /api/sales-agent/payments` creates a payment record plus provider session metadata, checkout URL, status URL, cancel URL and return URL. |
 | M5.2 | Done | Backend/Security AI | Webhook. | `/api/sales-agent/payments/webhook` handles signed Billplz/iPay88/custom callbacks and Stripe signed events for paid, failed, cancelled and refunded lifecycle updates. |
 | M5.3 | Done | Backend AI | Payment status update. | `GET /api/sales-agent/payments/[paymentId]/status` returns `status`, `lifecycle_status`, receipt when paid, gateway metadata, cancellation and refund data. |
-| M5.4 | Done | Backend/Finance AI | Error/refund/cancel flow. | Pending payments can be cancelled; admin/finance can record refund; DB migration draft adds lifecycle columns and service-role RPC functions. |
+| M5.4 | Done | Backend/Finance AI | Error/refund/cancel flow. | Pending payments can be cancelled; admin/finance can record refund; production migration adds lifecycle columns and service-role RPC functions. |
 
 ## Milestone 5B - Deployment and Production Confidence
 
 | ID | Status | Owner | Task | Acceptance |
 |----|--------|-------|------|------------|
 | DEP-001 | Done | DevOps AI | Confirm production deployment after Booking API. | Vercel production alias Ready and logs clean. |
-| DEP-002 | Todo | DevOps AI | Keep migration index current. | `docs/DATABASE_SCHEMA.md` lists latest migration groups and new tables. |
+| DEP-002 | Done | DevOps AI | Keep migration index current. | `docs/DATABASE_SCHEMA.md` lists latest migration groups, booking hardening, and M5 payment lifecycle migrations. |
 | DEP-003 | Todo | QA AI | Add smoke checks for booking API after auth behavior is settled. | Authenticated GET/POST/PATCH tested against production or staging. |
 
 ## Milestone 6 - Release Gate, Security & Deploy
@@ -110,6 +110,7 @@ Status key: `Todo`, `In Progress`, `Review`, `Blocked`, `Done`.
 | M7.5 | Done | Documentation AI | Release note baseline. | `docs/RELEASE_NOTES_M6.md` records production deployment, verification, and known follow-up. |
 | M7.6 | Review | Finance/DevOps | Live provider payment UAT. | Pending selected provider sandbox/live callback with valid signature and finance confirmation. |
 | M7.7 | Review | Owner/QA | Real user role UAT. | Pending real account testing for Owner/Admin/Finance/Staff/Area Manager/Sales Agent. |
+| M7.8 | Review | HR/QA AI | HRMIS 3-company UAT. | `docs/UAT_HRMIS_3_COMPANY.md` covers legal employer separation, staff self-service, leave, AM emergency POS, OM fallback and negative access tests. |
 
 ## Backlog
 

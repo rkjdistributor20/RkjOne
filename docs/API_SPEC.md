@@ -29,7 +29,7 @@ or module-specific payload:
 
 ## Booking API
 
-Status: implemented, needs hardening tasks in `docs/TASK_BOARD.md`.
+Status: implemented. API validation is hardened; DB/RLS hardening tasks remain tracked in `docs/TASK_BOARD.md`.
 
 ### GET `/api/bookings`
 
@@ -44,6 +44,8 @@ Query params:
 | `from` | date | Optional `YYYY-MM-DD`; filters `scheduled_date >= from`. |
 | `to` | date | Optional `YYYY-MM-DD`; filters `scheduled_date <= to`. |
 | `limit` | number | Optional. Defaults 50, max 100. |
+
+Invalid `status`, `from`, or `to` returns `400`.
 
 Response:
 
@@ -88,7 +90,7 @@ Optional body:
 | `assigned_to` | uuid |
 | `booking_number` | string |
 | `booking_type` | `GENERAL`, `CUSTOMER`, `EVENT`, `MAINTENANCE`, `SALES_AGENT`, `DELIVERY`, `OTHER` |
-| `status` | `PENDING`, `CONFIRMED`, `CANCELLED`, `COMPLETED`, `NO_SHOW` |
+| `status` | Optional. Only `PENDING` is accepted on create. Other statuses return `400`. |
 | `priority` | `LOW`, `NORMAL`, `HIGH`, `URGENT` |
 | `description` | string |
 | `customer_name` | string |
@@ -99,6 +101,14 @@ Optional body:
 | `source` | string |
 | `notes` | string |
 | `metadata` | object |
+
+Validation:
+
+- `booking_type`, `status`, and `priority` reject invalid values with `400`.
+- `scheduled_date` must be `YYYY-MM-DD`.
+- `scheduled_time`, when supplied, must be `HH:MM` or `HH:MM:SS`.
+- `expected_pax` must be a positive number when supplied.
+- Duplicate custom `booking_number` returns `409`.
 
 Response:
 
@@ -139,13 +149,16 @@ Allowed update fields:
 
 Status timestamps:
 
+- New bookings start as `PENDING`.
+- Status changes are manager-only.
+- Allowed transitions: `PENDING -> CONFIRMED`, `PENDING -> CANCELLED`, `CONFIRMED -> COMPLETED`, `CONFIRMED -> CANCELLED`, `CONFIRMED -> NO_SHOW`.
 - `CONFIRMED` sets `confirmed_at`.
 - `CANCELLED` sets `cancelled_at`.
 - `COMPLETED` sets `completed_at`.
+- `NO_SHOW` uses `completed_at` as the closure timestamp until a dedicated `no_show_at` or event log exists.
 
 Known hardening needed:
 
-- Reject invalid enum/date/time with `400`.
 - Add automated API/RLS tests for cross-organization branch and assignee cases.
 
 ## Sales Agent Payment API

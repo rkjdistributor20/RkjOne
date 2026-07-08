@@ -477,7 +477,7 @@ export function BookingDetailPage({ bookingId }: { bookingId: string }) {
  <Button
  variant="outline"
  onClick={() => updateStatus('COMPLETED')}
- disabled={saving || !['PENDING', 'CONFIRMED'].includes(booking.status)}
+ disabled={saving || booking.status !== 'CONFIRMED'}
  >
  <CheckCircle2 className="mr-2 h-4 w-4" />
  Selesai
@@ -485,7 +485,7 @@ export function BookingDetailPage({ bookingId }: { bookingId: string }) {
  <Button
  variant="outline"
  onClick={() => updateStatus('NO_SHOW')}
- disabled={saving || !['PENDING', 'CONFIRMED'].includes(booking.status)}
+ disabled={saving || booking.status !== 'CONFIRMED'}
  >
  <XCircle className="mr-2 h-4 w-4" />
  Tidak hadir

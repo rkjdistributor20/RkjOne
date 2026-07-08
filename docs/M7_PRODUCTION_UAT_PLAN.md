@@ -11,10 +11,11 @@ Production URL: https://rkj-one.vercel.app
 | Gate | Status | Evidence |
 |------|--------|----------|
 | Production deployment Ready | Done | `dpl_55k1i1FNbsmaMnEHwfHkpj41yKQJ` |
-| Supabase migrations verified | Done | `harden_auth_role_and_booking_scope`, `m5_payment_lifecycle` |
+| Supabase migrations verified | Done | `20260708115418_harden_auth_role_and_booking_scope`, `20260708115441_m5_payment_lifecycle`, `20260708150423_production_rls_advisor_fixes` |
+| Supabase advisor error-level | Done | `npx supabase db advisors --linked --level error` returns no issues |
 | Local lint/build/audit | Done | See `docs/M6_QA_RELEASE_REPORT.md` |
 | Anonymous auth-boundary smoke | Done | Login 200, protected payment APIs 401 |
-| Live provider payment callback | Pending | Needs selected provider sandbox/live test payload |
+| Live provider payment callback | Pending | Needs selected provider sandbox/live test payload and merchant credentials |
 
 ## UAT Roles
 
@@ -24,6 +25,8 @@ Test each role with a real account. Do not share passwords in docs, chat, screen
 |------|------------|---------------|
 | Owner / Super Admin | Dashboard, admin, settings, users, reports | Can view company-wide data and manage users without cross-org leakage. |
 | Admin | Admin dashboard, bookings, operations | Can manage operational records but cannot access server secrets or restricted finance-only actions. |
+| HR | HRMIS, staff records, leave, service requests, payroll support | Can process HR by legal employer without mixing RKJ, RKJ_DIST, and RKJ_MFG records. |
+| Operation Manager | Operations, route planning, exception handling | Can coordinate order/driver route by production day and act as temporary PIC when an AM is on leave. |
 | Finance | Finance, payments, refunds, reports | Can review payments and record refunds where allowed. |
 | Staff | Dashboard, profile, assigned work | Sees only own/allowed branch data. |
 | Area Manager | Branch/kawasan views, inventory, operations | Sees only assigned region/branch scope. |
@@ -48,6 +51,11 @@ Test each role with a real account. Do not share passwords in docs, chat, screen
 | UAT-013 | Reports dashboard | Owner/Finance | Pending | Metrics match source records for the selected day/month. |
 | UAT-014 | Mobile/basic responsive check | QA | Pending | Core screens usable on phone width. |
 | UAT-015 | Error/log review after UAT | DevOps | Pending | No new critical runtime errors. |
+| UAT-016 | HRMIS 3-company legal employer flow | HR/Admin HQ | Pending | RKJ, RKJ_DIST and RKJ_MFG staff, leave and requests stay separated by legal entity. |
+| UAT-017 | AM emergency POS replacement | Area Manager/QA | Pending | AM can use POS only after approved branch shift schedule exists. |
+| UAT-018 | OM fallback when AM is on leave | Operations/Owner | Pending | OM owns temporary PIC workflow without bypassing sensitive admin permissions. |
+
+Detailed HRMIS checklist: [`UAT_HRMIS_3_COMPANY.md`](./UAT_HRMIS_3_COMPANY.md).
 
 ## Daily Stabilization Routine
 

@@ -49,6 +49,18 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [ ] Mutations show success/error feedback.
 - [ ] Client API calls handle auth redirects and JSON errors.
 
+## HRMIS 3-Company Review
+
+- [ ] RKJ, RKJ_DIST and RKJ_MFG are clearly separated in HR dashboard.
+- [ ] Staff self-service shows the correct legal employer.
+- [ ] Staff can only see their own HR requests, leave, attendance and payroll.
+- [ ] HR/Admin actions are scoped to the selected legal entity unless user is group-wide.
+- [ ] Leave request cannot exceed available balance unless leave type is unpaid.
+- [ ] Staff can cancel only submitted/in-review requests.
+- [ ] AM emergency POS requires an approved shift schedule first.
+- [ ] OM fallback for AM leave is documented and does not grant sensitive admin permissions.
+- [ ] Payroll, leave and documents do not mix records across legal entities.
+
 ## Deployment Review
 
 - [ ] Migration applied to Supabase if schema changed.
@@ -64,7 +76,8 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [x] `npm run build` passed locally.
 - [x] `npm audit --omit=dev --audit-level=moderate` reported 0 vulnerabilities.
 - [x] Secret scan found no committed real secrets.
-- [x] Supabase migrations `harden_auth_role_and_booking_scope` and `m5_payment_lifecycle` applied and verified.
+- [x] Supabase migrations `harden_auth_role_and_booking_scope`, `m5_payment_lifecycle`, and `production_rls_advisor_fixes` applied and verified.
+- [x] Supabase advisor error-level check returns no issues after RLS/view/function fixes.
 - [x] Vercel production deployment `dpl_55k1i1FNbsmaMnEHwfHkpj41yKQJ` is Ready.
 - [x] Production smoke tests passed for `/login`, unauthenticated payment API access, and bad-signature webhook rejection.
 - [ ] Run signed live-provider callback UAT with the selected payment provider before opening live customer payment volume.
@@ -74,9 +87,9 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 Current review findings to fix before UI/external integration:
 
 - [ ] RLS update policy must not allow all branch-access users to update bookings.
-- [ ] HQ role must not be able to use a `branch_id` from another organization.
-- [ ] `assigned_to` must be validated against same organization and allowed role/scope.
-- [ ] Invalid `status`, `priority`, date, and time must return explicit `400`.
-- [ ] Creating `COMPLETED`, `CANCELLED`, or `CONFIRMED` bookings must follow a deliberate status lifecycle.
-- [ ] Duplicate custom `booking_number` should return `409 Conflict`.
-- [ ] Decide whether anonymous `/api/bookings` should redirect to login or return JSON `401`.
+- [x] API rejects cross-organization `branch_id` before write.
+- [x] API validates `assigned_to` against same organization and active profile.
+- [x] Invalid `status`, `priority`, date, time, metadata and pax return explicit `400`.
+- [x] Creating `COMPLETED`, `CANCELLED`, `CONFIRMED`, or `NO_SHOW` bookings returns `400`; create starts as `PENDING`.
+- [x] Duplicate custom `booking_number` returns `409 Conflict`.
+- [x] Anonymous `/api/bookings` returns JSON `401`.

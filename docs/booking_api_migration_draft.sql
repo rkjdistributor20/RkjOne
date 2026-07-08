@@ -28,7 +28,7 @@ select id, status, confirmed_at, cancelled_at, completed_at
 from public.bookings
 where (status = 'CONFIRMED' and confirmed_at is null)
  or (status = 'CANCELLED' and cancelled_at is null)
- or (status = 'COMPLETED' and completed_at is null);
+ or (status in ('COMPLETED', 'NO_SHOW') and completed_at is null);
 
 -- ============================================================
 -- 1) Explicit Data API access posture
@@ -99,7 +99,7 @@ begin
   new.cancelled_at := now();
  end if;
 
- if new.status = 'COMPLETED' and new.completed_at is null then
+ if new.status in ('COMPLETED', 'NO_SHOW') and new.completed_at is null then
   new.completed_at := now();
  end if;
 
@@ -124,7 +124,7 @@ alter table public.bookings
  check (
   (status <> 'CONFIRMED' or confirmed_at is not null)
   and (status <> 'CANCELLED' or cancelled_at is not null)
-  and (status <> 'COMPLETED' or completed_at is not null)
+  and (status not in ('COMPLETED', 'NO_SHOW') or completed_at is not null)
   and (status <> 'PENDING' or (cancelled_at is null and completed_at is null))
  ) not valid;
 

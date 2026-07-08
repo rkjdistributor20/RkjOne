@@ -77,7 +77,10 @@ Important rule: RLS must be at least as strict as API route checks. If API allow
 
 ## Booking Table
 
-Migration: `20260708100944_booking_api.sql`.
+Migrations:
+
+- `20260708100944_booking_api.sql`
+- `20260708111016_harden_auth_role_and_booking_scope.sql`
 
 Purpose: API-only booking records for future scheduling/workflow integrations.
 
@@ -87,9 +90,9 @@ Key columns:
 |--------|-------|
 | `id` | UUID primary key. |
 | `organization_id` | Required tenant boundary. |
-| `branch_id` | Optional branch link. Needs same-org validation in API follow-up. |
+| `branch_id` | Optional branch link. API validates same-organization scope; hardening migration adds DB reference validation. |
 | `created_by` | Profile that created the booking. |
-| `assigned_to` | Optional profile assignment. Needs validation follow-up. |
+| `assigned_to` | Optional profile assignment. API validates same organization and active assignee. |
 | `booking_number` | Unique per organization. |
 | `booking_type` | `GENERAL`, `CUSTOMER`, `EVENT`, `MAINTENANCE`, `SALES_AGENT`, `DELIVERY`, `OTHER`. |
 | `status` | `PENDING`, `CONFIRMED`, `CANCELLED`, `COMPLETED`, `NO_SHOW`. |
@@ -104,12 +107,20 @@ Indexes:
 - `idx_bookings_branch_date`
 - `idx_bookings_status`
 - `idx_bookings_created_by`
+- `idx_bookings_assigned_to`
+
+API lifecycle rules:
+
+- Create starts as `PENDING`.
+- Status changes are manager-only.
+- Allowed transitions: `PENDING -> CONFIRMED/CANCELLED`, `CONFIRMED -> COMPLETED/CANCELLED/NO_SHOW`.
+- `NO_SHOW` currently uses `completed_at` as the closure timestamp until a dedicated event log or `no_show_at` column is added.
 
 ## Sales Agent Payment Lifecycle
 
 Base table: `agent_online_payments`.
 
-M5 migration draft: `20260708113305_m5_payment_lifecycle.sql`.
+M5 production migration: `20260708115441_m5_payment_lifecycle.sql`.
 
 Additional lifecycle columns:
 
@@ -146,6 +157,9 @@ Security note: the new RPC functions are intended for service-role API routes on
 | `20260705*` | HR service catalog and leave balances. |
 | `20260708090000` | POS batch reject stock count. |
 | `20260708100944` | Booking API backend table. |
+| `20260708115418` | Auth role bootstrap and booking data-access hardening. |
+| `20260708115441` | M5 sales-agent payment lifecycle columns and RPC functions. |
+| `20260708150423` | Production RLS/advisor fixes for exposed branch/fleet master tables, dashboard view, and PL/pgSQL lint errors. |
 
 ## Database Maintenance Notes
 

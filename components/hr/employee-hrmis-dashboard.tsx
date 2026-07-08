@@ -29,8 +29,11 @@ import type {
  EmployeeHrSelfServiceDashboard,
  EmployeeHrServiceRequest,
 } from '@/lib/hr/employee-self-service';
-import { createEmployeeHrServiceRequest } from '@/lib/hr/self-service-api';
-import { formatLeaveType, HR_LEAVE_TYPES } from '@/lib/hr/leave-balances';
+import {
+ cancelEmployeeHrServiceRequest,
+ createEmployeeHrServiceRequest,
+} from '@/lib/hr/self-service-api';
+import { calculateLeaveDays, formatLeaveType, HR_LEAVE_TYPES } from '@/lib/hr/leave-balances';
 import type { HrLeaveType, HrServiceRequestPriority, HrServiceRequestType } from '@/types/database';
 import { StaffPayHrPanel } from '@/components/staff/staff-pay-hr-panel';
 import { StaffSchedulePanel } from '@/components/shifts/staff-schedule-panel';
@@ -81,6 +84,8 @@ type Copy = {
  recentAttendance: string;
  submit: string;
  submitting: string;
+ cancelRequest: string;
+ canceling: string;
  titleLabel: string;
  detailsLabel: string;
  priority: string;
@@ -95,6 +100,8 @@ type Copy = {
  noRequests: string;
  noAttendance: string;
  activeEmployer: string;
+ legalEmployer: string;
+ operationScope: string;
  bankInfo: string;
  leaveType: string;
  remainingLeave: string;
@@ -129,6 +136,8 @@ const copy: Record<'ms' | 'en', Copy> = {
  recentAttendance: 'Kehadiran Terkini',
  submit: 'Hantar permohonan',
  submitting: 'Menghantar...',
+ cancelRequest: 'Batalkan',
+ canceling: 'Membatalkan...',
  titleLabel: 'Tajuk ringkas',
  detailsLabel: 'Penerangan / sebab',
  priority: 'Keutamaan',
@@ -144,6 +153,8 @@ const copy: Record<'ms' | 'en', Copy> = {
  noRequests: 'Belum ada permohonan HR.',
  noAttendance: 'Belum ada rekod kehadiran untuk dipaparkan.',
  activeEmployer: 'Majikan aktif',
+ legalEmployer: 'Majikan legal',
+ operationScope: 'Scope operasi',
  bankInfo: 'Bank payroll',
  leaveType: 'Jenis cuti',
  remainingLeave: 'Baki semasa',
@@ -176,6 +187,8 @@ const copy: Record<'ms' | 'en', Copy> = {
  recentAttendance: 'Recent Attendance',
  submit: 'Submit request',
  submitting: 'Submitting...',
+ cancelRequest: 'Cancel',
+ canceling: 'Cancelling...',
  titleLabel: 'Short title',
  detailsLabel: 'Details / reason',
  priority: 'Priority',
@@ -191,6 +204,8 @@ const copy: Record<'ms' | 'en', Copy> = {
  noRequests: 'No HR requests yet.',
  noAttendance: 'No attendance records to show yet.',
  activeEmployer: 'Active employer',
+ legalEmployer: 'Legal employer',
+ operationScope: 'Operating scope',
  bankInfo: 'Payroll bank',
  leaveType: 'Leave type',
  remainingLeave: 'Current balance',
@@ -511,10 +526,12 @@ function EmployeeHrCommandCenter({
  </div>
  </div>
  <div className="rounded-xl border bg-white/85 p-3 shadow-sm">
- <p className="text-xs font-medium text-muted-foreground">{copyText.activeEmployer}</p>
- <p className="mt-1 text-lg font-semibold text-stone-950">{employer?.legal_entity_code ?? '-'}</p>
+ <p className="text-xs font-medium text-muted-foreground">{copyText.legalEmployer}</p>
+ <p className="mt-1 line-clamp-1 text-sm font-semibold text-stone-950">
+ {employer?.legal_entity_name ?? employer?.legal_entity_code ?? '-'}
+ </p>
  <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
- {employer?.branch_code ? `${employer.branch_code} ${employer.branch_name ?? ''}` : 'HQ / Syarikat'}
+ {[employer?.legal_entity_code, employer?.branch_code].filter(Boolean).join(' - ') || 'HQ / Syarikat'}
  </p>
  </div>
  <div className="rounded-xl border bg-white/85 p-3 shadow-sm">
@@ -664,6 +681,7 @@ export function EmployeeHrmisDashboard({ data }: { data: EmployeeHrSelfServiceDa
  const [startDate, setStartDate] = useState('');
  const [endDate, setEndDate] = useState('');
  const [submitting, setSubmitting] = useState(false);
+ const [cancelingId, setCancelingId] = useState<string | null>(null);
 
  const latestRequests = requests.slice(0, 6);
  const pendingCount = requests.filter((row) => ['SUBMITTED', 'IN_REVIEW'].includes(row.status)).length;
@@ -674,6 +692,15 @@ export function EmployeeHrmisDashboard({ data }: { data: EmployeeHrSelfServiceDa
  currentLeaveBalances.find((balance) => balance.leave_type === leaveType) ??
  data.leave_balances.find((balance) => balance.leave_type === leaveType) ??
  null;
+ const requestedLeaveDays = requestType === 'LEAVE'
+ ? calculateLeaveDays(startDate || null, endDate || null)
+ : 0;
+ const leaveRemaining = Number(selectedLeaveBalance?.remaining ?? 0);
+ const leaveBalanceWarning =
+ requestType === 'LEAVE' &&
+ leaveType !== 'UNPAID' &&
+ Boolean(startDate) &&
+ requestedLeaveDays > leaveRemaining;
  const selectedRequestOption = useMemo(
  () => requestOptions.find((row) => row.value === requestType) ?? requestOptions[0],
  [requestType],
@@ -690,6 +717,15 @@ export function EmployeeHrmisDashboard({ data }: { data: EmployeeHrSelfServiceDa
  }, [lang]);
 
  async function handleSubmit() {
+ if (leaveBalanceWarning) {
+ toast.error(
+ lang === 'en'
+ ? `Leave balance is not enough. Requested ${requestedLeaveDays} day(s), remaining ${leaveRemaining.toFixed(1)}.`
+ : `Baki cuti tidak mencukupi. Mohon ${requestedLeaveDays} hari, baki ${leaveRemaining.toFixed(1)} hari.`,
+ );
+ return;
+ }
+
  const payload: CreateEmployeeHrServiceRequestPayload = {
  request_type: requestType,
  priority,
@@ -723,6 +759,30 @@ export function EmployeeHrmisDashboard({ data }: { data: EmployeeHrSelfServiceDa
  }
  }
 
+ async function handleCancelRequest(requestId: string) {
+ setCancelingId(requestId);
+ try {
+ const result = await cancelEmployeeHrServiceRequest(requestId);
+ setRequests((current) =>
+ current.map((request) =>
+ request.id === requestId
+ ? {
+ ...request,
+ ...result.request,
+ legal_entity_code: request.legal_entity_code,
+ legal_entity_name: request.legal_entity_name,
+ branch_code: request.branch_code,
+ branch_name: request.branch_name,
+ }
+ : request));
+ toast.success(lang === 'en' ? 'HR request cancelled.' : 'Permohonan HR telah dibatalkan.');
+ } catch (err) {
+ toast.error(err instanceof Error ? err.message : 'Gagal batalkan permohonan HR.');
+ } finally {
+ setCancelingId(null);
+ }
+ }
+
  return (
  <ModuleLayout>
  <ModuleHeader
@@ -735,7 +795,9 @@ export function EmployeeHrmisDashboard({ data }: { data: EmployeeHrSelfServiceDa
  {data.is_local_employee ? 'Pekerja Tempatan' : 'Semak rekod staf'}
  </Badge>
  {data.primary_staff?.legal_entity_code && (
- <Badge variant="outline">{data.primary_staff.legal_entity_code}</Badge>)}
+ <Badge variant="outline">
+ {lang === 'en' ? 'Employer' : 'Majikan'}: {data.primary_staff.legal_entity_code}
+ </Badge>)}
  {data.primary_staff?.staff_code && (
  <Badge variant="secondary">{data.primary_staff.staff_code}</Badge>)}
  </>
@@ -910,7 +972,10 @@ export function EmployeeHrmisDashboard({ data }: { data: EmployeeHrSelfServiceDa
  {data.staff_records.map((staff) => (
  <div key={staff.staff_id} className="rounded-xl border bg-white px-4 py-3 text-sm shadow-sm">
  <div className="flex flex-wrap items-center justify-between gap-2">
+ <div>
+ <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t.legalEmployer}</p>
  <p className="font-semibold">{staff.legal_entity_name ?? staff.legal_entity_code ?? t.company}</p>
+ </div>
  <Badge variant={staff.worker_type === 'LOCAL' ? 'default' : 'outline'}>
  {staff.worker_type === 'LOCAL' ? 'Local' : staff.worker_type ?? 'Staff'}
  </Badge>
@@ -921,7 +986,7 @@ export function EmployeeHrmisDashboard({ data }: { data: EmployeeHrSelfServiceDa
  <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
  <span className="inline-flex items-center gap-1.5">
  <Building2 className="h-3.5 w-3.5" />
- {staff.region_name ?? staff.legal_entity_scope ?? 'Operasi'}
+ {staff.region_name ?? staff.legal_entity_scope ?? t.operationScope}
  </span>
  <span className="inline-flex items-center gap-1.5">
  <WalletCards className="h-3.5 w-3.5" />
@@ -1081,6 +1146,17 @@ export function EmployeeHrmisDashboard({ data }: { data: EmployeeHrSelfServiceDa
  ? 'HR will hold this leave as pending first. It becomes official only after HR approval.'
  : 'HR akan tahan cuti ini sebagai permohonan dahulu. Ia menjadi rasmi hanya selepas HR meluluskan.'}
  </p>
+ {startDate && (
+ <p className={cn(
+ 'mt-2 rounded-lg border px-3 py-2 text-xs font-medium',
+ leaveBalanceWarning
+ ? 'border-red-200 bg-red-50 text-red-800'
+ : 'border-emerald-200 bg-white/70 text-emerald-900',
+ )}>
+ {lang === 'en'
+ ? `Requested: ${requestedLeaveDays} day(s). Remaining: ${leaveRemaining.toFixed(1)} day(s).`
+ : `Dimohon: ${requestedLeaveDays} hari. Baki: ${leaveRemaining.toFixed(1)} hari.`}
+ </p>)}
  </div>
  )}
 
@@ -1106,7 +1182,15 @@ export function EmployeeHrmisDashboard({ data }: { data: EmployeeHrSelfServiceDa
  </SectionCard>
 
  <SectionCard title={t.requestHistory}>
- <RequestList requests={requests} emptyText={t.noRequests} lang={lang} />
+ <RequestList
+ requests={requests}
+ emptyText={t.noRequests}
+ lang={lang}
+ onCancel={handleCancelRequest}
+ cancelingId={cancelingId}
+ cancelLabel={t.cancelRequest}
+ cancelingLabel={t.canceling}
+ />
  </SectionCard>
  </div>
  </TabsContent>
@@ -1144,10 +1228,14 @@ export function EmployeeHrmisDashboard({ data }: { data: EmployeeHrSelfServiceDa
  <div key={staff.staff_id} className="rounded-lg border bg-white p-4 text-sm">
  <div className="flex flex-wrap items-start justify-between gap-2">
  <div>
+ <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t.legalEmployer}</p>
  <p className="font-semibold text-stone-950">{staff.legal_entity_name ?? staff.legal_entity_code ?? '-'}</p>
  <p className="text-xs text-muted-foreground">{staff.legal_entity_scope ?? staff.staff_code}</p>
  </div>
+ <div className="flex flex-wrap justify-end gap-2">
+ {staff.legal_entity_code && <Badge variant="outline">{staff.legal_entity_code}</Badge>}
  <Badge variant={staff.status === 'ACTIVE' ? 'default' : 'secondary'}>{staff.status}</Badge>
+ </div>
  </div>
  <div className="mt-3 grid gap-2 sm:grid-cols-2">
  <InfoRow label={t.branch} value={staff.branch_code ? `${staff.branch_code} ${staff.branch_name ?? ''}` : 'HQ / Syarikat'} compact />
@@ -1205,10 +1293,18 @@ function RequestList({
  requests,
  emptyText,
  lang,
+ onCancel,
+ cancelingId,
+ cancelLabel,
+ cancelingLabel,
 }: {
  requests: EmployeeHrServiceRequest[];
  emptyText: string;
  lang: 'ms' | 'en';
+ onCancel?: (requestId: string) => void;
+ cancelingId?: string | null;
+ cancelLabel?: string;
+ cancelingLabel?: string;
 }) {
  if (requests.length === 0) {
  return <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">{emptyText}</p>;
@@ -1262,6 +1358,19 @@ function RequestList({
  <p className="mt-2 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
  {request.reviewer_note}
  </p>)}
+ {onCancel && ['SUBMITTED', 'IN_REVIEW'].includes(request.status) && (
+ <div className="mt-3 flex justify-end">
+ <button
+ type="button"
+ className="rounded-md border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+ onClick={() => onCancel(request.id)}
+ disabled={cancelingId === request.id}
+ >
+ {cancelingId === request.id
+ ? cancelingLabel ?? (lang === 'en' ? 'Cancelling...' : 'Membatalkan...')
+ : cancelLabel ?? (lang === 'en' ? 'Cancel' : 'Batalkan')}
+ </button>
+ </div>)}
  </div>))}
  </div>
  );

@@ -175,7 +175,9 @@ Kilang ke HQ Distributor ke Fleet Delivery ke Kiosk ke POS Jualan
 ### 3.3 Ujian peranan
 
 - [ ] **SUPER_ADMIN** - semua modul
-- [ ] **AREA_MANAGER** - cawangan kawasan sahaja; inventori **1 dropdown** sahaja (tiada ALL/UUID) - rujuk `docs/UAT_AM.md`
+- [ ] **HR/Admin HQ** - HRMIS tiga syarikat: RKJ, RKJ_DIST dan RKJ_MFG tidak bercampur - rujuk `docs/UAT_HRMIS_3_COMPANY.md`
+- [ ] **OM** - order/driver route ikut production kilang dan PIC sementara bila AM cuti
+- [ ] **AREA_MANAGER** - cawangan kawasan sahaja; inventori **1 dropdown** sahaja (tiada ALL/UUID); POS hanya untuk emergency selepas AM ada jadual syif diluluskan - rujuk `docs/UAT_AM.md`
 - [ ] **STAFF** - POS + inventory kiosk sendiri
 - [ ] **DRIVER** - fleet / delivery sendiri
 - [ ] **FINANCE** - kutipan & laporan (jika aktif)
@@ -214,6 +216,7 @@ Jika perlu rollback ke ujian terhad: [`PILOT_14_UTARA.md`](./PILOT_14_UTARA.md)
 | [DEPLOYMENT.md](./DEPLOYMENT.md) | Vercel + Supabase detail |
 | [ADMIN_SETUP_GUIDE.md](../ADMIN_SETUP_GUIDE.md) | Data HQ admin |
 | [DATABASE_SCHEMA.md](./DATABASE_SCHEMA.md) | Schema penuh |
+| [UAT_HRMIS_3_COMPANY.md](./UAT_HRMIS_3_COMPANY.md) | UAT HRMIS mengikut tiga syarikat legal |
 | `docs/sql/00019_00030_manual_bundle.sql` | SQL paste manual |
 
 ---

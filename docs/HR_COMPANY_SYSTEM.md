@@ -62,6 +62,22 @@ Setiap pekerja perlu mempunyai rekod berikut:
 5. Jika staf berpindah syarikat, HR kemaskini legal entity dalam rekod staff.
 6. Payroll dan operasi menggunakan rekod staff yang sama untuk elak data berpecah.
 
+## HRMIS 3 Syarikat
+
+RKJ One beroperasi sebagai satu sistem kumpulan, tetapi modul HRMIS perlu membezakan tiga perkara:
+
+- **Majikan legal**: syarikat rasmi pekerja untuk HR, payroll, dokumen dan cuti.
+- **Lokasi operasi**: cawangan, HQ Distributor, kilang, kawasan atau route kerja harian.
+- **Akses sistem**: menu dan tindakan yang dibenarkan mengikut role serta scope syarikat.
+
+Contoh penting:
+
+- AM berada bawah **RKJ Distributor Sdn Bhd**, tetapi mengurus operasi cawangan **Roti Kaya Junus**.
+- Staf jualan kiosk berada bawah **Roti Kaya Junus**.
+- Driver, HQ Distributor, maintenance dan ejen berada bawah **RKJ Distributor Sdn Bhd**.
+- Staf kilang berada bawah **Roti Kaya Junus Manufacturing Sdn Bhd**.
+- Pemilik kumpulan boleh mempunyai rekod merentas tiga syarikat, tetapi perlu dipaparkan sebagai profil gabungan dan bukan dicampur dengan staf biasa.
+
 ## Checklist Go-Live HR
 
 - Semua syarikat legal aktif.

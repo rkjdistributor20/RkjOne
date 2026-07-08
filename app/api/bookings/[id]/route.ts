@@ -3,11 +3,23 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getCurrentProfile } from '@/lib/auth/session';
 import { resolveScopedBranches } from '@/lib/auth/branch-scope';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
+import {
+ BOOKING_PRIORITY_VALUES,
+ BOOKING_STATUS_VALUES,
+ bookingValidationResponse,
+ cleanString,
+ isTerminalBookingStatus,
+ parseDateValue,
+ parseEnumValue,
+ parseExpectedPax,
+ parseMetadata,
+ parseTimeValue,
+ validateBookingStatusTransition,
+ type BookingStatusValue,
+} from '@/lib/bookings/validation';
 
 type Context = { params: Promise<{ id: string }> };
 
-const BOOKING_STATUS = new Set(['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED', 'NO_SHOW']);
-const BOOKING_PRIORITY = new Set(['LOW', 'NORMAL', 'HIGH', 'URGENT']);
 const MANAGER_ROLES = new Set([
  'SUPER_ADMIN',
  'ADMIN',
@@ -28,24 +40,6 @@ const BOOKING_SELECT = `
  creator:profiles!bookings_created_by_fkey(full_name, role),
  assignee:profiles!bookings_assigned_to_fkey(full_name, role)
 `;
-
-function cleanString(value: unknown, max = 255) {
- if (typeof value !== 'string') return null;
- const text = value.trim();
- if (!text) return null;
- return text.slice(0, max);
-}
-
-function normalizeEnum(value: unknown, allowed: Set<string>) {
- if (typeof value !== 'string') return null;
- const normalized = value.trim().toUpperCase();
- return allowed.has(normalized) ? normalized : null;
-}
-
-function asMetadata(value: unknown) {
- if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
- return value as Record<string, unknown>;
-}
 
 function canManageBooking(role: string) {
  return MANAGER_ROLES.has(role);
@@ -107,7 +101,7 @@ export async function PATCH(request: Request, context: Context) {
 
  const { data: existing, error: loadError } = await (supabase as SupabaseClient)
   .from('bookings' as never)
-  .select('id, organization_id, branch_id, created_by, status')
+  .select('id, organization_id, branch_id, created_by, status, confirmed_at, cancelled_at, completed_at')
   .eq('id', id)
   .eq('organization_id', profile.organization_id)
   .maybeSingle();
@@ -119,11 +113,18 @@ export async function PATCH(request: Request, context: Context) {
   branch_id: string | null;
   created_by: string | null;
   status: string;
+  confirmed_at: string | null;
+  cancelled_at: string | null;
+  completed_at: string | null;
  };
  const manager = canManageBooking(profile.role);
  const creatorCanEdit = existingRow.created_by === profile.id && ['PENDING', 'CONFIRMED'].includes(existingRow.status);
  if (!manager && !creatorCanEdit) {
   return NextResponse.json({ error: 'Tiada akses kemaskini booking' }, { status: 403 });
+ }
+
+ if (isTerminalBookingStatus(existingRow.status)) {
+  return NextResponse.json({ error: 'Booking terminal tidak boleh dikemaskini' }, { status: 403 });
  }
 
  const nextBranchId = body.branch_id === undefined ? existingRow.branch_id : cleanString(body.branch_id);
@@ -135,9 +136,22 @@ export async function PATCH(request: Request, context: Context) {
  }
 
  const update: Record<string, unknown> = {};
- const status = normalizeEnum(body.status, BOOKING_STATUS);
- const priority = normalizeEnum(body.priority, BOOKING_PRIORITY);
- const metadata = asMetadata(body.metadata);
+ let status: BookingStatusValue | null = null;
+ let priority: string | null = null;
+ let metadata: Record<string, unknown> | null = null;
+ try {
+  status = body.status === undefined
+   ? null
+   : parseEnumValue('status', body.status, BOOKING_STATUS_VALUES);
+  priority = body.priority === undefined
+   ? null
+   : parseEnumValue('priority', body.priority, BOOKING_PRIORITY_VALUES);
+  metadata = parseMetadata(body.metadata, null);
+ } catch (error) {
+  const validation = bookingValidationResponse(error);
+  if (validation) return NextResponse.json(validation.body, { status: validation.status });
+  return NextResponse.json({ error: 'Input booking tidak sah' }, { status: 400 });
+ }
 
  if (body.branch_id !== undefined) update.branch_id = nextBranchId ?? scope.branchId;
  if (body.assigned_to !== undefined) {
@@ -154,22 +168,37 @@ export async function PATCH(request: Request, context: Context) {
  if (body.customer_name !== undefined) update.customer_name = cleanString(body.customer_name);
  if (body.customer_phone !== undefined) update.customer_phone = cleanString(body.customer_phone, 60);
  if (body.customer_email !== undefined) update.customer_email = cleanString(body.customer_email);
- if (body.scheduled_date !== undefined) update.scheduled_date = cleanString(body.scheduled_date, 20);
- if (body.scheduled_time !== undefined) update.scheduled_time = cleanString(body.scheduled_time, 20);
- if (body.expected_pax !== undefined) {
-  const expectedPax = Number(body.expected_pax);
-  update.expected_pax = Number.isFinite(expectedPax) && expectedPax >= 0 ? Math.trunc(expectedPax) : null;
+ try {
+  if (body.scheduled_date !== undefined) update.scheduled_date = parseDateValue('Tarikh booking', body.scheduled_date);
+  if (body.scheduled_time !== undefined) update.scheduled_time = parseTimeValue('Masa booking', body.scheduled_time);
+  if (body.expected_pax !== undefined) update.expected_pax = parseExpectedPax(body.expected_pax);
+ } catch (error) {
+  const validation = bookingValidationResponse(error);
+  if (validation) return NextResponse.json(validation.body, { status: validation.status });
+  return NextResponse.json({ error: 'Input booking tidak sah' }, { status: 400 });
  }
  if (body.notes !== undefined) update.notes = cleanString(body.notes, 2000);
- if (metadata) update.metadata = metadata;
+ if (metadata != null) update.metadata = metadata;
 
  if (update.title === null) return NextResponse.json({ error: 'Tajuk booking tidak boleh kosong' }, { status: 400 });
- if (update.scheduled_date === null) return NextResponse.json({ error: 'Tarikh booking tidak boleh kosong' }, { status: 400 });
 
  const now = new Date().toISOString();
- if (status === 'CONFIRMED') update.confirmed_at = now;
- if (status === 'CANCELLED') update.cancelled_at = now;
- if (status === 'COMPLETED') update.completed_at = now;
+ if (status && status !== existingRow.status) {
+  if (!manager) {
+   return NextResponse.json({ error: 'Hanya role pengurusan boleh menukar status booking' }, { status: 403 });
+  }
+  try {
+   validateBookingStatusTransition(existingRow.status, status);
+  } catch (error) {
+   const validation = bookingValidationResponse(error);
+   if (validation) return NextResponse.json(validation.body, { status: validation.status });
+   return NextResponse.json({ error: 'Status booking tidak sah' }, { status: 400 });
+  }
+  update.status = status;
+  if (status === 'CONFIRMED' && !existingRow.confirmed_at) update.confirmed_at = now;
+  if (status === 'CANCELLED' && !existingRow.cancelled_at) update.cancelled_at = now;
+  if ((status === 'COMPLETED' || status === 'NO_SHOW') && !existingRow.completed_at) update.completed_at = now;
+ }
 
  if (Object.keys(update).length === 0) {
   return NextResponse.json({ error: 'Tiada perubahan untuk disimpan' }, { status: 400 });

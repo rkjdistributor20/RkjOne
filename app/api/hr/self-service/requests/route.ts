@@ -8,9 +8,11 @@ import {
  type CreateEmployeeHrServiceRequestPayload,
 } from '@/lib/hr/employee-self-service';
 import {
+ DEFAULT_LEAVE_ENTITLEMENT,
  calculateLeaveDays,
  leaveYearFromDates,
  normalizeLeaveType,
+ remainingLeaveDays,
  registerLeaveRequestPending,
 } from '@/lib/hr/leave-balances';
 import type {
@@ -101,6 +103,53 @@ function serializeRequest(row: HrServiceRequest) {
  };
 }
 
+async function assertLeaveRequestIsAvailable(
+ service: Awaited<ReturnType<typeof createServiceClient>>,
+ params: {
+ organizationId: string;
+ staffId: string | null;
+ leaveType: HrLeaveType;
+ startDate: string | null | undefined;
+ endDate: string | null | undefined;
+ },
+) {
+ if (!params.staffId) {
+ throw new Error('Rekod staf aktif diperlukan sebelum staf boleh mohon cuti.');
+ }
+
+ const leaveDays = calculateLeaveDays(params.startDate ?? null, params.endDate ?? null);
+ if (params.leaveType === 'UNPAID') return { leaveDays };
+
+ const leaveYear = leaveYearFromDates(params.startDate ?? null, params.endDate ?? null);
+ const { data, error } = await service
+ .from('hr_leave_balances')
+ .select('entitlement_days, carried_forward_days, adjustment_days, used_days, pending_days')
+ .eq('organization_id', params.organizationId)
+ .eq('staff_id', params.staffId)
+ .eq('leave_year', leaveYear)
+ .eq('leave_type', params.leaveType)
+ .maybeSingle();
+
+ if (error) throw error;
+
+ const balance = data ?? {
+ entitlement_days: DEFAULT_LEAVE_ENTITLEMENT[params.leaveType],
+ carried_forward_days: 0,
+ adjustment_days: 0,
+ used_days: 0,
+ pending_days: 0,
+ };
+ const remaining = remainingLeaveDays(balance);
+
+ if (leaveDays > remaining) {
+ throw new Error(
+ `Baki cuti tidak mencukupi. Permohonan ${leaveDays} hari, baki semasa ${remaining.toFixed(1)} hari.`,
+ );
+ }
+
+ return { leaveDays };
+}
+
 export async function GET() {
  try {
  const profile = await getCurrentProfile();
@@ -155,6 +204,16 @@ export async function POST(request: Request) {
  },
  { status: 403 },
  );
+ }
+
+ if (payload.request_type === 'LEAVE') {
+ await assertLeaveRequestIsAvailable(service, {
+ organizationId: profile.organization_id,
+ staffId: primaryStaff?.id ?? null,
+ leaveType: payload.leave_type ?? 'ANNUAL',
+ startDate: payload.start_date ?? null,
+ endDate: payload.end_date ?? null,
+ });
  }
 
  const insert = {

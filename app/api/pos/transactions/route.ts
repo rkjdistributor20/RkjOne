@@ -5,6 +5,7 @@ import { callRpc } from '@/lib/supabase/rpc';
 import { inventoryRpc } from '@/lib/supabase/inventory-rpc';
 import { getCurrentProfile } from '@/lib/auth/session';
 import {
+ assertAreaManagerScheduledForPos,
  assertCanAccessPosBranch,
  canViewFullPosHistory,
  posAccessErrorStatus,
@@ -72,6 +73,7 @@ export async function POST(request: Request) {
  const supabase = await createClient();
  try {
  await assertCanAccessPosBranch(supabase, profile, body.branchId);
+ await assertAreaManagerScheduledForPos(supabase, profile, body.branchId);
  } catch (err) {
  return NextResponse.json(
  { error: err instanceof Error ? err.message : 'Akses cawangan ditolak' },
