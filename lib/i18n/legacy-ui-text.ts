@@ -23,7 +23,10 @@ const enText: Record<string, string> = {
   Laporan: "Reports",
   Syif: "Shifts",
   Dokumen: "Documents",
+  Acara: "Event",
+  Butiran: "Details",
   Kategori: "Category",
+  Keutamaan: "Priority",
   Tempoh: "Period",
   Nota: "Notes",
   Jumlah: "Total",
@@ -33,6 +36,8 @@ const enText: Record<string, string> = {
   Menunggu: "Waiting",
   Aktif: "Active",
   aktif: "active",
+  Terbuka: "Open",
+  terbuka: "open",
   "Tidak Aktif": "Inactive",
   Selesai: "Completed",
   Dirancang: "Planned",
@@ -53,6 +58,47 @@ const enText: Record<string, string> = {
   "Menunggu terima": "Waiting to receive",
   "Pickup Ejen": "Agent pickup",
   "Paparan sahaja": "View only",
+  "Jadual Operasi": "Operations Schedule",
+  "Jadual operasi": "operations schedule",
+  "Jadual Baharu": "New Schedule",
+  "Jadual baharu": "New schedule",
+  "Jadual operasi baharu": "New operations schedule",
+  "Jadual Terbuka": "Open Schedules",
+  "Buka Jadual": "Open Schedule",
+  "Senarai jadual operasi": "Operations schedule list",
+  "Maklumat jadual operasi": "Operations schedule details",
+  "Tindakan status": "Status actions",
+  "Tiada jadual ditemui": "No schedules found",
+  "Jadual operasi tidak dijumpai": "Operations schedule not found",
+  "Cipta jadual": "Create schedule",
+  "Cipta jadual operasi baharu atau ubah tapisan untuk melihat rekod lain.":
+    "Create a new operations schedule or change the filter to view other records.",
+  "Cipta, jejak, kemaskini dan susul tindakan operasi dari satu aliran kerja yang boleh diaudit.":
+    "Create, track, update and follow up operational actions from one auditable workflow.",
+  "Daftar rekod jadual operasi supaya status, tarikh dan tindakan boleh dijejak.":
+    "Register an operations schedule record so status, date and actions can be tracked.",
+  "Contoh: Tempahan acara pelanggan / susulan penghantaran":
+    "Example: Customer event booking / delivery follow-up",
+  "Rekod jadual operasi terlihat": "Visible operations schedule records",
+  "Keutamaan segera": "Urgent priority",
+  "Rekod selesai": "Completed records",
+  "Tapis ikut status, cawangan atau carian pelanggan.":
+    "Filter by status, branch or customer search.",
+  "Cari tajuk, nombor jadual, pelanggan atau cawangan":
+    "Search title, schedule number, customer or branch",
+  "Keadaan jadual terkini": "Current schedule status",
+  "Kemaskini rekod sebelum jadual ditutup.":
+    "Update the record before the schedule is closed.",
+  "Rekod terminal tidak boleh diedit dari aliran ini.":
+    "Terminal records cannot be edited from this flow.",
+  "Batal digunakan sebagai arkib yang selamat untuk audit.":
+    "Cancel is used as an audit-safe archive.",
+  "Jadual segera": "Urgent schedules",
+  "Status jadual operasi": "Operations schedule status",
+  "Urus Transaksi / Jadual Operasi / Order":
+    "Manage Transactions / Operations Schedules / Orders",
+  "Senarai tindakan operasi yang perlu dipantau oleh admin.":
+    "Operational action queue that admins need to monitor.",
   "Tiada rekod": "No records",
   "Tiada sejarah": "No history",
   "Sebab (pilihan)": "Reason (optional)",

@@ -69,10 +69,10 @@ const STATUS_LABEL: Record<BookingStatus, string> = {
 const TYPE_LABEL: Record<BookingType, string> = {
  GENERAL: 'Umum',
  CUSTOMER: 'Pelanggan',
- EVENT: 'Event',
- MAINTENANCE: 'Maintenance',
+ EVENT: 'Acara',
+ MAINTENANCE: 'Penyelenggaraan',
  SALES_AGENT: 'Ejen',
- DELIVERY: 'Delivery',
+ DELIVERY: 'Penghantaran',
  OTHER: 'Lain-lain',
 };
 
@@ -203,7 +203,7 @@ export function BookingDetailPage({ bookingId }: { bookingId: string }) {
  setForm(formFromBooking(bookingData.booking));
  setBranches(branchData.branches);
  } catch (error) {
- toast.error(error instanceof Error ? error.message : 'Gagal memuatkan booking');
+ toast.error(error instanceof Error ? error.message : 'Gagal memuatkan jadual operasi');
  } finally {
  setLoading(false);
  }
@@ -226,11 +226,11 @@ export function BookingDetailPage({ bookingId }: { bookingId: string }) {
  if (!booking || !form) return;
  const payload = payloadFromForm(form);
  if (!payload.title) {
- toast.error('Tajuk booking wajib diisi');
+ toast.error('Tajuk jadual operasi wajib diisi');
  return;
  }
  if (!payload.scheduled_date) {
- toast.error('Tarikh booking wajib diisi');
+ toast.error('Tarikh jadual operasi wajib diisi');
  return;
  }
 
@@ -239,9 +239,9 @@ export function BookingDetailPage({ bookingId }: { bookingId: string }) {
  const { booking: next } = await updateBooking(booking.id, payload);
  setBooking(next);
  setForm(formFromBooking(next));
- toast.success('Booking dikemaskini');
+ toast.success('Jadual operasi dikemaskini');
  } catch (error) {
- toast.error(error instanceof Error ? error.message : 'Gagal simpan booking');
+ toast.error(error instanceof Error ? error.message : 'Gagal simpan jadual operasi');
  } finally {
  setSaving(false);
  }
@@ -254,7 +254,7 @@ export function BookingDetailPage({ bookingId }: { bookingId: string }) {
  const { booking: next } = await updateBooking(booking.id, { status });
  setBooking(next);
  setForm(formFromBooking(next));
- toast.success(`Status booking: ${STATUS_LABEL[status]}`);
+ toast.success(`Status jadual: ${STATUS_LABEL[status]}`);
  } catch (error) {
  toast.error(error instanceof Error ? error.message : 'Gagal kemas kini status');
  } finally {
@@ -274,7 +274,7 @@ export function BookingDetailPage({ bookingId }: { bookingId: string }) {
  <ModuleLayout>
  <EmptyState
  icon={CalendarCheck2}
- title="Booking tidak dijumpai"
+ title="Jadual operasi tidak dijumpai"
  description="Rekod mungkin tiada, sudah tidak terlihat oleh skop anda, atau sesi telah tamat."
  action={
  <Button render={<Link href="/bookings" />}>
@@ -299,7 +299,7 @@ export function BookingDetailPage({ bookingId }: { bookingId: string }) {
  </Button>
  <Button variant="outline" onClick={loadData} disabled={loading || saving}>
  <RefreshCw className="mr-2 h-4 w-4" />
- Refresh
+ Segar Semula
  </Button>
  </>
  }
@@ -314,7 +314,7 @@ export function BookingDetailPage({ bookingId }: { bookingId: string }) {
  />
 
  <KpiGrid cols={4}>
- <KpiCard title="Status" value={STATUS_LABEL[booking.status]} description="Keadaan booking terkini" icon={ClipboardPenLine} />
+ <KpiCard title="Status" value={STATUS_LABEL[booking.status]} description="Keadaan jadual terkini" icon={ClipboardPenLine} />
  <KpiCard title="Tarikh" value={formatDate(booking.scheduled_date)} description={booking.scheduled_time?.slice(0, 5) ?? 'Masa belum ditetapkan'} icon={CalendarCheck2} />
  <KpiCard title="Pelanggan" value={booking.customer_name ?? '-'} description={booking.customer_phone ?? 'Telefon belum diisi'} icon={UserRound} />
  <KpiCard title="Notifikasi" value={booking.priority === 'URGENT' ? 'Segera' : 'Normal'} description="Status berubah akan dipaparkan melalui toast" icon={BellRing} variant={booking.priority === 'URGENT' ? 'danger' : 'default'} />
@@ -322,8 +322,8 @@ export function BookingDetailPage({ bookingId }: { bookingId: string }) {
 
  <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
  <SectionCard
- title="Maklumat booking"
- description={canEdit ? 'Kemaskini rekod sebelum booking ditutup.' : 'Booking terminal tidak boleh diedit dari flow ini.'}
+ title="Maklumat jadual operasi"
+ description={canEdit ? 'Kemaskini rekod sebelum jadual ditutup.' : 'Rekod terminal tidak boleh diedit dari aliran ini.'}
  action={
  canEdit ? (
  <PrimaryActionButton onClick={saveEdit} disabled={saving}>
@@ -331,7 +331,7 @@ export function BookingDetailPage({ bookingId }: { bookingId: string }) {
  {saving ? 'Menyimpan...' : 'Simpan'}
  </PrimaryActionButton>
  ) : (
- <Badge variant="secondary">Read only</Badge>
+ <Badge variant="secondary">Paparan sahaja</Badge>
  )
  }
  >
@@ -394,7 +394,7 @@ export function BookingDetailPage({ bookingId }: { bookingId: string }) {
  />
  </div>
  <div className="space-y-1.5">
- <Label>Priority</Label>
+ <Label>Keutamaan</Label>
  <Select
  value={form.priority}
  onValueChange={(value) => setForm((prev) => prev ? { ...prev, priority: value as BookingPriority } : prev)}
@@ -464,7 +464,7 @@ export function BookingDetailPage({ bookingId }: { bookingId: string }) {
  </SectionCard>
 
  <div className="space-y-4">
- <SectionCard title="Status action" description="Cancel digunakan sebagai delete/archive audit-safe.">
+ <SectionCard title="Tindakan status" description="Batal digunakan sebagai arkib yang selamat untuk audit.">
  <div className="grid gap-2">
  <Button
  variant="outline"
@@ -472,7 +472,7 @@ export function BookingDetailPage({ bookingId }: { bookingId: string }) {
  disabled={saving || booking.status !== 'PENDING'}
  >
  <CheckCircle2 className="mr-2 h-4 w-4" />
- Confirm
+ Sahkan
  </Button>
  <Button
  variant="outline"
@@ -480,7 +480,7 @@ export function BookingDetailPage({ bookingId }: { bookingId: string }) {
  disabled={saving || !['PENDING', 'CONFIRMED'].includes(booking.status)}
  >
  <CheckCircle2 className="mr-2 h-4 w-4" />
- Complete
+ Selesai
  </Button>
  <Button
  variant="outline"
@@ -488,7 +488,7 @@ export function BookingDetailPage({ bookingId }: { bookingId: string }) {
  disabled={saving || !['PENDING', 'CONFIRMED'].includes(booking.status)}
  >
  <XCircle className="mr-2 h-4 w-4" />
- No show
+ Tidak hadir
  </Button>
  <Button
  variant="destructive"
@@ -496,7 +496,7 @@ export function BookingDetailPage({ bookingId }: { bookingId: string }) {
  disabled={saving || isTerminal(booking.status)}
  >
  <XCircle className="mr-2 h-4 w-4" />
- Cancel
+ Batal
  </Button>
  </div>
  <p className="mt-3 text-xs text-muted-foreground">

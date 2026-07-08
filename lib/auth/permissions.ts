@@ -93,7 +93,7 @@ export const NAV_ITEMS: Array<{
  { href: '/hr', label: 'HR & Gaji', module: 'hr', icon: 'Users', group: 'governance' },
  { href: '/payroll', label: 'Gaji', module: 'payroll', icon: 'Wallet', group: 'governance' },
  { href: '/finance', label: 'Kewangan', module: 'finance', icon: 'Banknote', group: 'governance' },
- { href: '/bookings', label: 'Bookings', module: 'reports', icon: 'CalendarDays', group: 'governance' },
+ { href: '/bookings', label: 'Jadual Operasi', module: 'reports', icon: 'CalendarDays', group: 'governance' },
  { href: '/reports', label: 'Laporan', module: 'reports', icon: 'BarChart3', group: 'governance' },
  { href: '/approvals', label: 'Kelulusan', module: 'approval', icon: 'CheckSquare', group: 'governance' },
  { href: '/settings', label: 'Tetapan', module: 'user_management', icon: 'Settings', group: 'governance' },

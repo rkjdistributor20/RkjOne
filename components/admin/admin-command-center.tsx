@@ -33,7 +33,7 @@ const BOOKING_STATUS_LABELS: Record<string, string> = {
  CONFIRMED: 'Disahkan',
  CANCELLED: 'Dibatalkan',
  COMPLETED: 'Selesai',
- NO_SHOW: 'No show',
+ NO_SHOW: 'Tidak hadir',
 };
 
 const ORDER_STATUS_LABELS: Record<string, string> = {
@@ -165,7 +165,7 @@ export function AdminCommandCenter({
  <ModuleLayout>
  <ModuleHeader
  title="Admin Dashboard"
- description={`Pusat kawalan pentadbir untuk ${adminName}: pengguna, transaksi, booking, order dan laporan asas.`}
+ description={`Pusat kawalan pentadbir untuk ${adminName}: pengguna, transaksi, jadual operasi, order dan laporan asas.`}
  icon={ShieldCheck}
  actions={
  <>
@@ -193,7 +193,7 @@ export function AdminCommandCenter({
 
  <KpiGrid cols={5}>
  <KpiCard title="User Aktif" value={formatCount(overview.users.activeProfiles)} icon={Users} />
- <KpiCard title="Booking Terbuka" value={formatCount(overview.bookings.open)} icon={CalendarDays} />
+ <KpiCard title="Jadual Terbuka" value={formatCount(overview.bookings.open)} icon={CalendarDays} />
  <KpiCard title="Order Ejen Aktif" value={formatCount(overview.orders.open)} icon={ClipboardList} />
  <KpiCard title="Jualan Hari Ini" value={formatRM(overview.transactions.todaySales)} icon={ShoppingCart} variant="success" />
  <KpiCard title="Tunai Tertunggak" value={formatRM(overview.governance.outstandingCash)} icon={Wallet} variant={overview.governance.outstandingCash > 0 ? 'warning' : 'default'} />
@@ -236,9 +236,9 @@ export function AdminCommandCenter({
  </SectionCard>
 
  <SectionCard
- title="Manage Transactions / Bookings / Orders"
- description="Queue operasi yang perlu dipantau oleh admin."
- action={<ActionLink href="/bookings" variant="outline">Buka Booking</ActionLink>}
+ title="Urus Transaksi / Jadual Operasi / Order"
+ description="Senarai tindakan operasi yang perlu dipantau oleh admin."
+ action={<ActionLink href="/bookings" variant="outline">Buka Jadual</ActionLink>}
  >
  <div className="grid gap-3 lg:grid-cols-3">
  <WorkstreamRow
@@ -251,9 +251,9 @@ export function AdminCommandCenter({
  />
  <WorkstreamRow
  icon={CalendarDays}
- title="Bookings"
+ title="Jadual Operasi"
  description={`${formatCount(overview.bookings.dueToday)} dijadual hari ini`}
- metric={`${formatCount(overview.bookings.open)} open`}
+ metric={`${formatCount(overview.bookings.open)} terbuka`}
  href="/bookings"
  tone={overview.bookings.urgent > 0 ? 'danger' : 'warning'}
  />
@@ -268,7 +268,7 @@ export function AdminCommandCenter({
  </div>
  <div className="mt-4 grid gap-4 lg:grid-cols-2">
  <div>
- <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status booking</p>
+ <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status jadual operasi</p>
  <BreakdownPills rows={overview.bookings.byStatus} labels={BOOKING_STATUS_LABELS} />
  </div>
  <div>
@@ -323,7 +323,7 @@ export function AdminCommandCenter({
  </Badge>
  </div>
  <div className="flex items-center justify-between gap-3 rounded-lg border bg-white px-3 py-2">
- <span>Booking urgent</span>
+ <span>Jadual segera</span>
  <Badge variant={overview.bookings.urgent > 0 ? 'destructive' : 'outline'}>
  {formatCount(overview.bookings.urgent)}
  </Badge>

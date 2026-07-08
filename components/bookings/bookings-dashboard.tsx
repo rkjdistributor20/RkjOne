@@ -72,10 +72,10 @@ const STATUS_LABEL: Record<string, string> = {
 const TYPE_LABEL: Record<BookingType, string> = {
  GENERAL: 'Umum',
  CUSTOMER: 'Pelanggan',
- EVENT: 'Event',
- MAINTENANCE: 'Maintenance',
+ EVENT: 'Acara',
+ MAINTENANCE: 'Penyelenggaraan',
  SALES_AGENT: 'Ejen',
- DELIVERY: 'Delivery',
+ DELIVERY: 'Penghantaran',
  OTHER: 'Lain-lain',
 };
 
@@ -212,11 +212,11 @@ function CreateBookingDialog({
  async function handleSubmit() {
  const payload = payloadFromForm(form);
  if (!payload.title) {
- toast.error('Tajuk booking wajib diisi');
+ toast.error('Tajuk jadual operasi wajib diisi');
  return;
  }
  if (!payload.scheduled_date) {
- toast.error('Tarikh booking wajib diisi');
+ toast.error('Tarikh jadual operasi wajib diisi');
  return;
  }
  await onSubmit(payload);
@@ -226,9 +226,9 @@ function CreateBookingDialog({
  <Dialog open={open} onOpenChange={onOpenChange}>
  <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
  <DialogHeader>
- <DialogTitle>Booking baharu</DialogTitle>
+ <DialogTitle>Jadual operasi baharu</DialogTitle>
  <DialogDescription>
- Daftar rekod booking operasi supaya status, tarikh dan tindakan boleh dijejak.
+ Daftar rekod jadual operasi supaya status, tarikh dan tindakan boleh dijejak.
  </DialogDescription>
  </DialogHeader>
 
@@ -238,7 +238,7 @@ function CreateBookingDialog({
  <Input
  value={form.title}
  onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
- placeholder="Contoh: Tempahan event pelanggan / susulan delivery"
+ placeholder="Contoh: Tempahan acara pelanggan / susulan penghantaran"
  />
  </div>
  <div className="space-y-1.5">
@@ -289,7 +289,7 @@ function CreateBookingDialog({
  />
  </div>
  <div className="space-y-1.5">
- <Label>Priority</Label>
+ <Label>Keutamaan</Label>
  <Select
  value={form.priority}
  onValueChange={(value) => setForm((prev) => ({ ...prev, priority: value as BookingPriority }))}
@@ -355,7 +355,7 @@ function CreateBookingDialog({
  Batal
  </Button>
  <PrimaryActionButton onClick={handleSubmit} disabled={saving}>
- {saving ? 'Menyimpan...' : 'Cipta booking'}
+ {saving ? 'Menyimpan...' : 'Cipta jadual'}
  </PrimaryActionButton>
  </DialogFooter>
  </DialogContent>
@@ -386,7 +386,7 @@ export function BookingsDashboard() {
  setBookings(bookingData.bookings);
  setBranches(branchData.branches);
  } catch (error) {
- toast.error(error instanceof Error ? error.message : 'Gagal memuatkan booking');
+ toast.error(error instanceof Error ? error.message : 'Gagal memuatkan jadual operasi');
  } finally {
  setLoading(false);
  }
@@ -429,11 +429,11 @@ export function BookingsDashboard() {
  setSaving(true);
  try {
  const { booking } = await createBooking(payload);
- toast.success(`Booking ${booking.booking_number} dicipta`);
+ toast.success(`Jadual ${booking.booking_number} dicipta`);
  setCreateOpen(false);
  await loadData();
  } catch (error) {
- toast.error(error instanceof Error ? error.message : 'Gagal cipta booking');
+ toast.error(error instanceof Error ? error.message : 'Gagal cipta jadual operasi');
  } finally {
  setSaving(false);
  }
@@ -442,18 +442,18 @@ export function BookingsDashboard() {
  return (
  <ModuleLayout>
  <ModuleHeader
- title="Booking Operations"
- description="Create, track, edit dan follow up booking operasi dari satu flow yang boleh diaudit."
+ title="Jadual Operasi"
+ description="Cipta, jejak, kemaskini dan susul tindakan operasi dari satu aliran kerja yang boleh diaudit."
  icon={CalendarCheck2}
  actions={
  <>
  <Button variant="outline" onClick={loadData} disabled={loading}>
  <RefreshCw className="mr-2 h-4 w-4" />
- Refresh
+ Segar Semula
  </Button>
  <PrimaryActionButton onClick={() => setCreateOpen(true)}>
  <Plus className="mr-2 h-4 w-4" />
- Booking
+ Jadual Baharu
  </PrimaryActionButton>
  </>
  }
@@ -472,15 +472,15 @@ export function BookingsDashboard() {
  ) : (
  <>
  <KpiGrid cols={4}>
- <KpiCard title="Jumlah" value={summary.total} description="Rekod booking terlihat" icon={CalendarDays} />
- <KpiCard title="Open" value={summary.open} description="Menunggu / disahkan" icon={Clock} variant={summary.open > 0 ? 'warning' : 'success'} />
- <KpiCard title="Segera" value={summary.urgent} description="Priority urgent" icon={BellRing} variant={summary.urgent > 0 ? 'danger' : 'success'} />
- <KpiCard title="Selesai" value={bookings.filter((b) => b.status === 'COMPLETED').length} description="Booking completed" icon={CheckCircle2} variant="success" />
+ <KpiCard title="Jumlah" value={summary.total} description="Rekod jadual operasi terlihat" icon={CalendarDays} />
+ <KpiCard title="Terbuka" value={summary.open} description="Menunggu / disahkan" icon={Clock} variant={summary.open > 0 ? 'warning' : 'success'} />
+ <KpiCard title="Segera" value={summary.urgent} description="Keutamaan segera" icon={BellRing} variant={summary.urgent > 0 ? 'danger' : 'success'} />
+ <KpiCard title="Selesai" value={bookings.filter((b) => b.status === 'COMPLETED').length} description="Rekod selesai" icon={CheckCircle2} variant="success" />
  </KpiGrid>
 
  <SectionCard
- title="Senarai booking"
- description="Filter ikut status, cawangan atau carian pelanggan."
+ title="Senarai jadual operasi"
+ description="Tapis ikut status, cawangan atau carian pelanggan."
  action={
  <Badge variant="outline">
  {filteredBookings.length} rekod
@@ -493,7 +493,7 @@ export function BookingsDashboard() {
  <Input
  value={search}
  onChange={(event) => setSearch(event.target.value)}
- placeholder="Cari tajuk, nombor booking, pelanggan atau cawangan"
+ placeholder="Cari tajuk, nombor jadual, pelanggan atau cawangan"
  className="pl-9"
  />
  </div>
@@ -522,12 +522,12 @@ export function BookingsDashboard() {
  {filteredBookings.length === 0 ? (
  <EmptyState
  icon={CalendarDays}
- title="Tiada booking ditemui"
- description="Cipta booking baharu atau ubah filter untuk melihat rekod lain."
+ title="Tiada jadual ditemui"
+ description="Cipta jadual operasi baharu atau ubah tapisan untuk melihat rekod lain."
  action={
  <PrimaryActionButton onClick={() => setCreateOpen(true)}>
  <Plus className="mr-2 h-4 w-4" />
- Booking baharu
+ Jadual baharu
  </PrimaryActionButton>
  }
  />
@@ -561,7 +561,7 @@ export function BookingsDashboard() {
  ) : (
  <Button variant="outline" size="sm" render={<Link href={`/bookings/${booking.id}`} />}>
  <Eye className="mr-1.5 h-4 w-4" />
- Detail
+ Butiran
  </Button>)}
  </div>
  </RecordRow>)))}
