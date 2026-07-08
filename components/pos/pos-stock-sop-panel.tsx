@@ -63,6 +63,10 @@ import {
  getStockByCode,
  tracksProductionDate,
 } from '@/lib/stock/catalog';
+import {
+ productionAgeDays,
+ ROTI_SHELF_LIFE_DAYS,
+} from '@/lib/stock/expiry';
 
 type Line = {
  stock_item_id: string;
@@ -590,13 +594,20 @@ export function PosStockSopPanel({
  function appendStockGroup(group: StockCountGroup) {
  setCheckLines((rows) => {
  const filledRows = rows.filter((row) => row.stock_item_id);
- const existing = new Set(filledRows.map((row) => row.stock_item_id));
- const additions = group.items
- .filter((item) => !existing.has(item.id))
- .map((item) => emptyLine(item.id, item.base_unit, productionDate));
+ const additions = group.items.map((item) => emptyLine(item.id, item.base_unit, productionDate));
 
  if (!additions.length) return rows;
  return filledRows.length ? [...filledRows, ...additions] : additions;
+ });
+ }
+
+ function appendStockLine(stock?: StockItemOption | null) {
+ const item = stock ?? firstVisibleStock;
+ if (!item) return;
+ const line = emptyLine(item.id, item.base_unit, productionDate);
+ setCheckLines((rows) => {
+ const blankOnly = rows.length === 1 && !rows[0].stock_item_id && !rows[0].quantity;
+ return blankOnly ? [line] : [...rows, line];
  });
  }
 
@@ -787,6 +798,8 @@ export function PosStockSopPanel({
  unit?: string;
  item_code?: string;
  production_date?: string;
+ item_name?: string;
+ note?: string;
  }>;
  if (!items.length) {
  toast.error('Masukkan item dan kuantiti kiraan stok');
@@ -1410,6 +1423,11 @@ export function PosStockSopPanel({
  const estimateLabel = estimate
  ? formatPackedStockQuantity(estimate.estimated_quantity, selectedStock, estimate.unit)
  : null;
+ const batchAge = trackProductionDate && (line.production_date ?? productionDate)
+ ? productionAgeDays(line.production_date ?? productionDate)
+ : null;
+ const batchAgeValid = typeof batchAge === 'number' && Number.isFinite(batchAge);
+ const batchExpired = batchAgeValid && batchAge > ROTI_SHELF_LIFE_DAYS;
  return (
  <div key={`check-${index}`} className="grid gap-3 rounded-2xl border bg-white p-3 shadow-sm transition hover:border-emerald-200 xl:grid-cols-[minmax(260px,1fr)_180px_minmax(280px,1fr)_48px]">
  <Select
@@ -1526,24 +1544,41 @@ export function PosStockSopPanel({
  Staf boleh ubah ikut kiraan sebenar di kiosk.
  </p>)}
  {trackProductionDate && (
- <p className="rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-900 xl:col-span-4">
- Batch item ini disimpan ikut production date untuk semakan stok.
- </p>)}
- </div>);
- })}
- </div>
- {showSecondaryTools && (
+ <div className={cn(
+ 'flex flex-wrap items-center justify-between gap-2 rounded-xl px-3 py-2 text-xs xl:col-span-4',
+ batchExpired
+ ? 'border border-red-200 bg-red-50 text-red-900'
+ : 'bg-emerald-50 text-emerald-900')}
+ >
+ <span>
+ {batchExpired
+ ? `Batch melebihi ${ROTI_SHELF_LIFE_DAYS} hari dari production - asingkan dan buat reject stok, jangan jual.`
+ : `Batch item ini disimpan ikut production date${batchAgeValid ? ` (umur ${Math.max(0, batchAge)} hari)` : ''}.`}
+ </span>
  <Button
  type="button"
  variant="outline"
- className="w-full"
- onClick={() => setCheckLines([...checkLines, emptyLine(firstVisibleStock?.id, firstVisibleStock?.base_unit, productionDate)])}
+ size="sm"
+ className="h-8 bg-white"
+ onClick={() => appendStockLine(selectedStock)}
+ >
+ <Plus className="mr-1.5 h-3.5 w-3.5" />
+ Batch tarikh lain
+ </Button>
+ </div>)}
+ </div>);
+ })}
+ </div>
+ <Button
+ type="button"
+ variant="outline"
+ className="w-full border-dashed"
+ onClick={() => appendStockLine()}
  disabled={!firstVisibleStock}
  >
  <Plus className="mr-2 h-4 w-4" />
- Tambah item kiraan
+ Tambah item / batch production date lain
  </Button>
- )}
  <Textarea
  rows={2}
  placeholder="Nota kiraan, contoh: closing stok production 2026-06-30 disahkan oleh staf syif malam."

@@ -13,7 +13,10 @@ import {
  resolveRejectToBaseQuantity,
  toBaseQuantity,
 } from '@/lib/stock/catalog';
-import { ROTI_SHELF_LIFE_DAYS } from '@/lib/stock/expiry';
+import {
+ productionAgeDays,
+ ROTI_SHELF_LIFE_DAYS,
+} from '@/lib/stock/expiry';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -40,7 +43,7 @@ interface StockLineFormProps {
  /** Sebab praisi dari panel reject POS */
  defaultReason?: string;
  /** Prefill baris (cth. expired roti) */
- prefillLines?: Array<{ stock_item_id: string; quantity: number }>;
+ prefillLines?: Array<{ stock_item_id: string; quantity: number; production_date?: string; note?: string }>;
  /** Prefill dalam unit asas (pcs/gram) */
  prefillUseBaseUnit?: boolean;
  /** Wajib tarikh production untuk baris roti (pembuat order) */
@@ -49,6 +52,8 @@ interface StockLineFormProps {
  productionDateOptions?: string[];
  /** Tarikh production lalai untuk semua baris roti */
  defaultProductionDate?: string;
+ /** Wajib tarikh production untuk item yang perlu batch tracking (reject/count by batch) */
+ requireProductionDateForTrackedItems?: boolean;
  onSubmit?: (items: LineItemInput[], meta?: { notes?: string }) => Promise<void>;
  onSubmitAdjust?: (
  reason: string,
@@ -63,6 +68,7 @@ interface LineState {
  stock_item_id: string;
  quantity: string;
  production_date?: string;
+ note?: string;
 }
 
 export function StockLineForm({
@@ -77,6 +83,7 @@ export function StockLineForm({
  requireRotiProductionDate = false,
  productionDateOptions,
  defaultProductionDate,
+ requireProductionDateForTrackedItems = false,
  onSubmit,
  onSubmitAdjust,
  onSubmitCount,
@@ -104,6 +111,8 @@ export function StockLineForm({
  prefillLines.map((p) => ({
  stock_item_id: p.stock_item_id,
  quantity: String(p.quantity),
+ production_date: p.production_date,
+ note: p.note,
  })));
  if (prefillUseBaseUnit) setUseBaseUnit(true);
  }, [prefillLines, prefillUseBaseUnit]);
@@ -118,17 +127,42 @@ export function StockLineForm({
  }, [stockItems]);
 
  function addLine() {
- setLines([...lines, { stock_item_id: stockItems[0]?.id ?? '', quantity: '' }]);
+ const firstStockId = stockItems[0]?.id ?? '';
+ setLines([
+ ...lines,
+ {
+ stock_item_id: firstStockId,
+ quantity: '',
+ production_date: requireProductionDateForTrackedItems && tracksProductionDateLine(firstStockId)
+ ? defaultProductionDateValue()
+ : undefined,
+ },
+ ]);
  }
 
  function updateLine(idx: number, field: keyof LineState, value: string) {
- setLines(lines.map((l, i) => (i === idx ? {...l, [field]: value } : l)));
+ setLines(lines.map((l, i) => {
+ if (i !== idx) return l;
+ const next = {...l, [field]: value };
+ if (field === 'stock_item_id' && requireProductionDateForTrackedItems) {
+ next.production_date = tracksProductionDateLine(value)
+ ? next.production_date ?? defaultProductionDateValue()
+ : undefined;
+ }
+ return next;
+ }));
  }
 
  function isRotiLine(stockItemId: string): boolean {
  const item = stockItems.find((s) => s.id === stockItemId);
  if (!item) return false;
  return item.category === 'Roti' || getStockByCode(item.item_code)?.category === 'Roti';
+ }
+
+ function tracksProductionDateLine(stockItemId: string): boolean {
+ const item = stockItems.find((s) => s.id === stockItemId);
+ if (!item) return false;
+ return Boolean(getStockByCode(item.item_code)?.production_date_tracking);
  }
 
  function defaultProductionDateValue(): string {
@@ -143,11 +177,15 @@ export function StockLineForm({
 
  if (rejectMode && mode === 'writeoff') {
  const resolved = resolveRejectToBaseQuantity(item.item_code, rawQty, useBaseUnit);
- return {
+ const lineItem: LineItemInput = {
  stock_item_id: stockItemId,
  quantity: resolved.quantity,
  unit: resolved.unit,
  };
+ if (requireProductionDateForTrackedItems && tracksProductionDateLine(stockItemId) && productionDate) {
+ lineItem.production_date = productionDate;
+ }
+ return lineItem;
  }
 
  const base: LineItemInput = {
@@ -156,7 +194,11 @@ export function StockLineForm({
  unit: item.base_unit,
  };
 
- if (requireRotiProductionDate && isRotiLine(stockItemId) && productionDate) {
+ if (
+ ((requireRotiProductionDate && isRotiLine(stockItemId)) ||
+ (requireProductionDateForTrackedItems && tracksProductionDateLine(stockItemId))) &&
+ productionDate
+ ) {
  base.production_date = productionDate;
  }
 
@@ -211,9 +253,26 @@ export function StockLineForm({
  })),
  notes || undefined);
  } else if (mode === 'writeoff' && onSubmitWriteOff) {
+ const filtered = lines.filter((l) => l.stock_item_id && l.quantity);
+ for (const l of filtered) {
+ if (
+ requireProductionDateForTrackedItems &&
+ tracksProductionDateLine(l.stock_item_id) &&
+ !l.production_date
+ ) {
+ throw new Error('Tarikh production wajib untuk item batch seperti roti dan kaya');
+ }
+ }
  await onSubmitWriteOff(
  reason,
- lines.filter((l) => l.stock_item_id && l.quantity).map((l) => resolveLineItem(l.stock_item_id, Number(l.quantity))));
+ filtered.map((l) => {
+ const prod = requireProductionDateForTrackedItems && tracksProductionDateLine(l.stock_item_id)
+ ? l.production_date || defaultProductionDateValue()
+ : l.production_date;
+ const item = resolveLineItem(l.stock_item_id, Number(l.quantity), prod);
+ if (l.note) item.note = l.note;
+ return item;
+ }));
  }
  setLines([{ stock_item_id: stockItems[0]?.id ?? '', quantity: '' }]);
  if (!defaultReason) setReason('');
@@ -290,7 +349,12 @@ export function StockLineForm({
  : null;
 
  const showProdDate =
- requireRotiProductionDate && mode === 'receive' && isRotiLine(line.stock_item_id);
+ (requireRotiProductionDate && mode === 'receive' && isRotiLine(line.stock_item_id)) ||
+ (requireProductionDateForTrackedItems && tracksProductionDateLine(line.stock_item_id));
+ const prodDateValue = line.production_date ?? defaultProductionDateValue();
+ const prodAge = showProdDate ? productionAgeDays(prodDateValue) : null;
+ const prodAgeIsValid = typeof prodAge === 'number' && Number.isFinite(prodAge);
+ const pastShelfLife = prodAgeIsValid && prodAge > ROTI_SHELF_LIFE_DAYS;
 
  const itemSelectValue = boundSelectValue(
  line.stock_item_id,
@@ -375,11 +439,22 @@ export function StockLineForm({
  </Select>)) : (
  <Input
  type="date"
- value={line.production_date ?? defaultProductionDateValue()}
+ value={prodDateValue}
  onChange={(e) => updateLine(idx, 'production_date', e.target.value)}
  required
  max={defaultProductionDateValue()}
  />)}
+ {requireProductionDateForTrackedItems && prodAgeIsValid && (
+ <p className={cn(
+ 'rounded-md px-2 py-1 text-xs font-medium',
+ pastShelfLife
+ ? 'bg-red-50 text-red-800'
+ : 'bg-emerald-50 text-emerald-800')}
+ >
+ {pastShelfLife
+ ? `Melebihi ${ROTI_SHELF_LIFE_DAYS} hari - asingkan dan reject, jangan jual.`
+ : `Umur batch ${Math.max(0, prodAge)} hari dari production.`}
+ </p>)}
  </div>)}
  </div>);
  })}

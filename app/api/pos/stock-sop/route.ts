@@ -27,9 +27,27 @@ type SubmittedStockCountItem = {
  quantity?: number | string;
  unit?: string;
  production_date?: string;
+ note?: string;
 };
 
-type StockEstimate = Awaited<ReturnType<typeof getLastCloseShiftEstimate>>;
+type StockEstimateItem = {
+ stock_item_id: string;
+ item_code: string;
+ item_name: string;
+ estimated_quantity: number;
+ unit: string;
+ source_counted_quantity: number;
+};
+
+type StockEstimate = {
+ source: string;
+ stock_count_id: string | null;
+ count_number: string;
+ completed_at: string | null;
+ production_date: string | null;
+ completed_by_name: string | null;
+ items: StockEstimateItem[];
+} | null;
 
 async function getBranchLocation(
  supabase: Awaited<ReturnType<typeof createClient>>,
@@ -114,7 +132,7 @@ async function getLastCloseShiftEstimate(
  if (profileRes.error) throw new Error(profileRes.error.message);
  if (!countRes.data) return null;
 
- const items = (itemRes.data ?? [])
+ const rawItems = (itemRes.data ?? [])
  .map((row: any) => {
  const stockItem = Array.isArray(row.stock_item) ? row.stock_item[0] : row.stock_item;
  const itemCode = String(stockItem?.item_code ?? '').trim().toUpperCase();
@@ -131,8 +149,22 @@ async function getLastCloseShiftEstimate(
  .filter((item: { stock_item_id: string; item_code: string }) =>
  item.stock_item_id && (POS_SHIFT_COUNT_ITEM_CODES as readonly string[]).includes(item.item_code));
 
+ const aggregatedByStockId = new Map<string, StockEstimateItem>();
+
+ rawItems.forEach((item: StockEstimateItem) => {
+ const existing = aggregatedByStockId.get(item.stock_item_id);
+ if (existing) {
+ existing.estimated_quantity += item.estimated_quantity;
+ existing.source_counted_quantity += item.source_counted_quantity;
+ } else {
+ aggregatedByStockId.set(item.stock_item_id, { ...item });
+ }
+ });
+
+ const items = [...aggregatedByStockId.values()];
+
  const existingCodes = new Set(items.map((item: { item_code: string }) => item.item_code));
- currentItems.forEach((item: { item_code: string }) => {
+ currentItems.forEach((item: StockEstimateItem) => {
  if (!existingCodes.has(item.item_code)) {
  items.push(item);
  }
@@ -242,27 +274,59 @@ function buildAiVarianceItems(items: SubmittedStockCountItem[], stockEstimate: S
  const estimateByStockId = new Map(
  estimateItems.map((item) => [item.stock_item_id, item]));
 
- return items
- .map((item) => {
+ const countedByStockId = new Map<string, {
+ stock_item_id: string;
+ item_code: string;
+ item_name: string;
+ counted_quantity: number;
+ unit: string;
+ production_dates: string[];
+ }>();
+
+ items.forEach((item) => {
  const stockItemId = String(item.stock_item_id ?? '');
- const estimate = estimateByStockId.get(stockItemId);
- if (!stockItemId || !estimate) return null;
+ if (!stockItemId || !estimateByStockId.has(stockItemId)) return;
 
  const countedQuantity = toFiniteNumber(item.counted_quantity ?? item.quantity);
+ const estimate = estimateByStockId.get(stockItemId);
+ const existing = countedByStockId.get(stockItemId);
+ const prodDate = item.production_date ? String(item.production_date) : null;
+ if (existing) {
+ existing.counted_quantity += countedQuantity;
+ if (prodDate && !existing.production_dates.includes(prodDate)) existing.production_dates.push(prodDate);
+ return;
+ }
+
+ countedByStockId.set(stockItemId, {
+ stock_item_id: stockItemId,
+ item_code: String(item.item_code ?? estimate?.item_code ?? '').trim().toUpperCase(),
+ item_name: String(item.item_name ?? estimate?.item_name ?? 'Item stok'),
+ counted_quantity: countedQuantity,
+ unit: String(item.unit ?? estimate?.unit ?? 'PCS'),
+ production_dates: prodDate ? [prodDate] : [],
+ });
+ });
+
+ return [...countedByStockId.values()]
+ .map((item) => {
+ const estimate = estimateByStockId.get(item.stock_item_id);
+ if (!estimate) return null;
+
+ const countedQuantity = item.counted_quantity;
  const aiQuantity = toFiniteNumber(estimate.estimated_quantity);
  const difference = countedQuantity - aiQuantity;
 
  if (Math.abs(difference) <= 0.0001) return null;
 
  return {
- stock_item_id: stockItemId,
- item_code: String(item.item_code ?? estimate.item_code ?? '').trim().toUpperCase(),
- item_name: String(item.item_name ?? estimate.item_name ?? 'Item stok'),
+ stock_item_id: item.stock_item_id,
+ item_code: item.item_code || String(estimate.item_code ?? '').trim().toUpperCase(),
+ item_name: item.item_name || String(estimate.item_name ?? 'Item stok'),
  counted_quantity: countedQuantity,
  ai_quantity: aiQuantity,
  difference,
- unit: String(item.unit ?? estimate.unit ?? 'PCS'),
- production_date: item.production_date ?? null,
+ unit: item.unit || String(estimate.unit ?? 'PCS'),
+ production_date: item.production_dates.length ? item.production_dates.join(', ') : null,
  };
  })
  .filter(Boolean) as Array<{

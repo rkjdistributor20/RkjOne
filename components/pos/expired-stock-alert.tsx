@@ -4,7 +4,6 @@ import { AlertTriangle, Clock } from 'lucide-react';
 import { formatBagPcsLabel, resolvePackQuantity } from '@/lib/stock/catalog';
 import {
  formatExpiryDate,
- groupExpiredForReject,
  type ExpiredRotiBatch,
  type ExpiringSoonRotiBatch,
  type RotiExpirySummary,
@@ -17,6 +16,8 @@ export interface ExpiredRejectPrefill {
  quantity: number;
  unit: string;
  reason: string;
+ production_date?: string;
+ note?: string;
 }
 
 interface ExpiredStockAlertProps {
@@ -77,13 +78,14 @@ export function ExpiredStockAlert({
 
  function handleRejectAll() {
  if (!onRejectExpired || !summary?.expired.length) return;
- const grouped = groupExpiredForReject(summary.expired);
  onRejectExpired(
- grouped.map((g) => ({
- stock_item_id: g.stock_item_id,
- quantity: g.quantity,
- unit: g.unit,
- reason: `Roti expired - tolak segera (prod + ${summary.shelf_life_days} hari)`,
+ summary.expired.map((batch) => ({
+ stock_item_id: batch.stock_item_id,
+ quantity: batch.quantity_remaining,
+ unit: batch.unit,
+ production_date: batch.production_date,
+ reason: `Tamat tempoh melebihi ${summary.shelf_life_days} hari`,
+ note: `${batch.pos_menu} production ${formatExpiryDate(batch.production_date)} tamat ${formatExpiryDate(batch.expires_on)}`,
  })));
  }
 

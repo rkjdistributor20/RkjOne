@@ -133,6 +133,7 @@ export interface LineItemInput {
  unit?: string;
  /** Tarikh production roti (YYYY-MM-DD) - pembuat order sahaja */
  production_date?: string;
+ note?: string;
 }
 
 export interface AdjustmentItemInput {

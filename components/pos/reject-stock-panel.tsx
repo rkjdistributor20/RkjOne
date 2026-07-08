@@ -17,12 +17,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
 const REJECT_REASONS = [
- 'Roti expired (5 hari)',
+ 'Tamat tempoh melebihi 5 hari',
+ 'Dimakan / tercemar',
  'Roti rosak / keras',
  'Kaya / butter basi',
  'Plastik rosak / koyak',
  'Tamat tempoh jual',
  'Pecahan semasa handling',
+ 'Salah jumlah selepas kiraan fizikal',
 ] as const;
 
 interface RejectStockPanelProps {
@@ -43,13 +45,17 @@ export function RejectStockPanel({ branchId, onSuccess, prefill }: RejectStockPa
  }).catch(() => toast.error('Gagal memuatkan senarai stok')).finally(() => setLoading(false));
  }, []);
 
+ useEffect(() => {
+ if (prefill?.[0]?.reason) setPresetReason(prefill[0].reason);
+ }, [prefill]);
+
  const rotiItems = RKJ_STOCK_CATALOG.filter((i) => i.category === 'Roti');
  const bahanItems = RKJ_STOCK_CATALOG.filter((i) => i.category === 'Bahan');
  const plastikItems = RKJ_STOCK_CATALOG.filter((i) => i.category === 'Packaging');
 
  async function handleReject(
  reason: string,
- items: Array<{ stock_item_id: string; quantity: number; unit?: string }>) {
+ items: Array<{ stock_item_id: string; quantity: number; unit?: string; production_date?: string; note?: string }>) {
  await submitPosRejectStock(branchId, reason, items);
  toast.success('Reject stok direkod - baki kiosk dikemas kini');
  setPresetReason('');
@@ -64,7 +70,8 @@ export function RejectStockPanel({ branchId, onSuccess, prefill }: RejectStockPa
  <p className="font-semibold">Reject stok (staf kaunter)</p>
  <p className="mt-1 text-amber-900/90">
  Masukkan dalam unit operasi kiosk - sistem auto tukar ke unit asas sebelum
- tolak baki. Stok masuk/keluar biasa dikawal HQ & Pengurus Kawasan.
+ tolak baki. Untuk roti/kaya, pilih tarikh production supaya batch yang betul direkod.
+ Roti melebihi {ROTI_SHELF_LIFE_DAYS} hari wajib diasingkan dan reject.
  </p>
  </div>
  </div>
@@ -147,8 +154,11 @@ export function RejectStockPanel({ branchId, onSuccess, prefill }: RejectStockPa
  prefillLines={prefill?.map((p) => ({
  stock_item_id: p.stock_item_id,
  quantity: p.quantity,
+ production_date: p.production_date,
+ note: p.reason,
  }))}
  prefillUseBaseUnit={Boolean(prefill?.length)}
+ requireProductionDateForTrackedItems
  onSubmitWriteOff={handleReject}
  />
  </>)}

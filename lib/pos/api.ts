@@ -225,7 +225,7 @@ export async function fetchExpiredStock(branchId: string) {
 export async function submitPosRejectStock(
  branchId: string,
  reason: string,
- items: Array<{ stock_item_id: string; quantity: number; unit?: string }>) {
+ items: Array<{ stock_item_id: string; quantity: number; unit?: string; production_date?: string; note?: string }>) {
  return fetchJson<{ result: Record<string, string> }>('/api/pos/reject-stock', {
  method: 'POST',
  body: JSON.stringify({ branch_id: branchId, reason, items }),

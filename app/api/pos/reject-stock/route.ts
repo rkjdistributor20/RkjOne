@@ -27,7 +27,7 @@ export async function POST(request: Request) {
  const branchId = body.branch_id as string | undefined;
  const reason = (body.reason as string | undefined)?.trim();
  const items = body.items as
- | Array<{ stock_item_id: string; quantity: number; unit?: string }>
+ | Array<{ stock_item_id: string; quantity: number; unit?: string; production_date?: string; note?: string }>
  | undefined;
 
  if (!branchId || !reason || !items?.length) {

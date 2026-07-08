@@ -30,11 +30,22 @@ export function daysUntilExpiry(expiresOn: string, today = new Date()): number {
  const t = new Date(today);
  t.setHours(0, 0, 0, 0);
  const exp = new Date(expiresOn + 'T00:00:00');
- return Math.round((exp.getTime() ?? t.getTime()) / 86_400_000);
+ return Math.round((exp.getTime() - t.getTime()) / 86_400_000);
 }
 
 export function isRotiBatchExpired(expiresOn: string, today = new Date()): boolean {
  return daysUntilExpiry(expiresOn, today) < 0;
+}
+
+export function productionAgeDays(productionDate: string, today = new Date()): number {
+ const t = new Date(today);
+ t.setHours(0, 0, 0, 0);
+ const prod = new Date(productionDate + 'T00:00:00');
+ return Math.floor((t.getTime() - prod.getTime()) / 86_400_000);
+}
+
+export function isPastRotiShelfLife(productionDate: string, today = new Date()): boolean {
+ return productionAgeDays(productionDate, today) > ROTI_SHELF_LIFE_DAYS;
 }
 
 /** Hari terakhir masih boleh jual/guna (hari ke-5 dari production) */
