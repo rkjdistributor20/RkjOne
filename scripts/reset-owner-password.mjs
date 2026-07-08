@@ -103,7 +103,7 @@ if (loginErr) {
 
 console.log("OK Password owner direset");
 console.log(`OK Ujian login OK (${password.slice(0, 4)}***)`);
-console.log("\nCuba login di https://rkj-one.vercel.app/login");
+console.log("\nCuba login di https://rkj.one/login");
 console.log(`  Email: ${OWNER_EMAIL}`);
 console.log(
   `  Password: ${showPassword ? password : `${password.slice(0, 4)}***`}\n`,

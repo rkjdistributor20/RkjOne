@@ -188,7 +188,7 @@ Kilang ke HQ Distributor ke Fleet Delivery ke Kiosk ke POS Jualan
 
 - [ ] ≥ 30/36 cawangan buka syif setiap hari (hari 1-7)
 - [ ] SOP bertulis: buka syif, delivery, tutup syif, hubungi HQ - edarkan ke 36 cawangan
-- [ ] Tablet/komputer kiosk - bookmark `https://rkj-one.vercel.app`
+- [ ] Tablet/komputer kiosk - bookmark `https://rkj.one`
 - [ ] **Semua** staf & pengurus tukar kata laluan dari `[REDACTED_TEMP_PASSWORD]`
 - [ ] Backup Supabase diaktifkan
 - [ ] Profil HR staf dilengkapkan (`/profile`)

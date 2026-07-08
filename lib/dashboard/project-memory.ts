@@ -48,7 +48,7 @@ export const RKJ_ONE_PROJECT_MEMORY = {
   {
    label: 'Production',
    value: 'Live',
-   detail: 'https://rkj-one.vercel.app',
+   detail: 'https://rkj.one',
    tone: 'success',
   },
   {
@@ -79,9 +79,9 @@ export const RKJ_ONE_PROJECT_MEMORY = {
   },
   {
    label: 'Vercel',
-   value: 'rkj-one.vercel.app',
+   value: 'rkj.one',
    detail: 'Production alias ikut deployment Ready terkini',
-   href: 'https://rkj-one.vercel.app',
+   href: 'https://rkj.one',
   },
   {
    label: 'Supabase',

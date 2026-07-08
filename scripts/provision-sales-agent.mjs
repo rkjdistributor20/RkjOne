@@ -132,7 +132,7 @@ if (APPLY && userId) {
  console.log('\n=== Selesai ===');
  console.log(`Login: ${AGENT_EMAIL}`);
  console.log(`Password: ${PASSWORD}`);
- console.log(`Portal: https://rkj-one.vercel.app/sales-agent\n`);
+ console.log(`Portal: https://rkj.one/sales-agent\n`);
 } else if (!APPLY) {
  console.log('\nDry-run - jalankan dengan --apply untuk tulis ke Supabase.\n');
 }

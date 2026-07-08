@@ -3,7 +3,7 @@
     <base-config cleartextTrafficPermitted="false" />
 
     <domain-config cleartextTrafficPermitted="false">
-        <domain includeSubdomains="true">rkj-one.vercel.app</domain>
+        <domain includeSubdomains="true">rkj.one</domain>
         <domain includeSubdomains="true">supabase.co</domain>
         <domain includeSubdomains="true">billplz.com</domain>
         <domain includeSubdomains="true">fiuu.com</domain>

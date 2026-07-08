@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
  appName: 'RKJ One Staff',
  webDir: 'mobile-fallback',
  server: {
- url: 'https://rkj-one.vercel.app',
+ url: 'https://rkj.one',
  cleartext: false,
  },
  plugins: {

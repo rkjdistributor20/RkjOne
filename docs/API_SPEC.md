@@ -4,7 +4,7 @@ Last updated: 2026-07-08
 
 Base URL:
 
-- Production: `https://rkj-one.vercel.app`
+- Production: `https://rkj.one`
 - Local: `http://localhost:3000`
 
 Authentication:

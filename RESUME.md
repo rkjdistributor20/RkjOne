@@ -5,7 +5,7 @@
 - Commit kod terbaru: `38fa406` (`feat: translate system health launch control`)
 - Tetapan > Kesihatan Sistem kini lebih lengkap dalam mod BM/EN: status badge, KPI, Launch Control & UAT Owner, Production Readiness Center, owner/action text, bukti kerja dan toast refresh.
 - Semakan lulus: `npx tsc --noEmit --pretty false`, targeted ESLint, `npm run verify:ui-polish`, `npm run verify:readiness`, `npm run system:audit`, `npm run build`, `npm run verify:production` 6/6.
-- Production deployment: `dpl_3toJ5JTTVBaytc4teNJbn5mhoGmC` aliased ke https://rkj-one.vercel.app.
+- Production deployment: `dpl_3toJ5JTTVBaytc4teNJbn5mhoGmC` aliased ke https://rkj.one.
 - Vercel logs 30 minit: tiada runtime error/log ditemui.
 - Fail local/sensitif yang masih tidak dipush: `outputs/`, `scripts/reset-owner-password.mjs`, serta perubahan lama pada `components/auth/login-form.tsx` dan `package.json`.
 
@@ -17,7 +17,7 @@
 - Tetapan > Kesihatan Sistem kini ada **Launch Control & UAT Owner** supaya owner/admin nampak baki kerja sebenar sebelum go-live.
 - Checklist baru meliputi UAT browser semua dashboard, pilot POS BR011, payment gateway live, Play Store/App Store, Supabase lockdown, go-live 36 cawangan dan checkpoint/backup.
 - Semakan lulus: `npx tsc --noEmit --pretty false`, targeted ESLint, `npm run verify:ui-polish`, `npm run verify:readiness`, `npm run system:audit`, `npm run build`, `npm run verify:production` 6/6.
-- Production deployment: `dpl_8EcMpgpouxAq4zey94unmRtVLnF7` aliased ke https://rkj-one.vercel.app.
+- Production deployment: `dpl_8EcMpgpouxAq4zey94unmRtVLnF7` aliased ke https://rkj.one.
 - Fail local/sensitif yang masih tidak dipush: `outputs/`, `scripts/reset-owner-password.mjs`, serta perubahan lama pada `components/auth/login-form.tsx` dan `package.json`.
 
 ---
@@ -28,7 +28,7 @@
 - Panel **Aliran Kerja & SOP Harian** dinaik taraf untuk semua dashboard role: fokus operasi, mula dari langkah pertama, bukti akhir, SOP cepat, pemilik tugas dan bukti kerja.
 - Panel SOP kini ikut bahasa BM/EN melalui legacy translation dan lebih jelas untuk Owner/Admin, HQ Distributor, Driver, OM, AM, Staf Jualan, HR, Finance, Kilang dan Ejen.
 - Semakan lulus: `npx tsc --noEmit --pretty false`, targeted ESLint, `npm run verify:ui-polish`, `npm run build`, `npm run verify:production` 6/6.
-- GitHub master: `18d24fa`; production health OK di https://rkj-one.vercel.app.
+- GitHub master: `18d24fa`; production health OK di https://rkj.one.
 
 ---
 
@@ -55,7 +55,7 @@
 
 **Branch:** `master`  
 **GitHub:** `d2538f6` · kod `400941e` + checkpoint rehat  
-**Production:** https://rkj-one.vercel.app · deploy **`dpl_9hkEfehyzVgdRz1CPGWmQBER35Wc`** ✓  
+**Production:** https://rkj.one · deploy **`dpl_9hkEfehyzVgdRz1CPGWmQBER35Wc`** ✓
 **Supabase:** `mtygxueknokcihofdttl` · migrations **00001–00111** applied
 
 ---
@@ -172,7 +172,7 @@ Cursor **tidak** sync chat automatik dengan Codex. Continuity melalui:
 | Connection | Status |
 |------------|--------|
 | **GitHub** | `d2538f6` on `master` — https://github.com/rkjdistributor20/RkjOne |
-| **Vercel** | Live — https://rkj-one.vercel.app · `dpl_9hkEfehyzVgdRz1CPGWmQBER35Wc` |
+| **Vercel** | Live — https://rkj.one · `dpl_9hkEfehyzVgdRz1CPGWmQBER35Wc` |
 | **Supabase** | `mtygxueknokcihofdttl` · migrations **00111** applied |
 | **Codex ↔ Cursor** | Sync melalui Git + `RESUME.md` + `CHECKPOINT.json` (bukan chat) |
 
@@ -185,7 +185,7 @@ Cursor **tidak** sync chat automatik dengan Codex. Continuity melalui:
 
 Semua connection utama sudah disemak dan disimpan untuk sambung kerja selepas rehat.
 
-- Production URL: https://rkj-one.vercel.app
+- Production URL: https://rkj.one
 - Vercel live deployment: `dpl_5mf7Bgh9BwdJk8p7CeLW23MxLQPU` - status Ready
 - GitHub master/code checkpoint: `8e39e76`
 - Production verification: `npm run verify:production` lulus 6/6

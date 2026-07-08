@@ -3,7 +3,7 @@
  * Usage: npm run verify:production
  */
 
-const PRODUCTION_URL = process.env.PRODUCTION_URL ?? 'https://rkj-one.vercel.app';
+const PRODUCTION_URL = process.env.PRODUCTION_URL ?? 'https://rkj.one';
 
 const checks = [];
 
@@ -105,7 +105,7 @@ console.log(` Lulus: ${checks.filter((c) => c.ok).length}`);
 console.log(` Gagal: ${failed}\n`);
 
 if (failed > 0) {
- console.log('==> Semak Vercel env: npm run deploy:env https://rkj-one.vercel.app\n');
+ console.log('==> Semak Vercel env: npm run deploy:env https://rkj.one\n');
  process.exit(1);
 }
 

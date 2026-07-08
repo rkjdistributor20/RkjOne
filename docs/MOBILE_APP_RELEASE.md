@@ -8,8 +8,8 @@ Dokumen ini merekod status PWA, Android shell dan laluan penerbitan Play Store/A
 - Service worker sudah ditambah di `public/sw.js` dengan offline fallback yang tidak cache data operasi sensitif.
 - Ikon aplikasi rasmi sudah dijana di `public/app-icon-*.png`.
 - Android shell sudah dibuat dengan Capacitor menggunakan package id `com.rkjone.staff`.
-- Android app memuatkan production URL `https://rkj-one.vercel.app`.
-- Halaman privacy policy tersedia di `https://rkj-one.vercel.app/privacy`.
+- Android app memuatkan production URL `https://rkj.one`.
+- Halaman privacy policy tersedia di `https://rkj.one/privacy`.
 - Online payment QR belum diaktifkan sebagai live payment; POS masih boleh guna pengesahan manual seperti diminta.
 - Android debug APK sudah berjaya dibina di `android/app/build/outputs/apk/debug/app-debug.apk`.
 - Android release AAB sudah berjaya dibina dan ditandatangani di `android/app/build/outputs/bundle/release/app-release.aab`.
@@ -65,7 +65,7 @@ Maklumat store yang sudah disediakan:
 
 - Nama app: `RKJ One Staff`
 - Package id: `com.rkjone.staff`
-- Privacy Policy URL: `https://rkj-one.vercel.app/privacy`
+- Privacy Policy URL: `https://rkj.one/privacy`
 - App category: Business / Productivity
 - App access: Restricted internal staff login
 - Draft store listing: `docs/mobile/PLAY_STORE_SUBMISSION.md`

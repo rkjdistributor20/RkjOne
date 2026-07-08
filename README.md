@@ -40,7 +40,7 @@ Backup/rollback: [docs/BACKUP_ROLLBACK_SOP.md](./docs/BACKUP_ROLLBACK_SOP.md)
 Deploy guide: [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) 
 Resume session: **[RESUME.md](./RESUME.md)** ← baca ini bila sambung
 
-**Production:** https://rkj-one.vercel.app - commit `0af1df4`
+**Production:** https://rkj.one - commit `0af1df4`
 
 ### Verify / UAT (production)
 

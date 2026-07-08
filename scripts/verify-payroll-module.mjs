@@ -9,7 +9,7 @@ import path from 'path';
 import { loadProjectEnv, ROOT } from './lib/load-env.mjs';
 import { DEFAULT_PASSWORD } from './lib/default-password.mjs';
 
-const PRODUCTION_URL = process.env.PRODUCTION_URL ?? 'https://rkj-one.vercel.app';
+const PRODUCTION_URL = process.env.PRODUCTION_URL ?? 'https://rkj.one';
 const GO_LIVE_PASSWORD_FILE = path.join(ROOT, 'csv_import', '.go-live-temp-password.txt');
 
 function readGoLivePassword() {

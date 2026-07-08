@@ -3,7 +3,7 @@
  * Usage: npm run smoke:production
  */
 
-const PRODUCTION_URL = (process.env.PRODUCTION_URL ?? 'https://rkj-one.vercel.app').replace(/\/$/, '');
+const PRODUCTION_URL = (process.env.PRODUCTION_URL ?? 'https://rkj.one').replace(/\/$/, '');
 const UUID = '00000000-0000-0000-0000-000000000000';
 
 const checks = [];

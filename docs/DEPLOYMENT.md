@@ -4,7 +4,7 @@ Last updated: 2026-07-08
 
 Production deployment for RKJ One on Supabase and Vercel.
 
-Production URL: https://rkj-one.vercel.app
+Production URL: https://rkj.one
 
 ## Environments
 
@@ -12,7 +12,7 @@ Production URL: https://rkj-one.vercel.app
 |-------------|-----|----------|
 | Local | `http://localhost:3000` | Linked Supabase project or local Supabase if configured. |
 | Preview | Vercel preview deployment | Usually production/staging Supabase depending on env vars. |
-| Production | `https://rkj-one.vercel.app` | Production Supabase project. |
+| Production | `https://rkj.one` | Production Supabase project. |
 
 ## Required Environment Variables
 
@@ -121,14 +121,14 @@ Inspect deployment:
 
 ```powershell
 npx vercel ls --yes
-npx vercel inspect https://rkj-one.vercel.app
-npx vercel logs https://rkj-one.vercel.app --since 1h --level error
+npx vercel inspect https://rkj.one
+npx vercel logs https://rkj.one --since 1h --level error
 ```
 
 Expected result:
 
 - Deployment status: Ready.
-- Alias includes `https://rkj-one.vercel.app`.
+- Alias includes `https://rkj.one`.
 - No recent error logs for changed flow.
 
 ## Post-Deploy Checklist
@@ -143,7 +143,7 @@ Expected result:
 
 ## M6 Release Gate
 
-Current M6 decision: Supabase production migrations `harden_auth_role_and_booking_scope` and `m5_payment_lifecycle` have been applied and verified. Vercel production deployment `dpl_55k1i1FNbsmaMnEHwfHkpj41yKQJ` is Ready and aliased to `https://rkj-one.vercel.app`.
+Current M6 decision: Supabase production migrations `harden_auth_role_and_booking_scope` and `m5_payment_lifecycle` have been applied and verified. Vercel production deployment `dpl_55k1i1FNbsmaMnEHwfHkpj41yKQJ` is Ready and aliased to `https://rkj.one`.
 
 Before staging:
 

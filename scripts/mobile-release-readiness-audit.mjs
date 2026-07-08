@@ -18,7 +18,7 @@ const OUT_DIR = path.join(ROOT, 'outputs', 'mobile-release');
 const REPORT_JSON = path.join(OUT_DIR, 'release-readiness-audit.json');
 const REPORT_MD = path.join(OUT_DIR, 'release-readiness-audit.md');
 
-const PRODUCTION_URL = process.env.PRODUCTION_URL ?? 'https://rkj-one.vercel.app';
+const PRODUCTION_URL = process.env.PRODUCTION_URL ?? 'https://rkj.one';
 const REVIEWER_FILE = path.join(OUT_DIR, 'play-store-reviewer-account.json');
 const REQUIRED_DOCS = [
   'docs/mobile/PLAY_STORE_SUBMISSION.md',

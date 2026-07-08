@@ -1,6 +1,6 @@
 # Edaran Kredensial Go-Live - Panduan AM
 
-**URL:** https://rkj-one.vercel.app/login 
+**URL:** https://rkj.one/login
 **Fail eksport (local, gitignored):** `csv_import/go_live_credentials_export.csv` 
 **Kata laluan sementara (local):** `csv_import/.go-live-temp-password.txt`
 

@@ -1,7 +1,7 @@
 # Supabase Auth - Setup Go-Live (5 minit)
 
 **Projek:** `mtygxueknokcihofdttl` 
-**Production:** https://rkj-one.vercel.app
+**Production:** https://rkj.one
 
 ---
 
@@ -19,7 +19,7 @@
 
 | Medan | Nilai |
 |-------|--------|
-| **Site URL** | `https://rkj-one.vercel.app` |
+| **Site URL** | `https://rkj.one` |
 
 Klik **Save** jika diubah.
 
@@ -30,7 +30,7 @@ Klik **Save** jika diubah.
 Tambah **kedua-dua** (jika belum ada):
 
 ```
-https://rkj-one.vercel.app/auth/callback
+https://rkj.one/auth/callback
 http://localhost:3000/auth/callback
 ```
 

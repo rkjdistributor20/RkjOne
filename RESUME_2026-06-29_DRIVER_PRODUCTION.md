@@ -1,6 +1,6 @@
 # RKJ One Checkpoint - 29 Jun 2026
 
-Production: https://rkj-one.vercel.app
+Production: https://rkj.one
 Latest deployment: dpl_APSsuRhwkQnhXc6mru4qFF3tnyDW
 Health check: OK, Supabase connected, 36 cawangan terbaca.
 
@@ -14,7 +14,7 @@ Health check: OK, Supabase connected, 36 cawangan terbaca.
 - Driver aktif disahkan dalam Supabase: `DRV001` hingga `DRV006`.
 - Build TypeScript lulus.
 - Build production Next.js lulus.
-- Deployment production telah dialias ke `rkj-one.vercel.app`.
+- Deployment production telah dialias ke `rkj.one`.
 
 ## Bila Sambung
 

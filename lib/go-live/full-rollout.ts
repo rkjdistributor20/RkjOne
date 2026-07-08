@@ -9,4 +9,4 @@ export const GO_LIVE_BY_REGION = [
  { code: 'SELATAN', name: 'Selatan', am: 'Yati', email: 'yati@rkj.com', branches: 14 },
 ] as const;
 
-export const GO_LIVE_PRODUCTION_URL = 'https://rkj-one.vercel.app';
+export const GO_LIVE_PRODUCTION_URL = 'https://rkj.one';

@@ -14,7 +14,7 @@ import { DEFAULT_PASSWORD } from './lib/default-password.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = PROJECT_ROOT;
-const PRODUCTION_URL = process.env.PRODUCTION_URL ?? 'https://rkj-one.vercel.app';
+const PRODUCTION_URL = process.env.PRODUCTION_URL ?? 'https://rkj.one';
 const PROJECT_REF = 'mtygxueknokcihofdttl';
 const GO_LIVE_PASSWORD_FILE = path.join(ROOT, 'csv_import', '.go-live-temp-password.txt');
 
@@ -91,8 +91,8 @@ async function mainAuth() {
  }
 
  console.log('1. Tetapan WAJIB (semak manual di Dashboard):');
- console.log(' Site URL = https://rkj-one.vercel.app');
- console.log(' Redirect URLs = https://rkj-one.vercel.app/auth/callback');
+ console.log(' Site URL = https://rkj.one');
+ console.log(' Redirect URLs = https://rkj.one/auth/callback');
  console.log(' http://localhost:3000/auth/callback');
  console.log(' Enable signup = OFF\n');
 

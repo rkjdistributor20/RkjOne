@@ -7,7 +7,7 @@ import { createClient } from '@supabase/supabase-js';
 import { loadProjectEnv } from './lib/load-env.mjs';
 import { DEFAULT_PASSWORD } from './lib/default-password.mjs';
 
-const PRODUCTION_URL = process.env.PRODUCTION_URL ?? 'https://rkj-one.vercel.app';
+const PRODUCTION_URL = process.env.PRODUCTION_URL ?? 'https://rkj.one';
 const env = loadProjectEnv();
 const url = env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY;

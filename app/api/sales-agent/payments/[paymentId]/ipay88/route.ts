@@ -13,7 +13,7 @@ export async function GET(
  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
  const { paymentId } = await context.params;
- const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://rkj-one.vercel.app';
+ const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://rkj.one';
  const config = getIPay88Config(appUrl, paymentId);
  if (!config) {
  return NextResponse.json(

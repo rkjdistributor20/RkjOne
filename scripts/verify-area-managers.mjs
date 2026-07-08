@@ -240,7 +240,7 @@ if (failed) {
 
 console.log(' Semua semakan AM lulus ✓');
 console.log('\n Seterusnya (manual di browser):');
-console.log(' ke https://rkj-one.vercel.app');
+console.log(' ke https://rkj.one');
 console.log(` ke Login dist009@rkj.com / ${DEFAULT_PASSWORD}`);
 console.log(' ke /profile (RKJ Distributor - operasi Roti Kaya Junus)');
 console.log(' ke Inventori ke Pindah Cawangan ke Tetapan Staf\n');

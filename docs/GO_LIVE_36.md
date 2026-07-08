@@ -1,7 +1,7 @@
 # Go-Live Terus - 36 Cawangan (Operasi Sebenar)
 
 **Keputusan:** Langkau pilot - semua kiosk guna RKJ One **hari go-live yang sama**. 
-**URL:** https://rkj-one.vercel.app 
+**URL:** https://rkj.one
 **Verify automatik:** `npm run verify:go-live` - `npm run verify:login` - `npm run verify:am`
 
 | Kawasan | AM | Email | Cawangan |
@@ -32,8 +32,8 @@
 - [x] `npm run uat:am` - 3 AM dist009/001/010
 - [x] `npm run uat:sales-agent` - portal ejen + resit
 - [ ] `npm run verify:all` - bundle penuh sebelum hari H
-- [ ] Supabase Auth - **signup OFF**, Site URL = `https://rkj-one.vercel.app` *(verify automatik: signup blocked ✓ - semak manual Dashboard)*
-- [ ] Redirect: `https://rkj-one.vercel.app/auth/callback`
+- [ ] Supabase Auth - **signup OFF**, Site URL = `https://rkj.one` *(verify automatik: signup blocked ✓ - semak manual Dashboard)*
+- [ ] Redirect: `https://rkj.one/auth/callback`
 - [ ] Backup Supabase diaktifkan (Dashboard ke Settings ke Database)
 - [ ] Panduan Auth: [`docs/SUPABASE_AUTH_SETUP.md`](./SUPABASE_AUTH_SETUP.md)
 
@@ -67,7 +67,7 @@
 
 ## Hari go-live - setiap cawangan (staf kiosk)
 
-1. [ ] Buka **https://rkj-one.vercel.app/login** (bookmark tablet/PC)
+1. [ ] Buka **https://rkj.one/login** (bookmark tablet/PC)
 2. [ ] Login `sxxx@rkj.com` / kata laluan (tukar jika diminta)
 3. [ ] **Inventori** - semak baki stok selepas delivery
 4. [ ] **POS** - buka syif (tunai permulaan)
@@ -92,7 +92,7 @@
 2. Jual 4 menu roti (tunai / QR)
 3. Tutup Syif - kira tunai
 4. Masalah: hubungi AM kawasan ke HQ Operasi
-5. URL: https://rkj-one.vercel.app
+5. URL: https://rkj.one
 ```
 
 ---

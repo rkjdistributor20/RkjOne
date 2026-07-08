@@ -8,7 +8,7 @@ import { createClient } from '@supabase/supabase-js';
 import { loadProjectEnv } from './lib/load-env.mjs';
 import { DEFAULT_PASSWORD } from './lib/default-password.mjs';
 
-const PRODUCTION_URL = process.env.PRODUCTION_URL ?? 'https://rkj-one.vercel.app';
+const PRODUCTION_URL = process.env.PRODUCTION_URL ?? 'https://rkj.one';
 
 const AM_ACCOUNTS = [
  { email: 'dist009@rkj.com', region: 'UTARA', expectedKiosks: 12, label: 'Safuan (Utara)' },
@@ -190,6 +190,6 @@ if (failed) {
  process.exit(1);
 }
 console.log(' Semua AM lulus ✓');
-console.log('\n Manual browser: https://rkj-one.vercel.app/inventory');
+console.log('\n Manual browser: https://rkj.one/inventory');
 console.log(' dist009@rkj.com (Utara) - dist001@rkj.com (Tengah) - dist010@rkj.com (Selatan)');
 console.log(` Password: ${DEFAULT_PASSWORD}\n`);

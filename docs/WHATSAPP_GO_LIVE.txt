@@ -4,7 +4,7 @@ Assalamualaikum / Salam sejahtera,
 
 Sistem jualan & inventori baharu RKJ One sudah LIVE.
 
-🔗 Login: https://rkj-one.vercel.app/login
+🔗 Login: https://rkj.one/login
 (Simpan bookmark di tablet/PC cawangan)
 
 📋 CARA GUNA (HARI PERTAMA)

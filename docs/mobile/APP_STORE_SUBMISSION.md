@@ -8,7 +8,7 @@ iOS scaffold sudah disediakan dalam folder `ios/`. Fail ini ialah panduan kerja 
 - Bundle identifier: `com.rkjone.staff`
 - App name: `RKJ One Staff`
 - Version awal: `1.0`
-- Privacy policy: `https://rkj-one.vercel.app/privacy`
+- Privacy policy: `https://rkj.one/privacy`
 - Kategori: `Business`
 - Akses app: login staf dalaman sahaja
 - Online payment QR: belum live; payment manual masih digunakan
@@ -31,8 +31,8 @@ Gunakan maklumat syarikat sebenar dan konsisten dengan SSM/D&B:
 - Legal entity: `RKJ DISTRIBUTOR SDN. BHD.`
 - SSM: `201901043508`
 - Developer name dicadangkan: `RKJ Distributor Sdn. Bhd.`
-- Website/public URL: `https://rkj-one.vercel.app`
-- Privacy policy URL: `https://rkj-one.vercel.app/privacy`
+- Website/public URL: `https://rkj.one`
+- Privacy policy URL: `https://rkj.one/privacy`
 - Apple ID: guna akaun syarikat, aktifkan 2FA
 - D-U-N-S: tunggu nombor rasmi daripada D&B, jangan guna nombor SSM
 
@@ -82,13 +82,13 @@ RKJ One, staff operations, POS, inventory, logistics, HR
 Support URL:
 
 ```text
-https://rkj-one.vercel.app/privacy
+https://rkj.one/privacy
 ```
 
 Marketing URL:
 
 ```text
-https://rkj-one.vercel.app
+https://rkj.one
 ```
 
 ## App Review Notes

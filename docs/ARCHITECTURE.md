@@ -133,7 +133,7 @@ Git push to `master` triggers Vercel production deployment. Supabase migrations 
 Post-deploy checks:
 
 - `npm run build`
-- `npx vercel inspect https://rkj-one.vercel.app`
-- `npx vercel logs https://rkj-one.vercel.app --since 1h --level error`
+- `npx vercel inspect https://rkj.one`
+- `npx vercel logs https://rkj.one --since 1h --level error`
 - targeted production/UAT scripts when relevant
 

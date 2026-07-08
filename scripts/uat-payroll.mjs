@@ -13,7 +13,7 @@ import { createClient } from '@supabase/supabase-js';
 import { loadProjectEnv } from './lib/load-env.mjs';
 import { DEFAULT_PASSWORD } from './lib/default-password.mjs';
 
-const PRODUCTION_URL = process.env.PRODUCTION_URL ?? 'https://rkj-one.vercel.app';
+const PRODUCTION_URL = process.env.PRODUCTION_URL ?? 'https://rkj.one';
 const args = process.argv.slice(2);
 const proposalOnly = args.includes('--proposal-only');
 const runWeekly = args.includes('--both') || (!args.includes('--monthly') && !args.includes('--both') ? true : args.includes('--both'));

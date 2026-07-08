@@ -8,7 +8,7 @@ RKJ One is a Next.js App Router application backed by Supabase. It serves both t
 
 Production:
 
-- App: https://rkj-one.vercel.app
+- App: https://rkj.one
 - Hosting: Vercel
 - Database/Auth/Storage: Supabase
 - Main branch: `master`

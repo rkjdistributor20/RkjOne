@@ -8,7 +8,7 @@ Purpose: repeatable checks for production stability after deployment.
 
 | System | Target |
 |--------|--------|
-| App | https://rkj-one.vercel.app |
+| App | https://rkj.one |
 | Vercel Project | `prj_ZeXMgkt8iHOSlkUeyN7r3GWdKxDz` |
 | Vercel Team | `team_VZECgmW06CTmC1WuOPQLMJqb` |
 | Supabase Project | `mtygxueknokcihofdttl` |

@@ -32,7 +32,7 @@ Project ke Settings ke Environment Variables:
 | `SALES_AGENT_PAYMENT_API_KEY` | *(Merchant Key - RAHASIA)* |
 | `SALES_AGENT_PAYMENT_WEBHOOK_SECRET` | *(optional - webhook manual)* |
 | `SALES_AGENT_PAYMENT_GATEWAY_URL` | `https://payment.ipay88.com.my/epayment/entry.asp` |
-| `NEXT_PUBLIC_APP_URL` | `https://rkj-one.vercel.app` |
+| `NEXT_PUBLIC_APP_URL` | `https://rkj.one` |
 
 **Jangan** set mode `live` sebelum Merchant Code & Key sah - sistem akan fallback simulate jika key kosong.
 
@@ -44,8 +44,8 @@ Daftar dalam portal iPay88:
 
 | URL | Nilai |
 |-----|--------|
-| **Response URL** | `https://rkj-one.vercel.app/sales-agent/payment-return?payment={id}` |
-| **Backend URL** | `https://rkj-one.vercel.app/api/sales-agent/payments/webhook` |
+| **Response URL** | `https://rkj.one/sales-agent/payment-return?payment={id}` |
+| **Backend URL** | `https://rkj.one/api/sales-agent/payments/webhook` |
 
 Backend URL menerima POST iPay88 (form-urlencoded) dan mengesahkan tandatangan SHA256.
 

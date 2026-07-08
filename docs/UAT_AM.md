@@ -1,6 +1,6 @@
 # UAT Area Manager - Checklist Manual
 
-**URL AM:** https://rkj-one.vercel.app/inventory (server auto pilih UI AM) 
+**URL AM:** https://rkj.one/inventory (server auto pilih UI AM)
 **Kata laluan (sementara):** lihat `csv_import/.go-live-temp-password.txt` (local) - **bukan** `[REDACTED_TEMP_PASSWORD]` selepas go-live:passwords 
 
 **Semak betul:** tajuk **Inventori Kawasan** + badge header **Pengurus Kawasan** (bukan "36 cawangan")
@@ -123,7 +123,7 @@ Tandakan `[ ]` ke `[x]` bila lulus.
 ## Selepas semua AM lulus
 
 1. **Supabase Auth** (5 min) - Dashboard ke Authentication ke Settings:
- - Site URL = `https://rkj-one.vercel.app`
+ - Site URL = `https://rkj.one`
  - Redirect URLs: production + `http://localhost:3000/auth/callback`
  - **Enable email signup = OFF**
 2. **Tukar kata laluan** semua akaun ujian

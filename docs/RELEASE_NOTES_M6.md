@@ -2,7 +2,7 @@
 
 Release date: 2026-07-08
 
-Production URL: https://rkj-one.vercel.app
+Production URL: https://rkj.one
 
 Deployment ID: `dpl_55k1i1FNbsmaMnEHwfHkpj41yKQJ`
 

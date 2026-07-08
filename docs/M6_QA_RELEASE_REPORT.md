@@ -21,7 +21,7 @@ Reason: application build and API smoke checks pass, Supabase production migrati
 | `git diff --check` | Pass with warnings | No whitespace errors; Git reported LF-to-CRLF warnings. |
 | Supabase remote migration history | Pass | `harden_auth_role_and_booking_scope` and `m5_payment_lifecycle` are applied on Supabase production. |
 | Supabase remote object verification | Pass | Payment lifecycle columns/functions and booking reference trigger exist. |
-| Vercel production deploy | Pass | Deployment `dpl_55k1i1FNbsmaMnEHwfHkpj41yKQJ` is Ready and aliased to `https://rkj-one.vercel.app`. |
+| Vercel production deploy | Pass | Deployment `dpl_55k1i1FNbsmaMnEHwfHkpj41yKQJ` is Ready and aliased to `https://rkj.one`. |
 | Vercel runtime errors | Pass | No runtime errors found in the selected post-deploy time range. |
 
 ## Smoke Test Results
@@ -37,7 +37,7 @@ Base URL: `http://localhost:3000`
 | `POST /api/sales-agent/payments/[paymentId]/refund` without auth | `401` | `401` |
 | `POST /api/sales-agent/payments/webhook` with bad signature | `401` | `401` |
 
-Production base URL: `https://rkj-one.vercel.app`
+Production base URL: `https://rkj.one`
 
 | Flow | Expected | Actual |
 |------|----------|--------|

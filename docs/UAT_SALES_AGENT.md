@@ -1,6 +1,6 @@
 # UAT Browser - Portal Ejen Jualan
 
-**URL:** https://rkj-one.vercel.app/sales-agent 
+**URL:** https://rkj.one/sales-agent
 **Akaun UAT:** `agent001@rkj.com` / `[REDACTED_TEMP_PASSWORD]` 
 **Syarikat:** Nur Aisha - RKJ Distributor Sdn Bhd
 

@@ -81,7 +81,7 @@ export async function initiateAgentPayment(
  }
 
  const sessionId = `RKJ-LIVE-${input.paymentId.slice(0, 8)}-${Date.now()}`;
- const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://rkj-one.vercel.app';
+ const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://rkj.one';
  const provider = getPaymentProvider();
 
  if (provider === 'billplz') {

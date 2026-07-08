@@ -4,7 +4,7 @@ Last updated: 2026-07-08
 
 Purpose: stabilize RKJ One after M6 production deployment before adding large new features.
 
-Production URL: https://rkj-one.vercel.app
+Production URL: https://rkj.one
 
 ## Release Gate
 

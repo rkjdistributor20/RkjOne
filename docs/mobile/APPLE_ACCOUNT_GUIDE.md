@@ -36,7 +36,7 @@ Masukkan:
 
 - Legal entity: `RKJ DISTRIBUTOR SDN. BHD.`
 - D-U-N-S: nombor 9 digit daripada D&B
-- Website: `https://rkj-one.vercel.app`
+- Website: `https://rkj.one`
 - Contact person: wakil syarikat yang boleh jawab panggilan/email Apple
 
 Jika Apple minta bukti, sediakan dokumen SSM dan pengesahan wakil syarikat.

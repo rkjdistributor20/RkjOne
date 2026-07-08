@@ -100,4 +100,4 @@ Contoh penting:
 
 Modul HR Syarikat sudah live di:
 
-https://rkj-one.vercel.app/hr
+https://rkj.one/hr

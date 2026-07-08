@@ -12,7 +12,7 @@ Sistem ini sedang dibangunkan untuk disiapkan secara berperingkat. Semua AI agen
 
 RKJ One is the internal operating system for Roti Kaya Junus / RKJ Distributor. It covers HQ operations, factory production, kiosk POS, stock movement, fleet delivery, HR, payroll, finance, reports, approvals, maintenance, sales agents, and AI-assisted management.
 
-Production URL: https://rkj-one.vercel.app
+Production URL: https://rkj.one
 
 Primary stack:
 
@@ -180,8 +180,8 @@ Deployment:
 
 ```powershell
 npx vercel ls --yes
-npx vercel inspect https://rkj-one.vercel.app
-npx vercel logs https://rkj-one.vercel.app --since 1h --level error
+npx vercel inspect https://rkj.one
+npx vercel logs https://rkj.one --since 1h --level error
 ```
 
 ## Current High-Priority Guardrails

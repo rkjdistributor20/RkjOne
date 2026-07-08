@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
- metadataBase: new URL('https://rkj-one.vercel.app'),
+ metadataBase: new URL('https://rkj.one'),
  applicationName: 'RKJ One Staff',
  title: {
  default: 'RKJ One Staff',
