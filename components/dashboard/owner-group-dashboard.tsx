@@ -38,6 +38,7 @@ import { RoleProactiveCockpit } from '@/components/dashboard/role-proactive-cock
 import { OwnerDelegationPanel } from '@/components/dashboard/owner-delegation-panel';
 import { ManagementGovernancePanel } from '@/components/dashboard/management-governance-panel';
 import { ProjectMemoryPanel } from '@/components/dashboard/project-memory-panel';
+import { AiLeadershipPanel } from '@/components/dashboard/ai-leadership-panel';
 import { getRoleWorkflow } from '@/lib/dashboard/role-workflows';
 import {
  OWNER_COMPANY_BLOCKS,
@@ -203,6 +204,8 @@ export function OwnerGroupDashboard({
  />
 
  <ProjectMemoryPanel />
+
+ <AiLeadershipPanel />
 
  <RkjOperatingMap />
 

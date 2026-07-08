@@ -73,14 +73,14 @@ export const RKJ_ONE_PROJECT_MEMORY = {
  connections: [
   {
    label: 'GitHub',
-   value: 'master @ 38fa406',
-   detail: 'Repository production RKJ One',
+   value: 'master production branch',
+   detail: 'Push ke master trigger deployment RKJ One',
    href: 'https://github.com/rkjdistributor20/RkjOne',
   },
   {
    label: 'Vercel',
-   value: 'dpl_3toJ5JTTVBaytc4teNJbn5mhoGmC',
-   detail: 'Deployment production aliased ke rkj-one.vercel.app',
+   value: 'rkj-one.vercel.app',
+   detail: 'Production alias ikut deployment Ready terkini',
    href: 'https://rkj-one.vercel.app',
   },
   {
