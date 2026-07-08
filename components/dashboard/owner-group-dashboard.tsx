@@ -37,6 +37,7 @@ import { RkjOperatingMap } from '@/components/dashboard/rkj-operating-map';
 import { RoleProactiveCockpit } from '@/components/dashboard/role-proactive-cockpit';
 import { OwnerDelegationPanel } from '@/components/dashboard/owner-delegation-panel';
 import { ManagementGovernancePanel } from '@/components/dashboard/management-governance-panel';
+import { ProjectMemoryPanel } from '@/components/dashboard/project-memory-panel';
 import { getRoleWorkflow } from '@/lib/dashboard/role-workflows';
 import {
  OWNER_COMPANY_BLOCKS,
@@ -200,6 +201,8 @@ export function OwnerGroupDashboard({
  pendingDeliveries={fleetOverview.pending_deliveries}
  inTransitDeliveries={fleetOverview.in_transit}
  />
+
+ <ProjectMemoryPanel />
 
  <RkjOperatingMap />
 
