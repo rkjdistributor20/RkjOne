@@ -15,11 +15,19 @@ const SKIP_SELECTOR = [
  '[contenteditable="true"]',
 ].join(',');
 
-const TRANSLATED_ATTRS = ['placeholder', 'title', 'aria-label'] as const;
+const TRANSLATED_ATTRS = ['placeholder', 'title', 'aria-label', 'alt'] as const;
 
 function shouldSkipNode(node: Node) {
  const parent = node.parentElement;
  return !parent || Boolean(parent.closest(SKIP_SELECTOR));
+}
+
+function isKnownTranslation(value: string, original: string) {
+ return (
+ value === original ||
+ value === translateLegacyUiText(original, 'ms') ||
+ value === translateLegacyUiText(original, 'en')
+ );
 }
 
 function translateTextNode(node: Text, locale: 'ms' | 'en', originals: WeakMap<Text, string>) {
@@ -31,8 +39,7 @@ function translateTextNode(node: Text, locale: 'ms' | 'en', originals: WeakMap<T
  }
 
  let original = originals.get(node) ?? current;
- const expectedCurrent = translateLegacyUiText(original, locale);
- if (current !== original && current !== expectedCurrent) {
+ if (!isKnownTranslation(current, original)) {
  original = current;
  originals.set(node, current);
  }
@@ -55,8 +62,7 @@ function translateElementAttrs(element: Element, locale: 'ms' | 'en') {
  }
 
  let original = element.getAttribute(originalAttr) ?? current;
- const expectedCurrent = translateLegacyUiText(original, locale);
- if (current !== original && current !== expectedCurrent) {
+ if (!isKnownTranslation(current, original)) {
  original = current;
  element.setAttribute(originalAttr, current);
  }
@@ -80,8 +86,8 @@ function translateTree(root: ParentNode, locale: 'ms' | 'en', originals: WeakMap
  }
 
  const elements = root instanceof Element
- ? root.querySelectorAll<HTMLElement>('[placeholder], [title], [aria-label]')
- : document.querySelectorAll<HTMLElement>('[placeholder], [title], [aria-label]');
+ ? root.querySelectorAll<HTMLElement>('[placeholder], [title], [aria-label], [alt]')
+ : document.querySelectorAll<HTMLElement>('[placeholder], [title], [aria-label], [alt]');
  elements.forEach((element) => translateElementAttrs(element, locale));
 }
 
