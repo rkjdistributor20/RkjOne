@@ -18,7 +18,7 @@ export async function POST(request: Request) {
  return NextResponse.json(
  {
  error:
- 'Reject stok dari POS hanya untuk staf kaunter. HQ & Pengurus Kawasan urus stok melalui modul Inventori.',
+ 'Reject stok POS hanya dibenarkan untuk staf cawangan dan pengurusan operasi yang diberi akses.',
  },
  { status: 403 });
  }

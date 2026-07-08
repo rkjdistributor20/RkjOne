@@ -756,7 +756,11 @@ export function PosTerminal() {
 
  {branchId && (
  <TabsContent value="sop" className="mt-4 overflow-y-auto pr-1">
- <PosStockSopPanel branchId={branchId} onSuccess={handleSopSuccess} />
+ <PosStockSopPanel
+ branchId={branchId}
+ onSuccess={handleSopSuccess}
+ onOpenRejectStock={showRejectTab ? () => setActiveTab('reject') : undefined}
+ />
  </TabsContent>)}
 
  <TabsContent value="history" className="mt-4">

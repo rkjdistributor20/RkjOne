@@ -411,9 +411,11 @@ function equipmentName(item?: KioskEquipmentItem | null) {
 export function PosStockSopPanel({
  branchId,
  onSuccess,
+ onOpenRejectStock,
 }: {
  branchId: string;
  onSuccess?: (event?: { action: PosStockSopSuccessAction; requiresManagerApproval?: boolean }) => void;
+ onOpenRejectStock?: () => void;
 }) {
  const profile = useAuthStore((s) => s.profile);
  const [data, setData] = useState<PosStockSopResponse | null>(null);
@@ -922,6 +924,16 @@ export function PosStockSopPanel({
  </div>
  </div>
  <div className="flex flex-wrap gap-2">
+ {onOpenRejectStock && (
+ <Button
+ type="button"
+ size="sm"
+ className="bg-red-600 text-white hover:bg-red-700"
+ onClick={onOpenRejectStock}
+ >
+ <Trash2 className="mr-2 h-4 w-4" />
+ Reject Stok Rosak / Expired
+ </Button>)}
  <Button variant="outline" size="sm" className="bg-white/80" onClick={loadData}>
  <RefreshCw className="mr-2 h-4 w-4" />
  Refresh

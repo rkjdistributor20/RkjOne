@@ -123,7 +123,12 @@ export function areaManagerMayManageLocation(
 }
 
 export function canUsePosRejectStock(role: string): boolean {
- return isStaffRole(role);
+ return (
+ isStaffRole(role) ||
+ isAreaManagerRole(role) ||
+ isOperationManagerRole(role) ||
+ (['SUPER_ADMIN', 'ADMIN'] as UserRole[]).includes(role as UserRole)
+ );
 }
 
 export interface InventoryStockUiAccess {
