@@ -1,99 +1,155 @@
-# RKJ One - Database Schema
+# RKJ One Database Schema
 
-Production PostgreSQL schema for Supabase. Multi-tenant via `organization_id` on all business tables.
+Last updated: 2026-07-08
 
-## Architecture Overview
+Production database: Supabase PostgreSQL.
 
+Primary tenant boundary: `organization_id`.
+
+## Core Scope Model
+
+| Field | Meaning |
+|-------|---------|
+| `organization_id` | Company/tenant boundary. All business tables should include it. |
+| `region_id` | Area Manager scope. |
+| `branch_id` | Kiosk/branch scope. |
+| `profile_id`, `created_by`, `reported_by`, `assigned_to` | User/profile references linked to Supabase Auth profile rows. |
+
+## Major Table Groups
+
+| Group | Representative Tables |
+|-------|-----------------------|
+| Organization | `organizations`, `regions`, `branches`, `legal_entities` |
+| Users/RBAC | `profiles`, `profile_branch_access`, `role_permissions` |
+| Staff/HR | `staff`, `hr_service_requests`, `hr_leave_balances`, company HR tables |
+| Inventory | `inventory_locations`, `inventory_balances`, `stock_movements`, `stock_transfers`, `stock_counts`, `stock_write_offs`, `stock_receives` |
+| Products | `products`, `stock_items`, `product_bom`, product price/group tables |
+| POS | `pos_shifts`, `pos_shift_staff_members`, `pos_transactions`, `pos_transaction_items`, `pos_payments`, `pos_stock_deductions` |
+| Production | production calendar/order/output/route tables and RPC support |
+| Fleet/Delivery | `drivers`, `vehicles`, `delivery_orders`, `delivery_legs`, `proof_of_delivery`, route tables |
+| Warehouse | `warehouse_audits`, `warehouse_audit_items` |
+| Finance | `finance_collections`, `finance_collection_usages`, `bank_in_records`, `cash_reconciliations`, `daily_financial_reports` |
+| Payroll | `payroll_rules`, `commission_tiers`, `payroll_runs`, `payroll_line_items`, payslip tables |
+| Approvals/Notifications | `approval_requests`, `notifications`, `audit_logs` |
+| Maintenance | `maintenance_reports` |
+| Sales Agent | agent account, outlet, order, payment, receipt, subscription, price group tables |
+| Bookings | `bookings` |
+
+## Roles
+
+Current application roles from `types/enums.ts`:
+
+- `SUPER_ADMIN`
+- `ADMIN`
+- `HR`
+- `OPERATION_MANAGER`
+- `CEO_FACTORY`
+- `AREA_MANAGER`
+- `DRIVER`
+- `STAFF`
+- `FINANCE`
+- `MAINTENANCE_MANAGER`
+- `SALES_AGENT`
+
+## RLS Helpers
+
+Defined in migrations:
+
+- `public.organization_id()`
+- `public.user_role()`
+- `public.user_region_id()`
+- `public.user_branch_id()`
+- `public.is_admin()`
+- `public.has_branch_access(p_branch_id UUID)`
+
+General policy pattern:
+
+```sql
+organization_id = public.organization_id()
+AND (
+  public.user_role() IN (...)
+  OR public.has_branch_access(branch_id)
+  OR created_by = auth.uid()
+)
 ```
-organizations
-├── regions (Utara, Tengah, Selatan)
-├── branches (36 kiosks)
-├── profiles (auth.users extension)
-├── staff, drivers, vehicles
-├── products, stock_items, product_bom
-├── inventory_locations ke inventory_balances ke stock_movements
-├── pos_shifts ke pos_transactions ke pos_payments
-├── staff_shifts ke attendance_records
-├── stock_transfers ke transfer_legs (Factory ke HQ ke Vehicle ke Branch)
-├── payroll_rules, commission_tiers, payroll_runs
-├── finance_collections, bank_in_records
-├── approval_requests, notifications
-└── role_permissions (RBAC matrix)
-```
 
-## Enums
+Important rule: RLS must be at least as strict as API route checks. If API allows only managers to update, DB policy must not allow all branch-access users to update the same row.
 
-| Enum | Values |
-|------|--------|
-| `user_role` | SUPER_ADMIN, ADMIN, HR, OPERATION_MANAGER, CEO_FACTORY, AREA_MANAGER, DRIVER, STAFF, FINANCE |
-| `entity_status` | ACTIVE, INACTIVE, SUSPENDED |
-| `region_code` | UTARA, TENGAH, SELATAN |
-| `location_type` | FACTORY, HQ_WAREHOUSE, FLEET_VEHICLE, BRANCH_KIOSK |
-| `payment_method` | CASH, QR, MIXED |
-| `pos_tx_status` | COMPLETED, VOIDED, REFUNDED |
-| `pos_shift_status` | OPEN, CLOSED |
-| `transfer_status` | DRAFT, PENDING, IN_TRANSIT, DELIVERED, CANCELLED, REJECTED |
-| `movement_type` | RECEIVE, TRANSFER_OUT, TRANSFER_IN, ADJUSTMENT, COUNT, WRITE_OFF, SALE_DEDUCT, PRODUCTION |
-| `worker_type` | FOREIGN, LOCAL |
-| `approval_status` | PENDING, APPROVED, REJECTED |
-| `collection_type` | QR, CASH_KIOSK, MANAGER, THIRD_PARTY, BANK_IN |
-| `collection_status` | PENDING, COLLECTED, BANKED, VERIFIED |
-| `notification_type` | LOW_STOCK, CRITICAL_STOCK, PENDING_SHIFT, PENDING_APPROVAL, PENDING_BANK_IN, DELIVERY_STATUS |
-| `permission_level` | NONE, VIEW, VIEW_AREA, FULL, FULL_OWN, OWN |
+## Booking Table
 
-## Core Tables
+Migration: `20260708100944_booking_api.sql`.
 
-### organizations
-Single tenant (RKJ) with extensibility for future orgs.
+Purpose: API-only booking records for future scheduling/workflow integrations.
 
-### profiles
-Extends `auth.users` with role, org, region/branch scope, employee link.
+Key columns:
 
-### branches
-36 kiosk locations with region, area manager, geo coordinates.
+| Column | Notes |
+|--------|-------|
+| `id` | UUID primary key. |
+| `organization_id` | Required tenant boundary. |
+| `branch_id` | Optional branch link. Needs same-org validation in API follow-up. |
+| `created_by` | Profile that created the booking. |
+| `assigned_to` | Optional profile assignment. Needs validation follow-up. |
+| `booking_number` | Unique per organization. |
+| `booking_type` | `GENERAL`, `CUSTOMER`, `EVENT`, `MAINTENANCE`, `SALES_AGENT`, `DELIVERY`, `OTHER`. |
+| `status` | `PENDING`, `CONFIRMED`, `CANCELLED`, `COMPLETED`, `NO_SHOW`. |
+| `priority` | `LOW`, `NORMAL`, `HIGH`, `URGENT`. |
+| `scheduled_date`, `scheduled_time` | Booking date/time. |
+| `metadata` | JSONB for integration-specific data. |
+| `confirmed_at`, `cancelled_at`, `completed_at` | Status timestamps. |
 
-## Module Mapping
+Indexes:
 
-| Module | Primary Tables |
-|--------|----------------|
-| POS | pos_shifts, pos_transactions, pos_transaction_items, pos_payments |
-| Shift Management | shift_templates, staff_shifts, attendance_records |
-| Inventory | inventory_locations, inventory_balances, stock_movements, stock_transfers |
-| Fleet | vehicles, drivers, delivery_orders, delivery_legs, proof_of_delivery |
-| Warehouse | stock_transfers (HQ scope), stock_audits |
-| Payroll | payroll_rules, commission_tiers, payroll_runs, payroll_line_items |
-| Finance | finance_collections, bank_in_records, cash_reconciliations |
-| Reporting | Materialized views + query functions on transactional tables |
+- `idx_bookings_org_date`
+- `idx_bookings_branch_date`
+- `idx_bookings_status`
+- `idx_bookings_created_by`
 
-## RLS Strategy
+## Sales Agent Payment Lifecycle
 
-1. All tables: `organization_id` match via JWT claim or profile lookup
-2. SUPER_ADMIN / ADMIN: full org access
-3. AREA_MANAGER: branch filter by `region_id`
-4. STAFF / DRIVER: own branch or assigned deliveries only
-5. Service role bypasses RLS for server-side API routes
+Base table: `agent_online_payments`.
 
-## Migration Order
+M5 migration draft: `20260708113305_m5_payment_lifecycle.sql`.
 
-Apply **in numeric order** (`00001` ke `00018`). See [supabase/README.md](../supabase/README.md) for full index.
+Additional lifecycle columns:
 
-| # | File | Summary |
-|---|------|---------|
-| 1 | `00001_extensions_enums.sql` | Extensions + enums |
-| 2 | `00002_core_organization.sql` | Org, regions, branches, profiles, RBAC |
-| 3 | `00003_master_data.sql` | Products, stock, BOM, shift/payroll rules |
-| 4 | `00004_inventory.sql` | Inventory schema |
-| 5 | `00005_pos.sql` | POS schema |
-| 6 | `00006_shifts_payroll_finance.sql` | Shifts, payroll, finance schema |
-| 7 | `00007_fleet_deliveries.sql` | Fleet + delivery schema |
-| 8 | `00008_notifications_approvals.sql` | Notifications + approvals |
-| 9 | `00009_rls_policies.sql` | RLS policies |
-| 10 | `00010_functions_triggers.sql` | Functions, triggers, views |
-| 11 | `00011_seed_data.sql` | Production seed data |
-| 12 | `00012_pos_rpc.sql` | POS atomic RPCs |
-| 13 | `00013_inventory_rpc.sql` | Inventory RPCs |
-| 14 | `00014_shift_rpc.sql` | Shift RPCs |
-| 15 | `00015_fleet_warehouse_rpc.sql` | Fleet + warehouse RPCs |
-| 16 | `00016_payroll_rpc.sql` | Payroll RPCs |
-| 17 | `00017_finance_rpc.sql` | Finance RPCs |
-| 18 | `00018_approvals_rpc.sql` | Unified approval resolver |
+| Column | Notes |
+|--------|-------|
+| `provider` | Payment provider used for the session: simulate, Billplz, iPay88, Stripe, or custom. |
+| `gateway_session_id` | External checkout/session id such as Billplz bill id or Stripe Checkout session id. |
+| `checkout_url` | Last checkout URL returned for the payment session. |
+| `failure_reason` | Failure/cancel reason from gateway or API. |
+| `cancelled_at` | Timestamp when pending payment was cancelled. |
+| `refunded_at` | Timestamp when admin/finance recorded refund. |
+| `refund_ref` | External/manual refund reference. |
+| `refund_reason` | Refund note. |
+
+RPC functions:
+
+- `cancel_agent_payment(p_payment_id, p_gateway_ref, p_reason)`
+- `refund_agent_payment(p_payment_id, p_refund_ref, p_reason, p_gateway_ref)`
+
+Security note: the new RPC functions are intended for service-role API routes only and should not be directly executable by `anon` or `authenticated`.
+
+## Migration Timeline
+
+| Range | Summary |
+|-------|---------|
+| `00001` to `00018` | Base extensions, enums, organization, master data, inventory, POS, shifts, payroll, finance, fleet, approvals, RLS, RPCs, seed data. |
+| `00019` to `00030` | Go-live fixes for fleet RLS, branch status, opening stock, staff, POS stock validation, product/menu changes. |
+| `00031` to `00043` | HQ stock items, POS sync, reject stock, roti expiry, settings/admin/personnel, menu updates. |
+| `00044` to `00061` | Factory production, branch orders, driver handoff, route planning, holidays, stock planning, delivery route AI, kiosk transfer, missing locations. |
+| `00062` to `00075` | Roster, staff portal credentials, avatars, profile details, legal entities, maintenance role/platform, HR company permissions, payroll payslips. |
+| `00076` to `00086` | Sales agent role/platform, payments, receipts, live subscriptions, price groups, sales staff, QR payments. |
+| `00087` to `00100` | Factory raw stock cards, legal documents/storage, privacy hardening, performance indexes, POS staff delivery SOP, stock controls. |
+| `00101` to `00111` | Area manager events, stock count RLS, POS shift timing/payroll/staff approval, finance lockdown, AM cash collection/usage, HR self-service, agent order number. |
+| `20260705*` | HR service catalog and leave balances. |
+| `20260708090000` | POS batch reject stock count. |
+| `20260708100944` | Booking API backend table. |
+
+## Database Maintenance Notes
+
+- Add new migrations with `npx supabase migration new <name>`.
+- Apply remote migrations with `npx supabase db push --yes`.
+- Regenerate TypeScript database types after stable schema changes.
+- Never edit already-applied production migrations unless recovering from a controlled deployment incident.

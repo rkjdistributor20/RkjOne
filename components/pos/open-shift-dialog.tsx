@@ -34,11 +34,26 @@ export function OpenShiftDialog({
  const [openingCash, setOpeningCash] = useState('100');
  const [loading, setLoading] = useState(false);
  const setShift = usePosStore((s) => s.setShift);
+ const openingCashNumber = Number(openingCash);
+ const openingCashError =
+ openingCash.trim() === ''
+ ? 'Masukkan float tunai permulaan.'
+ : !Number.isFinite(openingCashNumber)
+ ? 'Nilai float tunai tidak sah.'
+ : openingCashNumber < 0
+ ? 'Float tunai tidak boleh negatif.'
+ : openingCashNumber > 10000
+ ? 'Semak semula nilai float tunai.'
+ : null;
 
  async function handleOpen() {
+ if (openingCashError) {
+ toast.error(openingCashError);
+ return;
+ }
  setLoading(true);
  try {
- const { shift } = await openShift(branchId, Number(openingCash) || 0);
+ const { shift } = await openShift(branchId, openingCashNumber);
  setShift(shift);
  toast.success(`Syif ${shift.shift_number} dibuka`);
  onOpenChange(false);
@@ -67,10 +82,15 @@ export function OpenShiftDialog({
  type="number"
  min="0"
  step="0.01"
+ aria-invalid={Boolean(openingCashError)}
  className="h-12 text-lg"
  value={openingCash}
  onChange={(e) => setOpeningCash(e.target.value)}
  />
+ {openingCashError && (
+ <p className="text-sm font-medium text-destructive">
+ {openingCashError}
+ </p>)}
  <div className="flex flex-wrap gap-2">
  {QUICK_FLOAT.map((amt) => (
  <Button
@@ -88,7 +108,7 @@ export function OpenShiftDialog({
  <Button variant="outline" onClick={() => onOpenChange(false)}>
  Batal
  </Button>
- <Button onClick={handleOpen} disabled={loading}>
+ <Button onClick={handleOpen} disabled={loading || Boolean(openingCashError)}>
  {loading ? 'Membuka...' : 'Buka Syif'}
  </Button>
  </DialogFooter>

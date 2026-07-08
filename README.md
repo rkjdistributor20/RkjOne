@@ -34,6 +34,9 @@ npx vercel --prod
 ```
 
 Full checklist: [docs/GO_LIVE_CHECKLIST.md](./docs/GO_LIVE_CHECKLIST.md) 
+M7 UAT plan: [docs/M7_PRODUCTION_UAT_PLAN.md](./docs/M7_PRODUCTION_UAT_PLAN.md)
+Monitoring: [docs/MONITORING_RUNBOOK.md](./docs/MONITORING_RUNBOOK.md)
+Backup/rollback: [docs/BACKUP_ROLLBACK_SOP.md](./docs/BACKUP_ROLLBACK_SOP.md)
 Deploy guide: [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) 
 Resume session: **[RESUME.md](./RESUME.md)** ← baca ini bila sambung
 
@@ -58,10 +61,22 @@ Owner: `matisa@rkj.com` - HR: `dist006@rkj.com` - AM: `dist009@` / `dist001@` / 
 
 | Variable | Required |
 |----------|----------|
+| `DATABASE_URL` | Optional |
+| `NEXT_PUBLIC_APP_URL` | Yes |
+| `NEXT_PUBLIC_API_URL` | Optional |
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes |
+| `SUPABASE_URL` | Optional alias |
+| `SUPABASE_ANON_KEY` | Optional alias |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes (server only) |
-| `NEXT_PUBLIC_APP_URL` | Yes (auth redirects) |
+| `JWT_SECRET` | Optional |
+| `STRIPE_SECRET_KEY` | Optional |
+| `STRIPE_WEBHOOK_SECRET` | Optional when Stripe provider is enabled |
+| `OPENAI_API_KEY` | Optional |
+| `SALES_AGENT_PAYMENT_MODE` | Required for payment flow |
+| `SALES_AGENT_PAYMENT_PROVIDER` | Required for payment flow |
+| `SALES_AGENT_PAYMENT_WEBHOOK_SECRET` | Required for staging/production payment webhooks |
+| `ALLOW_UNSIGNED_PAYMENT_WEBHOOKS` | Local dev only; never enable in staging/production |
 
 ## Modules
 

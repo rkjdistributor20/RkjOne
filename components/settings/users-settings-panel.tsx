@@ -317,20 +317,6 @@ export function UsersSettingsPanel({
  onRefresh,
 }: UsersSettingsPanelProps) {
 
- if (isAdmin) {
- return (
- <UsersAdminPanel
- users={users}
- staffTotal={usersStaffTotal}
- loginTotal={usersLoginTotal}
- loading={usersLoading}
- loadError={usersError}
- branchGroups={branchGroups}
- creatableRoles={creatableRoles}
- onRefresh={onRefresh}
- />);
- }
-
  const currentProfile = useAuthStore((s) => s.profile);
 
  const [addOpen, setAddOpen] = useState(false);
@@ -345,6 +331,22 @@ export function UsersSettingsPanel({
 
  const [saving, setSaving] = useState(false);
 
+ const groups = useMemo(() => groupUsers(users, branchGroups), [users, branchGroups]);
+
+ if (isAdmin) {
+ return (
+ <UsersAdminPanel
+ users={users}
+ staffTotal={usersStaffTotal}
+ loginTotal={usersLoginTotal}
+ loading={usersLoading}
+ loadError={usersError}
+ branchGroups={branchGroups}
+ creatableRoles={creatableRoles}
+ onRefresh={onRefresh}
+ />);
+ }
+
 
 
  const allBranches = branchGroups.flatMap((g) =>
@@ -354,8 +356,6 @@ export function UsersSettingsPanel({
 
 
  const branchRequired = isAreaManager;
-
- const groups = useMemo(() => groupUsers(users, branchGroups), [users, branchGroups]);
 
 
 

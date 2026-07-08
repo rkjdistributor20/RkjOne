@@ -44,7 +44,7 @@ export async function POST(request: Request) {
 
  if (rulesErr) return NextResponse.json({ error: rulesErr.message }, { status: 500 });
 
- let proposal: AiPayrollProposal =
+ const proposal: AiPayrollProposal =
  body.proposal ??
  (await generateAiPayrollProposal(
  service,

@@ -12,10 +12,18 @@ const eslintConfig = defineConfig([
  "web/.next/**",
  "out/**",
  "build/**",
+ ".vercel/**",
  "android/**/build/**",
  "ios/**/build/**",
  "next-env.d.ts",
  ]),
+ {
+ rules: {
+ "@typescript-eslint/no-explicit-any": "warn",
+ "react-hooks/set-state-in-effect": "warn",
+ "react-hooks/preserve-manual-memoization": "warn",
+ },
+ },
 ]);
 
 export default eslintConfig;

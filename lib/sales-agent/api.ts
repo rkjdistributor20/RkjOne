@@ -3,6 +3,7 @@ import type {
  AgentPaymentPurpose,
  AgentPaymentReceipt,
  AgentPaymentStatus,
+ AgentPaymentLifecycleStatus,
  AgentPaymentTarget,
  AgentStockOrder,
  AgentSalesStaff,
@@ -75,7 +76,17 @@ export async function createAgentPayment(payload: {
 }) {
  return fetchJson<{
  payment: { id: string; amount_rm: number; status: string };
- checkout: { mode: string; checkout_url: string | null; gateway_session_id: string | null };
+ checkout: { mode: string; provider?: string; checkout_url: string | null; gateway_session_id: string | null };
+ session: {
+ id: string;
+ provider: string;
+ mode: string;
+ checkout_url: string | null;
+ gateway_session_id: string | null;
+ status_url: string;
+ cancel_url: string;
+ return_url: string;
+ };
  }>('/api/sales-agent/payments', {
  method: 'POST',
  headers: { 'Content-Type': 'application/json' },
@@ -102,14 +113,53 @@ export async function fetchPaymentStatus(paymentId: string) {
  payment: {
  id: string;
  purpose: AgentPaymentPurpose;
+ reference_type?: string;
+ reference_id?: string;
  amount_rm: number;
  payment_method: OnlinePaymentMethod;
  status: AgentPaymentStatus;
+ lifecycle_status: AgentPaymentLifecycleStatus;
  paid_at: string | null;
  created_at: string;
+ provider?: string | null;
+ gateway_ref?: string | null;
+ gateway_session_id?: string | null;
+ checkout_url?: string | null;
+ failure_reason?: string | null;
+ cancelled_at?: string | null;
+ refunded_at?: string | null;
+ refund_ref?: string | null;
+ refund_reason?: string | null;
+ next_action?: {
+ type: 'checkout';
+ checkout_url: string | null;
+ cancel_url: string;
+ } | null;
  };
  receipt: AgentPaymentReceipt | null;
  }>(`/api/sales-agent/payments/${paymentId}/status`);
+}
+
+export async function cancelAgentPaymentSession(paymentId: string, reason?: string) {
+ return fetchJson<{ ok: boolean; result?: unknown }>(
+ `/api/sales-agent/payments/${paymentId}/cancel`,
+ {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify({ reason }),
+ });
+}
+
+export async function refundAgentPaymentSession(
+ paymentId: string,
+ payload: { refund_ref?: string; reason?: string } = {}) {
+ return fetchJson<{ ok: boolean; result?: unknown; refund?: unknown }>(
+ `/api/sales-agent/payments/${paymentId}/refund`,
+ {
+ method: 'POST',
+ headers: { 'Content-Type': 'application/json' },
+ body: JSON.stringify(payload),
+ });
 }
 
 export async function startOutletSubscription(outletId: string) {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { Search } from 'lucide-react';
+import { PackageSearch, Search, X } from 'lucide-react';
 import { usePosStore } from '@/stores/pos-store';
 import { formatRM, normalizePosCategory, formatKioskStockLabel } from '@/lib/pos/utils';
 import { KioskStockBar } from '@/components/pos/kiosk-stock-bar';
@@ -75,6 +75,10 @@ export function ProductGrid() {
  return list;
  }, [products, selectedCategory, searchQuery]);
 
+ const hasSearch = searchQuery.trim().length > 0;
+ const hasCategoryFilter = Boolean(selectedCategory);
+ const hasAnyProducts = products.length > 0;
+
  return (
  <div className="rkj-surface flex h-full min-h-0 flex-col gap-3 overflow-hidden rounded-lg p-3">
  <div className="relative shrink-0">
@@ -83,8 +87,17 @@ export function ProductGrid() {
  placeholder="Cari roti atau SKU..."
  value={searchQuery}
  onChange={(e) => setSearchQuery(e.target.value)}
- className="h-11 rounded-lg border-amber-200/70 bg-white pl-9 text-base shadow-sm"
+ className="h-11 rounded-lg border-amber-200/70 bg-white pl-9 pr-10 text-base shadow-sm"
  />
+ {hasSearch && (
+ <button
+ type="button"
+ aria-label="Kosongkan carian produk"
+ onClick={() => setSearchQuery('')}
+ className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-amber-100 hover:text-foreground"
+ >
+ <X className="h-4 w-4" />
+ </button>)}
  </div>
 
  <ScrollArea className="min-h-0 flex-1">
@@ -141,7 +154,16 @@ export function ProductGrid() {
  Buka syif dahulu untuk mula jual
  </div>)}
 
- {selectedCategory === 'Pelbagai' ? (
+ {!hasAnyProducts ? (
+ <div className="flex min-h-[18rem] flex-col items-center justify-center rounded-lg border border-dashed bg-white px-4 py-10 text-center">
+ <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-xl bg-amber-50 text-amber-700">
+ <PackageSearch className="h-7 w-7" />
+ </div>
+ <p className="text-sm font-semibold text-foreground">Produk POS belum tersedia</p>
+ <p className="mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">
+ Semak cawangan, stok kiosk, atau refresh selepas HQ aktifkan produk untuk cawangan ini.
+ </p>
+ </div>) : selectedCategory === 'Pelbagai' ? (
  <PelbagaiProductGrid
  products={filteredProducts}
  stockByProduct={stockByProduct}
@@ -186,10 +208,37 @@ export function ProductGrid() {
  })}
  </div>)}
 
- {filteredProducts.length === 0 && (
- <p className="py-12 text-center text-sm text-muted-foreground">
- Tiada produk dijumpai
- </p>)}
+ {hasAnyProducts && filteredProducts.length === 0 && (
+ <div className="flex min-h-[14rem] flex-col items-center justify-center rounded-lg border border-dashed bg-white px-4 py-8 text-center">
+ <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+ <Search className="h-6 w-6" />
+ </div>
+ <p className="text-sm font-semibold text-foreground">Tiada produk dijumpai</p>
+ <p className="mt-1 max-w-sm text-xs leading-relaxed text-muted-foreground">
+ {hasSearch || hasCategoryFilter
+ ? 'Cuba kosongkan carian atau pilih kategori lain.'
+ : 'Produk tidak tersedia untuk pilihan semasa.'}
+ </p>
+ {(hasSearch || hasCategoryFilter) && (
+ <div className="mt-3 flex flex-wrap justify-center gap-2">
+ {hasSearch && (
+ <button
+ type="button"
+ onClick={() => setSearchQuery('')}
+ className="rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-muted"
+ >
+ Kosongkan carian
+ </button>)}
+ {hasCategoryFilter && (
+ <button
+ type="button"
+ onClick={() => setSelectedCategory('')}
+ className="rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-muted"
+ >
+ Semua kategori
+ </button>)}
+ </div>)}
+ </div>)}
 
  <p className="text-[11px] text-muted-foreground">
  Baki stok kiosk dikemas kini setiap muat semula - ditolak automatik selepas jualan

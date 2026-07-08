@@ -22,6 +22,8 @@ import {
  Wrench,
  Users,
  Store,
+ CalendarDays,
+ ShieldCheck,
  type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -58,6 +60,8 @@ const ICONS: Record<string, LucideIcon> = {
  Wrench,
  Users,
  Store,
+ CalendarDays,
+ ShieldCheck,
 };
 
 interface AppShellProps {

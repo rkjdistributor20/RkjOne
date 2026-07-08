@@ -5,6 +5,11 @@ import type { Database } from '@/types/database';
 
 const CHANGE_PASSWORD_PATH = '/change-password';
 const CHANGE_PASSWORD_API = '/api/auth/change-password';
+const PUBLIC_API_PATHS = new Set([
+ '/api/health',
+ '/api/pos/qr-payments/webhook',
+ '/api/sales-agent/payments/webhook',
+]);
 
 export async function updateSession(request: NextRequest) {
  let supabaseResponse = NextResponse.next({ request });
@@ -32,6 +37,8 @@ export async function updateSession(request: NextRequest) {
  } = await supabase.auth.getUser();
 
  const pathname = request.nextUrl.pathname;
+ const isApiRoute = pathname.startsWith('/api/');
+ const isPublicApiRoute = PUBLIC_API_PATHS.has(pathname);
  const isPublicAsset =
  pathname === '/manifest.json' ||
  pathname === '/sw.js' ||
@@ -44,12 +51,15 @@ export async function updateSession(request: NextRequest) {
  pathname === '/offline' ||
  pathname === '/privacy' ||
  isPublicAsset ||
- pathname === '/api/health';
+ isPublicApiRoute;
 
  const isChangePasswordRoute =
  pathname === CHANGE_PASSWORD_PATH || pathname.startsWith(CHANGE_PASSWORD_API);
 
  if (!user && !isPublicRoute) {
+ if (isApiRoute) {
+ return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+ }
  const url = request.nextUrl.clone();
  url.pathname = '/login';
  url.searchParams.set('redirect', pathname);
@@ -71,6 +81,11 @@ export async function updateSession(request: NextRequest) {
  } | null;
 
  if (profileRow?.must_change_password) {
+ if (isApiRoute) {
+ return NextResponse.json(
+ { error: 'Kata laluan perlu ditukar sebelum meneruskan.' },
+ { status: 403 });
+ }
  const url = request.nextUrl.clone();
  url.pathname = CHANGE_PASSWORD_PATH;
  return NextResponse.redirect(url);

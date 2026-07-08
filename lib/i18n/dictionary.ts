@@ -57,6 +57,7 @@ export const dictionary = {
 
  'nav.command': 'Pusat Kawalan',
  'nav.commandDesc': 'Ringkasan tugas utama',
+ 'nav.admin': 'Admin',
  'nav.manufacturing': 'RKJ Manufacturing',
  'nav.manufacturingDesc': 'Production & stok kilang',
  'nav.distributor': 'RKJ Distributor',
@@ -291,6 +292,7 @@ export const dictionary = {
 
  'nav.command': 'Control Center',
  'nav.commandDesc': 'Main work summary',
+ 'nav.admin': 'Admin',
  'nav.manufacturing': 'RKJ Manufacturing',
  'nav.manufacturingDesc': 'Production & factory stock',
  'nav.distributor': 'RKJ Distributor',
@@ -478,6 +480,7 @@ export type TranslationKey = keyof typeof dictionary.ms;
 
 export const navHrefKeys: Record<string, TranslationKey> = {
  '/dashboard': 'nav.dashboard',
+ '/admin': 'nav.admin',
  '/factory': 'nav.factory',
  '/warehouse': 'nav.warehouse',
  '/fleet': 'nav.fleet',

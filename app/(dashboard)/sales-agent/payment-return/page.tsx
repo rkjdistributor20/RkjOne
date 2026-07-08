@@ -17,7 +17,7 @@ function PaymentReturnInner() {
  const searchParams = useSearchParams();
  const router = useRouter();
  const paymentId = searchParams.get('payment');
- const [phase, setPhase] = useState<'waiting' | 'paid' | 'failed'>('waiting');
+ const [phase, setPhase] = useState<'waiting' | 'paid' | 'failed' | 'refunded'>('waiting');
  const [message, setMessage] = useState('Menunggu pengesahan bank...');
  const [receipt, setReceipt] = useState<AgentPaymentReceipt | null>(null);
  const [receiptOpen, setReceiptOpen] = useState(false);
@@ -47,11 +47,23 @@ function PaymentReturnInner() {
  toast.success('Bayaran berjaya');
  return;
  }
+ if (payment.lifecycle_status === 'CANCELLED') {
+ setPhase('failed');
+ setMessage(
+ 'Bayaran dibatalkan. Tempahan stok / langganan POS belum disahkan - sila cuba semula jika masih diperlukan.');
+ toast.error('Bayaran dibatalkan');
+ return;
+ }
  if (payment.status === 'FAILED') {
  setPhase('failed');
  setMessage(
  'Bayaran gagal atau dibatalkan. Tempahan stok / langganan POS tidak disahkan - sila cuba semula.');
  toast.error('Bayaran gagal');
+ return;
+ }
+ if (payment.status === 'REFUNDED') {
+ setPhase('refunded');
+ setMessage('Bayaran ini telah direkod sebagai refund oleh admin/finance.');
  return;
  }
  } catch {
@@ -95,6 +107,15 @@ function PaymentReturnInner() {
  <>
  <XCircle className="h-10 w-10 text-destructive" />
  <h1 className="text-lg font-semibold">Bayaran Tidak Disahkan</h1>
+ <p className="text-sm text-muted-foreground">{message}</p>
+ <Button variant="outline" onClick={() => router.push('/sales-agent')}>
+ Kembali ke Portal Ejen
+ </Button>
+ </>)}
+ {phase === 'refunded' && (
+ <>
+ <XCircle className="h-10 w-10 text-amber-600" />
+ <h1 className="text-lg font-semibold">Bayaran Direfund</h1>
  <p className="text-sm text-muted-foreground">{message}</p>
  <Button variant="outline" onClick={() => router.push('/sales-agent')}>
  Kembali ke Portal Ejen

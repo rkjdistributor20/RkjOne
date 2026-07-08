@@ -95,6 +95,7 @@ const PAYMENT_STATUS: Record<string, string> = {
  PENDING: 'Menunggu Bank',
  PAID: 'Disahkan Bank',
  FAILED: 'Gagal',
+ CANCELLED: 'Dibatalkan',
  REFUNDED: 'Dibayar Balik',
 };
 
@@ -829,8 +830,8 @@ export function SalesAgentDashboard() {
  </p>
  </div>
  <div className="flex items-center gap-2">
- <Badge variant={p.status === 'PAID' ? 'default' : p.status === 'FAILED' ? 'destructive' : 'outline'}>
- {PAYMENT_STATUS[p.status] ?? p.status}
+ <Badge variant={p.status === 'PAID' ? 'default' : p.lifecycle_status === 'CANCELLED' || p.status === 'FAILED' ? 'destructive' : 'outline'}>
+ {PAYMENT_STATUS[p.lifecycle_status ?? p.status] ?? p.lifecycle_status ?? p.status}
  </Badge>
  {p.status === 'PAID' && (
  <Button size="sm" variant="outline" onClick={() => void showReceiptForPayment(p.id)}>

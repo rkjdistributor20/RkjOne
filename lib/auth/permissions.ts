@@ -80,6 +80,7 @@ export const NAV_ITEMS: Array<{
  group: 'command' | 'manufacturing' | 'distributor' | 'retail' | 'governance';
 }> = [
  { href: '/dashboard', label: 'Pusat Kawalan', module: 'reports', icon: 'LayoutDashboard', group: 'command' },
+ { href: '/admin', label: 'Admin', module: 'user_management', icon: 'ShieldCheck', group: 'command' },
  { href: '/factory', label: 'Kilang', module: 'stock_hq', icon: 'Factory', group: 'manufacturing' },
  { href: '/warehouse', label: HQ_DISTRIBUTOR_LABEL, module: 'stock_hq', icon: 'Warehouse', group: 'distributor' },
  { href: '/fleet', label: LOGISTIK_LABEL, module: 'fleet', icon: 'Truck', group: 'distributor' },
@@ -92,6 +93,7 @@ export const NAV_ITEMS: Array<{
  { href: '/hr', label: 'HR & Gaji', module: 'hr', icon: 'Users', group: 'governance' },
  { href: '/payroll', label: 'Gaji', module: 'payroll', icon: 'Wallet', group: 'governance' },
  { href: '/finance', label: 'Kewangan', module: 'finance', icon: 'Banknote', group: 'governance' },
+ { href: '/bookings', label: 'Bookings', module: 'reports', icon: 'CalendarDays', group: 'governance' },
  { href: '/reports', label: 'Laporan', module: 'reports', icon: 'BarChart3', group: 'governance' },
  { href: '/approvals', label: 'Kelulusan', module: 'approval', icon: 'CheckSquare', group: 'governance' },
  { href: '/settings', label: 'Tetapan', module: 'user_management', icon: 'Settings', group: 'governance' },
@@ -104,6 +106,7 @@ export function getVisibleNavItems(
  const items = NAV_ITEMS.filter((item) => {
  if (profile && !canAccessNavGroupForLegalEntity(item.group, profile)) return false;
  if (item.href === '/dashboard') return true;
+ if (item.href === '/admin') return isAdminRole(role);
  if (item.href === '/payroll') return false;
  if (item.href === '/settings') {
  return isAdminRole(role) || role === 'AREA_MANAGER' || role === 'OPERATION_MANAGER';

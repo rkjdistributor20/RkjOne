@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useEffect, useCallback } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import { Banknote, QrCode, Split, Delete, CheckCircle2 } from 'lucide-react';
 import { createSale } from '@/lib/pos/api';
@@ -42,6 +42,11 @@ function buildQuickAmounts(total: number): number[] {
 
 const NUMPAD = ['7', '8', '9', '4', '5', '6', '1', '2', '3', 'C', '.', '0'] as const;
 
+function parseMoney(value: string) {
+ const parsed = Number(value);
+ return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+}
+
 function MethodButton({
  active,
  onClick,
@@ -57,6 +62,7 @@ function MethodButton({
  <button
  type="button"
  onClick={onClick}
+ aria-pressed={active}
  className={cn(
  'flex flex-col items-center justify-center gap-1 rounded-xl border-2 py-3 text-sm font-semibold transition-all',
  active
@@ -84,46 +90,63 @@ export function PaymentDialog({
  (sum, item) => sum + item.price * item.quantity,
  0);
  const [method, setMethod] = useState<PaymentMethod>('CASH');
- const [cashTendered, setCashTendered] = useState('');
- const [qrAmount, setQrAmount] = useState('');
+ const [cashTenderedOverride, setCashTenderedOverride] = useState<string | null>(null);
+ const [qrAmountOverride, setQrAmountOverride] = useState<string | null>(null);
  const [loading, setLoading] = useState(false);
 
  const quickAmounts = useMemo(() => buildQuickAmounts(total), [total]);
-
- useEffect(() => {
- if (open) {
- setMethod('CASH');
- const amount = total > 0 ? total.toFixed(2) : '';
- setCashTendered(amount);
- setQrAmount(amount);
- }
- }, [open, total]);
-
- const cashNum = Number(cashTendered) || 0;
- const qrNum = Number(qrAmount) || 0;
+ const defaultAmount = total > 0 ? total.toFixed(2) : '';
+ const cashTendered = cashTenderedOverride ?? defaultAmount;
+ const qrAmount = qrAmountOverride ?? defaultAmount;
+ const cashNum = parseMoney(cashTendered);
+ const qrNum = parseMoney(qrAmount);
 
  const changeAmount =
  method === 'CASH'
  ? Math.max(cashNum - total, 0)
  : method === 'MIXED'
- ? Math.max(cashNum ?? Math.max(total - qrNum, 0), 0)
+ ? Math.max(cashNum + qrNum - total, 0)
  : 0;
 
  const paidAmount =
  method === 'CASH' ? cashNum : method === 'QR' ? qrNum : cashNum + qrNum;
 
  const shortfall = Math.max(total - paidAmount, 0);
- const canPay = total > 0 && paidAmount >= total && shift && cart.length > 0;
+ const paymentError =
+ !shift
+ ? 'Buka syif POS dahulu.'
+ : cart.length === 0
+ ? 'Troli masih kosong.'
+ : total <= 0
+ ? 'Jumlah bayaran tidak sah.'
+ : method !== 'CASH' && !isOnline
+ ? 'QR manual perlu online untuk rekod audit dan pengesahan kewangan.'
+ : paidAmount < total
+ ? `Bayaran kurang ${formatRM(shortfall)}.`
+ : null;
+ const canPay = !paymentError && total > 0;
+
+ const resetPaymentForm = useCallback(() => {
+ setMethod('CASH');
+ setCashTenderedOverride(null);
+ setQrAmountOverride(null);
+ }, []);
+
+ const handleDialogOpenChange = useCallback((nextOpen: boolean) => {
+ if (!nextOpen) resetPaymentForm();
+ onOpenChange(nextOpen);
+ }, [onOpenChange, resetPaymentForm]);
 
  const appendNumpad = useCallback((key: string) => {
- setCashTendered((prev) => {
+ setCashTenderedOverride((prevOverride) => {
+ const prev = prevOverride ?? defaultAmount;
  if (key === 'C') return '';
  if (key === '.' && prev.includes('.')) return prev;
  if (prev === '' && key === '.') return '0.';
  if (prev === '0' && key !== '.') return key;
  return prev + key;
  });
- }, []);
+ }, [defaultAmount]);
 
  function buildSalePayload(methodOverride: PaymentMethod = method) {
  if (!shift) return null;
@@ -143,12 +166,18 @@ export function PaymentDialog({
  }
 
  async function handlePay() {
- if (!shift || !canPay) return;
+ const currentShift = shift;
+ if (!currentShift) {
+ toast.error('Buka syif POS dahulu.');
+ return;
+ }
+ if (!canPay) {
+ toast.error(paymentError ?? 'Bayaran belum lengkap.');
+ return;
+ }
  const payload = buildSalePayload();
- if (!payload) return;
-
- if (!isOnline && method !== 'CASH') {
- toast.error('QR manual perlu online untuk rekod audit dan pengesahan kemudian.');
+ if (!payload) {
+ toast.error('Buka syif POS dahulu.');
  return;
  }
 
@@ -161,7 +190,7 @@ export function PaymentDialog({
  enqueueOfflineSale({
  offlineId,
  branchId,
- shiftId: shift.id,
+ shiftId: currentShift.id,
  items,
  payment_method: method,
  cash_amount: payload.cash_amount,
@@ -173,7 +202,7 @@ export function PaymentDialog({
  const offlineReceipt: SaleResult = {
  transaction_id: offlineId,
  transaction_number: `OFFLINE-${offlineId.slice(-8)}`,
- receipt_number: `RC-OFF-${Date.now()}`,
+ receipt_number: `RC-OFF-${offlineId.slice(-8)}`,
  subtotal: total,
  discount: 0,
  total,
@@ -189,7 +218,7 @@ export function PaymentDialog({
 
  toast.warning('Disimpan luar talian - akan disegerak bila online');
  clearCart();
- onOpenChange(false);
+ handleDialogOpenChange(false);
  onSuccess(offlineReceipt);
  return;
  }
@@ -201,7 +230,7 @@ export function PaymentDialog({
  toast.success('Bayaran berjaya - stok ditolak');
  }
  clearCart();
- onOpenChange(false);
+ handleDialogOpenChange(false);
  onSuccess(result);
  } catch (err) {
  const msg = err instanceof Error ? err.message : 'Bayaran gagal';
@@ -212,7 +241,7 @@ export function PaymentDialog({
  }
 
  return (
- <Dialog open={open} onOpenChange={onOpenChange}>
+ <Dialog open={open} onOpenChange={handleDialogOpenChange}>
  <DialogContent className="flex max-h-[92vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
  <div className="bg-gradient-to-br from-amber-500 to-orange-600 px-5 py-5 text-white">
  <p className="text-xs font-medium uppercase tracking-wider text-white/80">
@@ -235,7 +264,7 @@ export function PaymentDialog({
  active={method === 'CASH'}
  onClick={() => {
  setMethod('CASH');
- setCashTendered(total > 0 ? total.toFixed(2) : '');
+ setCashTenderedOverride(null);
  }}
  icon={Banknote}
  label="Tunai"
@@ -244,7 +273,7 @@ export function PaymentDialog({
  active={method === 'QR'}
  onClick={() => {
  setMethod('QR');
- setQrAmount(total > 0 ? total.toFixed(2) : '');
+ setQrAmountOverride(null);
  }}
  icon={QrCode}
  label="QR Manual"
@@ -268,7 +297,7 @@ export function PaymentDialog({
  inputMode="decimal"
  className="h-14 border-2 text-center text-2xl font-bold tabular-nums"
  value={cashTendered}
- onChange={(e) => setCashTendered(e.target.value.replace(/[^\d.]/g, ''))}
+ onChange={(e) => setCashTenderedOverride(e.target.value.replace(/[^\d.]/g, ''))}
  autoFocus
  />
  </div>
@@ -282,7 +311,7 @@ export function PaymentDialog({
  className={cn(
  'h-11 flex-1 min-w-[4.5rem] text-base font-semibold',
  Math.abs(amt - total) < 0.01 && 'bg-amber-500 hover:bg-amber-600')}
- onClick={() => setCashTendered(amt.toFixed(2))}
+ onClick={() => setCashTenderedOverride(amt.toFixed(2))}
  >
  {Math.abs(amt - total) < 0.01 ? 'Tepat' : formatRM(amt)}
  </Button>))}
@@ -294,6 +323,7 @@ export function PaymentDialog({
  key={key}
  type="button"
  variant="outline"
+ aria-label={key === 'C' ? 'Kosongkan amaun tunai' : `Masukkan ${key}`}
  className="h-12 text-lg font-semibold"
  onClick={() => appendNumpad(key)}
  >
@@ -313,7 +343,7 @@ export function PaymentDialog({
  className="h-14 text-center text-2xl font-bold tabular-nums"
  value={qrAmount}
  onChange={(e) => {
- setQrAmount(e.target.value);
+ setQrAmountOverride(e.target.value);
  }}
  />
  </div>
@@ -322,7 +352,7 @@ export function PaymentDialog({
  variant="secondary"
  className="h-12 w-full text-base font-semibold"
  onClick={() => {
- setQrAmount(total.toFixed(2));
+ setQrAmountOverride(null);
  }}
  >
  QR penuh - {formatRM(total)}
@@ -363,7 +393,7 @@ export function PaymentDialog({
  step="0.01"
  className="h-12 text-lg font-semibold tabular-nums"
  value={cashTendered}
- onChange={(e) => setCashTendered(e.target.value)}
+ onChange={(e) => setCashTenderedOverride(e.target.value)}
  />
  </div>
  <div className="space-y-1.5">
@@ -374,7 +404,7 @@ export function PaymentDialog({
  step="0.01"
  className="h-12 text-lg font-semibold tabular-nums"
  value={qrAmount}
- onChange={(e) => setQrAmount(e.target.value)}
+ onChange={(e) => setQrAmountOverride(e.target.value)}
  />
  </div>
  <Button
@@ -383,8 +413,8 @@ export function PaymentDialog({
  className="sm:col-span-2"
  onClick={() => {
  const half = (total / 2).toFixed(2);
- setCashTendered(half);
- setQrAmount((total - total / 2).toFixed(2));
+ setCashTenderedOverride(half);
+ setQrAmountOverride((total - total / 2).toFixed(2));
  }}
  >
  Bahagi sama - tunai + QR
@@ -406,6 +436,11 @@ export function PaymentDialog({
  Kurang <strong className="tabular-nums">{formatRM(shortfall)}</strong> lagi
  </div>)}
 
+ {paymentError && !(shortfall > 0 && paidAmount > 0) && (
+ <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-center text-sm font-medium text-destructive">
+ {paymentError}
+ </div>)}
+
  {canPay && !loading && (
  <div className="flex items-center justify-center gap-1.5 text-xs text-emerald-700">
  <CheckCircle2 className="h-4 w-4" />
@@ -417,7 +452,7 @@ export function PaymentDialog({
  <Button
  variant="outline"
  className="h-12 flex-1"
- onClick={() => onOpenChange(false)}
+ onClick={() => handleDialogOpenChange(false)}
  disabled={loading}
  >
  Batal

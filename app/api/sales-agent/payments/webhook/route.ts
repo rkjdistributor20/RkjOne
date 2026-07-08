@@ -1,9 +1,16 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createServiceClient } from '@/lib/supabase/server';
-import { fulfillAgentPayment, rejectAgentPayment, verifyGatewayWebhookSignature } from '@/lib/sales-agent/payment-gateway';
+import {
+ cancelAgentPayment,
+ fulfillAgentPayment,
+ refundAgentPayment,
+ rejectAgentPayment,
+ verifyGatewayWebhookSignature,
+} from '@/lib/sales-agent/payment-gateway';
 import { verifyIPay88BackendSignature } from '@/lib/sales-agent/ipay88';
 import { getBillplzConfig, verifyBillplzXSignature } from '@/lib/sales-agent/billplz';
+import { getStripeClient, getStripeWebhookSecret } from '@/lib/sales-agent/stripe';
 import { enforceRateLimit } from '@/lib/security/rate-limit';
 
 /**
@@ -19,6 +26,75 @@ export async function POST(request: Request) {
 
  const contentType = request.headers.get('content-type') ?? '';
  const raw = await request.text();
+ const stripeSignature = request.headers.get('stripe-signature');
+
+ if (stripeSignature) {
+ const stripe = getStripeClient();
+ const webhookSecret = getStripeWebhookSecret();
+ if (!stripe || !webhookSecret) {
+ return NextResponse.json({ error: 'Stripe webhook not configured' }, { status: 503 });
+ }
+
+ let event;
+ try {
+ event = stripe.webhooks.constructEvent(raw, stripeSignature, webhookSecret);
+ } catch (e) {
+ return NextResponse.json(
+ { error: e instanceof Error ? e.message : 'Invalid Stripe signature' },
+ { status: 400 });
+ }
+
+ const object = event.data.object as {
+ id?: string;
+ payment_intent?: string | { id?: string } | null;
+ metadata?: Record<string, string>;
+ client_reference_id?: string | null;
+ };
+ const paymentId = object.metadata?.payment_id ?? object.client_reference_id ?? null;
+ const paymentIntentId =
+ typeof object.payment_intent === 'string'
+ ? object.payment_intent
+ : object.payment_intent?.id ?? object.id ?? undefined;
+
+ if (!paymentId) {
+ return NextResponse.json({ error: 'Stripe payment_id metadata missing' }, { status: 400 });
+ }
+
+ try {
+ const service = await createServiceClient();
+ if (event.type === 'checkout.session.completed') {
+ const result = await fulfillAgentPayment(
+ service as SupabaseClient,
+ paymentId,
+ paymentIntentId ?? object.id ?? `STRIPE-${Date.now()}`);
+ return NextResponse.json({ ok: true, status: 'PAID', result });
+ }
+
+ if (event.type === 'checkout.session.expired') {
+ await cancelAgentPayment(
+ service as SupabaseClient,
+ paymentId,
+ object.id,
+ 'Stripe checkout session expired');
+ return NextResponse.json({ ok: true, status: 'CANCELLED' });
+ }
+
+ if (event.type === 'payment_intent.payment_failed') {
+ await rejectAgentPayment(
+ service as SupabaseClient,
+ paymentId,
+ object.id,
+ 'STRIPE_PAYMENT_FAILED');
+ return NextResponse.json({ ok: true, status: 'FAILED' });
+ }
+ } catch (e) {
+ return NextResponse.json(
+ { error: e instanceof Error ? e.message : 'Stripe webhook update failed' },
+ { status: 400 });
+ }
+
+ return NextResponse.json({ ok: true, ignored: event.type });
+ }
 
  let body: Record<string, unknown> = {};
  if (contentType.includes('application/json')) {
@@ -84,14 +160,49 @@ export async function POST(request: Request) {
  return NextResponse.json({ error: 'payment_id required' }, { status: 400 });
  }
 
- if (status !== 'PAID') {
+ const normalizedStatus = String(status ?? 'FAILED').trim().toUpperCase();
+
+ if (normalizedStatus === 'CANCELLED' || normalizedStatus === 'CANCELED') {
+ try {
+ const service = await createServiceClient();
+ await cancelAgentPayment(
+ service as SupabaseClient,
+ paymentId,
+ gatewayRef,
+ 'Gateway cancelled payment');
+ return NextResponse.json({ ok: true, status: 'CANCELLED' });
+ } catch (e) {
+ return NextResponse.json(
+ { error: e instanceof Error ? e.message : 'Cancel failed' },
+ { status: 400 });
+ }
+ }
+
+ if (normalizedStatus === 'REFUNDED') {
+ try {
+ const service = await createServiceClient();
+ await refundAgentPayment(
+ service as SupabaseClient,
+ paymentId,
+ (body.refund_ref as string | undefined) ?? gatewayRef,
+ 'Gateway refund callback',
+ gatewayRef);
+ return NextResponse.json({ ok: true, status: 'REFUNDED' });
+ } catch (e) {
+ return NextResponse.json(
+ { error: e instanceof Error ? e.message : 'Refund update failed' },
+ { status: 400 });
+ }
+ }
+
+ if (normalizedStatus !== 'PAID') {
  try {
  const service = await createServiceClient();
  await rejectAgentPayment(
  service as SupabaseClient,
  paymentId,
  gatewayRef,
- status ?? 'FAILED');
+ normalizedStatus);
  return NextResponse.json({ ok: true, status: 'FAILED' });
  } catch (e) {
  return NextResponse.json(

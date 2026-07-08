@@ -11,6 +11,7 @@ export type AgentOrderStatus =
 export type AgentPaymentPurpose = 'STOCK_ORDER' | 'POS_SUBSCRIPTION';
 export type OnlinePaymentMethod = 'CARD' | 'DEBIT' | 'FPX';
 export type AgentPaymentStatus = 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED';
+export type AgentPaymentLifecycleStatus = AgentPaymentStatus | 'CANCELLED';
 
 export type SalesAgentAccount = {
  id: string;
@@ -118,6 +119,7 @@ export type AgentDashboardData = {
  amount_rm: number;
  payment_method: OnlinePaymentMethod;
  status: AgentPaymentStatus;
+ lifecycle_status?: AgentPaymentLifecycleStatus;
  created_at: string;
  }>;
  production_days: ProductionDayOption[];

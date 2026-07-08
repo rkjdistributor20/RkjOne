@@ -1,200 +1,189 @@
-# RKJ One - Deployment Guide
+# RKJ One Deployment Guide
 
-Production deployment for Roti Kaya Junus ERP on **Supabase** + **Vercel**.
+Last updated: 2026-07-08
 
-> **Go-live checklist (BM):** [GO_LIVE_CHECKLIST.md](./GO_LIVE_CHECKLIST.md)
+Production deployment for RKJ One on Supabase and Vercel.
 
-## Prerequisites
+Production URL: https://rkj-one.vercel.app
 
-- [Supabase](https://supabase.com) project
-- [Vercel](https://vercel.com) account
-- [Supabase CLI](https://supabase.com/docs/guides/cli) (optional, for local dev)
-- Node.js 20+
+## Environments
 
-## 1. Supabase Setup
+| Environment | App | Database |
+|-------------|-----|----------|
+| Local | `http://localhost:3000` | Linked Supabase project or local Supabase if configured. |
+| Preview | Vercel preview deployment | Usually production/staging Supabase depending on env vars. |
+| Production | `https://rkj-one.vercel.app` | Production Supabase project. |
 
-### Create project
+## Required Environment Variables
 
-1. Create a new Supabase project (region: Singapore recommended).
-2. Note **Project URL**, **anon key**, and **service_role key**.
+Never commit actual values.
 
-### Run migrations
+| Variable | Required | Scope |
+|----------|----------|-------|
+| `DATABASE_URL` | Optional | Server/direct DB tooling |
+| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Browser/server |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Browser/server |
+| `SUPABASE_URL` | Optional alias | Server/tools |
+| `SUPABASE_ANON_KEY` | Optional alias | Server/tools |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Server only |
+| `NEXT_PUBLIC_APP_URL` | Yes | Browser/server |
+| `NEXT_PUBLIC_API_URL` | Optional | Browser/server |
+| `JWT_SECRET` | Optional unless JWT feature enabled | Server only |
+| `STRIPE_SECRET_KEY` | Optional unless Stripe enabled | Server only |
+| `STRIPE_WEBHOOK_SECRET` | Optional unless Stripe enabled | Server only |
+| `OPENAI_API_KEY` | Optional unless AI API feature enabled | Server only |
 
-**All migrations:** `00001` through `00030` (30 files).
+Optional/payment variables depend on the active gateway setup for Sales Agent payments.
 
-```bash
-# From repo root
-supabase link --project-ref YOUR_PROJECT_REF
-supabase db push
-```
+Sales Agent payment variables:
 
-**Windows - automated go-live script:**
+| Variable | Required | Scope |
+|----------|----------|-------|
+| `SALES_AGENT_PAYMENT_MODE` | Yes | Server |
+| `SALES_AGENT_PAYMENT_PROVIDER` | Yes | Server |
+| `SALES_AGENT_PAYMENT_WEBHOOK_SECRET` | Yes for staging/production webhooks | Server only |
+| `ALLOW_UNSIGNED_PAYMENT_WEBHOOKS` | Local dev only | Server only |
+
+Do not set `ALLOW_UNSIGNED_PAYMENT_WEBHOOKS=true` in staging or production.
+
+## Local Setup
 
 ```powershell
-.\scripts\go-live.ps1 -ProjectRef YOUR_PROJECT_REF
-```
-
-**If `db push` fails** (remote/local history mismatch):
-
-1. Ensure `00001`-`00018` are already applied.
-2. Supabase Dashboard ke SQL Editor ke run `docs/sql/00019_00030_manual_bundle.sql`
-3. Regenerate bundle anytime: `npm run bundle:migrations`
-
-**Migration index (00019-00030):**
-
-| File | Purpose |
-|------|---------|
-| 00019 | Fleet master RLS |
-| 00020 | Branch status RLS |
-| 00021 | Opening stock HQ + kiosks |
-| 00022 | Missing staff profiles |
-| 00023 | POS stock validation RPC |
-| 00024 | Benggali ke Roti Benggali category |
-| 00025 | Regions RLS read (profile fix) |
-| 00026 | Product prices |
-| 00027-00028 | Roti Kaya stock + BOM |
-| 00029 | Kelapa/Kacang/Benggali stock + BOM |
-| 00030 | Four POS menus only |
-
-Quick bash (Git Bash / WSL / macOS):
-
-```bash
-chmod +x scripts/*.sh
-./scripts/setup-web.sh
-./scripts/push-db.sh YOUR_PROJECT_REF
-./scripts/dev.sh
-```
-
-### Verify database
-
-```bash
-npm run verify:go-live
-```
-
-### Auth configuration
-
-In Supabase Dashboard ke **Authentication** ke **Settings**:
-
-| Setting | Value |
-|---------|-------|
-| Site URL | `https://your-app.vercel.app` |
-| Redirect URLs | `https://your-app.vercel.app/auth/callback`, `http://localhost:3000/auth/callback` |
-| Enable email signup | **Off** (admin creates users) |
-
-### Create all users
-
-```bash
 cp .env.example .env.local
-# Fill Supabase keys
-npm run seed:users
-```
-
-Default password: `[REDACTED_TEMP_PASSWORD]` - users must change on first login. 
-Full list: `csv_import/login_users_generated.csv`
-
-HQ users can also be updated manually:
-
-```sql
-UPDATE profiles SET
- role = 'SUPER_ADMIN',
- employee_code = 'U001',
- full_name = 'Mat Isa',
- must_change_password = true
-WHERE email = 'matisa@rkj.com';
-```
-
-### Storage buckets
-
-Create buckets in Supabase Storage:
-
-| Bucket | Public | Purpose |
-|--------|--------|---------|
-| `delivery-proof` | No | POD images |
-| `bank-slips` | No | Bank-in receipts |
-| `receipts` | No | Digital receipt PDFs |
-
-### Enable Realtime (optional)
-
-Enable Realtime on: `notifications`, `pos_transactions`, `inventory_balances`.
-
-## 2. Vercel Deployment
-
-### Environment variables
-
-In Vercel project settings:
-
-```
-NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
-SUPABASE_SERVICE_ROLE_KEY=eyJ...
-NEXT_PUBLIC_APP_URL=https://your-app.vercel.app
-```
-
-### Deploy
-
-```bash
-npm install
-npm run build
-```
-
-Connect GitHub repo to Vercel - **Root Directory** is the repo root (`.`).
-
-Or CLI:
-
-```bash
-npx vercel --prod
-```
-
-## 3. Post-Deploy Checklist
-
-- [ ] Migrations 00001-00030 applied
-- [ ] `npm run verify:go-live` passes
-- [ ] Seed users created (`npm run seed:users`)
-- [ ] Super Admin login works (`matisa@rkj.com`)
-- [ ] POS: 4 menus, prices, stock bar visible
-- [ ] Fleet delivery ke kiosk stock ke POS sale flow tested
-- [ ] RLS tested per role
-- [ ] Pilot 3 branches before full rollout (see GO_LIVE_CHECKLIST.md)
-
-## 4. Local Development
-
-```bash
-cp .env.example .env.local
-# Fill in Supabase keys
 npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open:
 
-## 5. Staging vs Production
+```text
+http://localhost:3000
+```
 
-| Environment | Supabase | Vercel |
-|-------------|----------|--------|
-| Staging | Separate project | Preview deployments |
-| Production | Production project | Production domain |
+## Pre-Deploy Validation
 
-Validate POS on one kiosk before full rollout.
+Run from repo root:
 
-## 6. Security Notes
+```powershell
+npx tsc --noEmit --pretty false
+npm run build
+```
 
-- Never commit `.env.local` or service role keys
-- Disable public signup in Supabase Auth
-- Use RLS on all tables (already configured)
-- Rotate keys if exposed
-- HQ users must change default passwords on first login
+For changed files:
 
-## 7. Troubleshooting
+```powershell
+npx eslint <changed-files>
+```
 
-| Issue | Fix |
-|-------|-----|
-| Auth redirect loop | Check Site URL and callback URL in Supabase |
-| Profile not found | Run migration 00025 |
-| RLS blocks queries | Verify profile has correct `organization_id` and role |
-| No POS products | Run 00030; check product status ACTIVE |
-| Prices RM 0 | Run migration 00026 |
-| Empty POS stock | Run 00021 + fleet delivery to kiosk |
-| `get_pos_product_availability` missing | Run migration 00023 |
-| Dashboard stats empty | POS transactions needed; view aggregates from `pos_daily_summaries` |
-| Migration fails on auth schema | Run migrations after Supabase project is fully provisioned |
-| `db push` fails | Use `docs/sql/00019_00030_manual_bundle.sql` |
+Optional targeted checks:
+
+```powershell
+npm run verify:production
+npm run verify:go-live
+npm run verify:payroll
+npm run verify:am
+npm run uat:am
+npm run uat:sales-agent
+```
+
+## Database Migration Flow
+
+Create migration:
+
+```powershell
+npx supabase migration new <name>
+```
+
+Apply to linked remote Supabase project:
+
+```powershell
+npx supabase db push --yes
+```
+
+Rules:
+
+- Apply migrations before relying on deployed API code that uses new tables/columns.
+- Check RLS and grants before production use.
+- Regenerate database types after stable schema changes.
+- If `db push` reports history mismatch, stop and inspect before manually applying SQL.
+
+## Vercel Deployment Flow
+
+Standard production deployment is Git push to `master`.
+
+Manual CLI deployment:
+
+```powershell
+npx vercel --prod
+```
+
+Inspect deployment:
+
+```powershell
+npx vercel ls --yes
+npx vercel inspect https://rkj-one.vercel.app
+npx vercel logs https://rkj-one.vercel.app --since 1h --level error
+```
+
+Expected result:
+
+- Deployment status: Ready.
+- Alias includes `https://rkj-one.vercel.app`.
+- No recent error logs for changed flow.
+
+## Post-Deploy Checklist
+
+- [x] Supabase migrations applied.
+- [x] Vercel production deployment Ready.
+- [x] Production alias points to latest expected deployment.
+- [x] Error logs checked.
+- [x] Changed API/page smoke-tested.
+- [x] Task board updated.
+- [x] QA checklist updated for known issues.
+
+## M6 Release Gate
+
+Current M6 decision: Supabase production migrations `harden_auth_role_and_booking_scope` and `m5_payment_lifecycle` have been applied and verified. Vercel production deployment `dpl_55k1i1FNbsmaMnEHwfHkpj41yKQJ` is Ready and aliased to `https://rkj-one.vercel.app`.
+
+Before staging:
+
+- [x] Confirm Supabase production project and migration target.
+- [x] Apply M5 payment lifecycle migration.
+- [x] Run unauthenticated/auth-boundary payment create/status/cancel/refund smoke tests.
+- [ ] Run signed live-provider callback test for the selected provider.
+
+Before production:
+
+- [ ] Staging checks above pass.
+- [x] Production DB migration applied and verified.
+- [x] Production deploy completed and logs checked.
+- [x] Production smoke tests completed.
+
+## Current Production Notes
+
+Recent Booking API deployment:
+
+- Commit: `472d2cc Add booking API backend`
+- Migration: `20260708100944_booking_api.sql`
+- Deployment confirmed Ready on 2026-07-08.
+- Follow-up hardening tasks are listed in `docs/TASK_BOARD.md`.
+
+## Troubleshooting
+
+| Symptom | Check |
+|---------|-------|
+| Auth redirect loop | Supabase Site URL, Redirect URLs, `NEXT_PUBLIC_APP_URL`. |
+| API returns login HTML | Global middleware redirected anonymous request; authenticate or adjust API auth behavior. |
+| `relation does not exist` | Migration was not applied to remote Supabase. |
+| RLS blocks query | Check profile `organization_id`, role, branch/region, and policy. |
+| Cross-branch data missing | Check `resolveScopedBranches()` and branch assignment. |
+| Build fails on Supabase types | New table may not be in generated TypeScript types yet; regenerate types or use narrow casts temporarily. |
+| Vercel deployment Ready but behavior old | Confirm production alias points to newest deployment and Git integration built the expected commit. |
+
+## Security Notes
+
+- Never expose `SUPABASE_SERVICE_ROLE_KEY` to the browser.
+- Never paste real passwords into docs.
+- Do not enable public signup unless owner approves.
+- Review RLS for every new table.
+- Treat payroll, HR, finance, identity, and payment data as sensitive.

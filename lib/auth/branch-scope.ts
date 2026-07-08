@@ -33,6 +33,19 @@ export async function resolveScopedBranches(
  profile: Pick<Profile, 'organization_id' | 'role' | 'region_id' | 'branch_id'>,
  requestedBranchId?: string | null): Promise<ScopedBranchFilter> {
  if (HQ_ROLES.has(profile.role)) {
+ if (requestedBranchId) {
+ const { data: branch } = await supabase
+ .from('branches')
+ .select('id')
+ .eq('id', requestedBranchId)
+ .eq('organization_id', profile.organization_id)
+ .maybeSingle();
+
+ if (!branch) {
+ throw new Error('Cawangan di luar organisasi anda');
+ }
+ }
+
  return {
  branchIds: requestedBranchId ? [requestedBranchId] : null,
  regionId: null,

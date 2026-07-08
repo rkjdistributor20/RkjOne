@@ -3,7 +3,19 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getCurrentProfile } from '@/lib/auth/session';
 import { createServiceClient } from '@/lib/supabase/server';
 import { AGENT_POS_SUBSCRIPTION_RM, getAgentAccountForProfile, isAgentPaymentExempt } from '@/lib/sales-agent/service';
-import { initiateAgentPayment } from '@/lib/sales-agent/payment-gateway';
+import { initiateAgentPayment, rejectAgentPayment } from '@/lib/sales-agent/payment-gateway';
+
+type PaymentRow = {
+ id: string;
+ amount_rm: number;
+ status: string;
+ payment_method: string;
+ purpose: string;
+ provider?: string | null;
+ gateway_ref?: string | null;
+ gateway_session_id?: string | null;
+ checkout_url?: string | null;
+};
 
 export async function POST(request: Request) {
  const profile = await getCurrentProfile();
@@ -74,32 +86,69 @@ export async function POST(request: Request) {
  payment_method: paymentMethod,
  status: 'PENDING',
  created_by: profile.id,
- }).select('id, amount_rm, status, payment_method, purpose').single();
+ }).select('id, amount_rm, status, payment_method, purpose, provider, gateway_ref, gateway_session_id, checkout_url').single();
 
  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+ const paymentRow = payment as PaymentRow;
 
  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+ const statusUrl = `${appUrl}/api/sales-agent/payments/${paymentRow.id}/status`;
+ const cancelUrl = `${appUrl}/api/sales-agent/payments/${paymentRow.id}/cancel`;
+ const returnUrl = `${appUrl}/sales-agent/payment-return?payment=${paymentRow.id}`;
  let checkout;
  try {
  checkout = await initiateAgentPayment({
- paymentId: payment.id as string,
+ paymentId: paymentRow.id,
  amountRm: amount,
  method: paymentMethod,
  purpose,
  payerEmail: profile.email ?? '',
  payerName: profile.full_name ?? account.company_name,
- returnUrl: `${appUrl}/sales-agent/payment-return?payment=${payment.id}`,
+ returnUrl,
+ cancelUrl,
  });
  } catch (e) {
+ try {
+ await rejectAgentPayment(
+ service as SupabaseClient,
+ paymentRow.id,
+ undefined,
+ 'SESSION_CREATE_FAILED');
+ } catch {
+ await (service as SupabaseClient)
+ .from('agent_online_payments')
+ .update({ status: 'FAILED' })
+ .eq('id', paymentRow.id);
+ }
+
  return NextResponse.json(
  { error: e instanceof Error ? e.message : 'Gateway tidak tersedia' },
  { status: 503 });
  }
 
- if (checkout.gateway_session_id) {
- await (service as SupabaseClient).from('agent_online_payments').update({ gateway_ref: checkout.gateway_session_id }).eq('id', payment.id);
- }
+ await (service as SupabaseClient)
+ .from('agent_online_payments')
+ .update({
+ provider: checkout.provider,
+ gateway_ref: checkout.gateway_session_id ?? paymentRow.gateway_ref ?? null,
+ gateway_session_id: checkout.gateway_session_id,
+ checkout_url: checkout.checkout_url,
+ })
+ .eq('id', paymentRow.id);
 
- return NextResponse.json({ payment, checkout });
+ return NextResponse.json({
+ payment: paymentRow,
+ checkout,
+ session: {
+ id: paymentRow.id,
+ provider: checkout.provider,
+ mode: checkout.mode,
+ checkout_url: checkout.checkout_url,
+ gateway_session_id: checkout.gateway_session_id,
+ status_url: statusUrl,
+ cancel_url: cancelUrl,
+ return_url: returnUrl,
+ },
+ });
 }
 

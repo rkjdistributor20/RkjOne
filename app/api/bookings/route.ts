@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getCurrentProfile } from '@/lib/auth/session';
 import { applyBranchIdsFilter, resolveScopedBranches } from '@/lib/auth/branch-scope';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 
 const BOOKING_TYPES = new Set(['GENERAL', 'CUSTOMER', 'EVENT', 'MAINTENANCE', 'SALES_AGENT', 'DELIVERY', 'OTHER']);
 const BOOKING_STATUS = new Set(['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED', 'NO_SHOW']);
@@ -18,6 +18,16 @@ const CREATE_ROLES = new Set([
  'AREA_MANAGER',
  'STAFF',
  'SALES_AGENT',
+]);
+const ASSIGNMENT_MANAGER_ROLES = new Set([
+ 'SUPER_ADMIN',
+ 'ADMIN',
+ 'OPERATION_MANAGER',
+ 'HR',
+ 'FINANCE',
+ 'CEO_FACTORY',
+ 'MAINTENANCE_MANAGER',
+ 'AREA_MANAGER',
 ]);
 
 const BOOKING_SELECT = `
@@ -57,6 +67,33 @@ function bookingNumber() {
 function asMetadata(value: unknown) {
  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
  return value as Record<string, unknown>;
+}
+
+async function resolveAssignee(
+ profile: { id: string; organization_id: string; role: string },
+ value: unknown) {
+ const assignedTo = cleanString(value);
+ if (!assignedTo) return null;
+ if (assignedTo === profile.id) return assignedTo;
+
+ if (!ASSIGNMENT_MANAGER_ROLES.has(profile.role)) {
+ throw new Error('Tiada akses tugaskan booking kepada pengguna lain');
+ }
+
+ const service = await createServiceClient();
+ const { data: assignee } = await (service as SupabaseClient)
+ .from('profiles')
+ .select('id')
+ .eq('id', assignedTo)
+ .eq('organization_id', profile.organization_id)
+ .eq('status', 'ACTIVE')
+ .maybeSingle();
+
+ if (!assignee) {
+ throw new Error('Pengguna tugasan tidak sah');
+ }
+
+ return assignedTo;
 }
 
 function parseLimit(value: string | null) {
@@ -121,18 +158,24 @@ export async function POST(request: Request) {
  const supabase = await createClient();
  let scope;
  try {
-  scope = await resolveScopedBranches(supabase as SupabaseClient, profile, requestedBranchId);
+ scope = await resolveScopedBranches(supabase as SupabaseClient, profile, requestedBranchId);
  } catch (error) {
   return NextResponse.json({ error: error instanceof Error ? error.message : 'Cawangan tidak sah' }, { status: 403 });
  }
  const branchId = requestedBranchId ?? scope.branchId;
+ let assignedTo: string | null;
+ try {
+  assignedTo = await resolveAssignee(profile, body.assigned_to);
+ } catch (error) {
+  return NextResponse.json({ error: error instanceof Error ? error.message : 'Pengguna tugasan tidak sah' }, { status: 403 });
+ }
 
  const expectedPax = Number(body.expected_pax);
  const row = {
   organization_id: profile.organization_id,
   branch_id: branchId,
   created_by: profile.id,
-  assigned_to: cleanString(body.assigned_to),
+  assigned_to: assignedTo,
   booking_type: normalizeEnum(body.booking_type, BOOKING_TYPES, 'GENERAL'),
   status: normalizeEnum(body.status, BOOKING_STATUS, 'PENDING'),
   priority: normalizeEnum(body.priority, BOOKING_PRIORITY, 'NORMAL'),

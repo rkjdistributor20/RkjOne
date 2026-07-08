@@ -200,7 +200,7 @@ export async function buildAgentDashboard(
  const [{ data: outlets }, { data: orders }, { data: payments }] = await Promise.all([
  service.from('agent_outlets').select('*').eq('agent_account_id', account.id).order('outlet_name'),
  service.from('agent_stock_orders').select('*, items:agent_stock_order_items(*)').eq('agent_account_id', account.id).order('created_at', { ascending: false }).limit(20),
- service.from('agent_online_payments').select('id, purpose, amount_rm, payment_method, status, created_at').eq('agent_account_id', account.id).order('created_at', { ascending: false }).limit(15),
+ service.from('agent_online_payments').select('id, purpose, amount_rm, payment_method, status, cancelled_at, created_at').eq('agent_account_id', account.id).order('created_at', { ascending: false }).limit(15),
  ]);
 
  const orderRows = (orders ?? []).map((o) => ({
@@ -289,7 +289,16 @@ export async function buildAgentDashboard(
  },
  outlets: outletRows,
  orders: orderRows,
- payments: (payments ?? []) as AgentDashboardData['payments'],
+ payments: (payments ?? []).map((payment: Record<string, unknown>) => ({
+ id: String(payment.id),
+ purpose: payment.purpose,
+ amount_rm: Number(payment.amount_rm),
+ payment_method: payment.payment_method,
+ status: payment.status,
+ lifecycle_status:
+ payment.status === 'FAILED' && payment.cancelled_at ? 'CANCELLED' : payment.status,
+ created_at: String(payment.created_at),
+ })) as AgentDashboardData['payments'],
  production_days: await loadProductionDayOptions(service, organizationId),
  subscription_monthly_rm: AGENT_POS_SUBSCRIPTION_RM,
  stats: {

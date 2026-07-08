@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getCurrentProfile } from '@/lib/auth/session';
 import { resolveScopedBranches } from '@/lib/auth/branch-scope';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -49,6 +49,33 @@ function asMetadata(value: unknown) {
 
 function canManageBooking(role: string) {
  return MANAGER_ROLES.has(role);
+}
+
+async function resolveAssignee(
+ profile: { id: string; organization_id: string; role: string },
+ value: unknown) {
+ const assignedTo = cleanString(value);
+ if (!assignedTo) return null;
+ if (assignedTo === profile.id) return assignedTo;
+
+ if (!canManageBooking(profile.role)) {
+ throw new Error('Tiada akses tugaskan booking kepada pengguna lain');
+ }
+
+ const service = await createServiceClient();
+ const { data: assignee } = await (service as SupabaseClient)
+ .from('profiles')
+ .select('id')
+ .eq('id', assignedTo)
+ .eq('organization_id', profile.organization_id)
+ .eq('status', 'ACTIVE')
+ .maybeSingle();
+
+ if (!assignee) {
+ throw new Error('Pengguna tugasan tidak sah');
+ }
+
+ return assignedTo;
 }
 
 export async function GET(_request: Request, context: Context) {
@@ -100,8 +127,9 @@ export async function PATCH(request: Request, context: Context) {
  }
 
  const nextBranchId = body.branch_id === undefined ? existingRow.branch_id : cleanString(body.branch_id);
+ let scope;
  try {
-  await resolveScopedBranches(supabase as SupabaseClient, profile, nextBranchId);
+  scope = await resolveScopedBranches(supabase as SupabaseClient, profile, nextBranchId);
  } catch (error) {
   return NextResponse.json({ error: error instanceof Error ? error.message : 'Cawangan tidak sah' }, { status: 403 });
  }
@@ -111,8 +139,14 @@ export async function PATCH(request: Request, context: Context) {
  const priority = normalizeEnum(body.priority, BOOKING_PRIORITY);
  const metadata = asMetadata(body.metadata);
 
- if (body.branch_id !== undefined) update.branch_id = nextBranchId;
- if (body.assigned_to !== undefined) update.assigned_to = cleanString(body.assigned_to);
+ if (body.branch_id !== undefined) update.branch_id = nextBranchId ?? scope.branchId;
+ if (body.assigned_to !== undefined) {
+  try {
+   update.assigned_to = await resolveAssignee(profile, body.assigned_to);
+  } catch (error) {
+   return NextResponse.json({ error: error instanceof Error ? error.message : 'Pengguna tugasan tidak sah' }, { status: 403 });
+  }
+ }
  if (status) update.status = status;
  if (priority) update.priority = priority;
  if (body.title !== undefined) update.title = cleanString(body.title, 180);
