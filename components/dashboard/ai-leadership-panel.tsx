@@ -1,5 +1,6 @@
 import {
  AlertTriangle,
+ ArrowDown,
  Bot,
  CalendarCheck,
  CheckCircle2,
@@ -12,6 +13,7 @@ import { SectionCard } from '@/components/shared/module-ui';
 import { cn } from '@/lib/utils';
 import {
  AI_PROJECT_MANAGER_OFFICE,
+ type AiDeliveryStage,
  type AiLeader,
  type AiUpgradeRitual,
 } from '@/lib/dashboard/ai-leadership';
@@ -62,6 +64,48 @@ function RitualStatusIcon({ status }: { status: AiUpgradeRitual['status'] }) {
  return <ListChecks className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />;
 }
 
+function DeliveryStageCard({ stage, isLast }: { stage: AiDeliveryStage; isLast: boolean }) {
+ return (
+  <div className="flex flex-col">
+   <div className="rounded-lg border bg-background p-3 shadow-sm">
+    <div className="flex items-start gap-3">
+     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary">
+      <stage.icon className="h-4 w-4" />
+     </div>
+     <div className="min-w-0 flex-1">
+      <div className="flex flex-wrap items-center gap-2">
+       <Badge variant="outline" className="bg-white text-[11px]">
+        Step {stage.step}
+       </Badge>
+       <p className="text-sm font-semibold text-foreground">{stage.label}</p>
+      </div>
+      <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-primary">{stage.owner}</p>
+     </div>
+    </div>
+    <div className="mt-3 grid gap-2 text-xs leading-relaxed md:grid-cols-3">
+     <div>
+      <p className="font-semibold text-foreground">Input</p>
+      <p className="mt-0.5 text-muted-foreground">{stage.input}</p>
+     </div>
+     <div>
+      <p className="font-semibold text-foreground">Output</p>
+      <p className="mt-0.5 text-muted-foreground">{stage.output}</p>
+     </div>
+     <div>
+      <p className="font-semibold text-foreground">Quality Gate</p>
+      <p className="mt-0.5 text-muted-foreground">{stage.qualityGate}</p>
+     </div>
+    </div>
+   </div>
+   {!isLast && (
+    <div className="flex justify-center py-1 text-primary">
+     <ArrowDown className="h-4 w-4" />
+    </div>
+   )}
+  </div>
+ );
+}
+
 export function AiLeadershipPanel() {
  const office = AI_PROJECT_MANAGER_OFFICE;
 
@@ -99,6 +143,24 @@ export function AiLeadershipPanel() {
         <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-primary">{rule.owner}</p>
        </div>
       ))}
+     </div>
+    </div>
+
+    <div>
+     <p className="mb-2 flex items-center gap-2 text-sm font-semibold">
+      <ListChecks className="h-4 w-4 text-primary" />
+      AI Delivery Workflow
+     </p>
+     <div className="rounded-lg border border-primary/15 bg-primary/5 p-3">
+      <div className="space-y-1">
+       {office.deliveryFlow.map((stage, index) => (
+        <DeliveryStageCard
+         key={stage.id}
+         stage={stage}
+         isLast={index === office.deliveryFlow.length - 1}
+        />
+       ))}
+      </div>
      </div>
     </div>
 

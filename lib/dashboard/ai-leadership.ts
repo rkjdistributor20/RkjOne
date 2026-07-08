@@ -8,6 +8,7 @@ import {
  GraduationCap,
  Handshake,
  Network,
+ Rocket,
  ShieldCheck,
  Sparkles,
  Truck,
@@ -37,6 +38,17 @@ export type AiGovernanceRule = {
  label: string;
  detail: string;
  owner: string;
+};
+
+export type AiDeliveryStage = {
+ id: string;
+ step: number;
+ label: string;
+ owner: string;
+ input: string;
+ output: string;
+ qualityGate: string;
+ icon: LucideIcon;
 };
 
 export const AI_PROJECT_MANAGER_OFFICE = {
@@ -243,6 +255,88 @@ export const AI_PROJECT_MANAGER_OFFICE = {
    detail:
     'Perubahan kecil, scoped diff, tiada credential dalam git, dan rollback plan untuk release berisiko.',
    owner: 'AI DevOps & Release Manager',
-  },
+ },
  ] satisfies AiGovernanceRule[],
+ deliveryFlow: [
+  {
+   id: 'owner-intake',
+   step: 1,
+   label: 'Anda / Owner',
+   owner: 'Mat Isa / Owner / Admin',
+   input: 'Idea, masalah operasi, data baru, arahan bisnes atau isu production.',
+   output: 'Keputusan priority dan objektif yang jelas untuk PM AI.',
+   qualityGate: 'Pastikan skop, risiko data dan impak bisnes difahami.',
+   icon: Users,
+  },
+  {
+   id: 'pm-triage',
+   step: 2,
+   label: 'Project Manager AI',
+   owner: 'AI Group Project Manager',
+   input: 'Arahan owner + Project Memory + status sistem semasa.',
+   output: 'Requirement, acceptance criteria, risiko, owner role dan urutan kerja.',
+   qualityGate: 'Tiada kerja dimulakan tanpa definisi siap dan rollback expectation.',
+   icon: Bot,
+  },
+  {
+   id: 'task-board',
+   step: 3,
+   label: 'Task Board',
+   owner: 'AI Product Director + AI PM',
+   input: 'Requirement yang sudah dipecahkan.',
+   output: 'Backlog To Do / Doing / Review / Staging / Done mengikut modul RKJ One.',
+   qualityGate: 'Setiap task ada scope, fail sasaran, test plan dan priority.',
+   icon: ClipboardCheck,
+  },
+  {
+   id: 'codex-role-tasks',
+   step: 4,
+   label: 'Codex Role-Specific Tasks',
+   owner: 'AI CTO, Data, Security, Finance, HR, Ops, QA mengikut domain',
+   input: 'Task Board yang sudah disusun.',
+   output: 'Patch kod, migration, docs, script verify atau konfigurasi yang diperlukan.',
+   qualityGate: 'Kerja dibuat secara scoped, ikut pattern repo, dan tidak sentuh credential.',
+   icon: Sparkles,
+  },
+  {
+   id: 'changes-pr',
+   step: 5,
+   label: 'Pull Request / Changes',
+   owner: 'AI DevOps & Release Manager',
+   input: 'Patch yang siap dari Codex role task.',
+   output: 'Commit, branch/PR atau perubahan siap untuk review dengan nota ringkas.',
+   qualityGate: 'Diff bersih, tiada unrelated change, tiada secret, dan build plan jelas.',
+   icon: GitBranch,
+  },
+  {
+   id: 'review-qa',
+   step: 6,
+   label: 'Code Reviewer AI + QA AI',
+   owner: 'AI QA & UAT Director + AI Security Officer',
+   input: 'PR/changes + acceptance criteria.',
+   output: 'Review finding, test result, risk note dan keputusan pass/fail.',
+   qualityGate: 'Typecheck, lint, build, verify script dan UAT yang relevan lulus.',
+   icon: ShieldCheck,
+  },
+  {
+   id: 'merge-staging',
+   step: 7,
+   label: 'Merge ke Dev / Staging',
+   owner: 'AI DevOps & Release Manager + Owner approval bila perlu',
+   input: 'Changes yang lulus review dan QA.',
+   output: 'Staging/dev build ready untuk semakan akhir dan smoke test.',
+   qualityGate: 'Migration order, env var dan rollback plan sudah disahkan.',
+   icon: Network,
+  },
+  {
+   id: 'deploy',
+   step: 8,
+   label: 'Deploy',
+   owner: 'AI DevOps & Release Manager',
+   input: 'Staging/dev yang sudah disahkan.',
+   output: 'Production deployment, health check, log scan dan release note.',
+   qualityGate: 'Vercel Ready, /api/health OK, error log bersih dan checkpoint dikemas kini.',
+   icon: Rocket,
+  },
+ ] satisfies AiDeliveryStage[],
 } as const;
