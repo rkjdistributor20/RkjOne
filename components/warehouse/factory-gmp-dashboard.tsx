@@ -176,11 +176,11 @@ export function FactoryGmpDashboard() {
  <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
  <p className="flex items-center gap-2 font-semibold">
  <ShieldCheck className="h-4 w-4" />
- Roti Kaya Junus Manufacturing Sdn Bhd - GMP readiness untuk 5 keluarga produk
+ Roti Kaya Junus Manufacturing Sdn Bhd - GMP readiness untuk 5 produk buatan kilang
  </p>
  <p className="mt-1 text-emerald-900/80">
- Paparan ini menyusun batch record, QC/CCP, sanitation, traceability dan release sebelum barang keluar kilang.
- Migration draft disediakan untuk jadual rekod sebenar, tetapi belum diaplikasi ke production database.
+ Produk GMP kilang ialah Roti Planta, Roti Kelapa, Roti Kacang, Roti Benggali dan Kaya.
+ Menu POS hanya rujukan jualan, bukan master produk GMP.
  </p>
  </div>
 
@@ -200,7 +200,7 @@ export function FactoryGmpDashboard() {
  <KpiCard
  title="Produk GMP"
  value={data?.summary.product_count || summary.productCount}
- description="5 keluarga produk kilang"
+ description="5 produk buatan kilang"
  icon={PackageCheck}
  variant="success"
  />
@@ -228,7 +228,7 @@ export function FactoryGmpDashboard() {
 
  <SectionCard
  title="Rekod Batch GMP Harian"
- description="Cipta batch production mengikut 5 produk kilang. Status release hanya untuk batch yang sudah lengkap QC dan reconciliation."
+ description="Cipta batch production mengikut produk buatan kilang, bukan mengikut menu POS. Status release hanya untuk batch yang sudah lengkap QC dan reconciliation."
  action={
  <Button type="button" variant="outline" size="sm" onClick={load}>
  <RefreshCw className="mr-1 h-4 w-4" /> Refresh
@@ -275,7 +275,7 @@ export function FactoryGmpDashboard() {
  </div>
  <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
  <p className="text-xs text-muted-foreground">
- Batch no dijana automatik ikut prefix produk dan tarikh production, contoh RK-20260709-001.
+ Batch no dijana automatik ikut prefix produk kilang dan tarikh production, contoh RPL-20260709-001.
  </p>
  <Button type="button" disabled={saving || !data?.migration_ready} onClick={handleCreateBatch}>
  <Save className="mr-1 h-4 w-4" />
@@ -341,8 +341,8 @@ export function FactoryGmpDashboard() {
  </SectionCard>
 
  <SectionCard
- title="5 Produk Kilang - Rekod GMP Yang Wajib"
- description="Setiap production date perlu ada batch number, bahan/lot, proses, packing, QC release dan status."
+ title="5 Produk Buatan Kilang - Rekod GMP Yang Wajib"
+ description="Master GMP ini berasingan daripada Menu POS: Roti Planta, Roti Kelapa, Roti Kacang, Roti Benggali dan Kaya."
  >
  <div className="grid gap-3 lg:grid-cols-2">
  {MANUFACTURING_GMP_PRODUCTS.map((product) => (
@@ -360,12 +360,16 @@ export function FactoryGmpDashboard() {
  </div>
 
  <div className="mt-3 flex flex-wrap gap-1.5">
+ <Badge variant="secondary">{product.factoryProductType === 'SPREAD' ? 'Produk Kaya' : 'Produk Roti'}</Badge>
  {product.stockItemCodes.map((code) => (
  <span key={code} className="rounded-md border bg-muted/40 px-2 py-1 font-mono text-[11px]">
  {code}
  </span>
  ))}
  </div>
+ <p className="mt-3 text-xs text-muted-foreground">
+ Rujukan menu POS: {product.posMenuReferences.join(', ')}
+ </p>
 
  <div className="mt-4 grid gap-3 md:grid-cols-2">
  <div>

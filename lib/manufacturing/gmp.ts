@@ -3,8 +3,9 @@ export type GmpProductFamily = {
  name: string;
  shortName: string;
  batchPrefix: string;
+ factoryProductType: 'ROTI' | 'SPREAD';
  stockItemCodes: string[];
- posCategories: string[];
+ posMenuReferences: string[];
  lineOwner: string;
  targetRecords: string[];
  criticalChecks: string[];
@@ -36,30 +37,32 @@ export type ManufacturingDataQualityAction = {
 
 export const MANUFACTURING_GMP_PRODUCTS: GmpProductFamily[] = [
  {
- code: 'GMP-RK',
- name: 'Roti Kaya / Planta',
- shortName: 'Roti Kaya',
- batchPrefix: 'RK',
- stockItemCodes: ['ST-PLANTA', 'ST-KAYA', 'ST-BUTTER', 'ST-PLASTIC-S', 'ST-PLASTIC-M'],
- posCategories: ['Roti Kaya'],
- lineOwner: 'Line 1 - adunan dan filling kaya butter',
+ code: 'GMP-PLANTA',
+ name: 'Roti Planta',
+ shortName: 'Planta',
+ batchPrefix: 'RPL',
+ factoryProductType: 'ROTI',
+ stockItemCodes: ['ST-PLANTA', 'ST-PLASTIC-S', 'ST-PLASTIC-M'],
+ posMenuReferences: ['Roti Kaya'],
+ lineOwner: 'Line 1 - Roti Planta sebagai produk roti kilang',
  targetRecords: [
  'Batch Manufacturing Record',
- 'rekod timbang bahan',
- 'rekod suhu/proofing/baking',
- 'rekod packing dan lot plastik',
+ 'rekod timbang dan adunan doh',
+ 'rekod proofing/baking/cooling',
+ 'rekod packing Roti Planta dan lot plastik',
  ],
- criticalChecks: ['Berat doh', 'kebersihan meja filling', 'masa baking', 'label tarikh production'],
- releaseCriteria: ['tiada foreign matter', 'warna/tekstur normal', 'kuantiti siap sama dengan order', 'QC sign-off'],
+ criticalChecks: ['berat doh', 'masa proofing', 'masa baking', 'cooling sebelum packing', 'label tarikh production'],
+ releaseCriteria: ['tiada foreign matter', 'warna/tekstur normal', 'packing bersih', 'QC sign-off'],
  },
  {
  code: 'GMP-RKEL',
  name: 'Roti Kelapa',
  shortName: 'Kelapa',
  batchPrefix: 'RKEL',
- stockItemCodes: ['ST-KELAPA', 'ST-KAYA', 'ST-PLASTIC-S', 'ST-PLASTIC-M'],
- posCategories: ['Roti Kelapa'],
- lineOwner: 'Line 2 - kelapa dan packing kecil/sederhana',
+ factoryProductType: 'ROTI',
+ stockItemCodes: ['ST-KELAPA', 'ST-PLASTIC-S', 'ST-PLASTIC-M'],
+ posMenuReferences: ['Roti Kelapa', 'Pelbagai'],
+ lineOwner: 'Line 2 - Roti Kelapa dan packing kecil/sederhana',
  targetRecords: [
  'Batch Manufacturing Record',
  'rekod preparation inti kelapa',
@@ -74,8 +77,9 @@ export const MANUFACTURING_GMP_PRODUCTS: GmpProductFamily[] = [
  name: 'Roti Kacang',
  shortName: 'Kacang',
  batchPrefix: 'RKAC',
- stockItemCodes: ['ST-KACANG', 'ST-KAYA', 'ST-BUTTER', 'ST-PLASTIC-S', 'ST-PLASTIC-M'],
- posCategories: ['Roti Kacang'],
+ factoryProductType: 'ROTI',
+ stockItemCodes: ['ST-KACANG', 'ST-PLASTIC-S', 'ST-PLASTIC-M'],
+ posMenuReferences: ['Roti Kacang', 'Pelbagai'],
  lineOwner: 'Line 3 - kacang merah dan allergen control',
  targetRecords: [
  'Batch Manufacturing Record',
@@ -91,8 +95,9 @@ export const MANUFACTURING_GMP_PRODUCTS: GmpProductFamily[] = [
  name: 'Roti Benggali',
  shortName: 'Benggali',
  batchPrefix: 'BENG',
- stockItemCodes: ['ST-BENGGALI', 'ST-KAYA', 'ST-BUTTER', 'ST-PLASTIC-B'],
- posCategories: ['Roti Benggali'],
+ factoryProductType: 'ROTI',
+ stockItemCodes: ['ST-BENGGALI', 'ST-PLASTIC-B'],
+ posMenuReferences: ['Roti Benggali', 'Pelbagai'],
  lineOwner: 'Line 4 - loaf/benggali dan slicing',
  targetRecords: [
  'Batch Manufacturing Record',
@@ -104,21 +109,22 @@ export const MANUFACTURING_GMP_PRODUCTS: GmpProductFamily[] = [
  releaseCriteria: ['loaf tidak lembap berlebihan', 'slice normal', 'packing bersih', 'batch trace lengkap'],
  },
  {
- code: 'GMP-PLG',
- name: 'Pelbagai / Kaya Butter Pack',
- shortName: 'Pelbagai',
- batchPrefix: 'PLG',
- stockItemCodes: ['ST-PLANTA', 'ST-KELAPA', 'ST-KACANG', 'ST-BENGGALI', 'ST-KAYA', 'ST-BUTTER', 'ST-PLASTIC-S', 'ST-PLASTIC-M', 'ST-PLASTIC-B'],
- posCategories: ['Pelbagai'],
- lineOwner: 'Line 5 - set campur, kaya, butter dan final packing',
+ code: 'GMP-KAYA',
+ name: 'Kaya',
+ shortName: 'Kaya',
+ batchPrefix: 'KAYA',
+ factoryProductType: 'SPREAD',
+ stockItemCodes: ['ST-KAYA'],
+ posMenuReferences: ['Roti Kaya', 'Roti Benggali', 'Pelbagai'],
+ lineOwner: 'Line 5 - masak Kaya sebagai produk kilang',
  targetRecords: [
- 'Batch Packing Record',
- 'rekod BOM set campur',
- 'rekod portion kaya/butter',
- 'rekod final label dan dispatch',
+ 'Batch Cooking Record',
+ 'rekod lot bahan mentah Kaya',
+ 'rekod suhu/masa masak Kaya',
+ 'rekod cooling, holding dan release',
  ],
- criticalChecks: ['formula BOM', 'berat kaya/butter', 'jenis plastik', 'reconciliation komponen'],
- releaseCriteria: ['komponen mengikut BOM', 'tiada mix-up SKU', 'label betul', 'release sebelum dispatch'],
+ criticalChecks: ['lot bahan Kaya', 'suhu masak', 'masa cooking', 'tekstur/warna', 'cooling tertutup'],
+ releaseCriteria: ['tekstur normal', 'tiada foreign matter', 'bekas/holding bersih', 'QA sign-off'],
  },
 ];
 
@@ -188,7 +194,7 @@ export const MANUFACTURING_STAFF_UNITS: ManufacturingStaffUnit[] = [
  lead: 'MFG012 Mujefur Rahman',
  members: ['MFG002 Farahanim', 'MFG011 Muhammad Farriz', 'MFG014 Nur Asiah', 'MFG015 Noor Azian', 'MFG020 Siti Khatijah'],
  scope: 'Operasi line 1 hingga line 5, timbang bahan, proses, packing dan reconciliation output.',
- gmpDuty: 'Isi batch record harian untuk 5 keluarga produk dan catat reject/rework.',
+ gmpDuty: 'Isi batch record harian untuk Roti Planta, Roti Kelapa, Roti Kacang, Roti Benggali dan Kaya.',
  priority: 'Critical',
  },
  {

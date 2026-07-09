@@ -1,12 +1,14 @@
 # Manufacturing GMP Plan
 
-RKJ Manufacturing module now treats the factory as a GMP-ready operation for five product families:
+RKJ Manufacturing module treats the factory as a GMP-ready operation for five factory-made products. These are manufacturing products, not POS menu groups.
 
-1. Roti Kaya / Planta
+1. Roti Planta (`ST-PLANTA`)
 2. Roti Kelapa
 3. Roti Kacang
 4. Roti Benggali
-5. Pelbagai / Kaya Butter Pack
+5. Kaya
+
+Important distinction: POS menu `Roti Kaya` uses factory product `Roti Planta` plus `Kaya`. POS menu `Pelbagai` is a sales grouping/BOM, not a GMP product master.
 
 ## GMP Records
 
@@ -49,11 +51,11 @@ Recommended overlay under Roti Kaya Junus Manufacturing Sdn Bhd:
 ## API Workflow
 
 - `GET /api/production/gmp`: list GMP products, recent batch records, record stages and summary.
-- `POST /api/production/gmp`: create a GMP batch record for one of the five product families.
+- `POST /api/production/gmp`: create a GMP batch record for one of the five factory-made products.
 - `PATCH /api/production/gmp/[id]`: update batch status or actual quantity.
 
 If the migration has not been applied, `GET` returns `migration_ready: false` so the dashboard can stay usable as SOP/readiness without crashing. Write endpoints return `424` until the GMP tables exist.
 
 ## Database Safety
 
-The migration is a draft in source control. It has not been applied to production. Review RLS, staff assignments and workflow ownership before running `supabase db push`.
+Production correction migrations must keep `ST-PLANTA` as Roti Planta and store POS menu references separately. Review RLS, staff assignments and workflow ownership before each `supabase db push`.

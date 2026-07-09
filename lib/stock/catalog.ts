@@ -57,7 +57,7 @@ export interface RkjStockItemDef {
 export const RKJ_STOCK_CATALOG: RkjStockItemDef[] = [
  {
  item_code: 'ST-PLANTA',
- name: 'Roti Kaya',
+ name: 'Roti Planta',
  category: 'Roti',
  origin: 'RKJ_MANUFACTURING',
  managed_by: 'RKJ_MFG',

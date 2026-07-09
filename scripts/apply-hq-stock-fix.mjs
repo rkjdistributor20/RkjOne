@@ -12,7 +12,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
 
 const RKJ_STOCK_CATALOG = [
- { item_code: 'ST-PLANTA', name: 'Roti Kaya', category: 'Roti', base_unit: 'PCS', storage_unit: 'Bag/Pcs', conversion_text: '1 bag = 20 pcs', pack_quantity: 20, pack_unit: 'BAG' },
+ { item_code: 'ST-PLANTA', name: 'Roti Planta', category: 'Roti', base_unit: 'PCS', storage_unit: 'Bag/Pcs', conversion_text: '1 bag = 20 pcs', pack_quantity: 20, pack_unit: 'BAG' },
  { item_code: 'ST-KELAPA', name: 'Roti Kelapa', category: 'Roti', base_unit: 'PCS', storage_unit: 'Bag/Pcs', conversion_text: '1 bag = 28 pcs', pack_quantity: 28, pack_unit: 'BAG' },
  { item_code: 'ST-KACANG', name: 'Roti Kacang', category: 'Roti', base_unit: 'PCS', storage_unit: 'Bag/Pcs', conversion_text: '1 bag = 24 pcs', pack_quantity: 24, pack_unit: 'BAG' },
  { item_code: 'ST-BENGGALI', name: 'Roti Benggali', category: 'Roti', base_unit: 'PCS', storage_unit: 'Bag/Pcs', conversion_text: '1 bag = 2 pcs', pack_quantity: 2, pack_unit: 'BAG' },

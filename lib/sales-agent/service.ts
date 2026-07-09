@@ -146,8 +146,11 @@ export async function loadStockCatalog(
  byCategory.set(cat, list);
  }
 
- return (items ?? []).filter((i) => ['Roti Kaya', 'Roti Benggali', 'Roti Kelapa', 'Roti Kacang', 'Kaya'].includes(i.name as string)).map((i) => {
- const catProducts = byCategory.get(i.name as string) ?? [];
+ const orderableStockNames = ['Roti Planta', 'Roti Kaya', 'Roti Benggali', 'Roti Kelapa', 'Roti Kacang', 'Kaya'];
+ return (items ?? []).filter((i) => orderableStockNames.includes(i.name as string)).map((i) => {
+ const itemName = i.name as string;
+ const priceCategory = i.item_code === 'ST-PLANTA' ? 'Roti Kaya' : itemName;
+ const catProducts = byCategory.get(priceCategory) ?? [];
  const singleUnit = catProducts.filter((p) => /-1$/.test(p.sku) || /-KB-1$/.test(p.sku));
  const unitPc =
  singleUnit.length > 0
@@ -161,7 +164,7 @@ export async function loadStockCatalog(
  return {
  id: i.id as string,
  item_code: i.item_code as string,
- item_name: i.name as string,
+ item_name: itemName,
  unit: i.base_unit as string,
  unit_price_rm: unitPrice,
  price_group_code: null,

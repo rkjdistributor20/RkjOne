@@ -377,7 +377,7 @@ export const dictionary = {
  'module.factory.confirmedOrdersDesc': 'Ready for production',
  'module.factory.activeOrders': 'Total Active Orders',
  'module.factory.gmpProducts': 'GMP Products',
- 'module.factory.gmpProductsDesc': 'Batch records for 5 products',
+ 'module.factory.gmpProductsDesc': 'Batch records for 5 factory-made products',
  'module.factory.productionSchedule': 'Production Schedule',
  'module.factory.hqOrderReport': 'HQ Order Report',
  'module.factory.rawMaterials': 'Raw Materials',

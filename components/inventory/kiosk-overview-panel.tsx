@@ -28,7 +28,7 @@ interface KioskOverviewPanelProps {
 type FilterMode = 'all' | 'low' | 'critical' | 'pending';
 
 const rotiLabels: Record<string, string> = {
- 'ST-PLANTA': 'Kaya',
+ 'ST-PLANTA': 'Planta',
  'ST-KELAPA': 'Kelapa',
  'ST-KACANG': 'Kacang',
  'ST-BENGGALI': 'Benggali',

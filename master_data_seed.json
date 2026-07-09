@@ -769,14 +769,14 @@
  "stock_items": [
  [
  "ST-PLANTA",
- "Roti Kaya",
+ "Roti Planta",
  "Roti",
  "Bag/Pcs",
  "1 Bag = 20 pcs",
  "",
  "",
  "Active",
- "Stok roti asas menu Roti Kaya (nama kilang: Planta)"
+ "Produk buatan kilang Roti Planta; digunakan oleh menu POS Roti Kaya"
  ],
  [
  "ST-KELAPA",

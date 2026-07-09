@@ -1,5 +1,5 @@
 ﻿ITEM_CODE,Nama Stok,Kategori,Unit Simpan,Conversion,Min Threshold,Critical Threshold,Status,Nota
-ST-PLANTA,Roti Kaya,Roti,Bag/Pcs,1 Bag = 20 pcs,,,Active,Stok roti asas menu Roti Kaya (nama kilang: Planta)
+ST-PLANTA,Roti Planta,Roti,Bag/Pcs,1 Bag = 20 pcs,,,Active,Produk buatan kilang Roti Planta; digunakan oleh menu POS Roti Kaya
 ST-KELAPA,Roti Kelapa,Roti,Bag/Pcs,1 Bag = 28 pcs,,,Active,Stok roti asas menu Roti Kelapa
 ST-KACANG,Roti Kacang,Roti,Bag/Pcs,1 Bag = 24 pcs,,,Active,Stok roti asas menu Roti Kacang
 ST-BENGGALI,Roti Benggali,Roti,Bag/Pcs,1 Bag = 2 pcs,,,Active,Stok roti asas menu Roti Benggali
