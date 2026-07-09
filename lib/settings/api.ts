@@ -259,6 +259,14 @@ export async function deleteUser(id: string) {
   });
 }
 
+export async function resetUserPassword(id: string) {
+  return fetchJson<{
+    user: { id: string; email: string; full_name: string };
+    temporary_password: string;
+    message: string;
+  }>(`/api/settings/users/${id}/reset-password`, { method: "POST" });
+}
+
 export async function createStaffMember(payload: {
   staff_code: string;
   full_name: string;

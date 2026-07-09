@@ -2,12 +2,13 @@
 
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Bot, Building2, Pencil, Plus, RefreshCw, Search, Sparkles, Trash2, Users } from 'lucide-react';
+import { Bot, Building2, Copy, KeyRound, Pencil, Plus, RefreshCw, Search, Sparkles, Trash2, Users } from 'lucide-react';
 import {
  applyDashboardAdviceAll,
  createUser,
  deleteUser,
  fetchDashboardAdvice,
+ resetUserPassword,
  updateUser,
 } from '@/lib/settings/api';
 import type { SettingsBranchGroup, SettingsUser } from '@/lib/settings/types';
@@ -102,6 +103,8 @@ export function UsersAdminPanel({
  const [aiLoading, setAiLoading] = useState(false);
  const [bulkAiLoading, setBulkAiLoading] = useState(false);
  const [saving, setSaving] = useState(false);
+ const [resettingPassword, setResettingPassword] = useState(false);
+ const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
 
  const [fullName, setFullName] = useState('');
  const [email, setEmail] = useState('');
@@ -147,6 +150,7 @@ export function UsersAdminPanel({
  setStatus(u.status);
  setDashboardProfile((u.dashboard_profile as DashboardProfileId) ?? 'STAFF_KIOSK');
  setDashboardReason(u.dashboard_ai_reason ?? '');
+ setTemporaryPassword(null);
  }
 
  async function handleAiSuggest(userId?: string) {
@@ -229,6 +233,35 @@ export function UsersAdminPanel({
  toast.error(err instanceof Error ? err.message : 'Gagal simpan');
  } finally {
  setSaving(false);
+ }
+ }
+
+ async function handleResetPassword() {
+ if (!editUser) return;
+ if (!confirm(`Reset kata laluan untuk "${editUser.full_name}"? Password lama tidak boleh digunakan selepas ini.`)) {
+ return;
+ }
+ setResettingPassword(true);
+ setTemporaryPassword(null);
+ try {
+ const result = await resetUserPassword(editUser.id);
+ setTemporaryPassword(result.temporary_password);
+ toast.success('Kata laluan sementara dijana');
+ await onRefresh();
+ } catch (err) {
+ toast.error(err instanceof Error ? err.message : 'Gagal reset kata laluan');
+ } finally {
+ setResettingPassword(false);
+ }
+ }
+
+ async function copyTemporaryPassword() {
+ if (!temporaryPassword) return;
+ try {
+ await navigator.clipboard.writeText(temporaryPassword);
+ toast.success('Password disalin');
+ } catch {
+ toast.error('Gagal salin password');
  }
  }
 
@@ -464,7 +497,15 @@ export function UsersAdminPanel({
  </DialogContent>
  </Dialog>
 
- <Dialog open={!!editUser} onOpenChange={(o) => !o && setEditUser(null)}>
+ <Dialog
+ open={!!editUser}
+ onOpenChange={(o) => {
+ if (!o) {
+ setEditUser(null);
+ setTemporaryPassword(null);
+ }
+ }}
+ >
  <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
  <DialogHeader>
  <DialogTitle>Edit Pengguna</DialogTitle>
@@ -559,6 +600,43 @@ export function UsersAdminPanel({
  </Select>
  {dashboardReason && (
  <p className="mt-2 text-xs text-muted-foreground">{dashboardReason}</p>)}
+ </div>
+ <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-3">
+ <div className="flex flex-wrap items-center justify-between gap-2">
+ <div>
+ <Label className="flex items-center gap-1.5 text-amber-950">
+ <KeyRound className="h-3.5 w-3.5" />
+ Kata Laluan
+ </Label>
+ <p className="mt-1 text-xs text-amber-900/80">
+ Reset password pengguna dan wajibkan tukar selepas login.
+ </p>
+ </div>
+ <Button
+ type="button"
+ variant="outline"
+ size="sm"
+ className="gap-1.5 border-amber-300 bg-background"
+ disabled={resettingPassword}
+ onClick={handleResetPassword}
+ >
+ <KeyRound className="h-3.5 w-3.5" />
+ {resettingPassword ? 'Reset...' : 'Reset Password'}
+ </Button>
+ </div>
+ {temporaryPassword && (
+ <div className="mt-3 space-y-1">
+ <Label>Password sementara</Label>
+ <div className="flex gap-2">
+ <Input value={temporaryPassword} readOnly className="font-mono" />
+ <Button type="button" variant="outline" size="icon" onClick={copyTemporaryPassword}>
+ <Copy className="h-4 w-4" />
+ </Button>
+ </div>
+ <p className="text-xs text-amber-900/80">
+ Paparkan sekali sahaja. Beri kepada pengguna secara peribadi.
+ </p>
+ </div>)}
  </div>
  </div>
  <DialogFooter>
