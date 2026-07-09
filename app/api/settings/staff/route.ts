@@ -15,6 +15,10 @@ import { resolveLegalEntityId } from '@/lib/settings/legal-entity';
 import { DEFAULT_SALES_LEGAL_ENTITY_CODE } from '@/lib/brand/legal-entities';
 import { getCompanyRoleOptions } from '@/lib/auth/role-labels';
 import {
+ isSalesStaffPositionInput,
+ SALES_STAFF_POSITION_PRESET,
+} from '@/lib/settings/branch-staff-positions';
+import {
  computeForeignWeeklyPay,
  computeLocalMonthlyPay,
  DEFAULT_SHIFTS_PER_WEEK,
@@ -102,12 +106,27 @@ export async function POST(request: Request) {
  body.legal_entity_code ?? DEFAULT_SALES_LEGAL_ENTITY_CODE);
  const branchInput = body.branch_id ? String(body.branch_id) : null;
  const role = String(body.role ?? 'STAFF') as UserRole;
+ const isAreaManager = isAreaManagerRole(profile.role);
 
  assertRoleCreatable(profile, role);
 
- if (isAreaManagerRole(profile.role) && legalEntityCode !== DEFAULT_SALES_LEGAL_ENTITY_CODE) {
+ if (isAreaManager && legalEntityCode !== DEFAULT_SALES_LEGAL_ENTITY_CODE) {
  return NextResponse.json(
  { error: 'Pengurus Kawasan hanya boleh tambah staf cawangan dalam kawasan sendiri' },
+ { status: 403 });
+ }
+
+ if (
+ isAreaManager &&
+ !isSalesStaffPositionInput({
+ jobTitle: optionalText(body.job_title),
+ department: optionalText(body.department),
+ workScope: optionalText(body.work_scope),
+ remarks: optionalText(body.remarks),
+ })
+ ) {
+ return NextResponse.json(
+ { error: 'Pengurus Kawasan hanya boleh tambah Staf Jualan / POS' },
  { status: 403 });
  }
 
@@ -123,6 +142,18 @@ export async function POST(request: Request) {
  const fullName = String(body.full_name ?? '').trim();
  const workerType = body.worker_type as 'LOCAL' | 'FOREIGN' | undefined;
  const allowedRoles = getCompanyRoleOptions(legalEntityCode);
+ const staffRemarks = isAreaManager
+ ? SALES_STAFF_POSITION_PRESET.workScope
+ : optionalText(body.remarks ?? body.work_scope);
+ const staffJobTitle = isAreaManager
+ ? SALES_STAFF_POSITION_PRESET.jobTitle
+ : optionalText(body.job_title);
+ const staffDepartment = isAreaManager
+ ? SALES_STAFF_POSITION_PRESET.department
+ : optionalText(body.department);
+ const staffWorkScope = isAreaManager
+ ? SALES_STAFF_POSITION_PRESET.workScope
+ : optionalText(body.work_scope);
 
  if (!staffCode || !fullName) {
  return NextResponse.json(
@@ -231,7 +262,7 @@ export async function POST(request: Request) {
  shift_hours: shiftHours,
  shifts_per_week: shiftsPerWeek,
  legal_entity_id: legalEntityId,
- remarks: optionalText(body.remarks ?? body.work_scope),
+ remarks: staffRemarks,
  status: 'ACTIVE',
  }).select(
  'id, staff_code, full_name, status, branch_id, worker_type, weekly_amount, monthly_amount, shift_hours, shifts_per_week').single();
@@ -264,10 +295,10 @@ export async function POST(request: Request) {
  emergencyContactName: optionalText(body.emergency_contact_name),
  emergencyContactPhone: optionalText(body.emergency_contact_phone),
  emergencyContactRelation: optionalText(body.emergency_contact_relation),
- jobTitle: optionalText(body.job_title),
- department: optionalText(body.department),
+ jobTitle: staffJobTitle,
+ department: staffDepartment,
  employmentStartDate: optionalDate(body.employment_start_date),
- workScope: optionalText(body.work_scope),
+ workScope: staffWorkScope,
  });
  } catch (authError) {
  await (supabase as SupabaseClient).from('staff').delete().eq('id', data.id);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
  Building2,
@@ -58,50 +58,16 @@ import {
  getCompanyRoleLabel,
  getCompanyRoleOptions,
 } from '@/lib/auth/role-labels';
+import {
+ BRANCH_STAFF_POSITION_PRESETS,
+ SALES_STAFF_POSITION_PRESET,
+} from '@/lib/settings/branch-staff-positions';
 import type { UserRole } from '@/types/enums';
 import { boundSelectValue } from '@/lib/ui/select-utils';
 
 const WEEKDAY_PRESETS = [5, 6, 7] as const;
 const COMPANY_HQ_BRANCH_VALUE = '__COMPANY_HQ__';
 const TODAY_ISO = new Date().toISOString().slice(0, 10);
-
-const BRANCH_STAFF_POSITION_PRESETS = [
- {
- id: 'SALES_POS',
- label: 'Staf Jualan / POS',
- jobTitle: 'Staf Jualan / POS',
- department: 'Cawangan / POS',
- workScope: 'Jualan kiosk, buka/tutup POS, layan pelanggan dan jaga kebersihan kaunter.',
- },
- {
- id: 'PIC_BRANCH',
- label: 'PIC Cawangan / Shift Lead',
- jobTitle: 'PIC Cawangan',
- department: 'Operasi Cawangan',
- workScope: 'Pantau syif, susun staf bertugas, semak stok harian, buka/tutup POS dan lapor isu kepada AM.',
- },
- {
- id: 'STOCK_INVENTORY',
- label: 'Pembantu Stok / Inventori',
- jobTitle: 'Pembantu Stok Cawangan',
- department: 'Inventori Kiosk',
- workScope: 'Terima stok, semak baki roti/kaya/plastik, rekod reject dan bantu kira stok sebelum/selepas syif.',
- },
- {
- id: 'OPERATIONS_RUNNER',
- label: 'Runner / Pembantu Operasi',
- jobTitle: 'Runner Cawangan',
- department: 'Operasi Cawangan',
- workScope: 'Bantu operasi harian cawangan, ambil barang kecil, sokong staf POS dan bantu ketika waktu puncak.',
- },
- {
- id: 'CLEANING_SUPPORT',
- label: 'Kebersihan / Sokongan',
- jobTitle: 'Staf Kebersihan Cawangan',
- department: 'Kebersihan',
- workScope: 'Jaga kebersihan kiosk, peralatan, ruang pelanggan dan bantu checklist kebersihan harian.',
- },
-] as const;
 
 export type AddStaffBranchOption = {
  id: string;
@@ -280,6 +246,9 @@ export function AddStaffDialog({
  return isAreaManagerMode ? options.filter((option) => option === 'STAFF') : options;
  },
  [isAreaManagerMode, legalEntityCode]);
+ const branchStaffPositionPresets = useMemo(
+ () => isAreaManagerMode ? [SALES_STAFF_POSITION_PRESET] : BRANCH_STAFF_POSITION_PRESETS,
+ [isAreaManagerMode]);
  const accessPreview = useMemo(
  () => getCompanyAccessPreview(role, legalEntityCode),
  [legalEntityCode, role]);
@@ -322,15 +291,15 @@ export function AddStaffDialog({
  !saving &&
  !rulesLoading;
 
- function applyBranchPositionPreset(presetId: string) {
+ const applyBranchPositionPreset = useCallback((presetId: string) => {
  const preset =
- BRANCH_STAFF_POSITION_PRESETS.find((item) => item.id === presetId) ??
- BRANCH_STAFF_POSITION_PRESETS[0];
+ branchStaffPositionPresets.find((item) => item.id === presetId) ??
+ SALES_STAFF_POSITION_PRESET;
  setBranchPositionPreset(preset.id);
  setJobTitle(preset.jobTitle);
  setDepartment(preset.department);
  setWorkScope(preset.workScope);
- }
+ }, [branchStaffPositionPresets]);
 
  function resetForm() {
  setStaffCode('');
@@ -403,7 +372,7 @@ export function AddStaffDialog({
  setShiftHours(String(tiers.find((t) => t.shift_hours === 9)?.shift_hours ?? tiers[0].shift_hours));
  }
  }).catch(() => toast.error('Gagal muat kadar gaji')).finally(() => setRulesLoading(false));
- }, [open, branches, defaultBranchId, defaultLegalEntityCode, existingStaffCodes, isAreaManagerMode]);
+ }, [applyBranchPositionPreset, open, branches, defaultBranchId, defaultLegalEntityCode, existingStaffCodes, isAreaManagerMode]);
 
  useEffect(() => {
  if (!open) return;
@@ -498,7 +467,7 @@ export function AddStaffDialog({
  <DialogDescription>
  Daftar staf baharu mengikut syarikat majikan. Staf cawangan wajib pilih kiosk,
  manakala staf RKJ Distributor dan Manufacturing boleh didaftarkan sebagai staf syarikat/HQ.
- {isAreaManagerMode ? ' AM hanya boleh tambah staf cawangan dalam kawasan sendiri.' : ''}
+ {isAreaManagerMode ? ' AM hanya boleh tambah Staf Jualan / POS dalam kawasan sendiri.' : ''}
  </DialogDescription>
  </DialogHeader>
 
@@ -577,7 +546,7 @@ export function AddStaffDialog({
  const nextRole = value as UserRole;
  setRole(nextRole);
  if (legalEntityCode === DEFAULT_SALES_LEGAL_ENTITY_CODE && nextRole === 'STAFF') {
- applyBranchPositionPreset(branchPositionPreset);
+ applyBranchPositionPreset(isAreaManagerMode ? SALES_STAFF_POSITION_PRESET.id : branchPositionPreset);
  } else {
  const template = staffTemplateForCompany(legalEntityCode, nextRole);
  setJobTitle(template.jobTitle);
@@ -602,18 +571,23 @@ export function AddStaffDialog({
  <Label>Jawatan Cawangan</Label>
  <Select
  value={branchPositionPreset}
+ disabled={isAreaManagerMode}
  onValueChange={(value) => value && applyBranchPositionPreset(value)}
  >
  <SelectTrigger>
  <SelectValue />
  </SelectTrigger>
  <SelectContent>
- {BRANCH_STAFF_POSITION_PRESETS.map((item) => (
+ {branchStaffPositionPresets.map((item) => (
  <SelectItem key={item.id} value={item.id}>
  {item.label}
  </SelectItem>))}
  </SelectContent>
  </Select>
+ {isAreaManagerMode && (
+ <p className="text-xs text-muted-foreground">
+ AM dikunci kepada Staf Jualan / POS sahaja.
+ </p>)}
  </div>)}
  <div className="space-y-1.5">
  <Label htmlFor="employment-start">Tarikh Mula Kerja</Label>
@@ -629,6 +603,7 @@ export function AddStaffDialog({
  <Input
  id="job-title"
  value={jobTitle}
+ disabled={isAreaManagerMode}
  onChange={(event) => setJobTitle(event.target.value)}
  />
  </div>
@@ -637,6 +612,7 @@ export function AddStaffDialog({
  <Input
  id="department"
  value={department}
+ disabled={isAreaManagerMode}
  onChange={(event) => setDepartment(event.target.value)}
  />
  </div>
@@ -687,7 +663,7 @@ export function AddStaffDialog({
  setLegalEntityCode(next);
  setRole(nextRole);
  if (next === DEFAULT_SALES_LEGAL_ENTITY_CODE) {
- applyBranchPositionPreset(branchPositionPreset);
+ applyBranchPositionPreset(isAreaManagerMode ? SALES_STAFF_POSITION_PRESET.id : branchPositionPreset);
  } else {
  const template = staffTemplateForCompany(next, nextRole);
  setJobTitle(template.jobTitle);
@@ -715,7 +691,7 @@ export function AddStaffDialog({
  </Select>
  <p className="text-xs text-muted-foreground">
  {isAreaManagerMode
- ? 'AM hanya boleh tambah staf cawangan RKJ dalam kawasan sendiri.'
+ ? 'AM hanya boleh tambah Staf Jualan / POS RKJ dalam kawasan sendiri.'
  : 'Pilih syarikat undang-undang sebenar untuk rekod HR dan payroll.'}
  </p>
  </div>
@@ -1082,6 +1058,7 @@ export function AddStaffDialog({
  id="work-scope"
  rows={4}
  value={workScope}
+ disabled={isAreaManagerMode}
  onChange={(event) => setWorkScope(event.target.value)}
  />
  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
