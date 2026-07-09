@@ -192,4 +192,4 @@ if (failed) {
 console.log(' Semua AM lulus ✓');
 console.log('\n Manual browser: https://rkj.one/inventory');
 console.log(' dist009@rkj.com (Utara) - dist001@rkj.com (Tengah) - dist010@rkj.com (Selatan)');
-console.log(` Password: ${DEFAULT_PASSWORD}\n`);
+console.log(' Password: [REDACTED - rujuk owner handoff atau GO_LIVE_PASSWORD]\n');
