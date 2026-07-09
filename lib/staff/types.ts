@@ -11,6 +11,9 @@ export interface StaffMemberRow {
  monthly_amount: number | null;
  shift_hours: number | null;
  shifts_per_week: number | null;
+ job_title?: string | null;
+ department?: string | null;
+ work_scope?: string | null;
 }
 
 export interface StaffBranchGroup {

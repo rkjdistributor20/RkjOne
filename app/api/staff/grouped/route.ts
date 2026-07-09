@@ -41,7 +41,7 @@ export async function GET(request: Request) {
  }
 
  let staffQuery = supabase.from('staff').select(
- 'id, staff_code, full_name, status, branch_id, region_id, worker_type, weekly_amount, monthly_amount, shift_hours, shifts_per_week').eq('organization_id', profile.organization_id).eq('status', 'ACTIVE').order('staff_code');
+ 'id, staff_code, full_name, status, branch_id, region_id, worker_type, weekly_amount, monthly_amount, shift_hours, shifts_per_week, remarks, profile:profiles!staff_profile_id_fkey(metadata)').eq('organization_id', profile.organization_id).eq('status', 'ACTIVE').order('staff_code');
 
  if (scope.branchIds !== null) {
  staffQuery = staffQuery.in('branch_id', scope.branchIds);
@@ -72,6 +72,8 @@ export async function GET(request: Request) {
  monthly_amount: number | null;
  shift_hours: number | null;
  shifts_per_week: number | null;
+ remarks: string | null;
+ profile?: { metadata: unknown } | { metadata: unknown }[] | null;
  };
 
  type BranchRow = {
@@ -96,6 +98,13 @@ export async function GET(request: Request) {
  if (!row.branch_id) continue;
  const branch = branchMap.get(row.branch_id);
  if (!branch) continue;
+ const profileRow = Array.isArray(row.profile) ? row.profile[0] : row.profile;
+ const metadata = profileRow?.metadata as { hr_onboarding?: {
+ job_title?: string | null;
+ department?: string | null;
+ work_scope?: string | null;
+ } } | null;
+ const onboarding = metadata?.hr_onboarding ?? {};
 
  const list = staffByBranch.get(row.branch_id) ?? [];
  list.push({
@@ -111,6 +120,9 @@ export async function GET(request: Request) {
  monthly_amount: row.monthly_amount,
  shift_hours: row.shift_hours,
  shifts_per_week: row.shifts_per_week,
+ job_title: onboarding.job_title ?? null,
+ department: onboarding.department ?? null,
+ work_scope: onboarding.work_scope ?? row.remarks ?? null,
  });
  staffByBranch.set(row.branch_id, list);
  }

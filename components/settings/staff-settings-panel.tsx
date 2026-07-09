@@ -166,7 +166,15 @@ export function StaffSettingsPanel({
  <span className="ml-1 text-xs text-muted-foreground">
  {s.staff_code}
  </span>
+ {s.job_title && (
+ <p className="mt-0.5 truncate text-xs font-medium text-slate-700">
+ {s.job_title}
+ </p>)}
  <div className="mt-0.5 flex flex-wrap items-center gap-1">
+ {s.department && (
+ <Badge variant="secondary" className="text-[10px] font-normal">
+ {s.department}
+ </Badge>)}
  <WorkerTypeBadge
  workerType={inferWorkerType(s)}
  className="text-[10px]"
