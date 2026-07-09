@@ -460,7 +460,7 @@ export function UsersSettingsPanel({
 
  {isAreaManager && (
  <p className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-950">
- Pengurus Kawasan: urus akaun login <strong>Staf kiosk</strong> dalam kawasan anda sahaja.
+ Pengurus Kawasan: urus akaun login <strong>staf cawangan</strong> dalam kawasan anda sahaja.
  </p>)}
 
  <div className="flex flex-wrap items-center justify-between gap-2">

@@ -26,7 +26,7 @@ const COMPANY_ROLE_LABELS: Partial<Record<LegalEntityCode, Partial<Record<UserRo
  HR: 'HR Roti Kaya Junus',
  OPERATION_MANAGER: 'Pengurus Operasi Roti Kaya Junus',
  FINANCE: 'Kewangan Roti Kaya Junus',
- STAFF: 'Staf Kiosk / Jualan',
+ STAFF: 'Staf Cawangan',
  },
 };
 

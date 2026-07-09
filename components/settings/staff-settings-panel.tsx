@@ -121,10 +121,10 @@ export function StaffSettingsPanel({
  </div>
 
  <p className="rounded-md border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-950">
- Staf kiosk berdaftar sebagai <strong>pekerja asing</strong> - gaji mingguan ikut kadar
- shift. Sistem auto-cipta <strong>username (email)</strong> &amp; <strong>kata laluan</strong>{' '}
- - staf mesti tukar password pada log masuk pertama. Pengurus boleh edit &amp; semak
- kredensial dalam skop cawangan masing-masing.
+ Staf cawangan boleh direkod sebagai staf jualan/POS, PIC cawangan, pembantu stok,
+ runner operasi atau sokongan kebersihan. Sistem auto-cipta <strong>username (email)</strong>{' '}
+ &amp; <strong>kata laluan</strong> - staf mesti tukar password pada log masuk pertama.
+ Pengurus hanya boleh urus staf dalam skop cawangan masing-masing.
  </p>
 
  {groups.length === 0 ? (
@@ -218,6 +218,7 @@ export function StaffSettingsPanel({
  branches={allBranches}
  existingStaffCodes={existingStaffCodes}
  defaultBranchId={defaultBranchForAdd}
+ isAreaManagerMode={profile ? isAreaManager(profile.role) : false}
  onSuccess={handleAddSuccess}
  />
  <EditStaffDialog

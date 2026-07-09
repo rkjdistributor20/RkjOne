@@ -65,6 +65,44 @@ const WEEKDAY_PRESETS = [5, 6, 7] as const;
 const COMPANY_HQ_BRANCH_VALUE = '__COMPANY_HQ__';
 const TODAY_ISO = new Date().toISOString().slice(0, 10);
 
+const BRANCH_STAFF_POSITION_PRESETS = [
+ {
+ id: 'SALES_POS',
+ label: 'Staf Jualan / POS',
+ jobTitle: 'Staf Jualan / POS',
+ department: 'Cawangan / POS',
+ workScope: 'Jualan kiosk, buka/tutup POS, layan pelanggan dan jaga kebersihan kaunter.',
+ },
+ {
+ id: 'PIC_BRANCH',
+ label: 'PIC Cawangan / Shift Lead',
+ jobTitle: 'PIC Cawangan',
+ department: 'Operasi Cawangan',
+ workScope: 'Pantau syif, susun staf bertugas, semak stok harian, buka/tutup POS dan lapor isu kepada AM.',
+ },
+ {
+ id: 'STOCK_INVENTORY',
+ label: 'Pembantu Stok / Inventori',
+ jobTitle: 'Pembantu Stok Cawangan',
+ department: 'Inventori Kiosk',
+ workScope: 'Terima stok, semak baki roti/kaya/plastik, rekod reject dan bantu kira stok sebelum/selepas syif.',
+ },
+ {
+ id: 'OPERATIONS_RUNNER',
+ label: 'Runner / Pembantu Operasi',
+ jobTitle: 'Runner Cawangan',
+ department: 'Operasi Cawangan',
+ workScope: 'Bantu operasi harian cawangan, ambil barang kecil, sokong staf POS dan bantu ketika waktu puncak.',
+ },
+ {
+ id: 'CLEANING_SUPPORT',
+ label: 'Kebersihan / Sokongan',
+ jobTitle: 'Staf Kebersihan Cawangan',
+ department: 'Kebersihan',
+ workScope: 'Jaga kebersihan kiosk, peralatan, ruang pelanggan dan bantu checklist kebersihan harian.',
+ },
+] as const;
+
 export type AddStaffBranchOption = {
  id: string;
  branch_code: string;
@@ -79,6 +117,7 @@ interface AddStaffDialogProps {
  existingStaffCodes: string[];
  defaultBranchId?: string;
  defaultLegalEntityCode?: LegalEntityCode;
+ isAreaManagerMode?: boolean;
  onSuccess: () => Promise<void>;
 }
 
@@ -161,7 +200,7 @@ function staffTemplateForCompany(code: LegalEntityCode, role: UserRole) {
  return {
  jobTitle: getCompanyRoleLabel(role, code),
  department: 'Cawangan / POS',
- workScope: 'Jualan kiosk, POS, stok cawangan, syif dan tugasan harian cawangan.',
+ workScope: 'Tugasan cawangan seperti POS, PIC syif, stok, operasi harian atau kebersihan mengikut jawatan.',
  };
 }
 
@@ -172,6 +211,7 @@ export function AddStaffDialog({
  existingStaffCodes,
  defaultBranchId,
  defaultLegalEntityCode,
+ isAreaManagerMode = false,
  onSuccess,
 }: AddStaffDialogProps) {
  const [staffCode, setStaffCode] = useState('');
@@ -179,6 +219,7 @@ export function AddStaffDialog({
  const [phone, setPhone] = useState('');
  const [icNumber, setIcNumber] = useState('');
  const [role, setRole] = useState<UserRole>('STAFF');
+ const [branchPositionPreset, setBranchPositionPreset] = useState('SALES_POS');
  const [jobTitle, setJobTitle] = useState('');
  const [department, setDepartment] = useState('');
  const [employmentStartDate, setEmploymentStartDate] = useState(TODAY_ISO);
@@ -227,9 +268,18 @@ export function AddStaffDialog({
  const codeTaken = useMemo(
  () => existingStaffCodes.some((c) => c.toUpperCase() === staffCode.trim().toUpperCase()),
  [existingStaffCodes, staffCode]);
+ const availableLegalEntities = useMemo(
+ () =>
+ isAreaManagerMode
+ ? LEGAL_ENTITIES.filter((entity) => entity.code === DEFAULT_SALES_LEGAL_ENTITY_CODE)
+ : LEGAL_ENTITIES,
+ [isAreaManagerMode]);
  const roleOptions = useMemo(
- () => getCompanyRoleOptions(legalEntityCode),
- [legalEntityCode]);
+ () => {
+ const options = getCompanyRoleOptions(legalEntityCode);
+ return isAreaManagerMode ? options.filter((option) => option === 'STAFF') : options;
+ },
+ [isAreaManagerMode, legalEntityCode]);
  const accessPreview = useMemo(
  () => getCompanyAccessPreview(role, legalEntityCode),
  [legalEntityCode, role]);
@@ -272,12 +322,23 @@ export function AddStaffDialog({
  !saving &&
  !rulesLoading;
 
+ function applyBranchPositionPreset(presetId: string) {
+ const preset =
+ BRANCH_STAFF_POSITION_PRESETS.find((item) => item.id === presetId) ??
+ BRANCH_STAFF_POSITION_PRESETS[0];
+ setBranchPositionPreset(preset.id);
+ setJobTitle(preset.jobTitle);
+ setDepartment(preset.department);
+ setWorkScope(preset.workScope);
+ }
+
  function resetForm() {
  setStaffCode('');
  setFullName('');
  setPhone('');
  setIcNumber('');
  setRole('STAFF');
+ setBranchPositionPreset('SALES_POS');
  setJobTitle('');
  setDepartment('');
  setEmploymentStartDate(TODAY_ISO);
@@ -302,14 +363,19 @@ export function AddStaffDialog({
  if (!open) return;
 
  setStaffCode(suggestNextStaffCode(existingStaffCodes));
- const nextLegalEntityCode = defaultLegalEntityCode ?? DEFAULT_SALES_LEGAL_ENTITY_CODE;
+ const nextLegalEntityCode =
+ isAreaManagerMode ? DEFAULT_SALES_LEGAL_ENTITY_CODE : defaultLegalEntityCode ?? DEFAULT_SALES_LEGAL_ENTITY_CODE;
  const nextRole: UserRole = 'STAFF';
- const nextTemplate = staffTemplateForCompany(nextLegalEntityCode, nextRole);
  setLegalEntityCode(nextLegalEntityCode);
  setRole(nextRole);
+ if (nextLegalEntityCode === DEFAULT_SALES_LEGAL_ENTITY_CODE) {
+ applyBranchPositionPreset('SALES_POS');
+ } else {
+ const nextTemplate = staffTemplateForCompany(nextLegalEntityCode, nextRole);
  setJobTitle(nextTemplate.jobTitle);
  setDepartment(nextTemplate.department);
  setWorkScope(nextTemplate.workScope);
+ }
  setEmploymentStartDate(TODAY_ISO);
  setNationality('Malaysia');
  setPhone('');
@@ -337,7 +403,7 @@ export function AddStaffDialog({
  setShiftHours(String(tiers.find((t) => t.shift_hours === 9)?.shift_hours ?? tiers[0].shift_hours));
  }
  }).catch(() => toast.error('Gagal muat kadar gaji')).finally(() => setRulesLoading(false));
- }, [open, branches, defaultBranchId, defaultLegalEntityCode, existingStaffCodes]);
+ }, [open, branches, defaultBranchId, defaultLegalEntityCode, existingStaffCodes, isAreaManagerMode]);
 
  useEffect(() => {
  if (!open) return;
@@ -432,6 +498,7 @@ export function AddStaffDialog({
  <DialogDescription>
  Daftar staf baharu mengikut syarikat majikan. Staf cawangan wajib pilih kiosk,
  manakala staf RKJ Distributor dan Manufacturing boleh didaftarkan sebagai staf syarikat/HQ.
+ {isAreaManagerMode ? ' AM hanya boleh tambah staf cawangan dalam kawasan sendiri.' : ''}
  </DialogDescription>
  </DialogHeader>
 
@@ -509,10 +576,14 @@ export function AddStaffDialog({
  if (!value) return;
  const nextRole = value as UserRole;
  setRole(nextRole);
+ if (legalEntityCode === DEFAULT_SALES_LEGAL_ENTITY_CODE && nextRole === 'STAFF') {
+ applyBranchPositionPreset(branchPositionPreset);
+ } else {
  const template = staffTemplateForCompany(legalEntityCode, nextRole);
  setJobTitle(template.jobTitle);
  setDepartment(template.department);
  setWorkScope(template.workScope);
+ }
  }}
  >
  <SelectTrigger>
@@ -526,6 +597,24 @@ export function AddStaffDialog({
  </SelectContent>
  </Select>
  </div>
+ {isKioskEmployer && role === 'STAFF' && (
+ <div className="space-y-1.5">
+ <Label>Jawatan Cawangan</Label>
+ <Select
+ value={branchPositionPreset}
+ onValueChange={(value) => value && applyBranchPositionPreset(value)}
+ >
+ <SelectTrigger>
+ <SelectValue />
+ </SelectTrigger>
+ <SelectContent>
+ {BRANCH_STAFF_POSITION_PRESETS.map((item) => (
+ <SelectItem key={item.id} value={item.id}>
+ {item.label}
+ </SelectItem>))}
+ </SelectContent>
+ </Select>
+ </div>)}
  <div className="space-y-1.5">
  <Label htmlFor="employment-start">Tarikh Mula Kerja</Label>
  <Input
@@ -593,14 +682,18 @@ export function AddStaffDialog({
  value={legalEntityCode}
  onValueChange={(v) => {
  if (!v) return;
- const next = v as LegalEntityCode;
+ const next = isAreaManagerMode ? DEFAULT_SALES_LEGAL_ENTITY_CODE : (v as LegalEntityCode);
  const nextRole: UserRole = 'STAFF';
- const template = staffTemplateForCompany(next, nextRole);
  setLegalEntityCode(next);
  setRole(nextRole);
+ if (next === DEFAULT_SALES_LEGAL_ENTITY_CODE) {
+ applyBranchPositionPreset(branchPositionPreset);
+ } else {
+ const template = staffTemplateForCompany(next, nextRole);
  setJobTitle(template.jobTitle);
  setDepartment(template.department);
  setWorkScope(template.workScope);
+ }
  if (next !== DEFAULT_SALES_LEGAL_ENTITY_CODE) {
  setBranchId(COMPANY_HQ_BRANCH_VALUE);
  setWorkerType('LOCAL');
@@ -614,14 +707,16 @@ export function AddStaffDialog({
  <SelectValue />
  </SelectTrigger>
  <SelectContent>
- {LEGAL_ENTITIES.map((entity) => (
+ {availableLegalEntities.map((entity) => (
  <SelectItem key={entity.code} value={entity.code}>
  {entity.legalName}
  </SelectItem>))}
  </SelectContent>
  </Select>
  <p className="text-xs text-muted-foreground">
- Pilih syarikat undang-undang sebenar untuk rekod HR dan payroll.
+ {isAreaManagerMode
+ ? 'AM hanya boleh tambah staf cawangan RKJ dalam kawasan sendiri.'
+ : 'Pilih syarikat undang-undang sebenar untuk rekod HR dan payroll.'}
  </p>
  </div>
 

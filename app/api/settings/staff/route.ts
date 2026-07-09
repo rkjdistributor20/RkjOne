@@ -6,6 +6,8 @@ import { applyBranchIdsFilter } from '@/lib/auth/branch-scope';
 import {
  assertBranchInPersonnelScope,
  assertCanManagePersonnel,
+ assertRoleCreatable,
+ isAreaManagerRole,
  loadPersonnelScope,
 } from '@/lib/settings/personnel-access';
 import { provisionStaffPortalAccount } from '@/lib/settings/staff-auth';
@@ -99,6 +101,15 @@ export async function POST(request: Request) {
  const legalEntityCode = String(
  body.legal_entity_code ?? DEFAULT_SALES_LEGAL_ENTITY_CODE);
  const branchInput = body.branch_id ? String(body.branch_id) : null;
+ const role = String(body.role ?? 'STAFF') as UserRole;
+
+ assertRoleCreatable(profile, role);
+
+ if (isAreaManagerRole(profile.role) && legalEntityCode !== DEFAULT_SALES_LEGAL_ENTITY_CODE) {
+ return NextResponse.json(
+ { error: 'Pengurus Kawasan hanya boleh tambah staf cawangan dalam kawasan sendiri' },
+ { status: 403 });
+ }
 
  if (!branchInput && legalEntityCode === DEFAULT_SALES_LEGAL_ENTITY_CODE) {
  return NextResponse.json({ error: 'Cawangan wajib' }, { status: 400 });
@@ -111,7 +122,6 @@ export async function POST(request: Request) {
  const staffCode = String(body.staff_code ?? '').trim().toUpperCase();
  const fullName = String(body.full_name ?? '').trim();
  const workerType = body.worker_type as 'LOCAL' | 'FOREIGN' | undefined;
- const role = String(body.role ?? 'STAFF') as UserRole;
  const allowedRoles = getCompanyRoleOptions(legalEntityCode);
 
  if (!staffCode || !fullName) {

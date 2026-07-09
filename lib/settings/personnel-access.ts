@@ -29,7 +29,7 @@ export function assertCanManagePersonnel(profile: Profile | null): Profile {
  return profile;
 }
 
-/** Peranan yang AM boleh cipta untuk login pengguna kiosk */
+/** Peranan sistem yang AM boleh cipta untuk login staf cawangan. */
 export const AM_CREATABLE_USER_ROLES: UserRole[] = ['STAFF'];
 
 export function rolesCreatableBy(profile: Profile): UserRole[] {
@@ -107,7 +107,7 @@ export function assertRoleCreatable(profile: Profile, role: string): void {
  if (!allowed.includes(role as UserRole)) {
  throw new Error(
  isAreaManagerRole(profile.role)
- ? 'Pengurus Kawasan hanya boleh cipta akaun Staf kiosk'
+ ? 'Pengurus Kawasan hanya boleh cipta akaun staf cawangan'
  : 'Peranan tidak dibenarkan');
  }
 }
