@@ -1,11 +1,14 @@
 import type {
  DeliveryRoutePlan,
  FactoryOrderReport,
+ FactoryGmpBatchRecord,
+ FactoryGmpDashboardData,
  FactoryProductionWeek,
  FactoryRawMaterialDashboard,
  HqFactoryOrder,
  OrderSuggestion,
  PublishedProductionDate,
+ CreateFactoryGmpBatchPayload,
 } from './types';
 
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
@@ -144,6 +147,30 @@ export async function recordFactoryRawMaterialUsage(payload: {
  return fetchJson<{ result: Record<string, unknown> }>('/api/production/raw-materials', {
  method: 'POST',
  body: JSON.stringify(payload),
+ });
+}
+
+export async function fetchFactoryGmpDashboard() {
+ return fetchJson<FactoryGmpDashboardData>('/api/production/gmp');
+}
+
+export async function createFactoryGmpBatch(payload: CreateFactoryGmpBatchPayload) {
+ return fetchJson<{ batch: FactoryGmpBatchRecord }>('/api/production/gmp', {
+  method: 'POST',
+  body: JSON.stringify(payload),
+ });
+}
+
+export async function updateFactoryGmpBatch(
+ batchId: string,
+ payload: {
+  status?: FactoryGmpBatchRecord['status'];
+  actual_qty?: number;
+  deviation_notes?: string;
+ }) {
+ return fetchJson<{ batch: FactoryGmpBatchRecord }>(`/api/production/gmp/${batchId}`, {
+  method: 'PATCH',
+  body: JSON.stringify(payload),
  });
 }
 

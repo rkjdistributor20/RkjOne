@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Factory, CalendarDays, Inbox, ClipboardList, Bot, Route, Store, AlertTriangle, ArrowRight, PackageOpen } from 'lucide-react';
+import { Factory, CalendarDays, Inbox, ClipboardList, Bot, Route, Store, AlertTriangle, ArrowRight, PackageOpen, ShieldCheck } from 'lucide-react';
 import { fetchHqFactoryOrders } from '@/lib/production/api';
 import type { HqFactoryOrder } from '@/lib/production/types';
 import Link from 'next/link';
@@ -9,6 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FactoryProductionSchedulePanel } from '@/components/warehouse/factory-production-schedule-panel';
 import { FactoryOrderInbox } from '@/components/warehouse/factory-order-inbox';
 import { FactoryRawMaterialDashboard } from '@/components/warehouse/factory-raw-material-dashboard';
+import { FactoryGmpDashboard } from '@/components/warehouse/factory-gmp-dashboard';
+import { getManufacturingGmpSummary } from '@/lib/manufacturing/gmp';
 import { COMPANY } from '@/lib/brand/company';
 import { WorkflowSopPanel } from '@/components/dashboard/workflow-sop-panel';
 import { getRoleWorkflow } from '@/lib/dashboard/role-workflows';
@@ -42,11 +44,14 @@ export function FactoryDashboard() {
  }, []);
 
  useEffect(() => {
- loadOrders();
+ queueMicrotask(() => {
+ void loadOrders();
+ });
  }, [loadOrders]);
 
  const pendingCount = orders.filter((o) => o.status === 'SUBMITTED').length;
  const acknowledgedCount = orders.filter((o) => o.status === 'ACKNOWLEDGED').length;
+ const gmpSummary = getManufacturingGmpSummary();
  const workflow = getRoleWorkflow({
  role: profile?.role === 'OPERATION_MANAGER' ? 'OPERATION_MANAGER' : 'CEO_FACTORY',
  legalEntityCode: profile?.legal_entity?.code ?? 'RKJ_MFG',
@@ -128,7 +133,7 @@ export function FactoryDashboard() {
  </div>
  </SectionCard>
 
- <KpiGrid cols={3}>
+ <KpiGrid cols={4}>
  <KpiCard
  title={t('module.factory.pendingOrders')}
  value={pendingCount}
@@ -146,6 +151,13 @@ export function FactoryDashboard() {
  title={t('module.factory.activeOrders')}
  value={orders.length}
  icon={Factory}
+ />
+ <KpiCard
+ title={t('module.factory.gmpProducts')}
+ value={gmpSummary.productCount}
+ description={t('module.factory.gmpProductsDesc')}
+ icon={ShieldCheck}
+ variant="success"
  />
  </KpiGrid>
 
@@ -165,6 +177,9 @@ export function FactoryDashboard() {
  <TabsTrigger value="raw-materials" className={moduleTabsTriggerClass}>
  <PackageOpen className="h-4 w-4" /> {t('module.factory.rawMaterials')}
  </TabsTrigger>
+ <TabsTrigger value="gmp" className={moduleTabsTriggerClass}>
+ <ShieldCheck className="h-4 w-4" /> {t('module.factory.gmp')}
+ </TabsTrigger>
  </TabsList>
 
  <TabsContent value="schedule" className="mt-4">
@@ -177,6 +192,10 @@ export function FactoryDashboard() {
 
  <TabsContent value="raw-materials" className="mt-4">
  <FactoryRawMaterialDashboard />
+ </TabsContent>
+
+ <TabsContent value="gmp" className="mt-4">
+ <FactoryGmpDashboard />
  </TabsContent>
  </Tabs>
  </ModuleLayout>);

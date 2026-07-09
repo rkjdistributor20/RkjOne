@@ -329,6 +329,73 @@ export interface FactoryRawMaterialDashboard {
  low_count: number;
  critical_count: number;
  total_usage_14_days: number;
- latest_stock_card_date: string | null;
+  latest_stock_card_date: string | null;
  };
+}
+
+export interface FactoryGmpProduct {
+ id: string;
+ legal_entity_id: string | null;
+ product_code: string;
+ product_name: string;
+ batch_prefix: string;
+ stock_item_codes: string[];
+ pos_categories: string[];
+ gmp_spec: Record<string, unknown>;
+ status: string;
+}
+
+export interface FactoryGmpRecordStage {
+ code: string;
+ title: string;
+ owner: string;
+ evidence: string;
+ timing: string;
+}
+
+export interface FactoryGmpBatchRecord {
+ id: string;
+ gmp_product_id: string;
+ production_date: string;
+ batch_no: string;
+ planned_qty: number;
+ actual_qty: number;
+ unit: string;
+ status: 'DRAFT' | 'IN_PROCESS' | 'HOLD' | 'RELEASED' | 'REJECTED';
+ raw_material_lots: unknown;
+ process_readings: unknown;
+ packaging_trace: unknown;
+ deviation_notes: string | null;
+ released_at: string | null;
+ created_at: string;
+}
+
+export interface FactoryGmpDashboardData {
+ migration_ready: boolean;
+ setup_message: string | null;
+ products: FactoryGmpProduct[];
+ batches: FactoryGmpBatchRecord[];
+ record_stages: FactoryGmpRecordStage[];
+ summary: {
+  product_count: number;
+  recent_batch_count: number;
+  released_count: number;
+  hold_count: number;
+  open_count: number;
+  latest_batch_date: string | null;
+ };
+}
+
+export interface CreateFactoryGmpBatchPayload {
+ product_code: string;
+ production_date: string;
+ planned_qty?: number;
+ actual_qty?: number;
+ unit?: string;
+ status?: FactoryGmpBatchRecord['status'];
+ batch_no?: string;
+ raw_material_lots?: unknown;
+ process_readings?: unknown;
+ packaging_trace?: unknown;
+ deviation_notes?: string;
 }
