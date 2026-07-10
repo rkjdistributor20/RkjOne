@@ -37,7 +37,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
 import {
  ModuleLayout,
  ModuleHeader,
@@ -64,8 +63,11 @@ function defaultRange() {
  };
 }
 
+type ReportsTab = 'sales' | 'branches' | 'products' | 'staff' | 'inventory' | 'fleet';
+
 export function ReportsDashboard() {
  const [range, setRange] = useState(defaultRange);
+ const [activeTab, setActiveTab] = useState<ReportsTab>('sales');
  const [overview, setOverview] = useState<ReportOverview | null>(null);
  const [trend, setTrend] = useState<SalesTrendRow[]>([]);
  const [branches, setBranches] = useState<BranchPerformanceRow[]>([]);
@@ -74,26 +76,19 @@ export function ReportsDashboard() {
  const [inventory, setInventory] = useState<InventoryReportRow[]>([]);
  const [fleet, setFleet] = useState({ pending: 0, in_transit: 0, delivered: 0, total_orders: 0 });
  const [loading, setLoading] = useState(true);
+ const [tabLoading, setTabLoading] = useState(false);
+ const [loadedTabs, setLoadedTabs] = useState<Partial<Record<ReportsTab, string>>>({});
+ const rangeKey = `${range.from}:${range.to}`;
 
- const loadData = useCallback(async () => {
+ const loadOverview = useCallback(async () => {
  setLoading(true);
  try {
- const [ov, tr, br, pr, st, inv, fl] = await Promise.all([
+ const [ov, tr] = await Promise.all([
  fetchReportOverview(range.from, range.to),
  fetchSalesTrend(range.from, range.to),
- fetchBranchPerformance(range.from, range.to),
- fetchProductPerformance(range.from, range.to),
- fetchStaffPerformance(range.from, range.to),
- fetchInventoryReport(),
- fetchFleetReport(range.from, range.to),
  ]);
  setOverview(ov.overview);
  setTrend(tr.trend);
- setBranches(br.branches);
- setProducts(pr.products);
- setStaff(st.staff);
- setInventory(inv.items);
- setFleet(fl.fleet);
  } catch (err) {
  toast.error(err instanceof Error ? err.message : 'Gagal memuatkan laporan');
  } finally {
@@ -101,9 +96,49 @@ export function ReportsDashboard() {
  }
  }, [range.from, range.to]);
 
+ const loadTabData = useCallback(async (tab: ReportsTab = activeTab, force = false) => {
+ if (tab === 'sales') return;
+ if (!force && loadedTabs[tab] === rangeKey) return;
+
+ setTabLoading(true);
+ try {
+ if (tab === 'branches') {
+ const br = await fetchBranchPerformance(range.from, range.to);
+ setBranches(br.branches);
+ } else if (tab === 'products') {
+ const pr = await fetchProductPerformance(range.from, range.to);
+ setProducts(pr.products);
+ } else if (tab === 'staff') {
+ const st = await fetchStaffPerformance(range.from, range.to);
+ setStaff(st.staff);
+ } else if (tab === 'inventory') {
+ const inv = await fetchInventoryReport();
+ setInventory(inv.items);
+ } else if (tab === 'fleet') {
+ const fl = await fetchFleetReport(range.from, range.to);
+ setFleet(fl.fleet);
+ }
+ setLoadedTabs((current) => ({...current, [tab]: rangeKey }));
+ } catch (err) {
+ toast.error(err instanceof Error ? err.message : 'Gagal memuatkan tab laporan');
+ } finally {
+ setTabLoading(false);
+ }
+ }, [activeTab, loadedTabs, range.from, range.to, rangeKey]);
+
  useEffect(() => {
- loadData();
- }, [loadData]);
+ setLoadedTabs({});
+ void loadOverview();
+ }, [loadOverview]);
+
+ useEffect(() => {
+ void loadTabData(activeTab);
+ }, [activeTab, loadTabData]);
+
+ const reloadCurrentView = async () => {
+ await loadOverview();
+ await loadTabData(activeTab, true);
+ };
 
  const maxTrend = Math.max(...trend.map((t) => t.total_sales), 1);
 
@@ -133,7 +168,7 @@ export function ReportsDashboard() {
  onChange={(e) => setRange({...range, to: e.target.value })}
  />
  </div>
- <PrimaryActionButton className="h-9" onClick={loadData}>
+ <PrimaryActionButton className="h-9" onClick={reloadCurrentView}>
  Muat Semula
  </PrimaryActionButton>
  </div>
@@ -154,7 +189,7 @@ export function ReportsDashboard() {
  <KpiCard title="Gaji Bersih" value={fmt(overview?.payroll_net ?? 0)} icon={Wallet} />
  </KpiGrid>
 
- <Tabs defaultValue="sales" className="space-y-4">
+ <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ReportsTab)} className="space-y-4">
  <TabsList className={moduleTabsListClass}>
  <TabsTrigger value="sales" className={moduleTabsTriggerClass}>
  <TrendingUp className="h-4 w-4" /> Jualan
@@ -210,6 +245,8 @@ export function ReportsDashboard() {
  </TabsContent>
 
  <TabsContent value="branches" className="mt-4">
+ {tabLoading && activeTab === 'branches' ? (
+ <ModuleLoading />) : (
  <ReportTable
  headers={['Branch', 'Region', 'Sales', 'Txns', 'Cash', 'QR']}
  rows={branches.map((b) => [
@@ -221,10 +258,12 @@ export function ReportsDashboard() {
  fmt(b.total_qr),
  ])}
  empty="No branch data"
- />
+ />)}
  </TabsContent>
 
  <TabsContent value="products" className="mt-4">
+ {tabLoading && activeTab === 'products' ? (
+ <ModuleLoading />) : (
  <ReportTable
  headers={['Product', 'SKU', 'Qty Sold', 'Revenue']}
  rows={products.map((p) => [
@@ -234,10 +273,12 @@ export function ReportsDashboard() {
  fmt(p.revenue),
  ])}
  empty="No product sales in range"
- />
+ />)}
  </TabsContent>
 
  <TabsContent value="staff" className="mt-4">
+ {tabLoading && activeTab === 'staff' ? (
+ <ModuleLoading />) : (
  <ReportTable
  headers={['Staff', 'Branch', 'Shifts', 'Sales']}
  rows={staff.map((s) => [
@@ -247,11 +288,12 @@ export function ReportsDashboard() {
  fmt(s.total_sales),
  ])}
  empty="No staff shift data in range"
- />
+ />)}
  </TabsContent>
 
  <TabsContent value="inventory" className="mt-4 space-y-2">
- {inventory.length === 0 ? (
+ {tabLoading && activeTab === 'inventory' ? (
+ <ModuleLoading />) : inventory.length === 0 ? (
  <p className="text-sm text-muted-foreground">All stock levels OK</p>) : (
  inventory.map((item, i) => (
  <div key={i} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
@@ -268,6 +310,9 @@ export function ReportsDashboard() {
  </TabsContent>
 
  <TabsContent value="fleet" className="mt-4">
+ {tabLoading && activeTab === 'fleet' ? (
+ <ModuleLoading />) : (
+ <>
  <div className="grid gap-3 sm:grid-cols-4">
  <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Total Orders</p><p className="text-2xl font-bold">{fleet.total_orders}</p></CardContent></Card>
  <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Pending</p><p className="text-2xl font-bold">{fleet.pending}</p></CardContent></Card>
@@ -277,6 +322,7 @@ export function ReportsDashboard() {
  <p className="mt-3 text-sm text-muted-foreground">
  Active deliveries: {overview?.deliveries_pending ?? 0} pending in system
  </p>
+ </>)}
  </TabsContent>
  </Tabs>
  </>)}

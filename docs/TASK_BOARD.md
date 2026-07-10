@@ -1,6 +1,6 @@
 # RKJ One Task Board
 
-Last updated: 2026-07-10
+Last updated: 2026-07-11
 
 Status key: `Todo`, `In Progress`, `Review`, `Blocked`, `Done`.
 
@@ -145,6 +145,7 @@ Status key: `Todo`, `In Progress`, `Review`, `Blocked`, `Done`.
 |----|--------|-------|------|------------|
 | PERF-016 | Done | Frontend/Performance AI | Stream panel berat untuk dashboard Owner. | Dashboard Owner render hero, KPI jualan, struktur syarikat dan delegation shell dahulu; governance, POS, fleet dan HR load kemudian melalui `Suspense` tanpa block paparan utama. |
 | PERF-017 | Done | Frontend/Backend Performance AI | Ringankan HQ Distributor. | `/warehouse` render shell dan KPI dahulu; balances/audit hanya dimuat bila tab berkaitan dibuka; summary API query parallel; order history HQ dihadkan kepada recent rows. |
+| PERF-018 | Done | Frontend/Backend Performance AI | Speed pass keseluruhan untuk Reports, Finance dan Fleet. | Reports/Finance/Fleet elak bulk initial fetch, tab berat dimuat bila dibuka, API list utama ada limit, query summary kritikal berjalan parallel, dan response read-only guna short private cache. |
 
 ## Backlog
 

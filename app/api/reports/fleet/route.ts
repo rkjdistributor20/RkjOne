@@ -31,5 +31,7 @@ export async function GET(request: Request) {
  in_transit: inTransit ?? 0,
  delivered: delivered ?? 0,
  },
+ }, {
+ headers: { 'Cache-Control': 'private, max-age=30, stale-while-revalidate=90' },
  });
 }

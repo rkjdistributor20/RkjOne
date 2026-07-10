@@ -12,6 +12,10 @@ export async function GET(request: Request) {
  const url = new URL(request.url);
  const statusParam = url.searchParams.get('status');
  const branchId = url.searchParams.get('branch_id');
+ const requestedLimit = Number(url.searchParams.get('limit') ?? 50);
+ const limit = Number.isFinite(requestedLimit)
+ ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 100)
+ : 50;
  const statuses = statusParam
  ? statusParam.split(',').map((item) => item.trim().toUpperCase()).filter(Boolean)
  : DEFAULT_STATUSES;
@@ -29,7 +33,7 @@ export async function GET(request: Request) {
  let query = supabase.from('pos_branch_supply_requests').select(`
  id, branch_id, status, request_type, priority, needed_by, notes, items, created_at,
  branch:branches(branch_name, branch_code)
- `).eq('organization_id', profile.organization_id).order('created_at', { ascending: false }).limit(100);
+ `).eq('organization_id', profile.organization_id).order('created_at', { ascending: false }).limit(limit);
 
  if (statuses.length > 0) query = query.in('status', statuses);
  if (scope.branchIds !== null) {
@@ -40,5 +44,7 @@ export async function GET(request: Request) {
  const { data, error } = await query;
  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
- return NextResponse.json({ requests: data ?? [] });
+ return NextResponse.json({ requests: data ?? [] }, {
+ headers: { 'Cache-Control': 'private, max-age=15, stale-while-revalidate=45' },
+ });
 }

@@ -11,6 +11,10 @@ export async function GET(request: Request) {
  const from =
  url.searchParams.get('from') ??
  new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+ const requestedLimit = Number(url.searchParams.get('limit') ?? 50);
+ const limit = Number.isFinite(requestedLimit)
+ ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 100)
+ : 50;
 
  const supabase = await createClient();
  const { data, error } = await supabase.from('pos_daily_summaries').select(`
@@ -63,6 +67,10 @@ export async function GET(request: Request) {
  byBranch.set(row.branch.id, cur);
  }
 
- const branches = [...byBranch.values()].sort((a, b) => b.total_sales ?? a.total_sales);
- return NextResponse.json({ branches });
+ const branches = [...byBranch.values()]
+ .sort((a, b) => b.total_sales - a.total_sales)
+ .slice(0, limit);
+ const response = NextResponse.json({ branches });
+ response.headers.set('Cache-Control', 'private, max-age=30, stale-while-revalidate=90');
+ return response;
 }

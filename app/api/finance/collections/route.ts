@@ -8,7 +8,12 @@ export async function GET(request: Request) {
  const profile = await getCurrentProfile();
  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
- const status = new URL(request.url).searchParams.get('status');
+ const url = new URL(request.url);
+ const status = url.searchParams.get('status');
+ const requestedLimit = Number(url.searchParams.get('limit') ?? 50);
+ const limit = Number.isFinite(requestedLimit)
+ ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 100)
+ : 50;
  const supabase = await createClient();
  let scope;
  try {
@@ -23,7 +28,7 @@ export async function GET(request: Request) {
  id, branch_id, collection_number, collection_type, amount, status,
  collected_from, collector_name, third_party_name, collected_at, created_at,
  branch:branches(branch_name, branch_code)
- `).eq('organization_id', profile.organization_id).order('created_at', { ascending: false }).limit(50);
+ `).eq('organization_id', profile.organization_id).order('created_at', { ascending: false }).limit(limit);
 
  if (status) query = query.eq('status', status);
  if (scope.branchIds !== null) {
@@ -33,7 +38,9 @@ export async function GET(request: Request) {
 
  const { data, error } = await query;
  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
- return NextResponse.json({ collections: data ?? [] });
+ return NextResponse.json({ collections: data ?? [] }, {
+ headers: { 'Cache-Control': 'private, max-age=10, stale-while-revalidate=30' },
+ });
 }
 
 export async function POST(request: Request) {

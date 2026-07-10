@@ -51,13 +51,15 @@ export async function deleteFleetDriver(id: string) {
  });
 }
 
-export async function fetchDeliveryOrders(status?: string) {
- const params = status ? `?status=${status}` : '';
- return fetchJson<{ orders: DeliveryOrder[] }>(`/api/fleet/orders${params}`);
+export async function fetchDeliveryOrders(status?: string, limit = 20) {
+ const params = new URLSearchParams();
+ if (status) params.set('status', status);
+ params.set('limit', String(limit));
+ return fetchJson<{ orders: DeliveryOrder[] }>(`/api/fleet/orders?${params}`);
 }
 
 export async function fetchMyDeliveryOrders() {
- return fetchJson<{ orders: DeliveryOrder[] }>('/api/fleet/orders?mine=true');
+ return fetchJson<{ orders: DeliveryOrder[] }>('/api/fleet/orders?mine=true&limit=20');
 }
 
 export async function optimizeRoutePreview(payload: {

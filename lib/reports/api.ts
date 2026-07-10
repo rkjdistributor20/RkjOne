@@ -29,9 +29,9 @@ export async function fetchSalesTrend(from: string, to: string, groupBy = 'day')
  `/api/reports/sales?${qs(from, to, { group_by: groupBy })}`);
 }
 
-export async function fetchBranchPerformance(from: string, to: string) {
+export async function fetchBranchPerformance(from: string, to: string, limit = 50) {
  return fetchJson<{ branches: BranchPerformanceRow[] }>(
- `/api/reports/branches?${qs(from, to)}`);
+ `/api/reports/branches?${qs(from, to, { limit: String(limit) })}`);
 }
 
 export async function fetchProductPerformance(from: string, to: string, limit = 15) {
@@ -39,13 +39,13 @@ export async function fetchProductPerformance(from: string, to: string, limit = 
  `/api/reports/products?${qs(from, to, { limit: String(limit) })}`);
 }
 
-export async function fetchStaffPerformance(from: string, to: string) {
+export async function fetchStaffPerformance(from: string, to: string, limit = 50) {
  return fetchJson<{ staff: StaffPerformanceRow[] }>(
- `/api/reports/staff?${qs(from, to)}`);
+ `/api/reports/staff?${qs(from, to, { limit: String(limit) })}`);
 }
 
-export async function fetchInventoryReport() {
- return fetchJson<{ items: InventoryReportRow[] }>('/api/reports/inventory');
+export async function fetchInventoryReport(limit = 100) {
+ return fetchJson<{ items: InventoryReportRow[] }>(`/api/reports/inventory?limit=${limit}`);
 }
 
 export async function fetchFleetReport(from: string, to: string) {

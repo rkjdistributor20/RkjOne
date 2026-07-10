@@ -176,11 +176,79 @@ const checks = [
  ],
  },
  {
- file: 'components/dashboard/workflow-sop-panel.tsx',
- patterns: [
+  file: 'components/dashboard/workflow-sop-panel.tsx',
+  patterns: [
   'MAX_VISIBLE_STEPS = 4',
   'visibleSteps.map',
   'hiddenStepCount',
+ ],
+ },
+ {
+ file: 'components/reports/reports-dashboard.tsx',
+ patterns: [
+  "type ReportsTab = 'sales' | 'branches' | 'products' | 'staff' | 'inventory' | 'fleet'",
+  'const [loadedTabs, setLoadedTabs]',
+  'const loadTabData',
+  '<Tabs value={activeTab}',
+ ],
+ forbidden: [
+  'const [ov, tr, br, pr, st, inv, fl] = await Promise.all',
+ ],
+ },
+ {
+ file: 'components/finance/finance-dashboard.tsx',
+ patterns: [
+  "type FinanceTab = 'collections' | 'manualqr' | 'bankin' | 'recon' | 'reports'",
+  'const loadCore',
+  'const loadTabData',
+  "fetchManualQrPayments('PENDING', 20)",
+  '<Tabs value={activeTab}',
+ ],
+ forbidden: [
+  'const [sum, col, bi, usage, req, rec, rep, br, qr] = await Promise.all',
+ ],
+ },
+ {
+ file: 'components/fleet/fleet-dashboard.tsx',
+ patterns: [
+  "type FleetTab = 'overview' | 'schedule' | 'drivers' | 'deliveries' | 'vehicles' | 'status'",
+  'const loadStatusLogs',
+  'const loadCreateResources',
+ '<Tabs value={activeTab}',
+ ],
+ forbidden: [
+  'const [ord, veh, drv, logs, loc, items] = await Promise.all',
+ ],
+ },
+ {
+ file: 'app/api/reports/overview/route.ts',
+ patterns: [
+  'Promise.all',
+  "Cache-Control': 'private, max-age=30, stale-while-revalidate=90'",
+ ],
+ },
+ {
+ file: 'app/api/reports/products/route.ts',
+ patterns: [
+  'Math.min(Math.max(Math.trunc(requestedLimit), 1), 50)',
+  '.limit(500)',
+  'b.revenue - a.revenue',
+  "Cache-Control': 'private, max-age=30, stale-while-revalidate=90'",
+ ],
+ },
+ {
+ file: 'app/api/finance/summary/route.ts',
+ patterns: [
+  'Promise.all',
+  "Cache-Control': 'private, max-age=10, stale-while-revalidate=30'",
+ ],
+ },
+ {
+ file: 'lib/finance/api.ts',
+ patterns: [
+  'fetchCollections(status?: string, limit = 50)',
+  'fetchBankIns(limit = 30)',
+  'fetchManualQrPayments(status?: string, limit = 30)',
  ],
  },
 ];

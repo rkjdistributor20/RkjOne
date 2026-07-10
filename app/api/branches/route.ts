@@ -21,7 +21,9 @@ export async function GET() {
 
  if (scope.branchIds !== null) {
  if (scope.branchIds.length === 0) {
- return NextResponse.json({ branches: [] });
+ return NextResponse.json({ branches: [] }, {
+ headers: { 'Cache-Control': 'private, max-age=120, stale-while-revalidate=300' },
+ });
  }
  query = query.in('id', scope.branchIds);
  }
@@ -49,5 +51,7 @@ export async function GET() {
  region_name: row.region?.name ?? null,
  }));
 
- return NextResponse.json({ branches });
+ return NextResponse.json({ branches }, {
+ headers: { 'Cache-Control': 'private, max-age=120, stale-while-revalidate=300' },
+ });
 }

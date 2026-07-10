@@ -14,7 +14,9 @@ export async function GET() {
  driver:drivers(full_name)
  `).eq('organization_id', profile.organization_id).order('logged_at', { ascending: false }).limit(30);
 
- return NextResponse.json({ logs: data ?? [] });
+ const response = NextResponse.json({ logs: data ?? [] });
+ response.headers.set('Cache-Control', 'private, max-age=15, stale-while-revalidate=30');
+ return response;
 }
 
 export async function POST(request: Request) {

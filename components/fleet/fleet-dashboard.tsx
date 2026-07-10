@@ -60,6 +60,7 @@ const STATUS_VARIANT: Record<string, 'outline' | 'secondary' | 'destructive' | '
 };
 
 const VEHICLE_STATUS_OPTIONS = Object.keys(FLEET_VEHICLE_STATUS_LABELS);
+type FleetTab = 'overview' | 'schedule' | 'drivers' | 'deliveries' | 'vehicles' | 'status';
 
 function parseFleetRemark(remarks?: string | null) {
  const parts = (remarks ?? '').split('|').map((part) => part.trim());
@@ -376,6 +377,11 @@ export function FleetDashboard() {
  const [locations, setLocations] = useState<InventoryLocation[]>([]);
  const [stockItems, setStockItems] = useState<StockItemOption[]>([]);
  const [loading, setLoading] = useState(!isDriver);
+ const [activeTab, setActiveTab] = useState<FleetTab>('overview');
+ const [statusLoading, setStatusLoading] = useState(false);
+ const [statusLoaded, setStatusLoaded] = useState(false);
+ const [resourceLoading, setResourceLoading] = useState(false);
+ const [resourcesLoaded, setResourcesLoaded] = useState(false);
  const [createOpen, setCreateOpen] = useState(false);
  const [driverEditorOpen, setDriverEditorOpen] = useState(false);
  const [editingDriver, setEditingDriver] = useState<FleetDriver | null>(null);
@@ -386,21 +392,15 @@ export function FleetDashboard() {
  if (isDriver) return;
  setLoading(true);
  try {
- const [ord, veh, drv, logs, loc, items] = await Promise.all([
+ const [ord, veh, drv] = await Promise.all([
  fetchDeliveryOrders(),
  fetchFleetVehicles(),
  fetchFleetDrivers(),
- fetchFleetStatus(),
- fetchLocations(),
- fetchStockItems({ hq: true }),
  ]);
  setOrders(ord.orders as DeliveryOrder[]);
  setVehicles(veh.vehicles);
  setDrivers(drv.drivers);
  setRouteOptions(drv.route_options ?? []);
- setStatusLogs(logs.logs as FleetStatusLog[]);
- setLocations(loc.locations);
- setStockItems(items.items);
  } catch (err) {
  toast.error(err instanceof Error ? err.message : 'Gagal memuatkan data logistik');
  } finally {
@@ -408,9 +408,58 @@ export function FleetDashboard() {
  }
  }, [isDriver]);
 
+ const loadStatusLogs = useCallback(async (force = false) => {
+ if (statusLoaded && !force) return;
+ setStatusLoading(true);
+ try {
+ const logs = await fetchFleetStatus();
+ setStatusLogs(logs.logs as FleetStatusLog[]);
+ setStatusLoaded(true);
+ } catch (err) {
+ toast.error(err instanceof Error ? err.message : 'Gagal memuatkan log status logistik');
+ } finally {
+ setStatusLoading(false);
+ }
+ }, [statusLoaded]);
+
+ const loadCreateResources = useCallback(async () => {
+ if (resourcesLoaded) return;
+ setResourceLoading(true);
+ try {
+ const [loc, items] = await Promise.all([
+ fetchLocations(),
+ fetchStockItems({ hq: true }),
+ ]);
+ setLocations(loc.locations);
+ setStockItems(items.items);
+ setResourcesLoaded(true);
+ } catch (err) {
+ toast.error(err instanceof Error ? err.message : 'Gagal memuatkan data penghantaran manual');
+ } finally {
+ setResourceLoading(false);
+ }
+ }, [resourcesLoaded]);
+
  useEffect(() => {
  loadData();
  }, [loadData]);
+
+ useEffect(() => {
+ if (activeTab === 'status') {
+ void loadStatusLogs();
+ }
+ }, [activeTab, loadStatusLogs]);
+
+ useEffect(() => {
+ if (createOpen) {
+ void loadCreateResources();
+ }
+ }, [createOpen, loadCreateResources]);
+
+ function openCreateDialog() {
+ setCreateOpen(true);
+ void loadCreateResources();
+ }
 
  async function handleDispatch(legId: string) {
  try {
@@ -426,7 +475,9 @@ export function FleetDashboard() {
  try {
  await logFleetStatus({ vehicle_id: vehicleId, status });
  toast.success('Status direkod');
+ setStatusLoaded(false);
  loadData();
+ void loadStatusLogs(true);
  } catch (err) {
  toast.error(err instanceof Error ? err.message : 'Gagal rekod status');
  }
@@ -492,7 +543,7 @@ export function FleetDashboard() {
  </>
  }
  actions={
- <PrimaryActionButton onClick={() => setCreateOpen(true)}>
+ <PrimaryActionButton onClick={openCreateDialog}>
  <Plus className="mr-2 h-4 w-4" />
  {t('module.fleet.manualDelivery')}
  </PrimaryActionButton>
@@ -503,7 +554,7 @@ export function FleetDashboard() {
 
  {loading ? (
  <ModuleLoading />) : (
- <Tabs defaultValue="overview" className="space-y-4">
+ <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as FleetTab)} className="space-y-4">
  <TabsList className={moduleTabsListClass}>
  <TabsTrigger value="overview" className={moduleTabsTriggerClass}>
  <LayoutDashboard className="h-4 w-4" /> {t('module.fleet.overview')}
@@ -706,7 +757,7 @@ export function FleetDashboard() {
  title={t('module.fleet.noManualOrders')}
  description={`Aliran utama: ${HQ_DISTRIBUTOR_LABEL} -> rancang laluan -> driver terima arahan gabungan. DO manual untuk kes khas.`}
  action={
- <PrimaryActionButton onClick={() => setCreateOpen(true)}>
+ <PrimaryActionButton onClick={openCreateDialog}>
  <Plus className="mr-2 h-4 w-4" />
  {t('module.fleet.manualDelivery')}
  </PrimaryActionButton>
@@ -830,7 +881,8 @@ export function FleetDashboard() {
  </TabsContent>
 
  <TabsContent value="status" className="mt-2 space-y-2">
- {statusLogs.length === 0 ? (
+ {statusLoading ? (
+ <ModuleLoading />) : statusLogs.length === 0 ? (
  <EmptyState
  icon={MapPin}
  title={t('module.fleet.noStatusLog')}
@@ -864,6 +916,8 @@ export function FleetDashboard() {
  vehicles={vehicles}
  onSuccess={loadData}
  />
+ {resourceLoading && createOpen && (
+ <p className="px-1 text-xs text-muted-foreground">Memuatkan lokasi dan stok untuk penghantaran manual...</p>)}
 
  <DriverProfileEditor
  open={driverEditorOpen}

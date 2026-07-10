@@ -1,6 +1,6 @@
 # RKJ One QA Checklist
 
-Last updated: 2026-07-10
+Last updated: 2026-07-11
 
 Use this checklist for QA AI, Code Reviewer AI, and human review before merge/deploy.
 
@@ -97,6 +97,10 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [x] HQ factory order history is bounded to recent rows by default.
 - [x] Active branch and vehicle master rows use short per-organization cache while operational counts remain live.
 - [x] Master-data APIs used by POS/inventory have bounded result limits and short private browser cache.
+- [x] Reports dashboard loads overview/sales first and defers branch/product/staff/inventory/fleet reports until the tab is opened.
+- [x] Finance dashboard loads cash-control core first and defers QR manual, reconciliation and reports tab data until needed.
+- [x] Fleet dashboard defers status logs and create-order reference data until the status tab/dialog is opened.
+- [x] Finance and Reports list APIs use bounded limits plus short private cache headers for repeat user reads.
 
 ## M6 Release QA Notes
 

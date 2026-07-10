@@ -4,9 +4,15 @@ import { inventoryRpc } from '@/lib/supabase/inventory-rpc';
 import { getCurrentProfile } from '@/lib/auth/session';
 import { resolveScopedBranches } from '@/lib/auth/branch-scope';
 
-export async function GET() {
+export async function GET(request: Request) {
  const profile = await getCurrentProfile();
  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+ const url = new URL(request.url);
+ const requestedLimit = Number(url.searchParams.get('limit') ?? 30);
+ const limit = Number.isFinite(requestedLimit)
+ ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 100)
+ : 30;
 
  const supabase = await createClient();
  let scope;
@@ -21,7 +27,7 @@ export async function GET() {
  const { data, error } = await supabase.from('bank_in_records').select(`
  id, bank_in_number, collection_id, amount, bank_name, reference_number, slip_url, banked_at, status,
  collection:finance_collections(branch_id, collection_number, branch:branches(branch_name, branch_code))
- `).eq('organization_id', profile.organization_id).order('banked_at', { ascending: false }).limit(30);
+ `).eq('organization_id', profile.organization_id).order('banked_at', { ascending: false }).limit(limit);
 
  if (scope.branchIds !== null) {
  if (scope.branchIds.length === 0) return NextResponse.json({ records: [] });
@@ -37,7 +43,9 @@ export async function GET() {
  const collection = Array.isArray(record.collection) ? record.collection[0] : record.collection;
  return collection?.branch_id ? scope.branchIds!.includes(collection.branch_id) : false;
  });
- return NextResponse.json({ records });
+ return NextResponse.json({ records }, {
+ headers: { 'Cache-Control': 'private, max-age=10, stale-while-revalidate=30' },
+ });
 }
 
 export async function POST(request: Request) {

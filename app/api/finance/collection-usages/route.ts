@@ -4,9 +4,15 @@ import { resolveScopedBranches } from '@/lib/auth/branch-scope';
 import { inventoryRpc } from '@/lib/supabase/inventory-rpc';
 import { createClient } from '@/lib/supabase/server';
 
-export async function GET() {
+export async function GET(request: Request) {
  const profile = await getCurrentProfile();
  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+ const url = new URL(request.url);
+ const requestedLimit = Number(url.searchParams.get('limit') ?? 50);
+ const limit = Number.isFinite(requestedLimit)
+ ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 100)
+ : 50;
 
  const supabase = await createClient();
  let scope;
@@ -24,7 +30,7 @@ export async function GET() {
  spent_at, status, reviewed_at, review_notes, created_at,
  branch:branches(branch_name, branch_code),
  collection:finance_collections(collection_number, amount, status)
- `).eq('organization_id', profile.organization_id).order('created_at', { ascending: false }).limit(80);
+ `).eq('organization_id', profile.organization_id).order('created_at', { ascending: false }).limit(limit);
 
  if (scope.branchIds !== null) {
  if (scope.branchIds.length === 0) return NextResponse.json({ usages: [] });
@@ -34,7 +40,9 @@ export async function GET() {
  const { data, error } = await query;
  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
- return NextResponse.json({ usages: data ?? [] });
+ return NextResponse.json({ usages: data ?? [] }, {
+ headers: { 'Cache-Control': 'private, max-age=10, stale-while-revalidate=30' },
+ });
 }
 
 export async function POST(request: Request) {

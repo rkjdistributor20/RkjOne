@@ -11,14 +11,22 @@ export async function GET(request: Request) {
  const from =
  url.searchParams.get('from') ??
  new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
- const limit = Number(url.searchParams.get('limit') ?? 15);
+ const requestedLimit = Number(url.searchParams.get('limit') ?? 15);
+ const limit = Number.isFinite(requestedLimit)
+ ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 50)
+ : 15;
 
  const supabase = await createClient();
 
- const { data: txs } = await supabase.from('pos_transactions').select('id').eq('organization_id', profile.organization_id).eq('status', 'COMPLETED').gte('created_at', `${from}T00:00:00`).lte('created_at', `${to}T23:59:59`);
+ const { data: txs, error: txError } = await supabase.from('pos_transactions').select('id').eq('organization_id', profile.organization_id).eq('status', 'COMPLETED').gte('created_at', `${from}T00:00:00`).lte('created_at', `${to}T23:59:59`).limit(500);
+ if (txError) return NextResponse.json({ error: txError.message }, { status: 500 });
 
  const txIds = ((txs ?? []) as { id: string }[]).map((t) => t.id);
- if (txIds.length === 0) return NextResponse.json({ products: [] });
+ if (txIds.length === 0) {
+ return NextResponse.json({ products: [] }, {
+ headers: { 'Cache-Control': 'private, max-age=30, stale-while-revalidate=90' },
+ });
+ }
 
  const { data: items, error } = await supabase.from('pos_transaction_items').select('product_name, sku, quantity, line_total').in('transaction_id', txIds.slice(0, 500));
 
@@ -44,7 +52,9 @@ export async function GET(request: Request) {
  byProduct.set(key, cur);
  }
 
- const products = [...byProduct.values()].sort((a, b) => b.revenue ?? a.revenue).slice(0, limit);
+ const products = [...byProduct.values()].sort((a, b) => b.revenue - a.revenue).slice(0, limit);
 
- return NextResponse.json({ products });
+ return NextResponse.json({ products }, {
+ headers: { 'Cache-Control': 'private, max-age=30, stale-while-revalidate=90' },
+ });
 }

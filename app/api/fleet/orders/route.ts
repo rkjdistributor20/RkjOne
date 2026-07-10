@@ -12,6 +12,11 @@ export async function GET(request: Request) {
 
  const { searchParams } = new URL(request.url);
  const mine = searchParams.get('mine') === 'true';
+ const status = searchParams.get('status');
+ const requestedLimit = Number(searchParams.get('limit') ?? 20);
+ const limit = Number.isFinite(requestedLimit)
+ ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 50)
+ : 20;
 
  const supabase = await createClient();
 
@@ -31,7 +36,11 @@ export async function GET(request: Request) {
  *,
  stock_item:stock_items(*)),
  proof_of_delivery(*))
- `).eq('organization_id', profile.organization_id).order('created_at', { ascending: false });
+ `).eq('organization_id', profile.organization_id).order('created_at', { ascending: false }).limit(limit);
+
+ if (status) {
+ query = query.eq('status', status);
+ }
 
  if (mine && profile.role === 'DRIVER') {
  const { data: driverRows } = await supabase.from('drivers').select('id, driver_code').eq('organization_id', profile.organization_id).eq('profile_id', profile.id).eq('status', 'ACTIVE');
@@ -65,7 +74,9 @@ export async function GET(request: Request) {
  return NextResponse.json({ error: error.message }, { status: 500 });
  }
 
- return NextResponse.json({ orders: data ?? [] });
+ const response = NextResponse.json({ orders: data ?? [] });
+ response.headers.set('Cache-Control', 'private, max-age=10, stale-while-revalidate=30');
+ return response;
 }
 
 export async function POST(request: Request) {

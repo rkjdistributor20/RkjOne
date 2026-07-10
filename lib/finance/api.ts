@@ -25,9 +25,10 @@ export async function fetchFinanceSummary() {
  return fetchJson<{ summary: FinanceSummary }>('/api/finance/summary');
 }
 
-export async function fetchCollections(status?: string) {
- const params = status ? `?status=${status}` : '';
- return fetchJson<{ collections: FinanceCollection[] }>(`/api/finance/collections${params}`);
+export async function fetchCollections(status?: string, limit = 50) {
+ const params = new URLSearchParams({ limit: String(limit) });
+ if (status) params.set('status', status);
+ return fetchJson<{ collections: FinanceCollection[] }>(`/api/finance/collections?${params}`);
 }
 
 export async function createCollection(payload: {
@@ -53,12 +54,12 @@ export async function markCollected(
  });
 }
 
-export async function fetchBankIns() {
- return fetchJson<{ records: BankInRecord[] }>('/api/finance/bank-in');
+export async function fetchBankIns(limit = 30) {
+ return fetchJson<{ records: BankInRecord[] }>(`/api/finance/bank-in?limit=${limit}`);
 }
 
-export async function fetchCollectionCashUsages() {
- return fetchJson<{ usages: CollectionCashUsage[] }>('/api/finance/collection-usages');
+export async function fetchCollectionCashUsages(limit = 50) {
+ return fetchJson<{ usages: CollectionCashUsage[] }>(`/api/finance/collection-usages?limit=${limit}`);
 }
 
 export async function recordCollectionCashUsage(payload: {
@@ -90,9 +91,10 @@ export async function reviewCollectionCashUsage(payload: {
  });
 }
 
-export async function fetchBranchSupplyRequests(status?: string) {
- const params = status ? `?status=${encodeURIComponent(status)}` : '';
- return fetchJson<{ requests: BranchSupplyRequest[] }>(`/api/finance/supply-requests${params}`);
+export async function fetchBranchSupplyRequests(status?: string, limit = 50) {
+ const params = new URLSearchParams({ limit: String(limit) });
+ if (status) params.set('status', status);
+ return fetchJson<{ requests: BranchSupplyRequest[] }>(`/api/finance/supply-requests?${params}`);
 }
 
 export async function recordBankIn(payload: {
@@ -109,8 +111,8 @@ export async function recordBankIn(payload: {
  });
 }
 
-export async function fetchReconciliations() {
- return fetchJson<{ reconciliations: CashReconciliation[] }>('/api/finance/reconciliations');
+export async function fetchReconciliations(limit = 20) {
+ return fetchJson<{ reconciliations: CashReconciliation[] }>(`/api/finance/reconciliations?limit=${limit}`);
 }
 
 export async function submitReconciliation(payload: {
@@ -132,8 +134,8 @@ export async function approveReconciliation(id: string) {
  });
 }
 
-export async function fetchDailyReports() {
- return fetchJson<{ reports: DailyFinancialReport[] }>('/api/finance/daily-report');
+export async function fetchDailyReports(limit = 20) {
+ return fetchJson<{ reports: DailyFinancialReport[] }>(`/api/finance/daily-report?limit=${limit}`);
 }
 
 export async function generateDailyReport(reportDate: string, branchId?: string) {
@@ -143,9 +145,10 @@ export async function generateDailyReport(reportDate: string, branchId?: string)
  });
 }
 
-export async function fetchManualQrPayments(status?: string) {
- const params = status ? `?status=${encodeURIComponent(status)}` : '';
- return fetchJson<{ payments: ManualQrPayment[] }>(`/api/finance/qr-manual${params}`);
+export async function fetchManualQrPayments(status?: string, limit = 30) {
+ const params = new URLSearchParams({ limit: String(limit) });
+ if (status) params.set('status', status);
+ return fetchJson<{ payments: ManualQrPayment[] }>(`/api/finance/qr-manual?${params}`);
 }
 
 export async function updateManualQrPayment(payload: {

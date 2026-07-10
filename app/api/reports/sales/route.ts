@@ -37,5 +37,7 @@ export async function GET(request: Request) {
 
  const trend = [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([period, v]) => ({ period,...v }));
 
- return NextResponse.json({ trend });
+ return NextResponse.json({ trend }, {
+ headers: { 'Cache-Control': 'private, max-age=30, stale-while-revalidate=90' },
+ });
 }

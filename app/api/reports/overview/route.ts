@@ -34,9 +34,42 @@ export async function GET(request: Request) {
  summariesQuery = applyBranchIdsFilter(summariesQuery, 'branch_id', scope.branchIds);
  }
 
- const { data: summaries } = await summariesQuery;
+ const deliveriesPendingQuery = supabase.from('delivery_orders').select('*', { count: 'exact', head: true }).eq('organization_id', profile.organization_id).in('status', ['PENDING', 'IN_TRANSIT']);
 
- const rows = (summaries ?? []) as Array<{
+ const deliveriesCompletedQuery = supabase.from('delivery_orders').select('*', { count: 'exact', head: true }).eq('organization_id', profile.organization_id).eq('status', 'DELIVERED').gte('created_at', `${from}T00:00:00`).lte('created_at', `${to}T23:59:59`);
+
+ const payrollRunsQuery = supabase.from('payroll_runs').select('total_net').eq('organization_id', profile.organization_id).eq('status', 'APPROVED').gte('period_start', from).lte('period_end', to);
+
+ const lowStockQuery = supabase.from('inventory_balances').select('quantity, stock_item:stock_items(min_threshold, critical_threshold)').eq('organization_id', profile.organization_id).limit(1000);
+
+ let outstandingQuery = supabase.from('finance_collections').select('amount').eq('organization_id', profile.organization_id).eq('status', 'PENDING');
+
+ if (scope.branchIds !== null) {
+ outstandingQuery = applyBranchIdsFilter(outstandingQuery, 'branch_id', scope.branchIds);
+ }
+
+ const [
+ summariesResult,
+ deliveriesPendingResult,
+ deliveriesCompletedResult,
+ payrollRunsResult,
+ lowStockResult,
+ outstandingResult,
+ ] = await Promise.all([
+ summariesQuery,
+ deliveriesPendingQuery,
+ deliveriesCompletedQuery,
+ payrollRunsQuery,
+ lowStockQuery,
+ outstandingQuery,
+ ]);
+
+ if (summariesResult.error) return NextResponse.json({ error: summariesResult.error.message }, { status: 500 });
+ if (payrollRunsResult.error) return NextResponse.json({ error: payrollRunsResult.error.message }, { status: 500 });
+ if (lowStockResult.error) return NextResponse.json({ error: lowStockResult.error.message }, { status: 500 });
+ if (outstandingResult.error) return NextResponse.json({ error: outstandingResult.error.message }, { status: 500 });
+
+ const rows = (summariesResult.data ?? []) as Array<{
  total_sales: number;
  total_cash: number;
  total_qr: number;
@@ -56,19 +89,12 @@ export async function GET(request: Request) {
  }),
  { total_sales: 0, total_cash: 0, total_qr: 0, transaction_count: 0, void_count: 0, refund_count: 0 });
 
- const { count: deliveriesPending } = await supabase.from('delivery_orders').select('*', { count: 'exact', head: true }).eq('organization_id', profile.organization_id).in('status', ['PENDING', 'IN_TRANSIT']);
-
- const { count: deliveriesCompleted } = await supabase.from('delivery_orders').select('*', { count: 'exact', head: true }).eq('organization_id', profile.organization_id).eq('status', 'DELIVERED').gte('created_at', `${from}T00:00:00`).lte('created_at', `${to}T23:59:59`);
-
- const { data: payrollRuns } = await supabase.from('payroll_runs').select('total_net').eq('organization_id', profile.organization_id).eq('status', 'APPROVED').gte('period_start', from).lte('period_end', to);
-
- const payrollNet = ((payrollRuns ?? []) as { total_net: number }[]).reduce(
+ const payrollRuns = payrollRunsResult.data ?? [];
+ const payrollNet = (payrollRuns as { total_net: number }[]).reduce(
  (s, r) => s + Number(r.total_net),
  0);
 
- const { data: lowStock } = await supabase.from('inventory_balances').select('quantity, stock_item:stock_items(min_threshold, critical_threshold)').eq('organization_id', profile.organization_id);
-
- const lowStockCount = ((lowStock ?? []) as unknown as Array<{
+ const lowStockCount = ((lowStockResult.data ?? []) as unknown as Array<{
  quantity: number;
  stock_item: { min_threshold: number | null; critical_threshold: number | null };
  }>).filter((b) => {
@@ -79,15 +105,7 @@ export async function GET(request: Request) {
  (si.min_threshold != null && q <= si.min_threshold));
  }).length;
 
- let outstandingQuery = supabase.from('finance_collections').select('amount').eq('organization_id', profile.organization_id).eq('status', 'PENDING');
-
- if (scope.branchIds !== null) {
- outstandingQuery = applyBranchIdsFilter(outstandingQuery, 'branch_id', scope.branchIds);
- }
-
- const { data: outstanding } = await outstandingQuery;
-
- const outstandingCash = ((outstanding ?? []) as { amount: number }[]).reduce(
+ const outstandingCash = ((outstandingResult.data ?? []) as { amount: number }[]).reduce(
  (s, r) => s + Number(r.amount),
  0);
 
@@ -95,12 +113,14 @@ export async function GET(request: Request) {
  overview: {
  period_start: from,
  period_end: to,...agg,
- deliveries_pending: deliveriesPending ?? 0,
- deliveries_completed: deliveriesCompleted ?? 0,
+ deliveries_pending: deliveriesPendingResult.count ?? 0,
+ deliveries_completed: deliveriesCompletedResult.count ?? 0,
  payroll_runs: payrollRuns?.length ?? 0,
  payroll_net: payrollNet,
  low_stock_count: lowStockCount,
  outstanding_cash: outstandingCash,
  },
+ }, {
+ headers: { 'Cache-Control': 'private, max-age=30, stale-while-revalidate=90' },
  });
 }

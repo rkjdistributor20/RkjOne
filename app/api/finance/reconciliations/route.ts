@@ -3,19 +3,27 @@ import { createClient } from '@/lib/supabase/server';
 import { inventoryRpc } from '@/lib/supabase/inventory-rpc';
 import { getCurrentProfile } from '@/lib/auth/session';
 
-export async function GET() {
+export async function GET(request: Request) {
  const profile = await getCurrentProfile();
  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+ const url = new URL(request.url);
+ const requestedLimit = Number(url.searchParams.get('limit') ?? 20);
+ const limit = Number.isFinite(requestedLimit)
+ ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 60)
+ : 20;
 
  const supabase = await createClient();
  const { data, error } = await supabase.from('cash_reconciliations').select(`
  id, reconciliation_number, reconciliation_date,
  expected_cash, actual_cash, variance, status, notes,
  branch:branches(branch_name)
- `).eq('organization_id', profile.organization_id).order('created_at', { ascending: false }).limit(30);
+ `).eq('organization_id', profile.organization_id).order('created_at', { ascending: false }).limit(limit);
 
  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
- return NextResponse.json({ reconciliations: data ?? [] });
+ return NextResponse.json({ reconciliations: data ?? [] }, {
+ headers: { 'Cache-Control': 'private, max-age=20, stale-while-revalidate=60' },
+ });
 }
 
 export async function POST(request: Request) {

@@ -83,6 +83,7 @@ type FinanceBranchOption = {
 };
 
 const NO_COLLECTION_VALUE = '__NO_COLLECTION__';
+type FinanceTab = 'collections' | 'manualqr' | 'bankin' | 'recon' | 'reports';
 
 function financeBranchLabel(branch: FinanceBranchOption) {
  return [branch.branch_code, branch.branch_name, branch.region_name ?? branch.area]
@@ -110,6 +111,9 @@ export function FinanceDashboard() {
  const [manualQrPayments, setManualQrPayments] = useState<ManualQrPayment[]>([]);
  const [branches, setBranches] = useState<FinanceBranchOption[]>([]);
  const [loading, setLoading] = useState(true);
+ const [activeTab, setActiveTab] = useState<FinanceTab>('collections');
+ const [tabLoading, setTabLoading] = useState(false);
+ const [loadedTabs, setLoadedTabs] = useState<Partial<Record<FinanceTab, boolean>>>({});
 
  const [newCollection, setNewCollection] = useState({
  collection_type: 'CASH_KIOSK' as CollectionType,
@@ -132,29 +136,26 @@ export function FinanceDashboard() {
  });
  const [reportDate, setReportDate] = useState(new Date().toISOString().slice(0, 10));
 
- const loadData = useCallback(async () => {
+ const loadCore = useCallback(async () => {
  setLoading(true);
  try {
- const [sum, col, bi, usage, req, rec, rep, br, qr] = await Promise.all([
+ const [sum, col, bi, usage, req, br, pendingQr] = await Promise.all([
  fetchFinanceSummary(),
  fetchCollections(),
  fetchBankIns(),
  fetchCollectionCashUsages(),
  fetchBranchSupplyRequests(),
- fetchReconciliations(),
- fetchDailyReports(),
  fetchBranches(),
- fetchManualQrPayments(),
+ fetchManualQrPayments('PENDING', 20),
  ]);
  setSummary(sum.summary);
  setCollections(col.collections);
  setBankIns(bi.records);
  setCashUsages(usage.usages);
  setSupplyRequests(req.requests);
- setReconciliations(rec.reconciliations);
- setReports(rep.reports);
- setManualQrPayments(qr.payments);
+ setManualQrPayments(pendingQr.payments);
  setBranches(br.branches);
+ setLoadedTabs((current) => ({...current, collections: true, bankin: true }));
  if (br.branches[0]) {
  setNewCollection((c) => ({...c, branch_id: branchId || br.branches[0].id }));
  setReconForm((r) => ({...r, branch_id: branchId || br.branches[0].id }));
@@ -166,10 +167,54 @@ export function FinanceDashboard() {
  }
  }, [branchId]);
 
+ const loadTabData = useCallback(async (tab: FinanceTab = activeTab, force = false) => {
+ if (tab === 'collections') return;
+ if (!force && loadedTabs[tab]) return;
+
+ setTabLoading(true);
+ try {
+ if (tab === 'manualqr') {
+ const qr = await fetchManualQrPayments(undefined, 50);
+ setManualQrPayments(qr.payments);
+ } else if (tab === 'bankin') {
+ const bi = await fetchBankIns();
+ setBankIns(bi.records);
+ } else if (tab === 'recon') {
+ const rec = await fetchReconciliations();
+ setReconciliations(rec.reconciliations);
+ } else if (tab === 'reports') {
+ const rep = await fetchDailyReports();
+ setReports(rep.reports);
+ }
+ setLoadedTabs((current) => ({...current, [tab]: true }));
+ } catch (err) {
+ toast.error(err instanceof Error ? err.message : 'Gagal memuatkan tab kewangan');
+ } finally {
+ setTabLoading(false);
+ }
+ }, [activeTab, loadedTabs]);
+
+ const refreshCurrentView = useCallback(async () => {
+ setLoadedTabs((current) => ({
+ ...current,
+ [activeTab]: activeTab === 'collections',
+ manualqr: activeTab === 'manualqr' ? false : current.manualqr,
+ bankin: activeTab === 'bankin' ? false : current.bankin,
+ recon: activeTab === 'recon' ? false : current.recon,
+ reports: activeTab === 'reports' ? false : current.reports,
+ }));
+ await loadCore();
+ await loadTabData(activeTab, true);
+ }, [activeTab, loadCore, loadTabData]);
+
  useEffect(() => {
  // eslint-disable-next-line react-hooks/set-state-in-effect
- loadData();
- }, [loadData]);
+ loadCore();
+ }, [loadCore]);
+
+ useEffect(() => {
+ void loadTabData(activeTab);
+ }, [activeTab, loadTabData]);
 
  async function handleCreateCollection() {
  try {
@@ -181,7 +226,7 @@ export function FinanceDashboard() {
  });
  toast.success('Collection created');
  setNewCollection((c) => ({...c, amount: '', collected_from: '' }));
- loadData();
+ await refreshCurrentView();
  } catch (err) {
  toast.error(err instanceof Error ? err.message : 'Failed to create collection');
  }
@@ -202,7 +247,7 @@ export function FinanceDashboard() {
  });
  toast.success('Bank-in recorded');
  setBankInForm({ amount: '', bank_name: '', reference_number: '', slip_url: '', collection_id: '' });
- loadData();
+ await refreshCurrentView();
  } catch (err) {
  toast.error(err instanceof Error ? err.message : 'Bank-in failed');
  }
@@ -218,7 +263,7 @@ export function FinanceDashboard() {
  });
  toast.success('Reconciliation submitted');
  setReconForm((r) => ({...r, expected_cash: '', actual_cash: '' }));
- loadData();
+ await refreshCurrentView();
  } catch (err) {
  toast.error(err instanceof Error ? err.message : 'Reconciliation failed');
  }
@@ -233,7 +278,7 @@ export function FinanceDashboard() {
  try {
  await updateManualQrPayment({ payment_id: paymentId, status, notes });
  toast.success(status === 'PAID' ? 'QR manual disahkan' : 'Status QR manual dikemas kini');
- loadData();
+ await refreshCurrentView();
  } catch (err) {
  toast.error(err instanceof Error ? err.message : 'Gagal kemas kini QR manual');
  }
@@ -296,10 +341,10 @@ export function FinanceDashboard() {
  bankIns={bankIns}
  cashUsages={cashUsages}
  supplyRequests={supplyRequests}
- onRefresh={loadData}
+ onRefresh={refreshCurrentView}
  />
 
- <Tabs defaultValue="collections" className="space-y-4">
+ <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as FinanceTab)} className="space-y-4">
  <TabsList className={moduleTabsListClass}>
  <TabsTrigger value="collections" className={moduleTabsTriggerClass}>
  <Banknote className="h-4 w-4" /> Kutipan
@@ -398,7 +443,7 @@ export function FinanceDashboard() {
  <Button size="sm" variant="outline" onClick={async () => {
  await markCollected(c.id, { collector_name: profile?.full_name ?? undefined });
  toast.success('Marked collected');
- loadData();
+ await refreshCurrentView();
  }}>
  Collect
  </Button>)}
@@ -408,6 +453,8 @@ export function FinanceDashboard() {
  </TabsContent>
 
  <TabsContent value="manualqr" className="mt-4 space-y-4">
+ {tabLoading && activeTab === 'manualqr' ? (
+ <ModuleLoading />) : (
  <Card>
  <CardHeader className="pb-2">
  <CardTitle className="flex items-center gap-2 text-base">
@@ -477,10 +524,13 @@ export function FinanceDashboard() {
  })}
  </div>)}
  </CardContent>
- </Card>
+ </Card>)}
  </TabsContent>
 
  <TabsContent value="bankin" className="mt-4 space-y-4">
+ {tabLoading && activeTab === 'bankin' ? (
+ <ModuleLoading />) : (
+ <>
  <Card>
  <CardHeader className="pb-2">
  <CardTitle className="text-base">Record Bank In</CardTitle>
@@ -565,9 +615,13 @@ export function FinanceDashboard() {
  </div>
  </div>))}
  </div>
+ </>)}
  </TabsContent>
 
  <TabsContent value="recon" className="mt-4 space-y-4">
+ {tabLoading && activeTab === 'recon' ? (
+ <ModuleLoading />) : (
+ <>
  <Card>
  <CardHeader className="pb-2">
  <CardTitle className="text-base">Cash Reconciliation</CardTitle>
@@ -638,16 +692,20 @@ export function FinanceDashboard() {
  <Button size="sm" variant="outline" onClick={async () => {
  await approveReconciliation(r.id);
  toast.success('Approved');
- loadData();
+ await refreshCurrentView();
  }}>
  Approve
  </Button>)}
  </div>
  </div>))}
  </div>
+ </>)}
  </TabsContent>
 
  <TabsContent value="reports" className="mt-4 space-y-4">
+ {tabLoading && activeTab === 'reports' ? (
+ <ModuleLoading />) : (
+ <>
  <div className="flex flex-wrap items-end gap-3">
  <div className="space-y-1">
  <Label>Report Date</Label>
@@ -659,7 +717,7 @@ export function FinanceDashboard() {
  try {
  await generateDailyReport(reportDate);
  toast.success('Report generated');
- loadData();
+ await refreshCurrentView();
  } catch (err) {
  toast.error(err instanceof Error ? err.message : 'Failed');
  }
@@ -684,6 +742,7 @@ export function FinanceDashboard() {
  </div>
  </div>))}
  </div>
+ </>)}
  </TabsContent>
  </Tabs>
  </>)}

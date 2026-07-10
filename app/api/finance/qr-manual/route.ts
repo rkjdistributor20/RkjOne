@@ -20,6 +20,10 @@ export async function GET(request: Request) {
 
  const { searchParams } = new URL(request.url);
  const status = searchParams.get('status') ?? undefined;
+ const requestedLimit = Number(searchParams.get('limit') ?? 30);
+ const limit = Number.isFinite(requestedLimit)
+ ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 100)
+ : 30;
  const supabase = await createClient();
  const db = supabase as SupabaseClient;
 
@@ -42,13 +46,15 @@ export async function GET(request: Request) {
  .eq('organization_id', profile.organization_id)
  .eq('provider', 'manual_qr')
  .order('created_at', { ascending: false })
- .limit(100);
+ .limit(limit);
 
  if (status) query = query.eq('status', status);
 
  const { data, error } = await query;
  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
- return NextResponse.json({ payments: data ?? [] });
+ return NextResponse.json({ payments: data ?? [] }, {
+ headers: { 'Cache-Control': 'private, max-age=10, stale-while-revalidate=30' },
+ });
 }
 
 export async function PATCH(request: Request) {
