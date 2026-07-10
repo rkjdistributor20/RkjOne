@@ -89,6 +89,10 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [x] `dashboard_daily_rollups` materialized view is direct-access restricted for anon/authenticated users.
 - [x] Dashboard route has a `loading.tsx` fast shell for slow data waits.
 - [x] `npm run perf:budget` monitors production login, health, dashboard auth gate, booking API and Sales Agent auth gate latency.
+- [x] Web Vitals monitoring records sampled authenticated user metrics through RLS-protected `performance_web_vitals`.
+- [x] Non-owner dashboard streams governance/POS/fleet panels after KPI shell.
+- [x] Active branch and vehicle master rows use short per-organization cache while operational counts remain live.
+- [x] Master-data APIs used by POS/inventory have bounded result limits and short private browser cache.
 
 ## M6 Release QA Notes
 

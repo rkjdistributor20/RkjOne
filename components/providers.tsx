@@ -6,6 +6,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { PwaRegistration } from '@/components/pwa/pwa-registration';
 import { LanguageProvider } from '@/components/i18n/language-provider';
 import { LegacyTranslationBridge } from '@/components/i18n/legacy-translation-bridge';
+import { WebVitalsReporter } from '@/components/performance/web-vitals-reporter';
 
 export function Providers({ children }: { children: ReactNode }) {
  const [queryClient] = useState(
@@ -23,6 +24,7 @@ export function Providers({ children }: { children: ReactNode }) {
  <QueryClientProvider client={queryClient}>
  <LanguageProvider>
  <PwaRegistration />
+ <WebVitalsReporter />
  <LegacyTranslationBridge />
  {children}
  <Toaster richColors position="top-right" />

@@ -30,7 +30,14 @@ export async function GET(request: Request) {
  { status: posAccessErrorStatus(err) });
  }
 
- const { data, error } = await supabase.from('products').select('*').eq('organization_id', profile.organization_id).eq('status', 'ACTIVE').order('sort_order').order('name');
+ const { data, error } = await supabase
+ .from('products')
+ .select('*')
+ .eq('organization_id', profile.organization_id)
+ .eq('status', 'ACTIVE')
+ .order('sort_order')
+ .order('name')
+ .limit(300);
 
  if (error) {
  return NextResponse.json({ error: error.message }, { status: 500 });
@@ -43,9 +50,11 @@ export async function GET(request: Request) {
  category: normalizePosCategory(p.category),
  })).filter((p) => p.category !== null);
 
- return NextResponse.json({
+ const response = NextResponse.json({
  products,
  categories: [...POS_MENU_CATEGORIES],
  branchId,
  });
+ response.headers.set('Cache-Control', 'private, max-age=30, stale-while-revalidate=60');
+ return response;
 }

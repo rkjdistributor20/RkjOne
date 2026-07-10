@@ -12,7 +12,7 @@ export async function GET(request: Request) {
 
  const supabase = await createClient();
  let query = supabase.from('stock_items').select(
- 'id, item_code, name, category, base_unit, min_threshold, critical_threshold, pack_quantity, pack_unit, conversion_text').eq('organization_id', profile.organization_id).eq('status', 'ACTIVE').order('name');
+ 'id, item_code, name, category, base_unit, min_threshold, critical_threshold, pack_quantity, pack_unit, conversion_text').eq('organization_id', profile.organization_id).eq('status', 'ACTIVE').order('name').limit(300);
 
  if (hqOnly) {
  query = query.in('item_code', [...HQ_STOCK_ITEM_CODES]);
@@ -22,5 +22,7 @@ export async function GET(request: Request) {
 
  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
- return NextResponse.json({ items: (data ?? []) as StockItemOption[] });
+ const response = NextResponse.json({ items: (data ?? []) as StockItemOption[] });
+ response.headers.set('Cache-Control', 'private, max-age=30, stale-while-revalidate=60');
+ return response;
 }

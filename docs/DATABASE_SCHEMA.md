@@ -1,6 +1,6 @@
 # RKJ One Database Schema
 
-Last updated: 2026-07-08
+Last updated: 2026-07-10
 
 Production database: Supabase PostgreSQL.
 
@@ -34,6 +34,7 @@ Primary tenant boundary: `organization_id`.
 | Maintenance | `maintenance_reports` |
 | Sales Agent | agent account, outlet, order, payment, receipt, subscription, price group tables |
 | Bookings | `bookings` |
+| Observability | `performance_web_vitals` |
 
 ## Roles
 
@@ -142,6 +143,32 @@ RPC functions:
 
 Security note: the new RPC functions are intended for service-role API routes only and should not be directly executable by `anon` or `authenticated`.
 
+## Performance Web Vitals
+
+Migration: `20260710153256_performance_web_vitals.sql`.
+
+Purpose: sampled real-user speed diagnostics for signed-in users.
+
+Key columns:
+
+| Column | Notes |
+|--------|-------|
+| `organization_id` | Tenant boundary for metric row. |
+| `profile_id` | Signed-in profile that reported the metric. |
+| `route` | Pathname only; query string is stripped by the API. |
+| `metric_name` | Web Vital or Next.js navigation metric name. |
+| `metric_value`, `metric_delta` | Numeric timing/score values. |
+| `metric_rating` | `good`, `needs-improvement`, or `poor`. |
+| `navigation_type`, `connection_type`, `device_memory` | Optional environment context for diagnosis. |
+| `user_agent` | Truncated request user agent for device/browser grouping. |
+
+Security:
+
+- RLS enabled.
+- Authenticated users can insert only their own organization's metrics.
+- Management roles can select organization metrics for diagnostics.
+- `anon` has no direct table access.
+
 ## Migration Timeline
 
 | Range | Summary |
@@ -160,6 +187,8 @@ Security note: the new RPC functions are intended for service-role API routes on
 | `20260708115418` | Auth role bootstrap and booking data-access hardening. |
 | `20260708115441` | M5 sales-agent payment lifecycle columns and RPC functions. |
 | `20260708150423` | Production RLS/advisor fixes for exposed branch/fleet master tables, dashboard view, and PL/pgSQL lint errors. |
+| `20260710151434` | Dashboard performance indexes, branch-scoped dashboard snapshot RPC, and restricted daily rollup materialized view. |
+| `20260710153256` | Authenticated Web Vitals observability table with RLS and indexes. |
 
 ## Database Maintenance Notes
 

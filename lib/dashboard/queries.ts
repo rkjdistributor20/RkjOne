@@ -218,6 +218,32 @@ type RecentTransactionRow = {
  branch_id: string;
 };
 
+const ACTIVE_BRANCHES_CACHE_TTL_MS = 60_000;
+const activeBranchesCache = new Map<string, { expiresAt: number; rows: BranchRow[] }>();
+
+async function getCachedActiveBranches(
+ supabase: SupabaseServerClient,
+ orgId: string): Promise<BranchRow[]> {
+ const cached = activeBranchesCache.get(orgId);
+ if (cached && cached.expiresAt > Date.now()) {
+  return cached.rows;
+ }
+
+ const { data } = await supabase
+ .from('branches')
+ .select('id, branch_name, branch_code')
+ .eq('organization_id', orgId)
+ .eq('status', 'ACTIVE')
+ .order('branch_code');
+
+ const rows = (data ?? []) as BranchRow[];
+ activeBranchesCache.set(orgId, {
+  expiresAt: Date.now() + ACTIVE_BRANCHES_CACHE_TTL_MS,
+  rows,
+ });
+ return rows;
+}
+
 export async function getPosOverview(
  orgId: string,
  branchIds: string[] | null = null,
@@ -268,18 +294,13 @@ export async function getPosOverview(
 
  let branches: BranchRow[] = [];
  if (visibleBranchIds === null || visibleBranchIds.length > 0) {
- let branchesQuery = supabase
- .from('branches')
- .select('id, branch_name, branch_code')
- .eq('organization_id', orgId)
- .eq('status', 'ACTIVE');
-
- if (visibleBranchIds !== null) {
- branchesQuery = branchesQuery.in('id', visibleBranchIds);
+ const activeBranches = await getCachedActiveBranches(supabase, orgId);
+ if (visibleBranchIds === null) {
+  branches = activeBranches;
+ } else {
+  const visibleBranchSet = new Set(visibleBranchIds);
+  branches = activeBranches.filter((branch) => visibleBranchSet.has(branch.id));
  }
-
- const { data: branchRows } = await branchesQuery.order('branch_code');
- branches = (branchRows ?? []) as BranchRow[];
  }
 
  const summaryMap = new Map(summaries.map((s) => [s.branch_id, s]));

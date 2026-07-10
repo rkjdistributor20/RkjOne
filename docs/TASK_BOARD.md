@@ -129,6 +129,16 @@ Status key: `Todo`, `In Progress`, `Review`, `Blocked`, `Done`.
 | PERF-009 | Done | QA/DevOps AI | Tambah performance budget command. | `npm run perf:budget` ukur endpoint production penting dan fail jika status/latency melebihi budget. |
 | PERF-010 | Done | Backend/Performance AI | Cache stable dashboard master data. | Senarai kenderaan aktif fleet dicache 60 saat per organisasi; delivery count dan latest status log kekal realtime/bounded. |
 
+## Milestone 9 - Deep Speed Pass
+
+| ID | Status | Owner | Task | Acceptance |
+|----|--------|-------|------|------------|
+| PERF-011 | Done | Observability AI | Tambah real user Web Vitals monitoring. | `performance_web_vitals` table dengan RLS, `/api/monitoring/web-vitals`, `WebVitalsReporter`, dan `instrumentation-client.ts` merekod metric user login secara sampled. |
+| PERF-012 | Done | Frontend/Performance AI | Stream panel dashboard berat. | Dashboard non-owner render KPI utama dahulu dan load governance/POS/fleet dalam `Suspense` melalui `DashboardOpsPanels`. |
+| PERF-013 | Done | Backend/Performance AI | Cache branch master data dashboard. | Senarai cawangan aktif dashboard dicache 60 saat per organisasi dan POS overview filter locally untuk visible branch. |
+| PERF-014 | Done | QA AI | Guard deep speed path. | `npm run verify:performance` cover Web Vitals, monitoring API, RLS migration, Suspense panel dan cache branch/vehicle. |
+| PERF-015 | Done | Backend/Performance AI | Hadkan dan cache API master data. | POS products dan inventory stock-items ada limit 300 serta `private` cache 30s; staff grouped query dilimit 1200 rows. |
+
 ## Backlog
 
 - Confirm owner SOP for booking users/lifecycle before reopening booking UI beyond Admin/OM.

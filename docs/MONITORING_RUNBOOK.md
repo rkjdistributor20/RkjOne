@@ -66,6 +66,31 @@ Escalate immediately if:
 - Protected API auth gates return anything other than `401`.
 - Budget failures appear together with Vercel runtime errors or Supabase slow queries.
 
+## Real User Speed Checks
+
+Authenticated users now send sampled Web Vitals to `public.performance_web_vitals`.
+
+Suggested SQL for the last 24 hours:
+
+```sql
+select
+  route,
+  metric_name,
+  metric_rating,
+  count(*) as samples,
+  percentile_cont(0.75) within group (order by metric_value) as p75_value
+from public.performance_web_vitals
+where created_at >= now() - interval '24 hours'
+group by route, metric_name, metric_rating
+order by samples desc, p75_value desc;
+```
+
+Escalate if:
+
+- `LCP` or `INP` has repeated `poor` samples on `/dashboard`, `/pos`, `/inventory`, `/sales-agent`, or `/factory`.
+- A new deployment causes `TTFB` p75 to rise sharply.
+- Poor Web Vitals line up with Vercel function errors or Supabase slow queries.
+
 ## Supabase Checks
 
 Frequency during stabilization: daily and before UAT payment testing.

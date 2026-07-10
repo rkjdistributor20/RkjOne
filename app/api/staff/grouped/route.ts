@@ -5,6 +5,8 @@ import { isAdminRole } from '@/lib/auth/permissions';
 import { resolveScopedBranches } from '@/lib/auth/branch-scope';
 import type { StaffBranchGroup, StaffGroupedResponse, StaffMemberRow, StaffRegionGroup } from '@/lib/staff/types';
 
+const MAX_GROUPED_STAFF_ROWS = 1200;
+
 export async function GET(request: Request) {
  const profile = await getCurrentProfile();
  if (!profile) return NextResponse.json({ error: 'Tidak dibenarkan' }, { status: 401 });
@@ -41,7 +43,7 @@ export async function GET(request: Request) {
  }
 
  let staffQuery = supabase.from('staff').select(
- 'id, staff_code, full_name, status, branch_id, region_id, worker_type, weekly_amount, monthly_amount, shift_hours, shifts_per_week, remarks, profile:profiles!staff_profile_id_fkey(metadata)').eq('organization_id', profile.organization_id).eq('status', 'ACTIVE').order('staff_code');
+ 'id, staff_code, full_name, status, branch_id, region_id, worker_type, weekly_amount, monthly_amount, shift_hours, shifts_per_week, remarks, profile:profiles!staff_profile_id_fkey(metadata)').eq('organization_id', profile.organization_id).eq('status', 'ACTIVE').order('staff_code').limit(MAX_GROUPED_STAFF_ROWS);
 
  if (scope.branchIds !== null) {
  staffQuery = staffQuery.in('branch_id', scope.branchIds);

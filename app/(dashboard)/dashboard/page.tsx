@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import { Suspense } from 'react';
 import {
  TrendingUp,
  AlertTriangle,
@@ -65,6 +66,8 @@ import { getRoleWorkflow } from '@/lib/dashboard/role-workflows';
 import { WorkflowSopPanel } from '@/components/dashboard/workflow-sop-panel';
 import { RoleProactiveCockpit } from '@/components/dashboard/role-proactive-cockpit';
 import { ManagementGovernancePanel } from '@/components/dashboard/management-governance-panel';
+import { Skeleton } from '@/components/ui/skeleton';
+import type { UserRole } from '@/types/enums';
 
 function operationQuickActions(legalEntityCode?: string | null) {
  if (legalEntityCode === 'RKJ_MFG') {
@@ -89,6 +92,92 @@ function operationQuickActions(legalEntityCode?: string | null) {
  { label: 'Syif Staf', href: '/shifts', icon: Clock, description: 'Jadual & kehadiran' },
  { label: 'Maintenance', href: '/maintenance', icon: CheckCircle2, description: 'Isu cawangan' },
  ];
+}
+
+function FleetOverviewSection({ fleetOverview }: { fleetOverview: Awaited<ReturnType<typeof getFleetOverview>> }) {
+ return (
+ <SectionCard
+ title={LOGISTIK_DELIVERY_TITLE}
+ description={`${fleetOverview.pending_deliveries} menunggu - ${fleetOverview.in_transit} dalam perjalanan`}
+ action={
+ <Link href="/fleet" className={cn(buttonVariants({ size: 'sm' }), 'shrink-0')}>
+ Buka {LOGISTIK_LABEL}
+ </Link>
+ }
+ >
+ {fleetOverview.vehicles.length === 0 ? (
+ <p className="text-sm text-muted-foreground">Tiada kenderaan didaftarkan.</p>) : (
+ <div className="flex flex-wrap gap-2">
+ {fleetOverview.vehicles.map((v) => (
+ <Badge key={v.id} variant="outline" className="gap-1 px-3 py-1.5">
+ <Truck className="h-3.5 w-3.5 text-primary" />
+ {v.vehicle_code} - {v.vehicle_type}
+ {v.latest_status && (
+ <span className="text-muted-foreground">
+ - {labelFor(FLEET_VEHICLE_STATUS_LABELS, v.latest_status, v.latest_status)}
+ </span>)}
+ </Badge>))}
+ </div>)}
+ </SectionCard>);
+}
+
+function DashboardOpsFallback() {
+ return (
+ <>
+ <Skeleton className="h-32 rounded-lg" />
+ <div className="grid gap-4 lg:grid-cols-2">
+ <SectionCard title="Memuatkan POS" description="Data operasi sedang disediakan.">
+ <div className="space-y-3">
+ <Skeleton className="h-8 w-44" />
+ <Skeleton className="h-32 w-full" />
+ </div>
+ </SectionCard>
+ <SectionCard title="Memuatkan Logistik" description="Status penghantaran sedang disemak.">
+ <div className="flex flex-wrap gap-2">
+ {Array.from({ length: 8 }).map((_, index) => (
+ <Skeleton key={index} className="h-8 w-28 rounded-full" />))}
+ </div>
+ </SectionCard>
+ </div>
+ </>);
+}
+
+async function DashboardOpsPanels({
+ role,
+ legalEntityCode,
+ orgId,
+ branchIds,
+ stats,
+}: {
+ role: UserRole;
+ legalEntityCode: string | null;
+ orgId: string;
+ branchIds: string[] | null;
+ stats: Awaited<ReturnType<typeof getDashboardStats>>;
+}) {
+ const [posOverview, fleetOverview] = await Promise.all([
+ getPosOverview(orgId, branchIds),
+ getFleetOverview(orgId),
+ ]);
+
+ return (
+ <>
+ {(role === 'ADMIN' || role === 'OPERATION_MANAGER' || role === 'FINANCE') && (
+ <ManagementGovernancePanel
+ role={role}
+ legalEntityCode={legalEntityCode}
+ stats={stats}
+ branchCount={branchIds?.length ?? COMPANY.branchCount}
+ openShifts={posOverview.open_shifts}
+ pendingDeliveries={fleetOverview.pending_deliveries}
+ inTransitDeliveries={fleetOverview.in_transit}
+ />)}
+
+ <div className="grid gap-4 lg:grid-cols-2">
+ <PosOverviewPanel overview={posOverview} />
+ <FleetOverviewSection fleetOverview={fleetOverview} />
+ </div>
+ </>);
 }
 
 export default async function DashboardPage() {
@@ -233,15 +322,15 @@ export default async function DashboardPage() {
  </ModuleLayout>);
  }
 
- const [stats, posOverview, fleetOverview] = await Promise.all([
- getDashboardStats(profile.organization_id, scope.branchIds),
- getPosOverview(profile.organization_id, scope.branchIds),
- getFleetOverview(profile.organization_id),
- ]);
+ const stats = await getDashboardStats(profile.organization_id, scope.branchIds);
 
  if (isOwnerDashboardRole(profile.role)) {
  const service = await createServiceClient();
- const hrData = await getCompanyHrDashboard(service, profile.organization_id);
+ const [posOverview, fleetOverview, hrData] = await Promise.all([
+ getPosOverview(profile.organization_id, scope.branchIds),
+ getFleetOverview(profile.organization_id),
+ getCompanyHrDashboard(service, profile.organization_id),
+ ]);
 
  return (
  <OwnerGroupDashboard
@@ -316,17 +405,6 @@ export default async function DashboardPage() {
  branchCount={scope.branchIds?.length ?? null}
  />
 
- {(profile.role === 'ADMIN' || profile.role === 'OPERATION_MANAGER' || profile.role === 'FINANCE') && (
- <ManagementGovernancePanel
- role={profile.role}
- legalEntityCode={legalEntityCode}
- stats={stats}
- branchCount={scope.branchIds?.length ?? COMPANY.branchCount}
- openShifts={posOverview.open_shifts}
- pendingDeliveries={fleetOverview.pending_deliveries}
- inTransitDeliveries={fleetOverview.in_transit}
- />)}
-
  <WorkflowSopPanel workflow={workflow} />
 
  {statsUnavailable && (
@@ -382,33 +460,15 @@ export default async function DashboardPage() {
  />
  </KpiGrid>
 
- <div className="grid gap-4 lg:grid-cols-2">
- <PosOverviewPanel overview={posOverview} />
-
- <SectionCard
- title={LOGISTIK_DELIVERY_TITLE}
- description={`${fleetOverview.pending_deliveries} menunggu - ${fleetOverview.in_transit} dalam perjalanan`}
- action={
- <Link href="/fleet" className={cn(buttonVariants({ size: 'sm' }), 'shrink-0')}>
- Buka {LOGISTIK_LABEL}
- </Link>
- }
- >
- {fleetOverview.vehicles.length === 0 ? (
- <p className="text-sm text-muted-foreground">Tiada kenderaan didaftarkan.</p>) : (
- <div className="flex flex-wrap gap-2">
- {fleetOverview.vehicles.map((v) => (
- <Badge key={v.id} variant="outline" className="gap-1 px-3 py-1.5">
- <Truck className="h-3.5 w-3.5 text-primary" />
- {v.vehicle_code} - {v.vehicle_type}
- {v.latest_status && (
- <span className="text-muted-foreground">
- - {labelFor(FLEET_VEHICLE_STATUS_LABELS, v.latest_status, v.latest_status)}
- </span>)}
- </Badge>))}
- </div>)}
- </SectionCard>
- </div>
+ <Suspense fallback={<DashboardOpsFallback />}>
+ <DashboardOpsPanels
+ role={profile.role}
+ legalEntityCode={legalEntityCode}
+ orgId={profile.organization_id}
+ branchIds={scope.branchIds}
+ stats={stats}
+ />
+ </Suspense>
 
  <SectionCard title="Tindakan Pantas" description="Tugasan operasi harian HQ & cawangan">
  <QuickActionGrid actions={quickActions} />
