@@ -44,13 +44,11 @@ import type {
   SettingsUser,
 } from "@/lib/settings/types";
 import { useAuthStore } from "@/stores/auth-store";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import {
   ModuleLayout,
   ModuleHeader,
   ModuleLoading,
-  moduleTabsListClass,
-  moduleTabsTriggerClass,
 } from "@/components/shared/module-ui";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -207,6 +205,7 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
     description: string;
     icon: LucideIcon;
     metric: string;
+    group: "Operasi" | "HR & Akses" | "Pentadbiran";
     tone: "amber" | "emerald" | "sky" | "violet" | "stone" | "rose";
     visible: boolean;
   };
@@ -223,6 +222,7 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
           metric: products.length
             ? `${products.length} produk`
             : "Tambah / edit",
+          group: "Operasi",
           tone: "amber",
           visible: showCatalogTabs,
         },
@@ -235,6 +235,7 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
           metric: branchGroups.length
             ? `${branchGroups.reduce((sum, group) => sum + group.branches.length, 0)} cawangan`
             : "Profil kiosk",
+          group: "Operasi",
           tone: "emerald",
           visible: showCatalogTabs,
         },
@@ -247,6 +248,7 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
           metric: stockItems.length
             ? `${stockItems.length} item`
             : "Kawalan stok",
+          group: "Operasi",
           tone: "sky",
           visible: showCatalogTabs,
         },
@@ -257,6 +259,7 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
             "Tetapan hari liputan, buffer keselamatan dan perancangan order.",
           icon: CalendarDays,
           metric: canEditPlanning ? "Boleh edit" : "Semakan",
+          group: "Operasi",
           tone: "violet",
           visible: showPlanningTab,
         },
@@ -267,6 +270,7 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
             "Maklumat legal entity, dokumen syarikat dan fail rujukan rasmi.",
           icon: Landmark,
           metric: "3 syarikat",
+          group: "Pentadbiran",
           tone: "stone",
           visible: isAdmin,
         },
@@ -277,6 +281,7 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
             "Rekod pekerja sebenar: syarikat, cawangan, jawatan, gaji asas, HR dan portal staf.",
           icon: Users,
           metric: usersStaffTotal ? `${usersStaffTotal} staf` : "Staf",
+          group: "HR & Akses",
           tone: "emerald",
           visible: canViewStaff,
         },
@@ -286,6 +291,7 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
           description: "Kawalan akaun login, role, dashboard AI dan akses pentadbiran HQ.",
           icon: FileCog,
           metric: usersLoginTotal ? `${usersLoginTotal} login` : "Akses",
+          group: "HR & Akses",
           tone: "amber",
           visible: canManageUsers,
         },
@@ -296,6 +302,7 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
             "Semakan sambungan, jadual data dan status modul kritikal.",
           icon: ShieldCheck,
           metric: "Admin",
+          group: "Pentadbiran",
           tone: "rose",
           visible: isAdmin,
         },
@@ -313,6 +320,25 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
       usersLoginTotal,
       usersStaffTotal,
     ],
+  );
+
+  const visibleControlCards = useMemo(
+    () => controlCards.filter((card) => card.visible),
+    [controlCards],
+  );
+  const activeControlCard =
+    visibleControlCards.find((card) => card.value === activeTab) ??
+    visibleControlCards[0];
+  const ActiveControlIcon = activeControlCard?.icon ?? Settings2;
+  const navigationGroups = useMemo(
+    () =>
+      (["Operasi", "HR & Akses", "Pentadbiran"] as const)
+        .map((group) => ({
+          group,
+          items: visibleControlCards.filter((card) => card.group === group),
+        }))
+        .filter((group) => group.items.length > 0),
+    [visibleControlCards],
   );
 
   return (
@@ -351,154 +377,143 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
           onValueChange={setActiveTab}
           className="space-y-4"
         >
-          <div className="rounded-lg border border-amber-100 bg-[linear-gradient(135deg,#fffaf0_0%,#ffffff_48%,#effaf5_100%)] p-4 shadow-sm">
-            <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-amber-700">
-                  <Sparkles className="h-4 w-4" />
-                  Pusat Aturan Sistem
+          <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+            <aside className="rkj-surface h-fit rounded-lg p-3 lg:sticky lg:top-4">
+              <div className="mb-3 rounded-lg border border-amber-100 bg-amber-50/70 p-3">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-amber-700">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Pusat Tetapan
                 </div>
-                <h2 className="mt-1 text-lg font-semibold text-stone-950">
-                  Pilih modul untuk kemaskini aturan operasi
-                </h2>
-                <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-                  Semua konfigurasi penting disusun di sini supaya Pentadbir
-                  tidak perlu cari di dashboard lain. Perubahan akan digunakan
-                  oleh POS, cawangan, stok, HR dan laporan mengikut hak akses
-                  pengguna.
+                <p className="mt-1 text-base font-semibold text-stone-950">
+                  {visibleControlCards.length} modul aktif
                 </p>
               </div>
-              <Badge
-                variant="outline"
-                className="w-fit border-stone-200 bg-white text-stone-700"
-              >
-                {controlCards.filter((card) => card.visible).length} modul
-                tersedia
-              </Badge>
-            </div>
 
-            <div className="mb-4 grid gap-3 md:grid-cols-2">
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50/80 p-3 text-sm text-emerald-950">
-                <p className="font-semibold">Rekod Staf HR</p>
-                <p className="mt-1 text-emerald-900/80">
-                  Untuk daftar pekerja sebenar, tetapkan syarikat/cawangan, jawatan, gaji, maklumat HR dan portal staf.
-                  AM gunakan bahagian ini sahaja untuk tambah staf jualan/POS.
-                </p>
-              </div>
-              <div className="rounded-lg border border-amber-200 bg-amber-50/80 p-3 text-sm text-amber-950">
-                <p className="font-semibold">Login Sistem & Role</p>
-                <p className="mt-1 text-amber-900/80">
-                  Untuk Pentadbir HQ mengawal role sistem, dashboard AI dan akaun pengurusan. Ia bukan tempat daftar staf cawangan harian.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              {controlCards
-                .filter((card) => card.visible)
-                .map((card) => {
-                  const Icon = card.icon;
-                  const active = activeTab === card.value;
-                  return (
-                    <button
-                      key={card.value}
-                      type="button"
-                      onClick={() => setActiveTab(card.value)}
-                      className={cn(
-                        "group min-h-[150px] rounded-lg border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-amber-300 hover:shadow-md",
-                        active && "border-amber-400 bg-amber-50/80 shadow-md",
-                      )}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div
+              <div className="space-y-4">
+                {navigationGroups.map((group) => (
+                  <div key={group.group} className="space-y-1.5">
+                    <p className="px-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      {group.group}
+                    </p>
+                    {group.items.map((card) => {
+                      const Icon = card.icon;
+                      const active = activeTab === card.value;
+                      return (
+                        <button
+                          key={card.value}
+                          type="button"
+                          aria-pressed={active}
+                          onClick={() => setActiveTab(card.value)}
                           className={cn(
-                            "flex h-11 w-11 items-center justify-center rounded-lg border",
-                            card.tone === "amber" &&
-                              "border-amber-200 bg-amber-50 text-amber-700",
-                            card.tone === "emerald" &&
-                              "border-emerald-200 bg-emerald-50 text-emerald-700",
-                            card.tone === "sky" &&
-                              "border-sky-200 bg-sky-50 text-sky-700",
-                            card.tone === "violet" &&
-                              "border-violet-200 bg-violet-50 text-violet-700",
-                            card.tone === "stone" &&
-                              "border-stone-200 bg-stone-50 text-stone-700",
-                            card.tone === "rose" &&
-                              "border-rose-200 bg-rose-50 text-rose-700",
+                            "flex w-full items-start gap-3 rounded-lg border px-3 py-2.5 text-left transition",
+                            active
+                              ? "border-amber-300 bg-amber-50 text-stone-950 shadow-sm"
+                              : "border-transparent hover:border-stone-200 hover:bg-white",
                           )}
                         >
-                          <Icon className="h-5 w-5" />
-                        </div>
-                        <Badge
-                          variant="outline"
-                          className="bg-white text-xs font-normal"
-                        >
-                          {card.metric}
-                        </Badge>
-                      </div>
-                      <h3 className="mt-4 text-base font-semibold text-stone-950">
-                        {card.title}
-                      </h3>
-                      <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                        {card.description}
-                      </p>
-                      {active && (
-                        <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-amber-700">
-                          Sedang dibuka
-                        </p>
-                      )}
-                    </button>
-                  );
-                })}
-            </div>
-          </div>
+                          <span
+                            className={cn(
+                              "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md border",
+                              card.tone === "amber" &&
+                                "border-amber-200 bg-amber-50 text-amber-700",
+                              card.tone === "emerald" &&
+                                "border-emerald-200 bg-emerald-50 text-emerald-700",
+                              card.tone === "sky" &&
+                                "border-sky-200 bg-sky-50 text-sky-700",
+                              card.tone === "violet" &&
+                                "border-violet-200 bg-violet-50 text-violet-700",
+                              card.tone === "stone" &&
+                                "border-stone-200 bg-stone-50 text-stone-700",
+                              card.tone === "rose" &&
+                                "border-rose-200 bg-rose-50 text-rose-700",
+                            )}
+                          >
+                            <Icon className="h-4 w-4" />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-sm font-semibold leading-5">
+                              {card.title}
+                            </span>
+                            <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                              {card.metric}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            </aside>
 
-          <TabsList className={moduleTabsListClass}>
-            {showCatalogTabs && (
-              <>
-                <TabsTrigger
-                  value="products"
-                  className={moduleTabsTriggerClass}
-                >
-                  <Package className="h-4 w-4" /> Produk
-                </TabsTrigger>
-                <TabsTrigger
-                  value="branches"
-                  className={moduleTabsTriggerClass}
-                >
-                  <Building2 className="h-4 w-4" /> Cawangan
-                </TabsTrigger>
-                <TabsTrigger value="stock" className={moduleTabsTriggerClass}>
-                  <SlidersHorizontal className="h-4 w-4" /> Ambang Stok
-                </TabsTrigger>
-              </>
-            )}
-            {showPlanningTab && (
-              <TabsTrigger value="planning" className={moduleTabsTriggerClass}>
-                <CalendarDays className="h-4 w-4" /> Ramalan Order
-              </TabsTrigger>
-            )}
-            {isAdmin && (
-              <TabsTrigger value="companies" className={moduleTabsTriggerClass}>
-                <Landmark className="h-4 w-4" /> Syarikat
-              </TabsTrigger>
-            )}
-            {canViewStaff && (
-              <TabsTrigger value="staff" className={moduleTabsTriggerClass}>
-                <Users className="h-4 w-4" /> Staf HR
-              </TabsTrigger>
-            )}
-            {canManageUsers && (
-              <TabsTrigger value="users" className={moduleTabsTriggerClass}>
-                <FileCog className="h-4 w-4" /> Login & Role
-              </TabsTrigger>
-            )}
-            {isAdmin && (
-              <TabsTrigger value="system" className={moduleTabsTriggerClass}>
-                <ShieldCheck className="h-4 w-4" /> Kesihatan Sistem
-              </TabsTrigger>
-            )}
-          </TabsList>
+            <div className="min-w-0 space-y-4">
+              {activeControlCard && (
+                <div className="rkj-surface overflow-hidden rounded-lg">
+                  <div className="rkj-panel-head flex flex-col gap-3 border-b border-amber-100/80 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-start gap-3">
+                      <div
+                        className={cn(
+                          "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border",
+                          activeControlCard.tone === "amber" &&
+                            "border-amber-200 bg-amber-50 text-amber-700",
+                          activeControlCard.tone === "emerald" &&
+                            "border-emerald-200 bg-emerald-50 text-emerald-700",
+                          activeControlCard.tone === "sky" &&
+                            "border-sky-200 bg-sky-50 text-sky-700",
+                          activeControlCard.tone === "violet" &&
+                            "border-violet-200 bg-violet-50 text-violet-700",
+                          activeControlCard.tone === "stone" &&
+                            "border-stone-200 bg-stone-50 text-stone-700",
+                          activeControlCard.tone === "rose" &&
+                            "border-rose-200 bg-rose-50 text-rose-700",
+                        )}
+                      >
+                        <ActiveControlIcon className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-700">
+                          {activeControlCard.group}
+                        </p>
+                        <h2 className="text-lg font-semibold text-stone-950">
+                          {activeControlCard.title}
+                        </h2>
+                        <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
+                          {activeControlCard.description}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge variant="outline" className="w-fit bg-white">
+                      {activeControlCard.metric}
+                    </Badge>
+                  </div>
+                  <div className="grid gap-3 p-4 md:grid-cols-3">
+                    <div className="rounded-lg border bg-white px-3 py-2">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        Skop
+                      </p>
+                      <p className="mt-1 font-semibold text-stone-950">
+                        {activeControlCard.group}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border bg-white px-3 py-2">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        Status
+                      </p>
+                      <p className="mt-1 font-semibold text-stone-950">
+                        Sedang dibuka
+                      </p>
+                    </div>
+                    <div className="rounded-lg border bg-white px-3 py-2">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        Rekod
+                      </p>
+                      <p className="mt-1 font-semibold text-stone-950">
+                        {activeControlCard.metric}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
           {showCatalogTabs && (
             <>
@@ -574,6 +589,8 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
               <SystemHealthPanel />
             </TabsContent>
           )}
+            </div>
+          </div>
         </Tabs>
       )}
     </ModuleLayout>

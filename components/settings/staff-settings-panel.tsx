@@ -234,13 +234,18 @@ export function StaffSettingsPanel({
 
  return (
  <div className="space-y-4">
- <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-950">
- Ini ialah <strong>rekod pekerja sebenar</strong>: kod staf, syarikat majikan,
- cawangan, jawatan, jenis pekerja dan kadar gaji. Akaun portal staf boleh dijana
- daripada rekod ini; kawalan role admin/HQ berada di tab <strong>Login &amp; Role</strong>.
+ <div className="rkj-surface overflow-hidden rounded-lg">
+ <div className="rkj-panel-head flex flex-col gap-3 border-b border-amber-100/80 px-4 py-4 md:flex-row md:items-center md:justify-between">
+ <div>
+ <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">
+ HR master data
  </p>
-
- <div className="flex flex-wrap items-center justify-between gap-2">
+ <h3 className="text-lg font-semibold text-stone-950">Rekod Staf HR</h3>
+ <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+ Rekod pekerja sebenar mengikut syarikat, cawangan, jawatan, kadar gaji dan akses portal staf.
+ </p>
+ </div>
+ <div className="flex flex-wrap items-center gap-2">
  {pickerVisible && (
  <BranchScopeSelect
  value={branchId}
@@ -251,27 +256,35 @@ export function StaffSettingsPanel({
  {canManage && (
  <Button
  size="sm"
- className="ml-auto gap-1.5 bg-amber-500 hover:bg-amber-600"
+ className="gap-1.5 bg-amber-500 text-stone-950 hover:bg-amber-600"
  onClick={() => setAddOpen(true)}
  >
  <Plus className="h-4 w-4" />
  Tambah Staf
  </Button>)}
  </div>
-
- <p className="rounded-md border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-950">
- {areaManagerMode ? (
- <>
- AM hanya boleh tambah <strong>Staf Jualan / POS</strong> untuk cawangan dalam
- kawasan sendiri. Jawatan cawangan lain perlu diurus oleh HQ/Admin.
- </>) : (
- <>
- Staf cawangan boleh direkod sebagai staf jualan/POS, PIC cawangan, pembantu stok,
- runner operasi atau sokongan kebersihan. Sistem auto-cipta <strong>username (email)</strong>{' '}
- &amp; <strong>kata laluan</strong> - staf mesti tukar password pada log masuk pertama.
- Pengurus hanya boleh urus staf dalam skop cawangan masing-masing.
- </>)}
+ </div>
+ <div className="grid gap-3 p-4 md:grid-cols-3">
+ <div className="rounded-lg border bg-white px-3 py-2">
+ <p className="text-xs font-medium text-muted-foreground">Jumlah staf</p>
+ <p className="mt-1 text-lg font-semibold tabular-nums text-stone-950">
+ {hasCompanyView ? totalCompanyStaff : groups.reduce((sum, group) => sum + group.staff_count, 0)}
  </p>
+ </div>
+ <div className="rounded-lg border bg-white px-3 py-2">
+ <p className="text-xs font-medium text-muted-foreground">Syarikat</p>
+ <p className="mt-1 text-lg font-semibold tabular-nums text-stone-950">
+ {hasCompanyView ? companies.length : 'Kawasan'}
+ </p>
+ </div>
+ <div className="rounded-lg border bg-white px-3 py-2">
+ <p className="text-xs font-medium text-muted-foreground">Kawalan</p>
+ <p className="mt-1 text-sm font-semibold text-stone-950">
+ {areaManagerMode ? 'AM: Staf Jualan / POS sahaja' : 'HQ/Admin: semua jawatan HR'}
+ </p>
+ </div>
+ </div>
+ </div>
 
  {hasCompanyView ? (
  <div className="space-y-4">

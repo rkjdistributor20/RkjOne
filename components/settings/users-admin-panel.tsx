@@ -282,41 +282,18 @@ export function UsersAdminPanel({
 
  return (
  <div className="space-y-4">
- <div className="rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 text-sm text-amber-950">
- <KeyRound className="mr-1.5 inline h-4 w-4" />
- Panel ini hanya untuk kawal <strong>akaun login, role dan dashboard AI</strong>.
- Untuk daftar pekerja sebenar, guna tab <strong>Staf HR</strong>.
+ <div className="rkj-surface overflow-hidden rounded-lg">
+ <div className="rkj-panel-head flex flex-col gap-3 border-b border-amber-100/80 px-4 py-4 xl:flex-row xl:items-center xl:justify-between">
+ <div>
+ <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-700">
+ Access control
+ </p>
+ <h3 className="text-lg font-semibold text-stone-950">Login Sistem &amp; Role</h3>
+ <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+ Akaun login, peranan sistem, dashboard AI dan reset kata laluan untuk akses pengurusan.
+ </p>
  </div>
-
- <div className="rounded-lg border border-violet-200 bg-violet-50/50 px-3 py-2 text-sm text-violet-950">
- <Bot className="mr-1.5 inline h-4 w-4" />
- AI menilai peranan & syarikat (RKJ / RKJ_DIST / RKJ_MFG) untuk tentukan dashboard sesuai.
- Edit manual sebelum simpan.
- </div>
-
- {loadError && (
- <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
- Gagal muat senarai: {loadError}. Klik Muat Semula.
- </div>)}
-
  <div className="flex flex-wrap items-center gap-2">
- <Badge variant="outline" className="gap-1 tabular-nums">
- <Users className="h-3.5 w-3.5" />
- Rujukan staf: {staffTotal ?? users.length}
- </Badge>
- <Badge variant="outline" className="gap-1 tabular-nums">
- <KeyRound className="h-3.5 w-3.5" />
- Login sistem: {loginTotal ?? users.length}
- </Badge>
- <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
- <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
- <Input
- value={search}
- onChange={(e) => setSearch(e.target.value)}
- placeholder="Cari kod, nama, e-mel..."
- className="h-8 pl-8 text-sm"
- />
- </div>
  <Button
  size="sm"
  variant="outline"
@@ -339,7 +316,7 @@ export function UsersAdminPanel({
  </Button>
  <Button
  size="sm"
- className="ml-auto gap-1.5 bg-amber-500 hover:bg-amber-600"
+ className="gap-1.5 bg-amber-500 text-stone-950 hover:bg-amber-600"
  onClick={() => {
  setFullName('');
  setEmail('');
@@ -352,6 +329,48 @@ export function UsersAdminPanel({
  Tambah Akaun Login
  </Button>
  </div>
+ </div>
+ <div className="grid gap-3 p-4 lg:grid-cols-[180px_180px_minmax(220px,1fr)]">
+ <div className="rounded-lg border bg-white px-3 py-2">
+ <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+ <Users className="h-3.5 w-3.5" />
+ Rujukan staf
+ </p>
+ <p className="mt-1 text-lg font-semibold tabular-nums text-stone-950">
+ {staffTotal ?? users.length}
+ </p>
+ </div>
+ <div className="rounded-lg border bg-white px-3 py-2">
+ <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+ <KeyRound className="h-3.5 w-3.5" />
+ Login sistem
+ </p>
+ <p className="mt-1 text-lg font-semibold tabular-nums text-stone-950">
+ {loginTotal ?? users.length}
+ </p>
+ </div>
+ <div className="rounded-lg border bg-white px-3 py-2">
+ <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+ <Bot className="h-3.5 w-3.5" />
+ Carian akaun
+ </p>
+ <div className="relative mt-2">
+ <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+ <Input
+ value={search}
+ onChange={(e) => setSearch(e.target.value)}
+ placeholder="Cari kod, nama, e-mel..."
+ className="h-9 pl-8 text-sm"
+ />
+ </div>
+ </div>
+ </div>
+ </div>
+
+ {loadError && (
+ <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+ Gagal muat senarai: {loadError}. Klik Muat Semula.
+ </div>)}
 
  {companies.length === 0 && !loading && (
  <p className="text-sm text-muted-foreground">
