@@ -99,7 +99,7 @@ Status key: `Todo`, `In Progress`, `Review`, `Blocked`, `Done`.
 | M6.2 | Done | Security AI | Security review. | `docs/M6_SECURITY_REVIEW.md` records changed-surface findings, fixed issues and remaining deploy blockers. |
 | M6.3 | Done | Backend/Security AI | Fix critical bugs. | Payment webhook signature verification hardened and payment session creation failure now marks payment failed. |
 | M6.4 | Done | DevOps/QA AI | Deploy staging. | Vercel production-equivalent build/deploy succeeded; post-deploy smoke checks passed. |
-| M6.5 | Done | Owner/DevOps AI | Deploy production. | Production deployment `dpl_DffgA1FBijS32PaYJepLwFdxz2HC` is Ready, aliased to `https://rkj.one`, `https://rkj.my`, and `https://rotikayajunus.com`, and runtime error check is clean. |
+| M6.5 | Done | Owner/DevOps AI | Deploy production. | Latest Vercel production deployment is Ready, aliased to `https://rkj.one`, `https://rkj.my`, and `https://rotikayajunus.com`, and runtime error check is clean. |
 
 ## Milestone 7 - Production UAT & Stabilization
 

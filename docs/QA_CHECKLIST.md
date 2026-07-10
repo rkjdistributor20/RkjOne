@@ -82,7 +82,7 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [x] Secret scan found no committed real secrets.
 - [x] Supabase migrations `harden_auth_role_and_booking_scope`, `m5_payment_lifecycle`, and `production_rls_advisor_fixes` applied and verified.
 - [x] Supabase advisor error-level check returns no issues after RLS/view/function fixes.
-- [x] Vercel production deployment `dpl_DffgA1FBijS32PaYJepLwFdxz2HC` is Ready.
+- [x] Latest Vercel production deployment is Ready.
 - [x] Production smoke tests passed 12/12 for `/login`, booking redirect/API auth, HR OM coverage auth, Sales Agent catalog/price-group auth, payment API auth, bad-signature webhook rejection, and `/api/health`.
 - [ ] Run signed live-provider callback UAT with the selected payment provider before opening live customer payment volume.
 

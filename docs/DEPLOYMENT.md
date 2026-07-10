@@ -143,7 +143,7 @@ Expected result:
 
 ## M6 Release Gate
 
-Current production checkpoint: Supabase production migrations `harden_auth_role_and_booking_scope` and `m5_payment_lifecycle` have been applied and verified. Vercel production deployment `dpl_DffgA1FBijS32PaYJepLwFdxz2HC` is Ready and aliased to `https://rkj.one`, `https://rkj.my`, and `https://rotikayajunus.com`.
+Current production checkpoint: Supabase production migrations `harden_auth_role_and_booking_scope` and `m5_payment_lifecycle` have been applied and verified. The latest Vercel production deployment is Ready and aliased to `https://rkj.one`, `https://rkj.my`, and `https://rotikayajunus.com`.
 
 Before staging:
 
