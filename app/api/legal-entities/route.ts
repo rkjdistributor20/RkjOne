@@ -4,6 +4,7 @@ import { resolveScopedBranches } from '@/lib/auth/branch-scope';
 import { createServiceClient } from '@/lib/supabase/server';
 import { loadAllLegalEntityProfiles, type LegalEntityCompanyProfile, type LegalEntityDocument } from '@/lib/brand/legal-entity-profile';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { jsonWithPrivateCache } from '@/lib/http/cache';
 
 const ADMIN_ROLES = new Set(['SUPER_ADMIN', 'ADMIN', 'HR']);
 const GLOBAL_VIEW_ROLES = new Set(['SUPER_ADMIN', 'ADMIN', 'HR']);
@@ -66,7 +67,7 @@ export async function GET() {
  const service = await createServiceClient();
  const companies = await loadAllLegalEntityProfiles(service, profile.organization_id);
  const visibleCompanies = await filterCompaniesForProfile(service, profile, companies);
- return NextResponse.json({ companies: visibleCompanies });
+ return jsonWithPrivateCache({ companies: visibleCompanies }, 30, 120);
 }
 
 export async function PATCH(request: Request) {

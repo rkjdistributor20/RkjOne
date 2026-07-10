@@ -1,23 +1,11 @@
 import type { HrDashboardData } from '@/lib/hr/company-hr';
+import { fetchJson } from '@/lib/client/fetch-json';
 import type { LegalEntityCode } from '@/lib/brand/legal-entities';
 import type { HrLeaveBalance, HrLeaveType, HrServiceRequestStatus } from '@/types/database';
 import type { UserRole } from '@/types/enums';
 
-async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
- const res = await fetch(url, {...init,
- headers: {
- 'Content-Type': 'application/json',...(init?.headers ?? {}),
- },
- });
- const data = await res.json().catch(() => ({}));
- if (!res.ok) {
- throw new Error(typeof data.error === 'string' ? data.error : 'Permintaan gagal');
- }
- return data as T;
-}
-
 export async function fetchHrDashboard(): Promise<HrDashboardData> {
- return fetchJson<HrDashboardData>('/api/hr/companies');
+ return fetchJson<HrDashboardData>('/api/hr/companies', undefined, { ttlMs: 20_000 });
 }
 
 export async function transferStaffLegalEntity(

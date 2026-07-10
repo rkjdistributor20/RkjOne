@@ -7,6 +7,7 @@ import {
  assertStockPlanningEditor,
  assertStockPlanningViewer,
 } from '@/lib/settings/stock-planning-access';
+import { jsonWithPrivateCache } from '@/lib/http/cache';
 
 const DEFAULTS = {
  stock_coverage_days: 1,
@@ -47,7 +48,7 @@ export async function GET() {
 
  const holidays = (holidaysRow ?? []) as HolidayRow[];
 
- return NextResponse.json({
+ return jsonWithPrivateCache({
  settings: {
  stock_coverage_days: settings?.stock_coverage_days ?? DEFAULTS.stock_coverage_days,
  safety_buffer_pcs: settings?.safety_buffer_pcs ?? DEFAULTS.safety_buffer_pcs,
@@ -55,7 +56,7 @@ export async function GET() {
  },
  upcoming_holidays: holidays ?? [],
  can_edit: ['SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER'].includes(profile.role),
- });
+ }, 60, 180);
  } catch (err) {
  return NextResponse.json(
  { error: err instanceof Error ? err.message : 'Forbidden' },

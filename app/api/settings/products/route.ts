@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/auth/session";
 import { assertSettingsAdmin } from "@/lib/settings/admin-auth";
+import { jsonWithPrivateCache } from "@/lib/http/cache";
 
 const PRODUCT_SELECT =
   "id, sku, name, price, status, category, sale_unit, sort_order, notes";
@@ -47,7 +48,7 @@ export async function GET() {
     notes: p.notes,
   }));
 
-  return NextResponse.json({ products });
+  return jsonWithPrivateCache({ products }, 60, 180);
 }
 
 export async function POST(request: Request) {

@@ -5,6 +5,7 @@ import { getCurrentProfile } from '@/lib/auth/session';
 import { resolveScopedBranches, applyBranchIdsFilter } from '@/lib/auth/branch-scope';
 import { assertSettingsAdmin, isSettingsAdmin } from '@/lib/settings/admin-auth';
 import { canManageHrPeople } from '@/lib/hr/hr-access';
+import { jsonWithPrivateCache } from '@/lib/http/cache';
 
 export async function GET(request: Request) {
  const profile = await getCurrentProfile();
@@ -54,7 +55,7 @@ export async function GET(request: Request) {
  })),
  }));
 
- return NextResponse.json({ groups: groups.filter((g) => g.branches.length > 0) });
+ return jsonWithPrivateCache({ groups: groups.filter((g) => g.branches.length > 0) }, 60, 180);
  }
 
  if (grouped) {
@@ -117,7 +118,7 @@ export async function GET(request: Request) {
  })),
  }));
 
- return NextResponse.json({ groups: groups.filter((g) => g.branches.length > 0) });
+ return jsonWithPrivateCache({ groups: groups.filter((g) => g.branches.length > 0) }, 60, 180);
  }
 
  let scope;
@@ -135,7 +136,7 @@ export async function GET(request: Request) {
 
  const { data, error } = await query;
  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
- return NextResponse.json({ branches: data ?? [] });
+ return jsonWithPrivateCache({ branches: data ?? [] }, 60, 180);
 }
 
 export async function POST(request: Request) {

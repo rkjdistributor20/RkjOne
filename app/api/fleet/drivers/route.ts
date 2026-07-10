@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { getCurrentProfile } from '@/lib/auth/session';
+import { jsonWithPrivateCache } from '@/lib/http/cache';
 
 type DriverRow = {
  id: string;
@@ -136,7 +137,7 @@ export async function GET() {
  status: route.status,
  }));
 
- return NextResponse.json({ drivers, route_options });
+ return jsonWithPrivateCache({ drivers, route_options }, 60, 180);
 }
 
 export async function PATCH(request: Request) {

@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { getCurrentProfile } from '@/lib/auth/session';
 import { assertSettingsAdmin } from '@/lib/settings/admin-auth';
+import { jsonWithPrivateCache } from '@/lib/http/cache';
 
 export async function GET() {
  const profile = await getCurrentProfile();
@@ -12,7 +13,7 @@ export async function GET() {
  const { data, error } = await supabase.from('stock_items').select('id, item_code, name, min_threshold, critical_threshold, status, category, base_unit').eq('organization_id', profile.organization_id).order('item_code');
 
  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
- return NextResponse.json({ items: data ?? [] });
+ return jsonWithPrivateCache({ items: data ?? [] }, 60, 180);
 }
 
 export async function POST(request: Request) {

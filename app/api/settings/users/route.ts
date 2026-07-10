@@ -16,6 +16,7 @@ import {
 } from '@/lib/settings/dashboard-advisor';
 import { enforceRateLimit } from '@/lib/security/rate-limit';
 import { generateTemporaryPassword } from '@/lib/security/passwords';
+import { jsonWithPrivateCache } from '@/lib/http/cache';
 
 import type { UserRole } from '@/types/enums';
 
@@ -59,12 +60,12 @@ export async function GET() {
  const { users, staff_total, login_total } = await loadSettingsUsersForAdmin(
  admin,
  profile.organization_id);
- return NextResponse.json({
+ return jsonWithPrivateCache({
  users,
  total: users.length,
  staff_total,
  login_total,
- });
+ }, 10, 30);
  } catch (err) {
  return NextResponse.json(
  { error: err instanceof Error ? err.message : 'Gagal muat pengguna' },

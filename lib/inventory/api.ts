@@ -11,22 +11,16 @@ import type {
  StockMovementRow,
  StockTransferRow,
 } from './types';
-
-async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
- const res = await fetch(url, {
- headers: { 'Content-Type': 'application/json' },...options,
- });
- const data = await res.json();
- if (!res.ok) throw new Error(data.error ?? 'Request failed');
- return data;
-}
+import { fetchJson } from '@/lib/client/fetch-json';
 
 export async function fetchLocations(type?: string, branchId?: string) {
  const params = new URLSearchParams();
  if (type) params.set('type', type);
  if (branchId) params.set('branch_id', branchId);
  return fetchJson<{ locations: InventoryLocation[] }>(
- `/api/inventory/locations?${params}`);
+ `/api/inventory/locations?${params}`,
+ undefined,
+ { ttlMs: 30_000 });
 }
 
 export async function fetchKioskOverview(branchId?: string) {
@@ -34,37 +28,48 @@ export async function fetchKioskOverview(branchId?: string) {
  return fetchJson<{
  branches: KioskOverviewBranch[];
  summary: KioskOverviewSummary;
- }>(`/api/inventory/kiosk-overview${params}`);
+ }>(`/api/inventory/kiosk-overview${params}`, undefined, { ttlMs: 10_000 });
 }
 
 export async function fetchInventoryOverview() {
- return fetchJson<InventoryOverviewResponse>('/api/inventory/overview');
+ return fetchJson<InventoryOverviewResponse>('/api/inventory/overview', undefined, { ttlMs: 10_000 });
 }
 
 export async function fetchStockItems(options?: { hq?: boolean }) {
  const params = options?.hq ? '?hq=1' : '';
- return fetchJson<{ items: StockItemOption[] }>(`/api/inventory/stock-items${params}`);
+ return fetchJson<{ items: StockItemOption[] }>(
+ `/api/inventory/stock-items${params}`,
+ undefined,
+ { ttlMs: 60_000 });
 }
 
 export async function fetchBalances(locationId: string) {
  return fetchJson<{ balances: InventoryBalanceRow[] }>(
- `/api/inventory/balances?location_id=${locationId}`);
+ `/api/inventory/balances?location_id=${locationId}`,
+ undefined,
+ { ttlMs: 5_000 });
 }
 
 export async function fetchRotiBatches(locationId: string) {
  return fetchJson<import('@/lib/stock/expiry').RotiBatchesResponse>(
- `/api/inventory/roti-batches?location_id=${locationId}`);
+ `/api/inventory/roti-batches?location_id=${locationId}`,
+ undefined,
+ { ttlMs: 10_000 });
 }
 
 export async function fetchMovements(locationId: string, limit = 50) {
  return fetchJson<{ movements: StockMovementRow[] }>(
- `/api/inventory/movements?location_id=${locationId}&limit=${limit}`);
+ `/api/inventory/movements?location_id=${locationId}&limit=${limit}`,
+ undefined,
+ { ttlMs: 5_000 });
 }
 
 export async function fetchTransfers(locationId?: string) {
  const params = locationId ? `?location_id=${locationId}` : '';
  return fetchJson<{ transfers: StockTransferRow[] }>(
- `/api/inventory/transfers${params}`);
+ `/api/inventory/transfers${params}`,
+ undefined,
+ { ttlMs: 5_000 });
 }
 
 export async function receiveStock(
@@ -137,11 +142,11 @@ export async function submitWriteOff(
 export async function fetchDrivers() {
  return fetchJson<{
  drivers: Array<{ id: string; driver_code: string; full_name: string }>;
- }>('/api/inventory/drivers');
+ }>('/api/inventory/drivers', undefined, { ttlMs: 60_000 });
 }
 
 export async function fetchVehicles() {
  return fetchJson<{
  vehicles: Array<{ id: string; vehicle_code: string; vehicle_type: string }>;
- }>('/api/inventory/vehicles');
+ }>('/api/inventory/vehicles', undefined, { ttlMs: 60_000 });
 }

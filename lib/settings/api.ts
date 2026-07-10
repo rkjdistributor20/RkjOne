@@ -1,4 +1,5 @@
 import type { SystemHealthSnapshot } from "@/lib/system/health";
+import { fetchJson } from "@/lib/client/fetch-json";
 import type {
   SettingsBranch,
   SettingsBranchGroup,
@@ -10,47 +11,53 @@ import type {
   SettingsUser,
 } from "./types";
 
-async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    credentials: "same-origin",
-    cache: "no-store",
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
-  return data;
-}
-
 export async function fetchSettingsUsers() {
   return fetchJson<{
     users: SettingsUser[];
     total: number;
     staff_total?: number;
     login_total?: number;
-  }>("/api/settings/users");
+  }>("/api/settings/users", undefined, { ttlMs: 10_000 });
 }
 
 export async function fetchSettingsProducts() {
-  return fetchJson<{ products: SettingsProduct[] }>("/api/settings/products");
+  return fetchJson<{ products: SettingsProduct[] }>(
+    "/api/settings/products",
+    undefined,
+    { ttlMs: 60_000 },
+  );
 }
 
 export async function fetchSettingsBranches() {
-  return fetchJson<{ branches: SettingsBranch[] }>("/api/settings/branches");
+  return fetchJson<{ branches: SettingsBranch[] }>(
+    "/api/settings/branches",
+    undefined,
+    { ttlMs: 60_000 },
+  );
 }
 
 export async function fetchSettingsBranchesGrouped() {
   return fetchJson<{ groups: SettingsBranchGroup[] }>(
     "/api/settings/branches?grouped=1",
+    undefined,
+    { ttlMs: 60_000 },
   );
 }
 
 export async function fetchSettingsRegions() {
-  return fetchJson<{ regions: SettingsRegion[] }>("/api/settings/regions");
+  return fetchJson<{ regions: SettingsRegion[] }>(
+    "/api/settings/regions",
+    undefined,
+    { ttlMs: 120_000 },
+  );
 }
 
 export async function fetchSettingsStockItems() {
-  return fetchJson<{ items: SettingsStockItem[] }>("/api/settings/stock-items");
+  return fetchJson<{ items: SettingsStockItem[] }>(
+    "/api/settings/stock-items",
+    undefined,
+    { ttlMs: 60_000 },
+  );
 }
 
 export async function fetchStockPlanningSettings() {
@@ -58,11 +65,15 @@ export async function fetchStockPlanningSettings() {
     settings: SettingsStockPlanning;
     upcoming_holidays: SettingsUpcomingHoliday[];
     can_edit: boolean;
-  }>("/api/settings/stock-planning");
+  }>("/api/settings/stock-planning", undefined, { ttlMs: 60_000 });
 }
 
 export async function fetchSystemHealth() {
-  return fetchJson<{ snapshot: SystemHealthSnapshot }>("/api/system/health");
+  return fetchJson<{ snapshot: SystemHealthSnapshot }>(
+    "/api/system/health",
+    undefined,
+    { ttlMs: 5_000 },
+  );
 }
 
 export async function updateStockPlanningSettings(payload: {
@@ -240,7 +251,9 @@ export async function fetchDashboardAdvice(userId?: string) {
         companies: string[];
       };
     }>;
-  }>(`/api/settings/users/dashboard-advice${q}`);
+  }>(`/api/settings/users/dashboard-advice${q}`, undefined, {
+    ttlMs: userId ? 15_000 : 30_000,
+  });
 }
 
 export async function applyDashboardAdviceAll() {
@@ -349,7 +362,11 @@ export type StaffDetailResponse = {
 };
 
 export async function fetchStaffDetail(id: string) {
-  return fetchJson<StaffDetailResponse>(`/api/settings/staff/${id}`);
+  return fetchJson<StaffDetailResponse>(
+    `/api/settings/staff/${id}`,
+    undefined,
+    { ttlMs: 10_000 },
+  );
 }
 
 export async function updateStaffMember(

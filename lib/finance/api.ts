@@ -11,24 +11,22 @@ import type {
  FinanceSummary,
  ManualQrPayment,
 } from './types';
-
-async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
- const res = await fetch(url, {
- headers: { 'Content-Type': 'application/json' },...options,
- });
- const data = await res.json();
- if (!res.ok) throw new Error(data.error ?? 'Request failed');
- return data;
-}
+import { fetchJson } from '@/lib/client/fetch-json';
 
 export async function fetchFinanceSummary() {
- return fetchJson<{ summary: FinanceSummary }>('/api/finance/summary');
+ return fetchJson<{ summary: FinanceSummary }>(
+ '/api/finance/summary',
+ undefined,
+ { ttlMs: 10_000 });
 }
 
 export async function fetchCollections(status?: string, limit = 50) {
  const params = new URLSearchParams({ limit: String(limit) });
  if (status) params.set('status', status);
- return fetchJson<{ collections: FinanceCollection[] }>(`/api/finance/collections?${params}`);
+ return fetchJson<{ collections: FinanceCollection[] }>(
+ `/api/finance/collections?${params}`,
+ undefined,
+ { ttlMs: 10_000 });
 }
 
 export async function createCollection(payload: {
@@ -55,11 +53,17 @@ export async function markCollected(
 }
 
 export async function fetchBankIns(limit = 30) {
- return fetchJson<{ records: BankInRecord[] }>(`/api/finance/bank-in?limit=${limit}`);
+ return fetchJson<{ records: BankInRecord[] }>(
+ `/api/finance/bank-in?limit=${limit}`,
+ undefined,
+ { ttlMs: 10_000 });
 }
 
 export async function fetchCollectionCashUsages(limit = 50) {
- return fetchJson<{ usages: CollectionCashUsage[] }>(`/api/finance/collection-usages?limit=${limit}`);
+ return fetchJson<{ usages: CollectionCashUsage[] }>(
+ `/api/finance/collection-usages?limit=${limit}`,
+ undefined,
+ { ttlMs: 10_000 });
 }
 
 export async function recordCollectionCashUsage(payload: {
@@ -94,7 +98,10 @@ export async function reviewCollectionCashUsage(payload: {
 export async function fetchBranchSupplyRequests(status?: string, limit = 50) {
  const params = new URLSearchParams({ limit: String(limit) });
  if (status) params.set('status', status);
- return fetchJson<{ requests: BranchSupplyRequest[] }>(`/api/finance/supply-requests?${params}`);
+ return fetchJson<{ requests: BranchSupplyRequest[] }>(
+ `/api/finance/supply-requests?${params}`,
+ undefined,
+ { ttlMs: 15_000 });
 }
 
 export async function recordBankIn(payload: {
@@ -112,7 +119,10 @@ export async function recordBankIn(payload: {
 }
 
 export async function fetchReconciliations(limit = 20) {
- return fetchJson<{ reconciliations: CashReconciliation[] }>(`/api/finance/reconciliations?limit=${limit}`);
+ return fetchJson<{ reconciliations: CashReconciliation[] }>(
+ `/api/finance/reconciliations?limit=${limit}`,
+ undefined,
+ { ttlMs: 15_000 });
 }
 
 export async function submitReconciliation(payload: {
@@ -135,7 +145,10 @@ export async function approveReconciliation(id: string) {
 }
 
 export async function fetchDailyReports(limit = 20) {
- return fetchJson<{ reports: DailyFinancialReport[] }>(`/api/finance/daily-report?limit=${limit}`);
+ return fetchJson<{ reports: DailyFinancialReport[] }>(
+ `/api/finance/daily-report?limit=${limit}`,
+ undefined,
+ { ttlMs: 30_000 });
 }
 
 export async function generateDailyReport(reportDate: string, branchId?: string) {
@@ -148,7 +161,10 @@ export async function generateDailyReport(reportDate: string, branchId?: string)
 export async function fetchManualQrPayments(status?: string, limit = 30) {
  const params = new URLSearchParams({ limit: String(limit) });
  if (status) params.set('status', status);
- return fetchJson<{ payments: ManualQrPayment[] }>(`/api/finance/qr-manual?${params}`);
+ return fetchJson<{ payments: ManualQrPayment[] }>(
+ `/api/finance/qr-manual?${params}`,
+ undefined,
+ { ttlMs: 10_000 });
 }
 
 export async function updateManualQrPayment(payload: {

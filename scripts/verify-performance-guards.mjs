@@ -169,6 +169,40 @@ const checks = [
   ],
  },
  {
+  file: 'lib/client/fetch-json.ts',
+  patterns: [
+  'responseCache',
+  'inflightRequests',
+  'clearClientJsonCache',
+  'ttlMs',
+  'method !== \'GET\'',
+  ],
+ },
+ {
+  file: 'lib/http/cache.ts',
+  patterns: [
+  'jsonWithPrivateCache',
+  'stale-while-revalidate',
+  'Cache-Control',
+  ],
+ },
+ {
+  file: 'components/providers.tsx',
+  patterns: [
+  'staleTime: 90 * 1000',
+  'gcTime: 10 * 60 * 1000',
+  'refetchOnReconnect: false',
+  ],
+ },
+ {
+  file: 'lib/settings/api.ts',
+  patterns: [
+  '@/lib/client/fetch-json',
+  'ttlMs: 60_000',
+  'ttlMs: 120_000',
+  ],
+ },
+ {
   file: 'lib/dashboard/am-branch-metrics.ts',
   patterns: [
   'summariesByBranch',

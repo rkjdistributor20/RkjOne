@@ -27,6 +27,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ModuleLoading, SectionCard } from '@/components/shared/module-ui';
 import { DocumentPreviewDialog } from '@/components/shared/document-preview-dialog';
+import { fetchJson } from '@/lib/client/fetch-json';
 import { cn } from '@/lib/utils';
 
 type CompanyProfileForm = Pick<
@@ -163,16 +164,19 @@ export function CompanyProfilesPanel() {
  const [previewDoc, setPreviewDoc] = useState<LegalEntityDocument | null>(null);
 
  async function loadData() {
- const [companyRes, branchRes] = await Promise.all([
- fetch('/api/legal-entities'),
- fetch('/api/settings/branches?grouped=1'),
+ const [companyBody, branchBody] = await Promise.all([
+ fetchJson<{ companies: LegalEntityCompanyProfile[] }>(
+ '/api/legal-entities',
+ undefined,
+ { ttlMs: 30_000 }),
+ fetchJson<{ groups?: Array<{ branches: BranchOption[] }> }>(
+ '/api/settings/branches?grouped=1',
+ undefined,
+ { ttlMs: 60_000 }),
  ]);
- const companyBody = await companyRes.json();
- if (!companyRes.ok) throw new Error(companyBody.error ?? 'Gagal muat profil syarikat');
  setCompanies(companyBody.companies ?? []);
  setSelectedCode((current) => current || companyBody.companies?.[0]?.code || '');
 
- const branchBody = await branchRes.json().catch(() => ({}));
  const nextBranches = (branchBody.groups ?? []).flatMap((group: { branches: BranchOption[] }) => group.branches ?? []);
  setBranches(nextBranches);
  }
@@ -241,13 +245,10 @@ export function CompanyProfilesPanel() {
  if (!selectedCompany || !form) return;
  setSaving(true);
  try {
- const res = await fetch('/api/legal-entities', {
+ const body = await fetchJson<{ companies: LegalEntityCompanyProfile[] }>('/api/legal-entities', {
  method: 'PATCH',
- headers: { 'Content-Type': 'application/json' },
  body: JSON.stringify({ code: selectedCompany.code,...form }),
  });
- const body = await res.json();
- if (!res.ok) throw new Error(body.error ?? 'Gagal simpan profil syarikat');
  setCompanies(body.companies ?? []);
  setEditingCompany(false);
  setForm(null);
@@ -288,9 +289,7 @@ export function CompanyProfilesPanel() {
  payload.set('notes', docForm.notes);
  if (docForm.file) payload.set('file', docForm.file);
 
- const res = await fetch('/api/legal-entities/documents', { method: 'POST', body: payload });
- const body = await res.json().catch(() => ({}));
- if (!res.ok) throw new Error(body.error ?? 'Gagal simpan dokumen');
+ await fetchJson('/api/legal-entities/documents', { method: 'POST', body: payload });
  await loadData();
  setDocForm(null);
  toast.success('Dokumen dikemaskini');
@@ -304,9 +303,7 @@ export function CompanyProfilesPanel() {
  async function archiveDocument(doc: LegalEntityDocument) {
  if (!confirm(`Arkibkan dokumen "${doc.title}"?`)) return;
  try {
- const res = await fetch(`/api/legal-entities/documents?id=${doc.id}`, { method: 'DELETE' });
- const body = await res.json().catch(() => ({}));
- if (!res.ok) throw new Error(body.error ?? 'Gagal arkib dokumen');
+ await fetchJson(`/api/legal-entities/documents?id=${doc.id}`, { method: 'DELETE' });
  await loadData();
  toast.success('Dokumen diarkibkan');
  } catch (e) {

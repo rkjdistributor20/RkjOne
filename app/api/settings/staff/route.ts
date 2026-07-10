@@ -26,6 +26,7 @@ import {
 import { enforceRateLimit } from '@/lib/security/rate-limit';
 import type { PayrollRule } from '@/lib/payroll/types';
 import type { UserRole } from '@/types/enums';
+import { jsonWithPrivateCache } from '@/lib/http/cache';
 
 async function loadActivePayrollRules(
  supabase: SupabaseClient,
@@ -86,7 +87,7 @@ export async function GET() {
 
  const { data, error } = await query;
  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
- return NextResponse.json({ staff: data ?? [] });
+ return jsonWithPrivateCache({ staff: data ?? [] }, 15, 45);
 }
 
 export async function POST(request: Request) {

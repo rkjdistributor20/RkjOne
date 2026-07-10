@@ -1,21 +1,19 @@
 import type { WarehouseAudit, WarehouseSummary } from './types';
 import type { LineItemInput } from '@/lib/inventory/types';
-
-async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
- const res = await fetch(url, {
- headers: { 'Content-Type': 'application/json' },...options,
- });
- const data = await res.json();
- if (!res.ok) throw new Error(data.error ?? 'Request failed');
- return data;
-}
+import { fetchJson } from '@/lib/client/fetch-json';
 
 export async function fetchWarehouseSummary() {
- return fetchJson<{ summary: WarehouseSummary }>('/api/warehouse/summary');
+ return fetchJson<{ summary: WarehouseSummary }>(
+ '/api/warehouse/summary',
+ undefined,
+ { ttlMs: 10_000 });
 }
 
 export async function fetchWarehouseAudits() {
- return fetchJson<{ audits: WarehouseAudit[] }>('/api/warehouse/audits');
+ return fetchJson<{ audits: WarehouseAudit[] }>(
+ '/api/warehouse/audits',
+ undefined,
+ { ttlMs: 15_000 });
 }
 
 export async function submitWarehouseAudit(

@@ -7,28 +7,20 @@ import type {
  FleetVehicle,
  PodPayload,
 } from './types';
-
-async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
- const res = await fetch(url, {
- headers: { 'Content-Type': 'application/json' },...options,
- });
-
- const text = await res.text();
- const data = text ? JSON.parse(text) : {};
-
- if (!res.ok) {
- throw new Error(data.error ?? data.message ?? 'Request failed');
- }
-
- return data as T;
-}
+import { fetchJson } from '@/lib/client/fetch-json';
 
 export async function fetchFleetVehicles() {
- return fetchJson<{ vehicles: FleetVehicle[] }>('/api/fleet/vehicles');
+ return fetchJson<{ vehicles: FleetVehicle[] }>(
+ '/api/fleet/vehicles',
+ undefined,
+ { ttlMs: 60_000 });
 }
 
 export async function fetchFleetDrivers() {
- return fetchJson<{ drivers: FleetDriver[]; route_options: FleetRouteOption[] }>('/api/fleet/drivers');
+ return fetchJson<{ drivers: FleetDriver[]; route_options: FleetRouteOption[] }>(
+ '/api/fleet/drivers',
+ undefined,
+ { ttlMs: 60_000 });
 }
 
 export async function updateFleetDriver(payload: {
@@ -55,11 +47,17 @@ export async function fetchDeliveryOrders(status?: string, limit = 20) {
  const params = new URLSearchParams();
  if (status) params.set('status', status);
  params.set('limit', String(limit));
- return fetchJson<{ orders: DeliveryOrder[] }>(`/api/fleet/orders?${params}`);
+ return fetchJson<{ orders: DeliveryOrder[] }>(
+ `/api/fleet/orders?${params}`,
+ undefined,
+ { ttlMs: 10_000 });
 }
 
 export async function fetchMyDeliveryOrders() {
- return fetchJson<{ orders: DeliveryOrder[] }>('/api/fleet/orders?mine=true&limit=20');
+ return fetchJson<{ orders: DeliveryOrder[] }>(
+ '/api/fleet/orders?mine=true&limit=20',
+ undefined,
+ { ttlMs: 10_000 });
 }
 
 export async function optimizeRoutePreview(payload: {
@@ -93,7 +91,10 @@ export async function optimizeDeliveryOrderRoute(
 }
 
 export async function fetchDeliveryOrder(id: string) {
- return fetchJson<{ order: DeliveryOrder }>(`/api/fleet/orders/${id}`);
+ return fetchJson<{ order: DeliveryOrder }>(
+ `/api/fleet/orders/${id}`,
+ undefined,
+ { ttlMs: 5_000 });
 }
 
 export async function createDeliveryOrder(payload: CreateDeliveryPayload) {
@@ -116,7 +117,10 @@ export async function submitPod(legId: string, payload: PodPayload) {
 }
 
 export async function fetchFleetStatus() {
- return fetchJson<{ logs: FleetStatusLog[] }>('/api/fleet/status');
+ return fetchJson<{ logs: FleetStatusLog[] }>(
+ '/api/fleet/status',
+ undefined,
+ { ttlMs: 10_000 });
 }
 
 export async function logFleetStatus(payload: {
