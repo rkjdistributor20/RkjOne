@@ -14,10 +14,24 @@ type DocumentRow = {
  branch_name?: string | null;
  file_name?: string | null;
  mime_type?: string | null;
+ legal_entity?: { code: string | null } | { code: string | null }[] | null;
 };
 
 function normalize(text: string) {
  return text.toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
+}
+
+function one<T>(value: T | T[] | null | undefined): T | null {
+ if (Array.isArray(value)) return value[0] ?? null;
+ return value ?? null;
+}
+
+function safeFileName(name: string) {
+ return name.replace(/[^\w.\-() ]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, 160);
+}
+
+function unique(values: Array<string | null | undefined>) {
+ return [...new Set(values.filter(Boolean) as string[])];
 }
 
 async function findBranchByName(
@@ -56,13 +70,72 @@ async function canViewDocument(
  return scope.branchIds.includes(branch.id);
 }
 
+async function findStoredDocument(
+ service: SupabaseClient,
+ id: string,
+ row: DocumentRow) {
+ const entityCode =
+ one(row.legal_entity)?.code ??
+ row.storage_path?.split('/')[0] ??
+ null;
+ const fileName = row.file_name?.trim() || 'dokumen-rkj-one';
+ const candidates = unique([
+ row.storage_path,
+ entityCode ? `${entityCode}/${id}-${safeFileName(fileName)}` : null,
+ ]);
+
+ const tried = new Set<string>();
+ let lastError: string | null = null;
+
+ async function tryPath(path: string) {
+ if (tried.has(path)) return null;
+ tried.add(path);
+
+ const { data: signed, error: signedErr } = await service.storage
+ .from(BUCKET)
+ .createSignedUrl(path, 300);
+
+ if (signedErr || !signed?.signedUrl) {
+ lastError = signedErr?.message ?? 'Gagal jana link dokumen';
+ return null;
+ }
+
+ const upstream = await fetch(signed.signedUrl, { cache: 'no-store' });
+ if (!upstream.ok || !upstream.body) {
+ const text = await upstream.text().catch(() => '');
+ lastError = text || `Storage status ${upstream.status}`;
+ return null;
+ }
+
+ return { path, upstream };
+ }
+
+ for (const path of candidates) {
+ const found = await tryPath(path);
+ if (found) return found;
+ }
+
+ if (entityCode) {
+ const { data: objects } = await service.storage
+ .from(BUCKET)
+ .list(entityCode, { limit: 20, search: id });
+
+ for (const object of objects ?? []) {
+ const found = await tryPath(`${entityCode}/${object.name}`);
+ if (found) return found;
+ }
+ }
+
+ return { error: lastError ?? 'Object not found' };
+}
+
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
  const profile = await getCurrentProfile();
  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
  const { id } = await params;
  const service = await createServiceClient();
- const { data: doc, error } = await service.from('legal_entity_documents').select('storage_path, branch_name, file_name, mime_type').eq('id', id).eq('organization_id', profile.organization_id).eq('status', 'ACTIVE').maybeSingle();
+ const { data: doc, error } = await service.from('legal_entity_documents').select('storage_path, branch_name, file_name, mime_type, legal_entity:legal_entities(code)').eq('id', id).eq('organization_id', profile.organization_id).eq('status', 'ACTIVE').maybeSingle();
 
  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
  const row = doc as DocumentRow | null;
@@ -73,24 +146,21 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
  }
 
  const mode = new URL(request.url).searchParams.get('mode') === 'view' ? 'view' : 'download';
- const { data: signed, error: signedErr } = await service.storage.from(BUCKET).createSignedUrl(row.storage_path, 300);
- if (signedErr || !signed?.signedUrl) {
- return NextResponse.json({ error: signedErr?.message ?? 'Gagal jana link download' }, { status: 400 });
- }
-
- const upstream = await fetch(signed.signedUrl, { cache: 'no-store' });
- if (!upstream.ok || !upstream.body) {
- return NextResponse.json({ error: 'Fail dokumen tidak dapat dibaca dari storage' }, { status: 502 });
+ const stored = await findStoredDocument(service, id, row);
+ if ('error' in stored) {
+ return NextResponse.json(
+ { error: 'Fail dokumen tidak ditemui dalam storage. Sila muat naik semula fail dokumen ini.', detail: stored.error },
+ { status: 404 });
  }
 
  const fileName = row.file_name?.trim() || 'dokumen-rkj-one';
  const dispositionMode = mode === 'download' ? 'attachment' : 'inline';
  const headers = new Headers();
- headers.set('Content-Type', row.mime_type || upstream.headers.get('content-type') || 'application/octet-stream');
+ headers.set('Content-Type', row.mime_type || stored.upstream.headers.get('content-type') || 'application/octet-stream');
  headers.set('Content-Disposition', `${dispositionMode}; filename*=UTF-8''${encodeURIComponent(fileName)}`);
  headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
  headers.set('Pragma', 'no-cache');
  headers.set('Expires', '0');
 
- return new NextResponse(upstream.body, { status: 200, headers });
+ return new NextResponse(stored.upstream.body, { status: 200, headers });
 }

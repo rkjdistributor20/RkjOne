@@ -27,6 +27,24 @@ function isImageFile(mimeType: string | null | undefined, fileName: string) {
  return mime.startsWith('image/') || /\.(png|jpe?g|webp)$/i.test(fileName.toLowerCase());
 }
 
+async function readPreviewError(response: Response) {
+ const text = await response.text().catch(() => '');
+ let message = text || `Gagal buka dokumen (${response.status})`;
+
+ try {
+ const body = JSON.parse(text) as { error?: string; detail?: string };
+ message = body.error || body.detail || message;
+ } catch {
+ // Response may be plain text from storage or a proxy.
+ }
+
+ if (/object not found/i.test(message)) {
+ return 'Fail dokumen tidak ditemui dalam storage. Sila muat naik semula fail ini atau cuba refresh halaman.';
+ }
+
+ return message;
+}
+
 export function DocumentPreviewDialog({
  open,
  title,
@@ -58,8 +76,7 @@ export function DocumentPreviewDialog({
  cache: 'no-store',
  });
  if (!response.ok) {
- const text = await response.text().catch(() => '');
- throw new Error(text || `Gagal buka dokumen (${response.status})`);
+ throw new Error(await readPreviewError(response));
  }
  const blob = await response.blob();
  nextObjectUrl = URL.createObjectURL(blob);
