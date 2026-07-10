@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import type { DashboardStats } from '@/types/database';
 import { fetchKioskOverviewForBranches } from '@/lib/inventory/kiosk-overview-data';
 
+type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 type KioskOverviewSnapshot = Awaited<ReturnType<typeof fetchKioskOverviewForBranches>>;
 
 type DashboardSnapshotRow = {
@@ -329,22 +330,48 @@ export type FleetOverview = {
  in_transit: number;
 };
 
-export async function getFleetOverview(orgId: string): Promise<FleetOverview> {
- const supabase = await createClient();
-
- const [vehiclesRes, pendingRes, inTransitRes] = await Promise.all([
- supabase.from('vehicles').select('id, vehicle_code, vehicle_type, plate_number, status').eq('organization_id', orgId).eq('status', 'ACTIVE').order('vehicle_code'),
- supabase.from('delivery_orders').select('id', { count: 'exact', head: true }).eq('organization_id', orgId).eq('status', 'PENDING'),
- supabase.from('delivery_orders').select('id', { count: 'exact', head: true }).eq('organization_id', orgId).eq('status', 'IN_TRANSIT'),
- ]);
-
- const rows = (vehiclesRes.data ?? []) as Array<{
+type ActiveVehicleRow = {
  id: string;
  vehicle_code: string;
  vehicle_type: string;
  plate_number: string | null;
  status: string;
- }>;
+};
+
+const ACTIVE_VEHICLES_CACHE_TTL_MS = 60_000;
+const activeVehiclesCache = new Map<string, { expiresAt: number; rows: ActiveVehicleRow[] }>();
+
+async function getCachedActiveVehicles(
+ supabase: SupabaseServerClient,
+ orgId: string): Promise<ActiveVehicleRow[]> {
+ const cached = activeVehiclesCache.get(orgId);
+ if (cached && cached.expiresAt > Date.now()) {
+  return cached.rows;
+ }
+
+ const { data } = await supabase
+ .from('vehicles')
+ .select('id, vehicle_code, vehicle_type, plate_number, status')
+ .eq('organization_id', orgId)
+ .eq('status', 'ACTIVE')
+ .order('vehicle_code');
+
+ const rows = (data ?? []) as ActiveVehicleRow[];
+ activeVehiclesCache.set(orgId, {
+  expiresAt: Date.now() + ACTIVE_VEHICLES_CACHE_TTL_MS,
+  rows,
+ });
+ return rows;
+}
+
+export async function getFleetOverview(orgId: string): Promise<FleetOverview> {
+ const supabase = await createClient();
+
+ const [rows, pendingRes, inTransitRes] = await Promise.all([
+ getCachedActiveVehicles(supabase, orgId),
+ supabase.from('delivery_orders').select('id', { count: 'exact', head: true }).eq('organization_id', orgId).eq('status', 'PENDING'),
+ supabase.from('delivery_orders').select('id', { count: 'exact', head: true }).eq('organization_id', orgId).eq('status', 'IN_TRANSIT'),
+ ]);
 
  const vehicleIds = rows.map((v) => v.id);
  const latestStatusByVehicle = new Map<string, string>();

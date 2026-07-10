@@ -18,6 +18,8 @@ const checks = [
   'getDashboardSnapshotViaRpc',
   'get_dashboard_snapshot',
   'getDashboardDateWindow',
+  'ACTIVE_VEHICLES_CACHE_TTL_MS',
+  'activeVehiclesCache',
   'stockCountsPromise',
   'visibleBranchIds',
   "select('id', { count: 'exact', head: true })",

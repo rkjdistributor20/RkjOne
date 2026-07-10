@@ -127,6 +127,7 @@ Status key: `Todo`, `In Progress`, `Review`, `Blocked`, `Done`.
 | PERF-007 | Done | Database AI | Sediakan daily dashboard rollup materialized view. | `dashboard_daily_rollups` diwujudkan untuk admin/reporting refresh, access direct kepada anon/authenticated ditutup. |
 | PERF-008 | Done | Frontend/Performance AI | Tambah fast loading shell dashboard. | `app/(dashboard)/dashboard/loading.tsx` memberi shell skeleton semasa data dashboard dimuat. |
 | PERF-009 | Done | QA/DevOps AI | Tambah performance budget command. | `npm run perf:budget` ukur endpoint production penting dan fail jika status/latency melebihi budget. |
+| PERF-010 | Done | Backend/Performance AI | Cache stable dashboard master data. | Senarai kenderaan aktif fleet dicache 60 saat per organisasi; delivery count dan latest status log kekal realtime/bounded. |
 
 ## Backlog
 

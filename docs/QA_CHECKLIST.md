@@ -84,6 +84,7 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [x] Workflow SOP panel renders only the first four priority steps and summarizes the rest.
 - [x] `npm run verify:performance` guards the lightweight workflow/dashboard path.
 - [x] Dashboard branch scope can use `get_dashboard_snapshot` RPC with code fallback.
+- [x] Fleet master vehicle rows use a short 60-second per-organization cache while live status/count queries stay realtime.
 - [x] Dashboard performance migration adds delivery/fleet/finance/approval/POS shift composite indexes.
 - [x] `dashboard_daily_rollups` materialized view is direct-access restricted for anon/authenticated users.
 - [x] Dashboard route has a `loading.tsx` fast shell for slow data waits.
