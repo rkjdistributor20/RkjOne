@@ -10,7 +10,12 @@ export async function GET(request: Request) {
  return NextResponse.json({ error: 'Tidak dibenarkan' }, { status: 401 });
  }
 
- const status = new URL(request.url).searchParams.get('status');
+ const searchParams = new URL(request.url).searchParams;
+ const status = searchParams.get('status');
+ const requestedLimit = Number(searchParams.get('limit') ?? 20);
+ const limit = Number.isFinite(requestedLimit)
+ ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 50)
+ : 20;
  const supabase = await createClient();
 
  let query = supabase.from('hq_factory_orders' as 'products').select(
@@ -23,7 +28,7 @@ export async function GET(request: Request) {
  id, branch_id, quantity, unit,
  branch:branches(branch_code, branch_name),
  stock_item:stock_items(item_code, name, category))
- `).eq('organization_id', profile.organization_id).order('created_at', { ascending: false }).limit(50);
+ `).eq('organization_id', profile.organization_id).order('created_at', { ascending: false }).limit(limit);
 
  if (status) {
  query = query.eq('status', status);

@@ -144,6 +144,7 @@ Status key: `Todo`, `In Progress`, `Review`, `Blocked`, `Done`.
 | ID | Status | Owner | Task | Acceptance |
 |----|--------|-------|------|------------|
 | PERF-016 | Done | Frontend/Performance AI | Stream panel berat untuk dashboard Owner. | Dashboard Owner render hero, KPI jualan, struktur syarikat dan delegation shell dahulu; governance, POS, fleet dan HR load kemudian melalui `Suspense` tanpa block paparan utama. |
+| PERF-017 | Done | Frontend/Backend Performance AI | Ringankan HQ Distributor. | `/warehouse` render shell dan KPI dahulu; balances/audit hanya dimuat bila tab berkaitan dibuka; summary API query parallel; order history HQ dihadkan kepada recent rows. |
 
 ## Backlog
 

@@ -24,8 +24,21 @@ const targets = [
   redirect: 'manual',
  },
  {
+  name: 'hq distributor auth gate',
+  path: '/warehouse',
+  maxMs: 3500,
+  expectedStatuses: [307, 308],
+  redirect: 'manual',
+ },
+ {
   name: 'booking api auth gate',
   path: '/api/bookings',
+  maxMs: 3000,
+  expectedStatuses: [401],
+ },
+ {
+  name: 'warehouse summary auth gate',
+  path: '/api/warehouse/summary',
   maxMs: 3000,
   expectedStatuses: [401],
  },

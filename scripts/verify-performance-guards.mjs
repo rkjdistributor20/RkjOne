@@ -27,6 +27,44 @@ const checks = [
  ],
  },
  {
+ file: 'components/warehouse/warehouse-dashboard.tsx',
+ patterns: [
+  "type WarehouseTab = 'stock' | 'hq-order' | 'audit'",
+  'const [activeTab, setActiveTab]',
+  'loadBalancesForLocation',
+  'activeTab === \'stock\' || activeTab === \'audit\'',
+  'orderBootstrapLoading',
+ ],
+ forbidden: [
+  'fetchLocations',
+  'const [sum, aud, locs, items] = await Promise.all',
+ ],
+ },
+ {
+ file: 'app/api/warehouse/summary/route.ts',
+ patterns: [
+  'hqLocationPromise',
+  'pendingTransfersPromise',
+  'pendingDeliveriesPromise',
+  'Promise.all',
+  "Cache-Control', 'private, max-age=15, stale-while-revalidate=45'",
+ ],
+ },
+ {
+ file: 'app/api/production/orders/route.ts',
+ patterns: [
+  'requestedLimit',
+  'Math.min(Math.max(Math.trunc(requestedLimit), 1), 50)',
+  '.limit(limit)',
+ ],
+ },
+ {
+ file: 'components/warehouse/hq-factory-order-panel.tsx',
+ patterns: [
+  'fetchHqFactoryOrders(undefined, 15)',
+ ],
+ },
+ {
  file: 'components/performance/web-vitals-reporter.tsx',
  patterns: [
   'useReportWebVitals',

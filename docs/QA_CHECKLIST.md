@@ -92,6 +92,9 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [x] Web Vitals monitoring records sampled authenticated user metrics through RLS-protected `performance_web_vitals`.
 - [x] Non-owner dashboard streams governance/POS/fleet panels after KPI shell.
 - [x] Owner dashboard streams governance/POS/fleet/HR panels after hero, KPI, delegation and company shell.
+- [x] HQ Distributor avoids bulk initial loading: stock balances and audits load only when their tabs are opened.
+- [x] HQ Distributor summary API uses parallel reads and short private cache.
+- [x] HQ factory order history is bounded to recent rows by default.
 - [x] Active branch and vehicle master rows use short per-organization cache while operational counts remain live.
 - [x] Master-data APIs used by POS/inventory have bounded result limits and short private browser cache.
 

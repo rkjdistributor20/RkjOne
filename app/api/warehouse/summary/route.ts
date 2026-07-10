@@ -9,7 +9,19 @@ export async function GET() {
 
  const supabase = await createClient();
 
- const { data: hqLoc } = await supabase.from('inventory_locations').select('id, name').eq('organization_id', profile.organization_id).eq('location_type', 'HQ_WAREHOUSE').limit(1).maybeSingle();
+ const hqLocationPromise = supabase.from('inventory_locations').select('id, name').eq('organization_id', profile.organization_id).eq('location_type', 'HQ_WAREHOUSE').limit(1).maybeSingle();
+ const pendingTransfersPromise = supabase.from('stock_transfers').select('id', { count: 'exact', head: true }).eq('organization_id', profile.organization_id).in('status', ['PENDING', 'IN_TRANSIT']);
+ const pendingDeliveriesPromise = supabase.from('delivery_orders').select('id', { count: 'exact', head: true }).eq('organization_id', profile.organization_id).in('status', ['PENDING', 'IN_TRANSIT']);
+
+ const [
+ { data: hqLoc },
+ { count: pendingTransfers },
+ { count: pendingDeliveries },
+ ] = await Promise.all([
+ hqLocationPromise,
+ pendingTransfersPromise,
+ pendingDeliveriesPromise,
+ ]);
 
  const hq = hqLoc as { id: string; name: string } | null;
 
@@ -43,11 +55,7 @@ export async function GET() {
  }).length;
  }
 
- const { count: pendingTransfers } = await supabase.from('stock_transfers').select('*', { count: 'exact', head: true }).eq('organization_id', profile.organization_id).in('status', ['PENDING', 'IN_TRANSIT']);
-
- const { count: pendingDeliveries } = await supabase.from('delivery_orders').select('*', { count: 'exact', head: true }).eq('organization_id', profile.organization_id).in('status', ['PENDING', 'IN_TRANSIT']);
-
- return NextResponse.json({
+ const response = NextResponse.json({
  summary: {
  location: hq,
  total_items: totalItems,
@@ -57,4 +65,6 @@ export async function GET() {
  pending_deliveries: pendingDeliveries ?? 0,
  },
  });
+ response.headers.set('Cache-Control', 'private, max-age=15, stale-while-revalidate=45');
+ return response;
 }

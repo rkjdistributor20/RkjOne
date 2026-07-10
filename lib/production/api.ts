@@ -49,9 +49,11 @@ export async function saveProductionWeek(payload: {
  });
 }
 
-export async function fetchHqFactoryOrders(status?: string) {
- const params = status ? `?status=${status}` : '';
- return fetchJson<{ orders: HqFactoryOrder[] }>(`/api/production/orders${params}`);
+export async function fetchHqFactoryOrders(status?: string, limit = 20) {
+ const params = new URLSearchParams();
+ if (status) params.set('status', status);
+ params.set('limit', String(limit));
+ return fetchJson<{ orders: HqFactoryOrder[] }>(`/api/production/orders?${params}`);
 }
 
 export async function fetchOrderSuggestion(productionDate: string) {

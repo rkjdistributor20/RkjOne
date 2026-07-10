@@ -35,7 +35,7 @@ export function HqFactoryOrderPanel({
  const loadOrders = useCallback(async () => {
  setLoadingOrders(true);
  try {
- const { orders: list } = await fetchHqFactoryOrders();
+ const { orders: list } = await fetchHqFactoryOrders(undefined, 15);
  setOrders(list);
  } catch {
  setOrders([]);

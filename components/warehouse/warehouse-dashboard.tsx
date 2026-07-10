@@ -9,9 +9,9 @@ import {
  submitWarehouseAudit,
  approveWarehouseAudit,
 } from '@/lib/warehouse/api';
-import { fetchLocations, fetchStockItems, fetchBalances } from '@/lib/inventory/api';
+import { fetchStockItems, fetchBalances } from '@/lib/inventory/api';
 import type { WarehouseAudit, WarehouseSummary } from '@/lib/warehouse/types';
-import type { InventoryLocation, StockItemOption, InventoryBalanceRow } from '@/lib/inventory/types';
+import type { StockItemOption, InventoryBalanceRow } from '@/lib/inventory/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -41,20 +41,51 @@ import {
  moduleTabsTriggerClass,
 } from '@/components/shared/module-ui';
 
+type WarehouseTab = 'stock' | 'hq-order' | 'audit';
+type HqLocationRef = NonNullable<WarehouseSummary['location']>;
+
 export function WarehouseDashboard() {
  const profile = useAuthStore((s) => s.profile);
  const canManageHq = profile ? canManageHqStockInOut(profile.role) : false;
  const canOrder = profile ? canSubmitHqFactoryOrder(profile.role) : false;
  const canApprove = profile ? isAdminRole(profile.role) || profile.role === 'OPERATION_MANAGER' : false;
+
+ const [activeTab, setActiveTab] = useState<WarehouseTab>('stock');
+ const [initialTabResolved, setInitialTabResolved] = useState(false);
  const [publishedDates, setPublishedDates] = useState<PublishedProductionDate[]>([]);
  const [summary, setSummary] = useState<WarehouseSummary | null>(null);
  const [audits, setAudits] = useState<WarehouseAudit[]>([]);
- const [hqLocation, setHqLocation] = useState<InventoryLocation | null>(null);
+ const [hqLocation, setHqLocation] = useState<HqLocationRef | null>(null);
  const [stockItems, setStockItems] = useState<StockItemOption[]>([]);
  const [balances, setBalances] = useState<InventoryBalanceRow[]>([]);
- const [loading, setLoading] = useState(true);
+
+ const [summaryLoading, setSummaryLoading] = useState(true);
+ const [calendarLoading, setCalendarLoading] = useState(false);
+ const [calendarLoaded, setCalendarLoaded] = useState(false);
+ const [stockItemsLoading, setStockItemsLoading] = useState(false);
+ const [stockItemsLoaded, setStockItemsLoaded] = useState(false);
+ const [balancesLoading, setBalancesLoading] = useState(false);
+ const [balancesLoaded, setBalancesLoaded] = useState(false);
+ const [auditsLoading, setAuditsLoading] = useState(false);
+ const [auditsLoaded, setAuditsLoaded] = useState(false);
+
+ const loadSummary = useCallback(async () => {
+ setSummaryLoading(true);
+ try {
+ const { summary: nextSummary } = await fetchWarehouseSummary();
+ setSummary(nextSummary);
+ setHqLocation(nextSummary.location ?? null);
+ } catch (err) {
+ setSummary(null);
+ setHqLocation(null);
+ toast.error(err instanceof Error ? err.message : `Gagal memuatkan ${HQ_DISTRIBUTOR_LABEL}`);
+ } finally {
+ setSummaryLoading(false);
+ }
+ }, []);
 
  const loadCalendar = useCallback(async () => {
+ setCalendarLoading(true);
  try {
  const { dates } = await fetchProductionCalendar();
  setPublishedDates(dates);
@@ -62,48 +93,107 @@ export function WarehouseDashboard() {
  setPublishedDates([]);
  toast.error(
  err instanceof Error ? err.message : 'Gagal memuatkan jadual production kilang');
+ } finally {
+ setCalendarLoaded(true);
+ setCalendarLoading(false);
  }
  }, []);
 
- const loadData = useCallback(async () => {
- setLoading(true);
+ const loadStockItems = useCallback(async () => {
+ setStockItemsLoading(true);
  try {
- const [sum, aud, locs, items] = await Promise.all([
- fetchWarehouseSummary(),
- fetchWarehouseAudits(),
- fetchLocations(),
- fetchStockItems({ hq: true }),
- ]);
- await loadCalendar();
- setSummary(sum.summary);
- setAudits(aud.audits);
- const allLocs = locs.locations;
- const hq =
- allLocs.find(
- (l) =>
- l.location_type === 'HQ_WAREHOUSE' &&
- l.name.toLowerCase().includes('teluk intan')) ??
- allLocs.find((l) => l.location_type === 'HQ_WAREHOUSE') ??
- null;
- setHqLocation(hq);
-
- if (hq) {
- const bal = await fetchBalances(hq.id);
- setBalances(bal.balances);
- }
+ const items = await fetchStockItems({ hq: true });
  setStockItems(items.items);
  } catch (err) {
- toast.error(err instanceof Error ? err.message : `Gagal memuatkan ${HQ_DISTRIBUTOR_LABEL}`);
+ setStockItems([]);
+ toast.error(err instanceof Error ? err.message : 'Gagal memuatkan item stok HQ');
  } finally {
- setLoading(false);
+ setStockItemsLoaded(true);
+ setStockItemsLoading(false);
  }
- }, [loadCalendar]);
+ }, []);
+
+ const loadBalancesForLocation = useCallback(async (locationId: string) => {
+ setBalancesLoading(true);
+ try {
+ const bal = await fetchBalances(locationId);
+ setBalances(bal.balances);
+ } catch (err) {
+ setBalances([]);
+ toast.error(err instanceof Error ? err.message : 'Gagal memuatkan baki stok HQ');
+ } finally {
+ setBalancesLoaded(true);
+ setBalancesLoading(false);
+ }
+ }, []);
+
+ const loadAudits = useCallback(async () => {
+ setAuditsLoading(true);
+ try {
+ const aud = await fetchWarehouseAudits();
+ setAudits(aud.audits);
+ } catch (err) {
+ setAudits([]);
+ toast.error(err instanceof Error ? err.message : 'Gagal memuatkan audit HQ');
+ } finally {
+ setAuditsLoaded(true);
+ setAuditsLoading(false);
+ }
+ }, []);
 
  useEffect(() => {
- loadData();
- }, [loadData]);
+ void loadSummary();
+ }, [loadSummary]);
 
- const defaultTab = canOrder ? 'hq-order' : 'stock';
+ useEffect(() => {
+ if (!profile || initialTabResolved) return;
+ setActiveTab(canOrder ? 'hq-order' : 'stock');
+ setInitialTabResolved(true);
+ }, [canOrder, initialTabResolved, profile]);
+
+ useEffect(() => {
+ if (!canOrder && activeTab === 'hq-order') {
+ setActiveTab('stock');
+ }
+ if (!canManageHq && activeTab === 'audit') {
+ setActiveTab(canOrder ? 'hq-order' : 'stock');
+ }
+ }, [activeTab, canManageHq, canOrder]);
+
+ useEffect(() => {
+ if ((canOrder || canManageHq) && !stockItemsLoaded) {
+ void loadStockItems();
+ }
+ }, [canManageHq, canOrder, loadStockItems, stockItemsLoaded]);
+
+ useEffect(() => {
+ if (canOrder && !calendarLoaded) {
+ void loadCalendar();
+ }
+ }, [calendarLoaded, canOrder, loadCalendar]);
+
+ useEffect(() => {
+ if (!hqLocation?.id || balancesLoaded) return;
+ if (activeTab === 'stock' || activeTab === 'audit') {
+ void loadBalancesForLocation(hqLocation.id);
+ }
+ }, [activeTab, balancesLoaded, hqLocation?.id, loadBalancesForLocation]);
+
+ useEffect(() => {
+ if (activeTab === 'audit' && canManageHq && !auditsLoaded) {
+ void loadAudits();
+ }
+ }, [activeTab, auditsLoaded, canManageHq, loadAudits]);
+
+ const orderBootstrapLoading =
+ canOrder && (calendarLoading || stockItemsLoading || !calendarLoaded || !stockItemsLoaded);
+
+ const refreshAfterAudit = async () => {
+ const tasks: Array<Promise<void>> = [loadSummary()];
+ if (hqLocation?.id) tasks.push(loadBalancesForLocation(hqLocation.id));
+ tasks.push(loadAudits());
+ await Promise.all(tasks);
+ };
 
  return (
  <ModuleLayout>
@@ -113,30 +203,26 @@ export function WarehouseDashboard() {
  icon={Warehouse}
  />
 
- {loading ? (
- <ModuleLoading />) : !hqLocation ? (
- <EmptyState
- icon={Warehouse}
- title="Lokasi HQ tidak dijumpai"
- description={`Hubungi pentadbir sistem untuk konfigurasi lokasi ${HQ_DISTRIBUTOR_LABEL}.`}
- />) : (
- <>
  <KpiGrid cols={4}>
- <KpiCard title="Item Stok" value={`${summary?.total_items ?? 0} / 9`} icon={Package} />
+ <KpiCard title="Item Stok" value={summaryLoading ? '...' : `${summary?.total_items ?? 0} / 9`} icon={Package} />
  <KpiCard
  title="Jumlah Kuantiti"
- value={summary?.total_quantity?.toLocaleString() ?? 0}
+ value={summaryLoading ? '...' : summary?.total_quantity?.toLocaleString() ?? 0}
  icon={Package}
  />
  <KpiCard
  title="Stok Rendah"
- value={summary?.low_stock_count ?? 0}
+ value={summaryLoading ? '...' : summary?.low_stock_count ?? 0}
  icon={Package}
  variant="warning"
  />
  <KpiCard
  title="Menunggu"
- value={`${summary?.pending_transfers ?? 0} pindah - ${summary?.pending_deliveries ?? 0} hantar`}
+ value={
+ summaryLoading
+ ? '...'
+ : `${summary?.pending_transfers ?? 0} pindah - ${summary?.pending_deliveries ?? 0} hantar`
+ }
  icon={ArrowRight}
  />
  </KpiGrid>
@@ -155,7 +241,7 @@ export function WarehouseDashboard() {
  driver sahkan penghantaran di tab {LOGISTIK_LABEL} ke Jadual Kerja.
  </p>)}
 
- <Tabs defaultValue={defaultTab} className="space-y-4">
+ <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as WarehouseTab)} className="space-y-4">
  <TabsList className={moduleTabsListClass}>
  <TabsTrigger value="stock" className={moduleTabsTriggerClass}>
  <Package className="h-4 w-4" /> Stok
@@ -171,7 +257,13 @@ export function WarehouseDashboard() {
  </TabsList>
 
  <TabsContent value="stock" className="mt-2">
- {balances.length === 0 ? (
+ {summaryLoading || balancesLoading ? (
+ <ModuleLoading />) : !hqLocation ? (
+ <EmptyState
+ icon={Warehouse}
+ title="Lokasi HQ tidak dijumpai"
+ description={`Hubungi pentadbir sistem untuk konfigurasi lokasi ${HQ_DISTRIBUTOR_LABEL}.`}
+ />) : balances.length === 0 ? (
  <EmptyState
  icon={Package}
  title="Tiada stok simpanan di HQ"
@@ -188,15 +280,27 @@ export function WarehouseDashboard() {
 
  {canOrder && (
  <TabsContent value="hq-order" className="mt-4">
+ {orderBootstrapLoading ? (
+ <ModuleLoading />) : (
  <HqFactoryOrderPanel
  stockItems={stockItems}
  publishedDates={publishedDates}
- onRefreshCalendar={loadCalendar}
- />
+ onRefreshCalendar={() => {
+ void loadCalendar();
+ }}
+ />)}
  </TabsContent>)}
 
  {canManageHq && (
  <TabsContent value="audit" className="mt-4 space-y-4">
+ {summaryLoading || stockItemsLoading || balancesLoading || auditsLoading ? (
+ <ModuleLoading />) : !hqLocation ? (
+ <EmptyState
+ icon={Warehouse}
+ title="Lokasi HQ tidak dijumpai"
+ description={`Hubungi pentadbir sistem untuk konfigurasi lokasi ${HQ_DISTRIBUTOR_LABEL}.`}
+ />) : (
+ <>
  <StockLineForm
  mode="count"
  stockItems={stockItems}
@@ -211,7 +315,7 @@ export function WarehouseDashboard() {
  })),
  notes);
  toast.success('Audit gudang dihantar');
- loadData();
+ await refreshAfterAudit();
  } catch (err) {
  toast.error(err instanceof Error ? err.message : 'Gagal hantar audit');
  }
@@ -237,7 +341,7 @@ export function WarehouseDashboard() {
  try {
  await approveWarehouseAudit(a.id);
  toast.success('Audit diluluskan');
- loadData();
+ await refreshAfterAudit();
  } catch (err) {
  toast.error(err instanceof Error ? err.message : 'Gagal luluskan audit');
  }
@@ -247,8 +351,8 @@ export function WarehouseDashboard() {
  </Button>)}
  </div>)))}
  </div>
+ </>)}
  </TabsContent>)}
  </Tabs>
- </>)}
  </ModuleLayout>);
 }
