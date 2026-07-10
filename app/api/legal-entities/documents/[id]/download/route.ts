@@ -1,7 +1,7 @@
 ﻿import { NextResponse } from 'next/server';
 import { getCurrentProfile } from '@/lib/auth/session';
 import { resolveScopedBranches } from '@/lib/auth/branch-scope';
-import { createServiceClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 const BUCKET = 'company-documents';
@@ -127,7 +127,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
  const { id } = await params;
- const service = await createServiceClient();
+ const service = createAdminClient();
  const { data: doc, error } = await service.from('legal_entity_documents').select('storage_path, branch_name, file_name, mime_type, legal_entity:legal_entities(code)').eq('id', id).eq('organization_id', profile.organization_id).eq('status', 'ACTIVE').maybeSingle();
 
  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
