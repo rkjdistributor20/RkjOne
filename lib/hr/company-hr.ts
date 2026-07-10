@@ -136,6 +136,11 @@ export type HrServiceRequestSummary = {
  end_date: string | null;
  created_at: string;
  reviewer_note: string | null;
+ metadata: Record<string, unknown> | null;
+ am_leave_cover_required: boolean;
+ am_leave_cover_status: string | null;
+ am_leave_covered_by: string | null;
+ am_leave_covered_at: string | null;
 };
 
 export type HrDashboardData = {
@@ -209,6 +214,7 @@ type HrServiceRequestRow = {
  end_date: string | null;
  created_at: string;
  reviewer_note: string | null;
+ metadata: unknown;
 };
 
 type AgentPriceGroupRow = {
@@ -234,6 +240,22 @@ type AgentAccountRow = {
 function one<T>(value: T | T[] | null | undefined): T | null {
  if (Array.isArray(value)) return value[0] ?? null;
  return value ?? null;
+}
+
+function metadataRecord(value: unknown): Record<string, unknown> | null {
+ if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+ return value as Record<string, unknown>;
+}
+
+function amLeaveCoverRecord(value: unknown): Record<string, unknown> | null {
+ const metadata = metadataRecord(value);
+ const cover =
+ metadata?.am_leave_cover &&
+ typeof metadata.am_leave_cover === 'object' &&
+ !Array.isArray(metadata.am_leave_cover)
+ ? (metadata.am_leave_cover as Record<string, unknown>)
+ : null;
+ return cover?.required === true ? cover : null;
 }
 
 function companyFallback(code: string, field: 'name' | 'legalName' | 'scope') {
@@ -292,7 +314,7 @@ export async function getCompanyHrDashboard(
  supabase.from('profiles').select('id, employee_code, full_name, email, phone, role, status, legal_entity_id, metadata, branch:branches!profiles_branch_id_fkey(branch_code, branch_name), region:regions!profiles_region_id_fkey(name), must_change_password, profile_completed_at, last_login_at').eq('organization_id', organizationId).eq('status', 'ACTIVE').order('full_name'),
  supabase.from('sales_agent_accounts').select('id, profile_id, company_name, registration_no, contact_person, contact_email, contact_phone, status, assigned_price_group_id, created_at').eq('organization_id', organizationId).is('archived_at', null).neq('status', 'SUSPENDED').order('company_name'),
  supabase.from('agent_price_groups').select('id, code, name, payment_exempt').eq('organization_id', organizationId).eq('status', 'ACTIVE').order('name'),
- supabase.from('hr_service_requests').select('id, request_number, request_type, title, description, priority, status, profile_id, staff_id, legal_entity_id, branch_id, start_date, end_date, created_at, reviewer_note').eq('organization_id', organizationId).order('created_at', { ascending: false }).limit(20),
+ supabase.from('hr_service_requests').select('id, request_number, request_type, title, description, priority, status, profile_id, staff_id, legal_entity_id, branch_id, start_date, end_date, created_at, reviewer_note, metadata').eq('organization_id', organizationId).order('created_at', { ascending: false }).limit(20),
  ]);
 
  if (legalError) throw new Error(legalError.message);
@@ -578,6 +600,8 @@ export async function getCompanyHrDashboard(
  const staff = request.staff_id ? staffById.get(request.staff_id) : null;
  const company = request.legal_entity_id ? companies.get(request.legal_entity_id) : null;
  const branch = request.branch_id ? requestBranchById.get(request.branch_id) : null;
+ const metadata = metadataRecord(request.metadata);
+ const amLeaveCover = amLeaveCoverRecord(request.metadata);
  return {
  id: request.id,
  request_number: request.request_number,
@@ -596,6 +620,11 @@ export async function getCompanyHrDashboard(
  end_date: request.end_date,
  created_at: request.created_at,
  reviewer_note: request.reviewer_note,
+ metadata,
+ am_leave_cover_required: Boolean(amLeaveCover),
+ am_leave_cover_status: typeof amLeaveCover?.status === 'string' ? amLeaveCover.status : null,
+ am_leave_covered_by: typeof amLeaveCover?.covered_by === 'string' ? amLeaveCover.covered_by : null,
+ am_leave_covered_at: typeof amLeaveCover?.covered_at === 'string' ? amLeaveCover.covered_at : null,
  };
  });
 

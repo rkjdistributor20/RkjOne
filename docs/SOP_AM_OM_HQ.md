@@ -58,6 +58,7 @@ Dokumen ini menerangkan skop kerja, had akses, SOP harian, dan laluan escalation
 - Membuat order operasi berdasarkan keperluan cawangan.
 - Mengatur perjalanan driver untuk setiap cawangan berdasarkan hari production kilang.
 - Menjadi PIC kawasan apabila mana-mana AM bercuti, tidak aktif, atau tidak dapat menjalankan tugas.
+- Ambil cover operasi untuk permohonan cuti AM dalam **HR & Gaji > Cover Cuti Area Manager** sebelum HR meluluskan cuti.
 - Pantau jadual operasi, delivery, maintenance, dan isu harian.
 - Menyusun priority tindakan untuk AM, driver, maintenance, dan HQ.
 
@@ -77,8 +78,18 @@ Dokumen ini menerangkan skop kerja, had akses, SOP harian, dan laluan escalation
 5. Sahkan delivery plan dengan driver atau pihak HQ Distributor.
 6. Semak isu dari AM seperti stok kritikal, cash discrepancy, staf shortage, maintenance urgent, atau cawangan tidak beroperasi.
 7. Jika AM bercuti, OM menjadi PIC sementara kawasan tersebut sehingga AM kembali bertugas atau pengganti rasmi ditetapkan.
-8. Pastikan semua isu critical ada owner tindakan, status, dan target selesai.
-9. Petang: semak isu belum selesai dan escalate kepada Pentadbir HQ atau Owner jika melibatkan risiko besar, polisi, data, kewangan, atau keselamatan sistem.
+8. Untuk cuti AM, OM perlu buka HR & Gaji, semak panel **Cover Cuti Area Manager**, tekan **Ambil cover**, dan tulis nota ringkas kawasan/route/cawangan yang di-cover.
+9. Pastikan semua isu critical ada owner tindakan, status, dan target selesai.
+10. Petang: semak isu belum selesai dan escalate kepada Pentadbir HQ atau Owner jika melibatkan risiko besar, polisi, data, kewangan, atau keselamatan sistem.
+
+### Aliran Cuti AM
+
+1. AM hantar permohonan cuti melalui HRMIS kendiri.
+2. Sistem tandakan permohonan sebagai cuti AM yang perlukan cover OM.
+3. OM semak impact kawasan dan ambil cover sementara di panel HR.
+4. HR/Admin semak baki cuti, rekod staf, dan nota cover OM.
+5. HR/Admin sahaja boleh lulus/tolak cuti rasmi.
+6. Jika OM belum ambil cover, sistem akan sekat kelulusan HR untuk cuti AM tersebut.
 
 ## Pentadbir HQ
 
@@ -116,6 +127,7 @@ Dokumen ini menerangkan skop kerja, had akses, SOP harian, dan laluan escalation
 | --- | --- | --- |
 | Staf tidak hadir atau lewat | AM | OM |
 | AM bercuti | OM sebagai PIC sementara | Pentadbir HQ jika perlu akses sistem |
+| Kelulusan cuti AM | OM cover operasi dahulu | HR/Admin lulus atau tolak rasmi |
 | Staf jualan tiada semasa emergency | AM boleh ganti selepas masuk jadual syif | OM |
 | Stok kiosk kawasan sendiri | AM | OM |
 | Stok kritikal banyak cawangan | OM | Pentadbir HQ |
@@ -135,6 +147,7 @@ Dokumen ini menerangkan skop kerja, had akses, SOP harian, dan laluan escalation
 | Order ikut production kilang | Consulted | Responsible | Accountable | Informed |
 | Susun driver dan route delivery | Consulted | Responsible | Accountable | Informed |
 | PIC kawasan bila AM cuti | Informed | Responsible | Consulted | Informed |
+| Kelulusan cuti AM | Responsible untuk mohon | Responsible untuk cover operasi | Accountable untuk approve/reject HR | Informed |
 | User dan permission | Informed | Consulted | Responsible | Accountable |
 | HQ stock dan master data | Informed | Consulted | Responsible | Accountable |
 | Policy dan keputusan risiko tinggi | Informed | Consulted | Consulted | Accountable |

@@ -9,6 +9,7 @@ Dokumen ini menetapkan cara HRMIS RKJ One mengurus pekerja, cuti, gaji, dokumen 
 - HR boleh melihat paparan kumpulan, tetapi tindakan harian perlu ditapis mengikut syarikat aktif.
 - Permohonan staf daripada HRMIS kendiri perlu ikut legal entity, cawangan dan rekod staf yang dipautkan.
 - Pemilik kumpulan boleh mempunyai rekod merentas tiga syarikat, tetapi staf operasi biasa tidak boleh dicampur tanpa rekod transfer.
+- HR/Admin sahaja membuat keputusan rasmi approve/reject/complete permohonan HR; AM/OM hanya membantu semakan operasi.
 
 ## Syarikat Dalam Scope
 
@@ -25,7 +26,7 @@ Dokumen ini menetapkan cara HRMIS RKJ One mengurus pekerja, cuti, gaji, dokumen 
 | Owner / Super Admin | Pantau semua syarikat, polisi, risiko, akses sensitif dan keputusan akhir |
 | Admin / Pentadbir HQ | Kawal user, role, legal entity, master data, audit dan dokumen kumpulan |
 | HR | Proses profil staf, cuti, dokumen, payroll support dan permohonan mengikut syarikat aktif |
-| OM | Semak isu operasi rentas kawasan, order, driver, exception dan jadi PIC bila AM cuti |
+| OM | Semak isu operasi rentas kawasan, order, driver, exception dan ambil cover operasi bila AM cuti |
 | AM | Urus staf cawangan dalam kawasan, jadual, kehadiran, cuti emergency dan POS ganti staf jika telah masuk syif |
 | Finance | Semak isu gaji, claim, elaun, potongan dan pembayaran mengikut syarikat legal |
 | Staff | Lengkap profil sendiri, hantar permohonan HR, semak cuti, jadual, kehadiran dan gaji sendiri |
@@ -47,9 +48,10 @@ Dokumen ini menetapkan cara HRMIS RKJ One mengurus pekerja, cuti, gaji, dokumen 
 3. Staf pilih urusan: cuti, kehadiran, gaji, dokumen, claim, transfer atau bantuan HR.
 4. Permohonan masuk ke kaunter HR mengikut legal entity staf.
 5. HR proses dalam tab syarikat aktif supaya data tidak bercampur.
-6. Jika isu operasi cawangan, HR boleh rujuk AM atau OM.
-7. Jika isu gaji atau claim, HR rujuk Finance.
-8. Jika isu policy, role sensitif atau risiko besar, escalate kepada Owner.
+6. HR/Admin sahaja boleh lulus, tolak atau lengkapkan permohonan rasmi.
+7. AM/OM hanya boleh menanda semakan operasi, bukan membuat kelulusan HR rasmi.
+8. Jika isu gaji atau claim, HR rujuk Finance.
+9. Jika isu policy, role sensitif atau risiko besar, escalate kepada Owner.
 
 ## Flow Cuti 3 Syarikat
 
@@ -57,9 +59,11 @@ Dokumen ini menetapkan cara HRMIS RKJ One mengurus pekerja, cuti, gaji, dokumen 
 2. Sistem tahan cuti sebagai `pending` semasa permohonan dihantar.
 3. HR semak baki cuti, cawangan, jadual dan kesan operasi.
 4. Untuk staf RKJ cawangan, AM perlu disemak jika cuti menyebabkan kekurangan staf.
-5. Untuk isu rentas kawasan atau AM cuti, OM menjadi PIC sementara.
-6. Jika lulus, baki cuti rasmi ditolak.
-7. Jika ditolak atau dibatalkan sebelum lulus, pending leave dilepaskan semula.
+5. Jika AM sendiri memohon cuti, sistem akan tandakan permohonan sebagai perlu **cover OM**.
+6. OM perlu ambil cover operasi kawasan AM melalui panel **HR & Gaji > Cover Cuti Area Manager**.
+7. HR/Admin tidak boleh approve cuti AM sehingga cover OM selesai.
+8. Jika lulus, baki cuti rasmi ditolak.
+9. Jika ditolak atau dibatalkan sebelum lulus, pending leave dilepaskan semula.
 
 ## Transfer Antara Syarikat
 
@@ -76,6 +80,7 @@ Transfer hanya boleh dibuat oleh HR, Admin atau role yang diberi kuasa.
 
 - Staf hanya boleh melihat profil, permohonan, cuti, jadual, kehadiran dan gaji sendiri.
 - HR/Admin memproses rekod ikut syarikat aktif dalam dashboard HR.
+- HR/Admin mesti memproses keputusan cuti AM hanya selepas OM cover selesai.
 - Super Admin/Admin boleh melihat semua syarikat untuk audit kumpulan.
 - Role syarikat RKJ_MFG tidak patut diberi akses operasi retail kecuali ada arahan rasmi.
 - Role syarikat RKJ_DIST tidak patut mengubah data RKJ/RKJ_MFG kecuali sebagai OM/Admin/HQ yang diberi kuasa.

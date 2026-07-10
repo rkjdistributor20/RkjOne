@@ -969,6 +969,10 @@ function CompanyServiceRequestContent({
  {serviceStatusLabel(request.status)}
  </span>
  {request.priority === 'HIGH' && <Badge variant="destructive">Segera</Badge>}
+ {request.am_leave_cover_required && (
+ <Badge variant={request.am_leave_covered_at ? 'secondary' : 'destructive'}>
+ {request.am_leave_covered_at ? 'Cover OM siap' : 'Perlu cover OM'}
+ </Badge>)}
  </div>
  <p className="mt-2 font-semibold text-foreground">{request.title}</p>
  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{request.description}</p>
@@ -1005,6 +1009,10 @@ function CompanyServiceRequestContent({
  <p>{request.branch_code ? `${request.branch_code} ${request.branch_name ?? ''}` : 'HQ / tanpa cawangan'}</p>
  {(request.start_date || request.end_date) && (
  <p>{request.start_date ?? '-'} {request.end_date ? `- ${request.end_date}` : ''}</p>)}
+ {request.am_leave_cover_required && (
+ <p className={request.am_leave_covered_at ? 'text-emerald-700' : 'text-red-700'}>
+ {request.am_leave_covered_at ? 'OM sudah ambil cover' : 'Tunggu OM cover sebelum lulus'}
+ </p>)}
  </div>
  <div className="flex flex-wrap justify-end gap-2">
  {request.status === 'SUBMITTED' && (
@@ -1830,10 +1838,15 @@ export function CompanyHrDashboard({ data: initialData }: { data: HrDashboardDat
  }
  }
 
- async function handleServiceRequestStatus(
+async function handleServiceRequestStatus(
  request: ServiceRequestRow,
  status: Exclude<HrServiceRequestStatus, 'SUBMITTED'>,
  ) {
+ if (status === 'APPROVED' && request.am_leave_cover_required && !request.am_leave_covered_at) {
+ toast.error('Cuti AM perlu di-cover oleh OM dahulu sebelum HR boleh luluskan.');
+ return;
+ }
+
  let reviewerNote: string | null = null;
  if (status === 'REJECTED') {
  reviewerNote = prompt(`Sebab tolak permohonan ${request.request_number}:`)?.trim() ?? null;

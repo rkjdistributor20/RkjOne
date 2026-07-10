@@ -1,6 +1,6 @@
 # RKJ One API Spec
 
-Last updated: 2026-07-08
+Last updated: 2026-07-10
 
 Base URL:
 
@@ -30,6 +30,8 @@ or module-specific payload:
 ## Booking API
 
 Status: implemented. API validation is hardened; DB/RLS hardening tasks remain tracked in `docs/TASK_BOARD.md`.
+
+UI access note: `/bookings` navigation/page is limited to `SUPER_ADMIN`, `ADMIN`, and `OPERATION_MANAGER` while the owner confirms the full booking SOP.
 
 ### GET `/api/bookings`
 
@@ -161,6 +163,50 @@ Known hardening needed:
 
 - Add automated API/RLS tests for cross-organization branch and assignee cases.
 
+## HR Operations API
+
+### GET `/api/hr/operations/am-leave-coverage`
+
+Returns active AM leave requests that require OM operational cover before HR approval.
+
+Allowed roles: `SUPER_ADMIN`, `ADMIN`, `HR`, `OPERATION_MANAGER`.
+
+Response:
+
+```json
+{
+  "requests": [
+    {
+      "id": "uuid",
+      "request_number": "HR-20260710-ABC123",
+      "requester_name": "Area Manager",
+      "start_date": "2026-07-10",
+      "end_date": "2026-07-11",
+      "coverage_status": "PENDING_OM_REVIEW",
+      "covered_by_name": null,
+      "covered_at": null
+    }
+  ]
+}
+```
+
+### PATCH `/api/hr/operations/am-leave-coverage`
+
+Marks OM/Admin operational cover for one AM leave request. It updates `hr_service_requests.metadata.am_leave_cover` and keeps the HR request in `IN_REVIEW`.
+
+Allowed roles: `SUPER_ADMIN`, `ADMIN`, `OPERATION_MANAGER`.
+
+Body:
+
+```json
+{
+  "request_id": "uuid",
+  "reviewer_note": "OM cover kawasan sementara AM bercuti."
+}
+```
+
+HR/Admin approval remains on `/api/hr/self-service/requests/[id]`; approving AM leave returns `400` until `covered_by` and `covered_at` are recorded.
+
 ## Sales Agent Payment API
 
 Status: M5 implemented for Sales Agent payments. Supports simulate, Billplz, iPay88 and optional Stripe Checkout.
@@ -244,7 +290,7 @@ Generic gateway callbacks must provide `x-payment-signature` as HMAC-SHA256 of t
 | Warehouse | `/api/warehouse` | Audits, summary, approvals. |
 | Finance | `/api/finance` | Collections, bank-in, reconciliation, QR manual, daily report. |
 | Payroll | `/api/payroll` | Rules, runs, approval, staff, payslip distribution, AI proposal. |
-| HR | `/api/hr` | Companies, profiles, leave balances, self-service requests. |
+| HR | `/api/hr` | Companies, profiles, leave balances, self-service requests, OM cover for AM leave. |
 | Roster/Shifts | `/api/roster`, `/api/shifts` | Plans, reminders, attendance, clock in/out. |
 | Maintenance | `/api/maintenance` | Maintenance reports and detail updates. |
 | Sales Agent | `/api/sales-agent` | Account, catalog, orders, payments, admin, receipts, subscriptions. |

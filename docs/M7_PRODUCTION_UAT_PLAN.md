@@ -1,6 +1,6 @@
 # M7 Production UAT & Stabilization Plan
 
-Last updated: 2026-07-08
+Last updated: 2026-07-10
 
 Purpose: stabilize RKJ One after M6 production deployment before adding large new features.
 
@@ -26,7 +26,7 @@ Test each role with a real account. Do not share passwords in docs, chat, screen
 | Owner / Super Admin | Dashboard, admin, settings, users, reports | Can view company-wide data and manage users without cross-org leakage. |
 | Admin | Admin dashboard, bookings, operations | Can manage operational records but cannot access server secrets or restricted finance-only actions. |
 | HR | HRMIS, staff records, leave, service requests, payroll support | Can process HR by legal employer without mixing RKJ, RKJ_DIST, and RKJ_MFG records. |
-| Operation Manager | Operations, route planning, exception handling | Can coordinate order/driver route by production day and act as temporary PIC when an AM is on leave. |
+| Operation Manager | Operations, route planning, exception handling, AM leave cover | Can coordinate order/driver route by production day and mark temporary PIC cover before HR approves AM leave. |
 | Finance | Finance, payments, refunds, reports | Can review payments and record refunds where allowed. |
 | Staff | Dashboard, profile, assigned work | Sees only own/allowed branch data. |
 | Area Manager | Branch/kawasan views, inventory, operations | Sees only assigned region/branch scope. |
@@ -37,8 +37,8 @@ Test each role with a real account. Do not share passwords in docs, chat, screen
 | ID | Flow | Owner | Status | Expected Result |
 |----|------|-------|--------|-----------------|
 | UAT-001 | Login/logout for every role | QA/Owner | Pending | Correct landing page and no auth loop. |
-| UAT-002 | Role navigation visibility | QA | Pending | User sees only allowed menus/actions. |
-| UAT-003 | Booking create/list/detail/edit/cancel | Operations | Pending | Booking lifecycle works and errors are clear. |
+| UAT-002 | Role navigation visibility | QA | Code Ready / Pending real-account UAT | User sees only allowed menus/actions; booking page is visible only to Admin/OM while SOP is pending. |
+| UAT-003 | Booking create/list/detail/edit/cancel | Operations | Pending SOP confirmation | Booking API exists, but UI access is held to Admin/OM until booking workflow owner confirms lifecycle. |
 | UAT-004 | Cross-branch data access attempt | Security/QA | Pending | Unauthorized branch data is blocked. |
 | UAT-005 | Admin user management | Admin | Pending | Create/update/deactivate user flow works. |
 | UAT-006 | Sales agent stock order | Sales Agent Lead | Pending | Order totals, status, and factory visibility are correct. |
@@ -52,8 +52,8 @@ Test each role with a real account. Do not share passwords in docs, chat, screen
 | UAT-014 | Mobile/basic responsive check | QA | Pending | Core screens usable on phone width. |
 | UAT-015 | Error/log review after UAT | DevOps | Pending | No new critical runtime errors. |
 | UAT-016 | HRMIS 3-company legal employer flow | HR/Admin HQ | Pending | RKJ, RKJ_DIST and RKJ_MFG staff, leave and requests stay separated by legal entity. |
-| UAT-017 | AM emergency POS replacement | Area Manager/QA | Pending | AM can use POS only after approved branch shift schedule exists. |
-| UAT-018 | OM fallback when AM is on leave | Operations/Owner | Pending | OM owns temporary PIC workflow without bypassing sensitive admin permissions. |
+| UAT-017 | AM emergency POS replacement | Area Manager/QA | Code Ready / Pending real-account UAT | AM can add only sales/POS staff and must use POS only after branch shift schedule exists. |
+| UAT-018 | OM fallback when AM is on leave | Operations/Owner | Code Ready / Pending real-account UAT | AM leave creates an OM-cover requirement; OM marks cover; HR/Admin approves only after cover is complete. |
 
 Detailed HRMIS checklist: [`UAT_HRMIS_3_COMPANY.md`](./UAT_HRMIS_3_COMPANY.md).
 

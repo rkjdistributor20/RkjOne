@@ -234,6 +234,18 @@ export async function POST(request: Request) {
  source: 'employee_hrmis',
  submitted_role: profile.role,
  submitted_email: profile.email,
+ ...(payload.request_type === 'LEAVE' && profile.role === 'AREA_MANAGER'
+ ? {
+ am_leave_cover: {
+ required: true,
+ status: 'PENDING_OM_REVIEW',
+ requested_at: new Date().toISOString(),
+ requester_profile_id: profile.id,
+ requester_region_id: profile.region_id ?? null,
+ note: 'AM bercuti: OM perlu semak dan ambil cover operasi kawasan sebelum HR luluskan cuti.',
+ },
+ }
+ : {}),
  ...(payload.request_type === 'LEAVE'
  ? {
  leave_type: payload.leave_type ?? 'ANNUAL',

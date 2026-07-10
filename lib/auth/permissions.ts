@@ -67,6 +67,10 @@ export function canAccessHr(role: UserRole): boolean {
  ].includes(role);
 }
 
+export function canAccessBookings(role: UserRole): boolean {
+ return ['SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER'].includes(role);
+}
+
 export function buildPermissionMap(
  rows: Array<{ module: string; permission: PermissionLevel }>): Map<string, PermissionLevel> {
  return new Map(rows.map((r) => [r.module, r.permission]));
@@ -116,6 +120,9 @@ export function getVisibleNavItems(
  }
  if (item.href === '/hr') {
  return canAccessHr(role);
+ }
+ if (item.href === '/bookings') {
+ return canAccessBookings(role);
  }
  if (item.href === '/finance' && role === 'AREA_MANAGER') {
  return true;

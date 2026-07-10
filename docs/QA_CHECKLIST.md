@@ -1,6 +1,6 @@
 # RKJ One QA Checklist
 
-Last updated: 2026-07-08
+Last updated: 2026-07-10
 
 Use this checklist for QA AI, Code Reviewer AI, and human review before merge/deploy.
 
@@ -59,6 +59,9 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [ ] Staff can cancel only submitted/in-review requests.
 - [ ] AM emergency POS requires an approved shift schedule first.
 - [ ] OM fallback for AM leave is documented and does not grant sensitive admin permissions.
+- [ ] AM leave approval is blocked until OM cover is recorded.
+- [ ] OM can mark AM leave coverage but cannot approve/reject HR requests.
+- [ ] HR/Admin can approve/reject HR requests only within their legal entity scope unless group-wide.
 - [ ] Payroll, leave and documents do not mix records across legal entities.
 
 ## Deployment Review
@@ -87,6 +90,7 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 Current review findings to fix before UI/external integration:
 
 - [ ] RLS update policy must not allow all branch-access users to update bookings.
+- [x] Booking navigation/page access is limited to Admin/OM while SOP is pending.
 - [x] API rejects cross-organization `branch_id` before write.
 - [x] API validates `assigned_to` against same organization and active profile.
 - [x] Invalid `status`, `priority`, date, time, metadata and pax return explicit `400`.

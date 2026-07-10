@@ -36,6 +36,7 @@ Status key: `Todo`, `In Progress`, `Review`, `Blocked`, `Done`.
 | BK-005 | Done | Backend AI | Validate `assigned_to` profile. | Assigned user must belong to same organization and allowed role/scope. |
 | BK-006 | Done | Backend AI | Return explicit validation errors for invalid enum/date/time. | Invalid `status`, `priority`, date, time, metadata and pax now return `400`; duplicate custom `booking_number` returns `409`. |
 | BK-007 | Done | Backend AI | Decide booking status lifecycle rules. | Create starts as `PENDING`; status changes are manager-only with `PENDING -> CONFIRMED/CANCELLED` and `CONFIRMED -> COMPLETED/CANCELLED/NO_SHOW`. |
+| BK-008 | Done | PM/Frontend AI | Hold booking page to management roles until SOP is confirmed. | `/bookings` navigation/page is limited to Admin/OM while API remains documented for controlled operations use. |
 | BK-008 | Done | Backend/Platform AI | Decide API auth behavior for external clients. | `/api/*` either returns JSON 401 for API clients or documents redirect-only browser behavior. |
 
 ## Milestone 3 - Booking Workflow UI
@@ -109,12 +110,12 @@ Status key: `Todo`, `In Progress`, `Review`, `Blocked`, `Done`.
 | M7.4 | Done | QA AI | Production smoke command. | `npm run smoke:production` checks public login, protected payment routes, webhook signature rejection, and API health. |
 | M7.5 | Done | Documentation AI | Release note baseline. | `docs/RELEASE_NOTES_M6.md` records production deployment, verification, and known follow-up. |
 | M7.6 | Review | Finance/DevOps | Live provider payment UAT. | Pending selected provider sandbox/live callback with valid signature and finance confirmation. |
-| M7.7 | Review | Owner/QA | Real user role UAT. | Pending real account testing for Owner/Admin/Finance/Staff/Area Manager/Sales Agent. |
-| M7.8 | Review | HR/QA AI | HRMIS 3-company UAT. | `docs/UAT_HRMIS_3_COMPANY.md` covers legal employer separation, staff self-service, leave, AM emergency POS, OM fallback and negative access tests. |
+| M7.7 | Review | Owner/QA | Real user role UAT. | Pending real account testing for Owner/Admin/Finance/Staff/Area Manager/Operation Manager/Sales Agent. |
+| M7.8 | Review | HR/QA AI | HRMIS 3-company UAT. | Code now blocks AM leave approval until OM cover is recorded; `docs/UAT_HRMIS_3_COMPANY.md` covers legal employer separation, staff self-service, leave, AM emergency POS, OM fallback and negative access tests. |
 
 ## Backlog
 
-- Add UI for booking management only after backend hardening is complete.
+- Confirm owner SOP for booking users/lifecycle before reopening booking UI beyond Admin/OM.
 - Add API tests for branch-scope and RLS edge cases.
 - Regenerate Supabase TypeScript types after new tables are stable.
 - Add audit log events for booking create/update/status changes.

@@ -5,6 +5,7 @@ import { getCompanyHrDashboard } from '@/lib/hr/company-hr';
 import { getEmployeeHrSelfServiceDashboard } from '@/lib/hr/employee-self-service';
 import { CompanyHrDashboard } from '@/components/hr/company-hr-dashboard';
 import { EmployeeHrmisDashboard } from '@/components/hr/employee-hrmis-dashboard';
+import { OmAmLeaveCoveragePanel } from '@/components/hr/om-am-leave-coverage-panel';
 
 const HR_ROLES = ['SUPER_ADMIN', 'ADMIN', 'HR'] as const;
 
@@ -15,6 +16,15 @@ export default async function HrPage() {
  const service = await createServiceClient();
  if (!HR_ROLES.includes(profile.role as (typeof HR_ROLES)[number])) {
  const data = await getEmployeeHrSelfServiceDashboard(service, profile);
+ if (profile.role === 'OPERATION_MANAGER') {
+ return (
+ <>
+ <EmployeeHrmisDashboard data={data} />
+ <div className="rkj-dashboard-shell pt-0">
+ <OmAmLeaveCoveragePanel />
+ </div>
+ </>);
+ }
  return <EmployeeHrmisDashboard data={data} />;
  }
 
