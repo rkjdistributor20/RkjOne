@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 import {
  ArrowRight,
  ChevronRight,
@@ -21,6 +22,7 @@ import { labelFor, FLEET_VEHICLE_STATUS_LABELS } from '@/lib/ui/labels';
 import { LegalEntityLogo } from '@/components/brand/legal-entity-logo';
 import { buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import {
  ModuleLayout,
@@ -50,6 +52,11 @@ import {
 
 type OwnerGroupDashboardProps = {
  profileName: string;
+ stats: DashboardStats | null;
+ operations?: ReactNode;
+};
+
+type OwnerGroupOperationsProps = {
  stats: DashboardStats | null;
  posOverview: PosOverview;
  fleetOverview: FleetOverview;
@@ -164,24 +171,44 @@ function CompanyBlockCard({ company }: { company: OwnerCompanyBlock }) {
  </article>);
 }
 
+export function OwnerGroupOperationsFallback() {
+ return (
+ <div className="space-y-4">
+ <Skeleton className="h-36 rounded-2xl" />
+ <div className="grid gap-4 lg:grid-cols-2">
+ <SectionCard
+ title="Memuatkan POS"
+ description="Syif dan transaksi sedang disediakan tanpa menghalang dashboard utama."
+ >
+ <div className="space-y-3">
+ <Skeleton className="h-8 w-44" />
+ <Skeleton className="h-28 w-full" />
+ </div>
+ </SectionCard>
+ <SectionCard
+ title="Memuatkan Logistik & HR"
+ description="Status penghantaran dan ringkasan staf legal sedang disemak."
+ >
+ <div className="flex flex-wrap gap-2">
+ {Array.from({ length: 8 }).map((_, index) => (
+ <Skeleton key={index} className="h-8 w-28 rounded-full" />))}
+ </div>
+ </SectionCard>
+ </div>
+ </div>);
+}
+
 export function OwnerGroupDashboard({
  profileName,
  stats,
- posOverview,
- fleetOverview,
- hrData,
+ operations,
 }: OwnerGroupDashboardProps) {
  const statsUnavailable = stats === null;
  const workflow = getRoleWorkflow({ role: 'SUPER_ADMIN' });
 
  return (
  <ModuleLayout>
- <OwnerExecutiveHero
- profileName={profileName}
- stats={stats}
- posOverview={posOverview}
- fleetOverview={fleetOverview}
- />
+ <OwnerExecutiveHero profileName={profileName} stats={stats} />
 
  <SupplyChainStrip />
 
@@ -193,23 +220,6 @@ export function OwnerGroupDashboard({
  />
 
  <OwnerDelegationPanel />
-
- <ManagementGovernancePanel
- role="SUPER_ADMIN"
- stats={stats}
- branchCount={COMPANY.branchCount}
- openShifts={posOverview.open_shifts}
- pendingDeliveries={fleetOverview.pending_deliveries}
- inTransitDeliveries={fleetOverview.in_transit}
- />
-
- <ProjectMemoryPanel />
-
- <AiLeadershipPanel />
-
- <RkjOperatingMap />
-
- <WorkflowSopPanel workflow={workflow} />
 
  {statsUnavailable && (
  <DashboardAlert>
@@ -225,16 +235,16 @@ export function OwnerGroupDashboard({
  icon={TrendingUp}
  />
  <KpiCard
- title="Syif POS Buka"
- value={String(posOverview.open_shifts)}
- description={`${posOverview.transactions_today} transaksi hari ini`}
- icon={Package}
+ title="Jualan Minggu Ini"
+ value={statsUnavailable ? '-' : formatRM(stats!.sales_this_week ?? 0)}
+ description="Ringkasan kumpulan"
+ icon={TrendingUp}
  />
  <KpiCard
- title="Penghantaran Aktif"
- value={String(fleetOverview.in_transit + fleetOverview.pending_deliveries)}
- description={`${fleetOverview.pending_deliveries} menunggu - ${fleetOverview.in_transit} dalam perjalanan`}
- icon={Truck}
+ title="Jualan Bulan Ini"
+ value={statsUnavailable ? '-' : formatRM(stats!.sales_this_month ?? 0)}
+ description="Prestasi bulanan"
+ icon={TrendingUp}
  />
  <KpiCard
  title="Kelulusan Tertunda"
@@ -287,6 +297,63 @@ export function OwnerGroupDashboard({
  </div>
  </section>
 
+ {operations ?? <OwnerGroupOperationsFallback />}
+ </ModuleLayout>);
+}
+
+export function OwnerGroupOperations({
+ stats,
+ posOverview,
+ fleetOverview,
+ hrData,
+}: OwnerGroupOperationsProps) {
+ const workflow = getRoleWorkflow({ role: 'SUPER_ADMIN' });
+
+ return (
+ <>
+ <ManagementGovernancePanel
+ role="SUPER_ADMIN"
+ stats={stats}
+ branchCount={COMPANY.branchCount}
+ openShifts={posOverview.open_shifts}
+ pendingDeliveries={fleetOverview.pending_deliveries}
+ inTransitDeliveries={fleetOverview.in_transit}
+ />
+
+ <KpiGrid cols={4}>
+ <KpiCard
+ title="Syif POS Buka"
+ value={String(posOverview.open_shifts)}
+ description={`${posOverview.transactions_today} transaksi hari ini`}
+ icon={Package}
+ />
+ <KpiCard
+ title="Transaksi POS"
+ value={String(posOverview.transactions_today)}
+ description="Dikemas kini dari POS cawangan"
+ icon={TrendingUp}
+ />
+ <KpiCard
+ title="Penghantaran Aktif"
+ value={String(fleetOverview.in_transit + fleetOverview.pending_deliveries)}
+ description={`${fleetOverview.pending_deliveries} menunggu - ${fleetOverview.in_transit} dalam perjalanan`}
+ icon={Truck}
+ />
+ <KpiCard
+ title="Kenderaan Aktif"
+ value={String(fleetOverview.vehicles.length)}
+ description="RKJ Distributor"
+ icon={Truck}
+ />
+ </KpiGrid>
+
+ <ProjectMemoryPanel />
+
+ <AiLeadershipPanel />
+
+ <RkjOperatingMap />
+
+ <WorkflowSopPanel workflow={workflow} />
 
  {hrData && (
  <SectionCard
@@ -384,6 +451,6 @@ export function OwnerGroupDashboard({
  </div>)}
  </SectionCard>
  </div>
- </ModuleLayout>);
+ </>);
 }
 

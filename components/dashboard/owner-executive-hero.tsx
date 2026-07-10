@@ -52,8 +52,8 @@ function OwnerHeroMetric({
 type OwnerExecutiveHeroProps = {
  profileName: string;
  stats: DashboardStats | null;
- posOverview: PosOverview;
- fleetOverview: FleetOverview;
+ posOverview?: PosOverview | null;
+ fleetOverview?: FleetOverview | null;
 };
 
 export function OwnerExecutiveHero({
@@ -67,7 +67,9 @@ export function OwnerExecutiveHero({
  const firstName = profileName.split(' ')[0] ?? 'Owner';
  const pendingApprovals = statsUnavailable ? 0 : stats!.pending_approvals ?? 0;
  const dateLocale = locale === 'en' ? 'en-MY' : 'ms-MY';
- const activeDeliveryCount = fleetOverview.in_transit + fleetOverview.pending_deliveries;
+ const activeDeliveryCount = fleetOverview
+ ? fleetOverview.in_transit + fleetOverview.pending_deliveries
+ : null;
 
  return (
  <DashboardHero
@@ -111,15 +113,31 @@ export function OwnerExecutiveHero({
  />
  <OwnerHeroMetric
  label={t('owner.hero.posRunning')}
- value={`${posOverview.open_shifts} ${t('owner.hero.shifts')}`}
- note={`${posOverview.transactions_today} ${t('owner.hero.posTransactionsToday')}`}
+ value={
+ posOverview
+ ? `${posOverview.open_shifts} ${t('owner.hero.shifts')}`
+ : '-'
+ }
+ note={
+ posOverview
+ ? `${posOverview.transactions_today} ${t('owner.hero.posTransactionsToday')}`
+ : t('common.loading')
+ }
  icon={Package}
  tone="green"
  />
  <OwnerHeroMetric
  label={t('owner.hero.logistics')}
- value={`${activeDeliveryCount} ${t('owner.hero.deliveryActive')}`}
- note={`${fleetOverview.pending_deliveries} ${t('owner.hero.waiting')}, ${fleetOverview.in_transit} ${t('owner.hero.inTransit')}.`}
+ value={
+ activeDeliveryCount !== null
+ ? `${activeDeliveryCount} ${t('owner.hero.deliveryActive')}`
+ : '-'
+ }
+ note={
+ fleetOverview
+ ? `${fleetOverview.pending_deliveries} ${t('owner.hero.waiting')}, ${fleetOverview.in_transit} ${t('owner.hero.inTransit')}.`
+ : t('common.loading')
+ }
  icon={Truck}
  tone="blue"
  />

@@ -11,8 +11,19 @@ const checks = [
   'Suspense',
   'DashboardOpsPanels',
   'DashboardOpsFallback',
+  'OwnerOperationsPanels',
+  'OwnerGroupOperationsFallback',
   'includeStockCounts: false',
   'hydrateDashboardStatsStockCounts(statsBase, kioskOverview)',
+ ],
+ },
+ {
+ file: 'components/dashboard/owner-group-dashboard.tsx',
+ patterns: [
+  'operations?: ReactNode',
+  'OwnerGroupOperationsFallback',
+  'OwnerGroupOperations',
+  '<OwnerExecutiveHero profileName={profileName} stats={stats} />',
  ],
  },
  {

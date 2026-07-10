@@ -139,6 +139,12 @@ Status key: `Todo`, `In Progress`, `Review`, `Blocked`, `Done`.
 | PERF-014 | Done | QA AI | Guard deep speed path. | `npm run verify:performance` cover Web Vitals, monitoring API, RLS migration, Suspense panel dan cache branch/vehicle. |
 | PERF-015 | Done | Backend/Performance AI | Hadkan dan cache API master data. | POS products dan inventory stock-items ada limit 300 serta `private` cache 30s; staff grouped query dilimit 1200 rows. |
 
+## Milestone 10 - Owner Dashboard Max Speed
+
+| ID | Status | Owner | Task | Acceptance |
+|----|--------|-------|------|------------|
+| PERF-016 | Done | Frontend/Performance AI | Stream panel berat untuk dashboard Owner. | Dashboard Owner render hero, KPI jualan, struktur syarikat dan delegation shell dahulu; governance, POS, fleet dan HR load kemudian melalui `Suspense` tanpa block paparan utama. |
+
 ## Backlog
 
 - Confirm owner SOP for booking users/lifecycle before reopening booking UI beyond Admin/OM.

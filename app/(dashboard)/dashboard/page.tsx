@@ -40,7 +40,11 @@ import {
 } from '@/lib/fleet/logistics-label';
 import { PosOverviewPanel } from '@/components/dashboard/pos-overview-panel';
 import { AreaManagerDashboard } from '@/components/dashboard/area-manager-dashboard';
-import { OwnerGroupDashboard } from '@/components/dashboard/owner-group-dashboard';
+import {
+ OwnerGroupDashboard,
+ OwnerGroupOperations,
+ OwnerGroupOperationsFallback,
+} from '@/components/dashboard/owner-group-dashboard';
 import { isOwnerDashboardRole } from '@/lib/dashboard/owner-company-structure';
 import { getCompanyHrDashboard } from '@/lib/hr/company-hr';
 import {
@@ -178,6 +182,33 @@ async function DashboardOpsPanels({
  <FleetOverviewSection fleetOverview={fleetOverview} />
  </div>
  </>);
+}
+
+async function OwnerOperationsPanels({
+ orgId,
+ branchIds,
+ stats,
+}: {
+ orgId: string;
+ branchIds: string[] | null;
+ stats: Awaited<ReturnType<typeof getDashboardStats>>;
+}) {
+ const posOverviewPromise = getPosOverview(orgId, branchIds);
+ const fleetOverviewPromise = getFleetOverview(orgId);
+ const service = await createServiceClient();
+ const [posOverview, fleetOverview, hrData] = await Promise.all([
+ posOverviewPromise,
+ fleetOverviewPromise,
+ getCompanyHrDashboard(service, orgId),
+ ]);
+
+ return (
+ <OwnerGroupOperations
+ stats={stats}
+ posOverview={posOverview}
+ fleetOverview={fleetOverview}
+ hrData={hrData}
+ />);
 }
 
 export default async function DashboardPage() {
@@ -325,20 +356,19 @@ export default async function DashboardPage() {
  const stats = await getDashboardStats(profile.organization_id, scope.branchIds);
 
  if (isOwnerDashboardRole(profile.role)) {
- const service = await createServiceClient();
- const [posOverview, fleetOverview, hrData] = await Promise.all([
- getPosOverview(profile.organization_id, scope.branchIds),
- getFleetOverview(profile.organization_id),
- getCompanyHrDashboard(service, profile.organization_id),
- ]);
-
  return (
  <OwnerGroupDashboard
  profileName={profile.full_name ?? 'Owner'}
  stats={stats}
- posOverview={posOverview}
- fleetOverview={fleetOverview}
- hrData={hrData}
+ operations={
+ <Suspense fallback={<OwnerGroupOperationsFallback />}>
+ <OwnerOperationsPanels
+ orgId={profile.organization_id}
+ branchIds={scope.branchIds}
+ stats={stats}
+ />
+ </Suspense>
+ }
  />);
  }
 
