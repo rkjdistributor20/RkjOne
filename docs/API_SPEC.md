@@ -29,7 +29,7 @@ or module-specific payload:
 
 ## Booking API
 
-Status: implemented. API validation is hardened; DB/RLS hardening tasks remain tracked in `docs/TASK_BOARD.md`.
+Status: implemented. API validation and DB/RLS hardening are applied; authenticated real-account role UAT remains tracked in `docs/TASK_BOARD.md`.
 
 UI access note: `/bookings` navigation/page is limited to `SUPER_ADMIN`, `ADMIN`, and `OPERATION_MANAGER` while the owner confirms the full booking SOP.
 
@@ -210,6 +210,8 @@ HR/Admin approval remains on `/api/hr/self-service/requests/[id]`; approving AM 
 ## Sales Agent Payment API
 
 Status: M5 implemented for Sales Agent payments. Supports simulate, Billplz, iPay88 and optional Stripe Checkout.
+
+Access note: Sales Agent portal routes check `canAccessSalesAgent()` before service-role reads/writes. Admin-only price group mutations remain limited to `SUPER_ADMIN`, `ADMIN`, and `OPERATION_MANAGER`; refund remains limited to `SUPER_ADMIN`, `ADMIN`, and `FINANCE`.
 
 ### POST `/api/sales-agent/payments`
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getCurrentProfile } from '@/lib/auth/session';
+import { canAccessSalesAgent } from '@/lib/auth/permissions';
 import { createServiceClient } from '@/lib/supabase/server';
 import { getAgentAccountForProfile } from '@/lib/sales-agent/service';
 import { getAgentReceiptForPayment } from '@/lib/sales-agent/receipt';
@@ -10,6 +11,9 @@ export async function GET(
  context: { params: Promise<{ paymentId: string }> }) {
  const profile = await getCurrentProfile();
  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+ if (!canAccessSalesAgent(profile.role)) {
+ return NextResponse.json({ error: 'Akses ditolak' }, { status: 403 });
+ }
 
  const { paymentId } = await context.params;
  const service = await createServiceClient();

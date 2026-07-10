@@ -42,9 +42,30 @@ async function expectStatus(name, path, expectedStatus, options = {}) {
  }
 }
 
+async function expectRedirect(name, path, expectedLocation) {
+ try {
+ const response = await request(path);
+ const location = response.headers.get('location') ?? '';
+ const redirected = response.status >= 300 && response.status < 400;
+ record(name, redirected && location.includes(expectedLocation), `HTTP ${response.status} -> ${location}`);
+ } catch (error) {
+ record(name, false, error instanceof Error ? error.message : String(error));
+ }
+}
+
 console.log(`\nRKJ One production smoke: ${PRODUCTION_URL}\n`);
 
 await expectStatus('login page', '/login', 200);
+
+await expectRedirect('bookings page redirects anonymous user', '/bookings', '/login?redirect=%2Fbookings');
+
+await expectStatus('booking API rejects anonymous user', '/api/bookings', 401);
+
+await expectStatus('AM leave coverage API rejects anonymous user', '/api/hr/operations/am-leave-coverage', 401);
+
+await expectStatus('sales agent catalog rejects anonymous user', '/api/sales-agent/catalog', 401);
+
+await expectStatus('sales agent price groups reject anonymous user', '/api/sales-agent/price-groups', 401);
 
 await expectStatus('payment create rejects anonymous user', '/api/sales-agent/payments', 401, {
  method: 'POST',

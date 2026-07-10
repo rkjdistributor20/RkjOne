@@ -53,6 +53,41 @@ const checks = [
   'Mohon cuti dengan cover OM',
  ],
  },
+ {
+ file: 'app/api/sales-agent/catalog/route.ts',
+ patterns: [
+  'canAccessSalesAgent(profile.role)',
+  'Akses ditolak',
+ ],
+ },
+ {
+ file: 'app/api/sales-agent/price-groups/route.ts',
+ patterns: [
+  'canAccessSalesAgent(profile.role)',
+  'Akses ditolak',
+ ],
+ },
+ {
+ file: 'app/api/sales-agent/orders/route.ts',
+ patterns: [
+  'canAccessSalesAgent(profile.role)',
+  'Akses ditolak',
+ ],
+ },
+ {
+ file: 'app/api/sales-agent/payments/route.ts',
+ patterns: [
+  'canAccessSalesAgent(profile.role)',
+  'Akses ditolak',
+ ],
+ },
+ {
+ file: 'app/api/sales-agent/payments/[paymentId]/status/route.ts',
+ patterns: [
+  'canAccessSalesAgent(profile.role)',
+  'Akses ditolak',
+ ],
+ },
 ];
 
 let failed = 0;

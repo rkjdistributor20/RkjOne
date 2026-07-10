@@ -12,7 +12,7 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [ ] TypeScript passes.
 - [ ] ESLint passes for changed files.
 - [ ] `npm run build` passes for production-impacting changes.
-- [ ] `npm run verify:workflow` passes after HR/OM/booking workflow changes.
+- [ ] `npm run verify:workflow` passes after HR/OM/booking/Sales Agent workflow changes.
 - [ ] Existing module patterns are followed.
 - [ ] Errors are returned with appropriate status codes.
 - [ ] Empty/loading/error states are handled if UI changed.
@@ -83,14 +83,14 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [x] Supabase migrations `harden_auth_role_and_booking_scope`, `m5_payment_lifecycle`, and `production_rls_advisor_fixes` applied and verified.
 - [x] Supabase advisor error-level check returns no issues after RLS/view/function fixes.
 - [x] Vercel production deployment `dpl_55k1i1FNbsmaMnEHwfHkpj41yKQJ` is Ready.
-- [x] Production smoke tests passed for `/login`, unauthenticated payment API access, and bad-signature webhook rejection.
+- [x] Production smoke tests passed 12/12 for `/login`, booking redirect/API auth, HR OM coverage auth, Sales Agent catalog/price-group auth, payment API auth, bad-signature webhook rejection, and `/api/health`.
 - [ ] Run signed live-provider callback UAT with the selected payment provider before opening live customer payment volume.
 
 ## Booking API QA Notes
 
 Current review findings to fix before UI/external integration:
 
-- [ ] RLS update policy must not allow all branch-access users to update bookings.
+- [x] RLS update policy must not allow all branch-access users to update bookings.
 - [x] Booking navigation/page access is limited to Admin/OM while SOP is pending.
 - [x] API rejects cross-organization `branch_id` before write.
 - [x] API validates `assigned_to` against same organization and active profile.
@@ -98,3 +98,9 @@ Current review findings to fix before UI/external integration:
 - [x] Creating `COMPLETED`, `CANCELLED`, `CONFIRMED`, or `NO_SHOW` bookings returns `400`; create starts as `PENDING`.
 - [x] Duplicate custom `booking_number` returns `409 Conflict`.
 - [x] Anonymous `/api/bookings` returns JSON `401`.
+
+## Sales Agent API QA Notes
+
+- [x] Service-role portal routes check `canAccessSalesAgent()` before reading/writing Sales Agent data.
+- [x] Anonymous Sales Agent catalog and price-group routes return JSON `401`.
+- [ ] Real-account role UAT confirms Staff/AM/HR cannot access Sales Agent portal APIs and Sales Agent/Admin roles can still complete expected flows.

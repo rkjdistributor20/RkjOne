@@ -14,7 +14,7 @@ Production URL: https://rkj.one
 | Supabase migrations verified | Done | `20260708115418_harden_auth_role_and_booking_scope`, `20260708115441_m5_payment_lifecycle`, `20260708150423_production_rls_advisor_fixes` |
 | Supabase advisor error-level | Done | `npx supabase db advisors --linked --level error` returns no issues |
 | Local lint/build/audit | Done | See `docs/M6_QA_RELEASE_REPORT.md` |
-| Anonymous auth-boundary smoke | Done | Login 200, protected payment APIs 401 |
+| Anonymous auth-boundary smoke | Done | Login 200, booking/HR/Sales Agent/payment APIs 401, `/bookings` redirects to login |
 | Live provider payment callback | Pending | Needs selected provider sandbox/live test payload and merchant credentials |
 
 ## UAT Roles
@@ -61,7 +61,7 @@ Detailed HRMIS checklist: [`UAT_HRMIS_3_COMPANY.md`](./UAT_HRMIS_3_COMPANY.md).
 
 Run during the first 7 production days:
 
-1. Run `npm run smoke:production`.
+1. Run `npm run smoke:production` to verify login, booking redirect/API auth, HR OM coverage auth, Sales Agent auth boundary, payment auth, webhook signature rejection, and API health.
 2. Check Vercel runtime errors for the last 24 hours.
 3. Check Supabase migration history and API health.
 4. Review failed/cancelled/refunded payments.

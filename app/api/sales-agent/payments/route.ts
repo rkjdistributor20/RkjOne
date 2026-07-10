@@ -1,6 +1,7 @@
 ﻿import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getCurrentProfile } from '@/lib/auth/session';
+import { canAccessSalesAgent } from '@/lib/auth/permissions';
 import { createServiceClient } from '@/lib/supabase/server';
 import { AGENT_POS_SUBSCRIPTION_RM, getAgentAccountForProfile, isAgentPaymentExempt } from '@/lib/sales-agent/service';
 import { initiateAgentPayment, rejectAgentPayment } from '@/lib/sales-agent/payment-gateway';
@@ -20,6 +21,9 @@ type PaymentRow = {
 export async function POST(request: Request) {
  const profile = await getCurrentProfile();
  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+ if (!canAccessSalesAgent(profile.role)) {
+ return NextResponse.json({ error: 'Akses ditolak' }, { status: 403 });
+ }
 
  const body = await request.json().catch(() => ({}));
  const purpose = body.purpose as 'STOCK_ORDER' | 'POS_SUBSCRIPTION';

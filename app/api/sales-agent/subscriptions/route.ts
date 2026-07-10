@@ -1,6 +1,7 @@
 ﻿import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getCurrentProfile } from '@/lib/auth/session';
+import { canAccessSalesAgent } from '@/lib/auth/permissions';
 import { createServiceClient } from '@/lib/supabase/server';
 import { AGENT_POS_SUBSCRIPTION_RM, getAgentAccountForProfile, isAgentPaymentExempt } from '@/lib/sales-agent/service';
 import { expireAgentSubscriptions } from '@/lib/sales-agent/payment-gateway';
@@ -8,6 +9,9 @@ import { expireAgentSubscriptions } from '@/lib/sales-agent/payment-gateway';
 export async function POST(request: Request) {
  const profile = await getCurrentProfile();
  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+ if (!canAccessSalesAgent(profile.role)) {
+ return NextResponse.json({ error: 'Akses ditolak' }, { status: 403 });
+ }
 
  const body = await request.json().catch(() => ({}));
  const outletId = body.outlet_id as string | undefined;

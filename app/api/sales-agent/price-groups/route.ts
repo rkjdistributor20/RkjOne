@@ -1,6 +1,7 @@
 ﻿import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getCurrentProfile } from '@/lib/auth/session';
+import { canAccessSalesAgent } from '@/lib/auth/permissions';
 import { createServiceClient } from '@/lib/supabase/server';
 import { SALES_AGENT_EMPLOYER_CODE } from '@/lib/brand/legal-entities';
 
@@ -16,6 +17,9 @@ async function assertAdmin() {
 export async function GET() {
  const profile = await getCurrentProfile();
  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+ if (!canAccessSalesAgent(profile.role)) {
+ return NextResponse.json({ error: 'Akses ditolak' }, { status: 403 });
+ }
  const service = await createServiceClient();
  const { data, error } = await service.from('agent_price_groups').select('*, items:agent_price_group_items(*, stock_item:stock_items(item_code, name, base_unit))').eq('organization_id', profile.organization_id).order('name');
  if (error) return NextResponse.json({ error: error.message }, { status: 500 });

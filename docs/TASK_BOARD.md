@@ -1,6 +1,6 @@
 # RKJ One Task Board
 
-Last updated: 2026-07-08
+Last updated: 2026-07-10
 
 Status key: `Todo`, `In Progress`, `Review`, `Blocked`, `Done`.
 
@@ -14,7 +14,7 @@ Status key: `Todo`, `In Progress`, `Review`, `Blocked`, `Done`.
 | M1.4 | Done | Documentation AI | Dokumentasi struktur sistem. | Core docs exist under `docs/` and task board tracks current milestones. |
 | PM-001 | Done | PM AI | Define AI leadership workflow. | Owner -> PM -> task board -> role agents -> PR/change -> QA/review -> deploy documented. |
 | PM-002 | Done | Backend/Docs AI | Add core docs and AGENTS guide. | `AGENTS.md` plus core files in `docs/` exist and describe product, system, architecture, API, QA, deployment. |
-| PM-003 | Todo | PM AI | Keep task board updated after every accepted change. | New work is split into small tasks with owner, status, and acceptance criteria. |
+| PM-003 | Done | PM AI | Keep task board updated after every accepted change. | Current HR, booking, Sales Agent guard, QA and deployment tasks are tracked with owner, status, and acceptance criteria. |
 
 ## Milestone 2 - Auth, Roles, Schema & Data Access
 
@@ -72,6 +72,7 @@ Status key: `Todo`, `In Progress`, `Review`, `Blocked`, `Done`.
 | SEC-001 | Done | Security AI | Audit branch scope helper for HQ branch validation. | Shared helper cannot create cross-org references. |
 | SEC-002 | Review | Security AI | Audit `assigned_to`/profile reference fields across modules. | Booking cross-org profile references are blocked in API and draft RLS migration; other modules remain backlog. |
 | SEC-003 | Done | Security AI | Review RLS policies for newest migrations. | `20260708150423_production_rls_advisor_fixes.sql` applied; RLS enabled for exposed branch/fleet master tables and advisor error-level returns no issues. |
+| SEC-004 | Done | Backend/Security AI | Guard Sales Agent service-role portal endpoints. | Catalog, price group, order, outlet, subscription, payment, payment status, receipt, confirm, cancel and iPay88 routes reject roles outside `canAccessSalesAgent()` before service-role access. |
 
 ## Milestone 5 - Payment Lifecycle
 
@@ -88,7 +89,7 @@ Status key: `Todo`, `In Progress`, `Review`, `Blocked`, `Done`.
 |----|--------|-------|------|------------|
 | DEP-001 | Done | DevOps AI | Confirm production deployment after Booking API. | Vercel production alias Ready and logs clean. |
 | DEP-002 | Done | DevOps AI | Keep migration index current. | `docs/DATABASE_SCHEMA.md` lists latest migration groups, booking hardening, and M5 payment lifecycle migrations. |
-| DEP-003 | Todo | QA AI | Add smoke checks for booking API after auth behavior is settled. | Authenticated GET/POST/PATCH tested against production or staging. |
+| DEP-003 | Done | QA AI | Add smoke checks for booking/API auth boundary after auth behavior is settled. | `npm run smoke:production` now covers anonymous `/api/bookings`, `/bookings` redirect, HR OM coverage API, Sales Agent catalog/price group, payment APIs, webhook signature rejection and health. Authenticated role UAT remains tracked under M7.7. |
 
 ## Milestone 6 - Release Gate, Security & Deploy
 
@@ -107,7 +108,7 @@ Status key: `Todo`, `In Progress`, `Review`, `Blocked`, `Done`.
 | M7.1 | Done | PM/QA AI | Production UAT plan by role. | `docs/M7_PRODUCTION_UAT_PLAN.md` defines role matrix, flow checklist, severity rules, and done criteria. |
 | M7.2 | Done | DevOps AI | Monitoring runbook. | `docs/MONITORING_RUNBOOK.md` defines daily production checks for Vercel, Supabase, and payments. |
 | M7.3 | Done | DevOps/Owner | Backup and rollback SOP. | `docs/BACKUP_ROLLBACK_SOP.md` defines Vercel rollback, database recovery rules, and payment incident handling. |
-| M7.4 | Done | QA AI | Production smoke command. | `npm run smoke:production` checks public login, protected payment routes, webhook signature rejection, and API health. |
+| M7.4 | Done | QA AI | Production smoke command. | `npm run smoke:production` checks public login, booking/HR/Sales Agent auth boundaries, protected payment routes, webhook signature rejection, and API health. |
 | M7.5 | Done | Documentation AI | Release note baseline. | `docs/RELEASE_NOTES_M6.md` records production deployment, verification, and known follow-up. |
 | M7.6 | Review | Finance/DevOps | Live provider payment UAT. | Pending selected provider sandbox/live callback with valid signature and finance confirmation. |
 | M7.7 | Review | Owner/QA | Real user role UAT. | Pending real account testing for Owner/Admin/Finance/Staff/Area Manager/Operation Manager/Sales Agent. |
@@ -119,4 +120,5 @@ Status key: `Todo`, `In Progress`, `Review`, `Blocked`, `Done`.
 - Add API tests for branch-scope and RLS edge cases.
 - Regenerate Supabase TypeScript types after new tables are stable.
 - Add audit log events for booking create/update/status changes.
+- Add audit log events for Sales Agent payment route actions and HR OM coverage actions.
 - Add owner dashboard card for open operational bookings if approved.
