@@ -71,6 +71,8 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 
 - [x] `Staf HR` is described as real staff records, placement, payroll/basic HR and portal account setup.
 - [x] `Login & Role` is described as Admin HQ control for system login, role and dashboard AI.
+- [x] `Staf HR` shows RKJ, RKJ Distributor and RKJ Manufacturing company groups for HQ/Admin views.
+- [x] Staff without branch assignment appears under `Staf syarikat / HQ` for its legal entity.
 - [x] Area Manager sees staff workflow only and cannot use the separate Users panel.
 - [x] `/api/settings/users` list/create/edit/delete is Admin HQ only.
 - [x] Area Manager staff creation remains through `/api/settings/staff` and keeps branch/sales-staff restrictions.

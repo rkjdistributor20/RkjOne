@@ -155,6 +155,7 @@ Status key: `Todo`, `In Progress`, `Review`, `Blocked`, `Done`.
 | HR-SET-002 | Done | Backend/Security AI | Ketatkan API `settings/users` kepada Admin HQ. | List/create/edit/delete akaun pengguna memerlukan `SUPER_ADMIN`/`ADMIN`; branch assignment pengguna disahkan dalam organisasi yang sama. |
 | HR-SET-003 | Done | HR/Frontend AI | Tambah panel jurang HR antara pengurusan dan staf. | HR dashboard memaparkan tindakan pengurusan/HR dan tindakan staf berasingan untuk portal, profil, cuti, permohonan dan rekod belum tetap. |
 | HR-SET-004 | Done | QA AI | Tambah workflow guard untuk boundary Settings/HR. | `npm run verify:workflow` menyemak boundary Pengguna Admin-only dan panel HR pengurusan vs staf. |
+| HR-SET-005 | Done | Backend/Frontend AI | Paparkan `Staf HR` ikut 3 syarikat. | API staf grouped memulangkan company grouping untuk RKJ, RKJ Distributor dan RKJ Manufacturing; UI memaparkan staf syarikat/HQ serta staf cawangan dalam company masing-masing. |
 
 ## Backlog
 

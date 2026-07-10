@@ -58,6 +58,26 @@ const checks = [
   patterns: [
    'rekod pekerja sebenar',
    'Login &amp; Role',
+   'StaffCompanyGroup',
+   'Staf syarikat / HQ',
+   'company.legal_entity_code',
+  ],
+ },
+ {
+  file: 'app/api/staff/grouped/route.ts',
+  patterns: [
+   'legal_entity:legal_entities',
+   'StaffCompanyGroup',
+   'companies',
+   'includeEmptyCompanies',
+  ],
+ },
+ {
+  file: 'lib/staff/types.ts',
+  patterns: [
+   'StaffCompanyGroup',
+   'legal_entity_code',
+   'companies?: StaffCompanyGroup[]',
   ],
  },
  {

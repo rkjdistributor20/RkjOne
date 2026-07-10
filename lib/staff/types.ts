@@ -3,6 +3,9 @@ export interface StaffMemberRow {
  staff_code: string;
  full_name: string;
  status: string;
+ legal_entity_id?: string | null;
+ legal_entity_code?: string | null;
+ legal_entity_name?: string | null;
  branch_id: string | null;
  branch_code: string | null;
  branch_name: string | null;
@@ -32,8 +35,22 @@ export interface StaffRegionGroup {
  staff_count: number;
 }
 
+export interface StaffCompanyGroup {
+ legal_entity_id: string | null;
+ legal_entity_code: string;
+ legal_entity_name: string;
+ legal_entity_scope: string | null;
+ sort_order: number;
+ hq_staff: StaffMemberRow[];
+ regions: StaffRegionGroup[];
+ staff_count: number;
+ branch_staff_count: number;
+ hq_staff_count: number;
+}
+
 export interface StaffGroupedResponse {
  groups: StaffRegionGroup[];
+ companies?: StaffCompanyGroup[];
  scoped_region_id: string | null;
  selected_branch_id: string | null;
 }
