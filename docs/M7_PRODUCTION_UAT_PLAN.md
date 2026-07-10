@@ -10,7 +10,7 @@ Production URL: https://rkj.one
 
 | Gate | Status | Evidence |
 |------|--------|----------|
-| Production deployment Ready | Done | `dpl_55k1i1FNbsmaMnEHwfHkpj41yKQJ` |
+| Production deployment Ready | Done | `dpl_DffgA1FBijS32PaYJepLwFdxz2HC` |
 | Supabase migrations verified | Done | `20260708115418_harden_auth_role_and_booking_scope`, `20260708115441_m5_payment_lifecycle`, `20260708150423_production_rls_advisor_fixes` |
 | Supabase advisor error-level | Done | `npx supabase db advisors --linked --level error` returns no issues |
 | Local lint/build/audit | Done | See `docs/M6_QA_RELEASE_REPORT.md` |
