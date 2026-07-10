@@ -22,6 +22,7 @@ import {
  getPosOverview,
  getAreaManagerDashboardContext,
  fetchKioskOverviewForBranches,
+ hydrateDashboardStatsStockCounts,
 } from '@/lib/dashboard/queries';
 import { getAreaManagerBranchMetrics } from '@/lib/dashboard/am-branch-metrics';
 import { buildAreaManagerInsights } from '@/lib/dashboard/am-insights';
@@ -103,8 +104,8 @@ export default async function DashboardPage() {
 
  if (isAreaManager) {
  const branchIds = scope.branchIds ?? [];
- const [stats, kioskOverview, context, branchMetrics, rosterStatuses] = await Promise.all([
- getDashboardStats(profile.organization_id, branchIds),
+ const [statsBase, kioskOverview, context, branchMetrics, rosterStatuses] = await Promise.all([
+ getDashboardStats(profile.organization_id, branchIds, { includeStockCounts: false }),
  fetchKioskOverviewForBranches(supabase, profile.organization_id, branchIds),
  getAreaManagerDashboardContext(
  profile.organization_id,
@@ -113,6 +114,9 @@ export default async function DashboardPage() {
  getAreaManagerBranchMetrics(supabase, profile.organization_id, branchIds),
  getRosterStatusForBranches(supabase, profile.organization_id, branchIds),
  ]);
+ const stats = statsBase
+ ? hydrateDashboardStatsStockCounts(statsBase, kioskOverview)
+ : null;
 
  await syncRosterReminders(
  supabase,

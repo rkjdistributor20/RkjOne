@@ -250,7 +250,7 @@ export function buildAreaManagerInsights(input: BuildInsightsInput): {
  }
  }
 
- const sorted = [...branchMetrics].sort((a, b) => b.sales_today ?? a.sales_today);
+ const sorted = [...branchMetrics].sort((a, b) => b.sales_today - a.sales_today);
  const top = sorted[0];
  const withSales = sorted.filter((b) => b.sales_today > 0);
  const bottom = withSales.at(-1);

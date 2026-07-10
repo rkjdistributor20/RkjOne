@@ -114,6 +114,15 @@ Status key: `Todo`, `In Progress`, `Review`, `Blocked`, `Done`.
 | M7.7 | Review | Owner/QA | Real user role UAT. | Pending real account testing for Owner/Admin/Finance/Staff/Area Manager/Operation Manager/Sales Agent. |
 | M7.8 | Review | HR/QA AI | HRMIS 3-company UAT. | Code now blocks AM leave approval until OM cover is recorded; `docs/UAT_HRMIS_3_COMPANY.md` covers legal employer separation, staff self-service, leave, AM emergency POS, OM fallback and negative access tests. |
 
+## Milestone 8 - Speed & Lightweight Workflow
+
+| ID | Status | Owner | Task | Acceptance |
+|----|--------|-------|------|------------|
+| PERF-001 | Done | Performance AI | Kurangkan duplicate fetch di dashboard AM. | Kiosk overview diambil sekali dan stock count dihydrate semula ke stats. |
+| PERF-002 | Done | Performance AI | Ringankan POS dan fleet overview. | POS hanya ambil branch visible; fleet guna count query dan bounded latest status log. |
+| PERF-003 | Done | Frontend/Performance AI | Padatkan panel Aliran Kerja & SOP. | Panel memaparkan 4 langkah utama dan ringkaskan baki langkah sokongan. |
+| PERF-004 | Done | QA AI | Tambah performance guard. | `npm run verify:performance` lulus dan dimasukkan dalam QA checklist. |
+
 ## Backlog
 
 - Confirm owner SOP for booking users/lifecycle before reopening booking UI beyond Admin/OM.

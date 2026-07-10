@@ -57,6 +57,13 @@ export async function getAreaManagerBranchMetrics(
  const branches = branchesRes.data ?? [];
  const summaries = (summariesRes.data ?? []) as SummaryRow[];
  const openShifts = new Set((shiftsRes.data ?? []).map((s) => s.branch_id as string));
+ const summariesByBranch = new Map<string, SummaryRow[]>();
+
+ for (const summary of summaries) {
+ const rows = summariesByBranch.get(summary.branch_id) ?? [];
+ rows.push(summary);
+ summariesByBranch.set(summary.branch_id, rows);
+ }
 
  const staffCount = new Map<string, number>();
  for (const s of staffRes.data ?? []) {
@@ -73,7 +80,7 @@ export async function getAreaManagerBranchMetrics(
  }
 
  return branches.map((b) => {
- const rows = summaries.filter((s) => s.branch_id === b.id);
+ const rows = summariesByBranch.get(b.id) ?? [];
  let salesToday = 0;
  let salesWeek = 0;
  let salesMonth = 0;

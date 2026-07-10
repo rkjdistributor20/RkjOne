@@ -69,6 +69,8 @@ const CADENCE_TONES: Record<WorkflowStep["cadence"], string> = {
   "Ikut Keperluan": "border-amber-200 bg-amber-50 text-amber-800",
 };
 
+const MAX_VISIBLE_STEPS = 4;
+
 function getStepOwnerNote(step: WorkflowStep) {
   if (step.ownerNote) return step.ownerNote;
 
@@ -119,6 +121,8 @@ export function WorkflowSopPanel({ workflow }: { workflow: RoleWorkflow }) {
   const primaryHref = workflow.steps[0]?.href ?? "/dashboard";
   const firstStep = workflow.steps[0];
   const finalStep = workflow.steps[workflow.steps.length - 1];
+  const visibleSteps = workflow.steps.slice(0, MAX_VISIBLE_STEPS);
+  const hiddenStepCount = Math.max(workflow.steps.length - visibleSteps.length, 0);
   const topSignals = [
     {
       label: "Fokus operasi",
@@ -251,12 +255,12 @@ export function WorkflowSopPanel({ workflow }: { workflow: RoleWorkflow }) {
                 </div>
               </div>
               <Badge variant="outline" className="bg-white">
-                {workflow.steps.length} {ui("langkah")}
+                {visibleSteps.length}/{workflow.steps.length} {ui("langkah")}
               </Badge>
             </div>
 
             <div className="grid gap-2">
-              {workflow.steps.map((step, index) => {
+              {visibleSteps.map((step, index) => {
                 const Icon = MODULE_ICONS[step.module] ?? ClipboardList;
                 const ownerNote = getStepOwnerNote(step);
                 const evidence = getStepEvidence(step);
@@ -337,6 +341,12 @@ export function WorkflowSopPanel({ workflow }: { workflow: RoleWorkflow }) {
                   </Link>
                 );
               })}
+              {hiddenStepCount > 0 && (
+                <div className="rounded-lg border border-dashed bg-muted/25 p-3 text-xs leading-relaxed text-muted-foreground">
+                  {ui("Ringkasan pantas")}: {hiddenStepCount}{" "}
+                  {ui("langkah tambahan disimpan sebagai SOP sokongan. Mulakan dengan empat tindakan utama dahulu; buka langkah sokongan ikut keperluan.")}
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -13,6 +13,7 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [ ] ESLint passes for changed files.
 - [ ] `npm run build` passes for production-impacting changes.
 - [ ] `npm run verify:workflow` passes after HR/OM/booking/Sales Agent workflow changes.
+- [ ] `npm run verify:performance` passes after dashboard/workflow performance changes.
 - [ ] Existing module patterns are followed.
 - [ ] Errors are returned with appropriate status codes.
 - [ ] Empty/loading/error states are handled if UI changed.
@@ -73,6 +74,14 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [ ] Vercel error logs checked for the last hour.
 - [ ] Smoke test performed for changed flow.
 - [ ] Rollback path is known.
+
+## Dashboard Performance Review
+
+- [x] AM dashboard does not fetch kiosk overview twice on the same request.
+- [x] POS overview only loads active/visible branch rows unless an all-branch view is explicitly requested.
+- [x] Fleet overview uses count queries for delivery status and bounded latest vehicle status logs.
+- [x] Workflow SOP panel renders only the first four priority steps and summarizes the rest.
+- [x] `npm run verify:performance` guards the lightweight workflow/dashboard path.
 
 ## M6 Release QA Notes
 

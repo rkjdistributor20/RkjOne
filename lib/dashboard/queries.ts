@@ -2,9 +2,22 @@ import { createClient } from '@/lib/supabase/server';
 import type { DashboardStats } from '@/types/database';
 import { fetchKioskOverviewForBranches } from '@/lib/inventory/kiosk-overview-data';
 
+type KioskOverviewSnapshot = Awaited<ReturnType<typeof fetchKioskOverviewForBranches>>;
+
+export function hydrateDashboardStatsStockCounts(
+ stats: DashboardStats,
+ kioskOverview: KioskOverviewSnapshot): DashboardStats {
+ return {
+ ...stats,
+ critical_stock_count: kioskOverview.summary.critical,
+ low_stock_count: kioskOverview.summary.low,
+ };
+}
+
 export async function getDashboardStats(
  orgId: string,
- branchIds: string[] | null = null): Promise<DashboardStats | null> {
+ branchIds: string[] | null = null,
+ options: { includeStockCounts?: boolean; kioskOverview?: KioskOverviewSnapshot } = {}): Promise<DashboardStats | null> {
  const supabase = await createClient();
 
  if (branchIds === null) {
@@ -37,27 +50,36 @@ export async function getDashboardStats(
  const weekStartStr = weekStart.toISOString().slice(0, 10);
  const monthStart = `${today.slice(0, 8)}01`;
 
+ const stockCountsPromise =
+ options.includeStockCounts === false
+ ? Promise.resolve(null)
+ : options.kioskOverview
+ ? Promise.resolve(options.kioskOverview)
+ : fetchKioskOverviewForBranches(supabase, orgId, branchIds);
+
  const [todayRes, weekRes, monthRes, approvalsRes, kioskOverview] = await Promise.all([
  supabase.from('pos_daily_summaries').select('total_sales').eq('organization_id', orgId).eq('summary_date', today).in('branch_id', branchIds),
  supabase.from('pos_daily_summaries').select('total_sales').eq('organization_id', orgId).gte('summary_date', weekStartStr).in('branch_id', branchIds),
  supabase.from('pos_daily_summaries').select('total_sales').eq('organization_id', orgId).gte('summary_date', monthStart).in('branch_id', branchIds),
  supabase.from('approval_requests').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).eq('status', 'PENDING').in('branch_id', branchIds),
- fetchKioskOverviewForBranches(supabase, orgId, branchIds),
+ stockCountsPromise,
  ]);
 
  const sum = (rows: Array<{ total_sales?: number }> | null) =>
  (rows ?? []).reduce((n, r) => n + Number(r.total_sales ?? 0), 0);
 
- return {
+ const stats = {
  organization_id: orgId,
  sales_today: sum(todayRes.data as Array<{ total_sales: number }> | null),
  sales_this_week: sum(weekRes.data as Array<{ total_sales: number }> | null),
  sales_this_month: sum(monthRes.data as Array<{ total_sales: number }> | null),
  pending_approvals: approvalsRes.count ?? 0,
- critical_stock_count: kioskOverview.summary.critical,
- low_stock_count: kioskOverview.summary.low,
+ critical_stock_count: 0,
+ low_stock_count: 0,
  outstanding_cash: 0,
  };
+
+ return kioskOverview ? hydrateDashboardStatsStockCounts(stats, kioskOverview) : stats;
 }
 
 export type PosBranchSummary = {
@@ -115,18 +137,14 @@ export async function getPosOverview(
  const supabase = await createClient();
  const today = new Date().toISOString().slice(0, 10);
 
- let branchesQuery = supabase.from('branches').select('id, branch_name, branch_code').eq('organization_id', orgId).eq('status', 'ACTIVE');
-
- if (branchIds !== null) {
- if (branchIds.length === 0) {
+ const scopedBranchIds = branchIds;
+ if (scopedBranchIds !== null && scopedBranchIds.length === 0) {
  return {
  branches: [],
  open_shifts: 0,
  transactions_today: 0,
  recent_transactions: [],
  };
- }
- branchesQuery = branchesQuery.in('id', branchIds);
  }
 
  let summariesQuery = supabase.from('pos_daily_summaries').select('branch_id, total_sales, transaction_count').eq('organization_id', orgId).eq('summary_date', today);
@@ -136,25 +154,46 @@ export async function getPosOverview(
  let recentQuery = supabase.from('pos_transactions').select(
  'id, transaction_number, total, payment_method, created_at, branch_id').eq('organization_id', orgId).eq('status', 'COMPLETED').gte('created_at', `${today}T00:00:00`).order('created_at', { ascending: false }).limit(5);
 
- if (branchIds !== null) {
- summariesQuery = summariesQuery.in('branch_id', branchIds);
- shiftsQuery = shiftsQuery.in('branch_id', branchIds);
- recentQuery = recentQuery.in('branch_id', branchIds);
+ if (scopedBranchIds !== null) {
+ summariesQuery = summariesQuery.in('branch_id', scopedBranchIds);
+ shiftsQuery = shiftsQuery.in('branch_id', scopedBranchIds);
+ recentQuery = recentQuery.in('branch_id', scopedBranchIds);
  }
 
- const [summariesRes, shiftsRes, recentRes, branchesRes] = await Promise.all([
+ const [summariesRes, shiftsRes, recentRes] = await Promise.all([
  summariesQuery,
  shiftsQuery,
  recentQuery,
- branchesQuery,
  ]);
 
  const summaries = (summariesRes.data ?? []) as DailySummaryRow[];
  const shifts = (shiftsRes.data ?? []) as OpenShiftRow[];
- const branches = (branchesRes.data ?? []) as BranchRow[];
  const recent = (recentRes.data ?? []) as RecentTransactionRow[];
-
  const openShiftBranches = new Set(shifts.map((s) => s.branch_id));
+ const visibleBranchIds = options?.includeAllBranches
+ ? scopedBranchIds
+ : Array.from(new Set([
+ ...summaries.map((s) => s.branch_id),
+ ...shifts.map((s) => s.branch_id),
+ ...recent.map((t) => t.branch_id),
+ ]));
+
+ let branches: BranchRow[] = [];
+ if (visibleBranchIds === null || visibleBranchIds.length > 0) {
+ let branchesQuery = supabase
+ .from('branches')
+ .select('id, branch_name, branch_code')
+ .eq('organization_id', orgId)
+ .eq('status', 'ACTIVE');
+
+ if (visibleBranchIds !== null) {
+ branchesQuery = branchesQuery.in('id', visibleBranchIds);
+ }
+
+ const { data: branchRows } = await branchesQuery.order('branch_code');
+ branches = (branchRows ?? []) as BranchRow[];
+ }
+
  const summaryMap = new Map(summaries.map((s) => [s.branch_id, s]));
  const branchNameMap = new Map(branches.map((b) => [b.id, b.branch_name]));
 
@@ -173,7 +212,7 @@ export async function getPosOverview(
  return {
  branches: options?.includeAllBranches
  ? branchSummaries.sort((a, b) => a.branch_code.localeCompare(b.branch_code))
- : branchSummaries.filter((b) => b.total_sales > 0 || b.transaction_count > 0 || b.shift_open).sort((a, b) => b.total_sales ?? a.total_sales),
+ : branchSummaries.filter((b) => b.total_sales > 0 || b.transaction_count > 0 || b.shift_open).sort((a, b) => b.total_sales - a.total_sales),
  open_shifts: openShiftBranches.size,
  transactions_today: branchSummaries.reduce(
  (n, b) => n + b.transaction_count,
@@ -206,12 +245,10 @@ export type FleetOverview = {
 export async function getFleetOverview(orgId: string): Promise<FleetOverview> {
  const supabase = await createClient();
 
- const [vehiclesRes, ordersRes] = await Promise.all([
- supabase.from('vehicles').select(`
- id, vehicle_code, vehicle_type, plate_number, status,
- fleet_status_log(status, logged_at)
- `).eq('organization_id', orgId).eq('status', 'ACTIVE').order('vehicle_code'),
- supabase.from('delivery_orders').select('status').eq('organization_id', orgId).in('status', ['PENDING', 'IN_TRANSIT']),
+ const [vehiclesRes, pendingRes, inTransitRes] = await Promise.all([
+ supabase.from('vehicles').select('id, vehicle_code, vehicle_type, plate_number, status').eq('organization_id', orgId).eq('status', 'ACTIVE').order('vehicle_code'),
+ supabase.from('delivery_orders').select('id', { count: 'exact', head: true }).eq('organization_id', orgId).eq('status', 'PENDING'),
+ supabase.from('delivery_orders').select('id', { count: 'exact', head: true }).eq('organization_id', orgId).eq('status', 'IN_TRANSIT'),
  ]);
 
  const rows = (vehiclesRes.data ?? []) as Array<{
@@ -220,28 +257,43 @@ export async function getFleetOverview(orgId: string): Promise<FleetOverview> {
  vehicle_type: string;
  plate_number: string | null;
  status: string;
- fleet_status_log: Array<{ status: string; logged_at: string }> | null;
  }>;
 
- const orders = (ordersRes.data ?? []) as Array<{ status: string }>;
+ const vehicleIds = rows.map((v) => v.id);
+ const latestStatusByVehicle = new Map<string, string>();
+
+ if (vehicleIds.length > 0) {
+ const { data: statusRows } = await supabase
+ .from('fleet_status_log')
+ .select('vehicle_id, status, logged_at')
+ .eq('organization_id', orgId)
+ .in('vehicle_id', vehicleIds)
+ .order('logged_at', { ascending: false })
+ .limit(Math.min(Math.max(vehicleIds.length * 10, 50), 500));
+
+ const statusLogRows = (statusRows ?? []) as Array<{ vehicle_id: string | null; status: string }>;
+ for (const row of statusLogRows) {
+ const vehicleId = row.vehicle_id;
+ if (vehicleId && !latestStatusByVehicle.has(vehicleId)) {
+ latestStatusByVehicle.set(vehicleId, row.status);
+ }
+ }
+ }
 
  const vehicles = rows.map((v) => {
- const logs = v.fleet_status_log;
- const latest = logs?.sort(
- (a, b) => new Date(b.logged_at).getTime() - new Date(a.logged_at).getTime())[0];
  return {
  id: v.id,
  vehicle_code: v.vehicle_code,
  vehicle_type: v.vehicle_type,
  plate_number: v.plate_number,
- latest_status: latest?.status ?? null,
+ latest_status: latestStatusByVehicle.get(v.id) ?? null,
  };
  });
 
  return {
  vehicles,
- pending_deliveries: orders.filter((o) => o.status === 'PENDING').length,
- in_transit: orders.filter((o) => o.status === 'IN_TRANSIT').length,
+ pending_deliveries: pendingRes.count ?? 0,
+ in_transit: inTransitRes.count ?? 0,
  };
 }
 
