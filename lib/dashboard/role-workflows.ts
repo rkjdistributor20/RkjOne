@@ -71,6 +71,7 @@ const OPERATION_MANAGER_WORKFLOWS: Record<LegalEntityCode, RoleWorkflow> = {
  steps: [
  { title: 'Semak HQ Distributor', description: 'Pantau stok diterima dari kilang, cross-dock dan stok untuk dihantar ke kiosk/ejen.', href: '/warehouse', module: 'Warehouse', cadence: 'Harian' },
  { title: 'Semak command center distributor', description: 'Kawal driver, ejen, route, cash collection dan bukti kerja supaya operasi tidak perlu menunggu owner.', href: '/dashboard#management-governance', module: 'Governance', cadence: 'Harian' },
+ { title: 'Cover cuti AM', description: 'Semak permohonan cuti AM, ambil cover operasi kawasan, dan tulis nota sebelum HR meluluskan cuti rasmi.', href: '/hr', module: 'HR Syarikat', cadence: 'Harian' },
  { title: 'Susun logistik', description: 'Pantau driver, kenderaan, route, dispatch dan POD penghantaran.', href: '/fleet', module: 'Logistik', cadence: 'Harian' },
  { title: 'Pantau Portal Ejen', description: 'Semak senarai ejen, group rate, order stok, langganan POS dan bayaran.', href: '/sales-agent', module: 'Portal Ejen', cadence: 'Harian' },
  { title: 'Kelulusan distributor', description: 'Sahkan pindahan stok, isu penghantaran dan perkara operasi yang menunggu tindakan.', href: '/approvals', module: 'Kelulusan', cadence: 'Harian' },
@@ -117,6 +118,7 @@ const ROLE_WORKFLOWS: Record<UserRole, RoleWorkflow> = {
  sopSummary: 'Pastikan profil pekerja aktif, maklumat bank/gaji lengkap, rekod HR kemas dan payslip tersedia mengikut tempoh gaji.',
  steps: [
  { title: 'Semak rekod HR', description: 'Pastikan staf berada di group HR syarikat yang betul.', href: '/hr', module: 'HR Syarikat', cadence: 'Harian' },
+ { title: 'Semak cover OM untuk cuti AM', description: 'Jangan approve cuti AM sehingga OM sudah ambil cover operasi kawasan dan nota cover direkodkan.', href: '/hr', module: 'HR Syarikat', cadence: 'Harian' },
  { title: 'Lengkapkan profil pekerja', description: 'Kemaskini IC/passport, telefon, bank, jawatan, status kerja dan majikan.', href: '/hr', module: 'HR Syarikat', cadence: 'Ikut Keperluan' },
  { title: 'Proses payroll', description: 'Semak gaji, elaun, potongan dan slip gaji dalam tab Gaji & Payroll.', href: '/hr', module: 'Gaji', cadence: 'Bulanan' },
  { title: 'Pantau kehadiran', description: 'Rujuk syif dan kehadiran untuk isu gaji atau disiplin.', href: '/shifts', module: 'Syif', cadence: 'Mingguan' },
@@ -130,6 +132,7 @@ const ROLE_WORKFLOWS: Record<UserRole, RoleWorkflow> = {
  steps: [
  { title: 'Pantau prestasi cawangan', description: 'Semak jualan, transaksi dan cawangan bermasalah.', href: '/dashboard', module: 'Dashboard', cadence: 'Harian' },
  { title: 'Semak command center OM', description: 'Bandingkan scorecard AM, stok kritikal, collection cash, approval dan tugasan yang perlu diarah semula.', href: '/dashboard#management-governance', module: 'Governance', cadence: 'Harian' },
+ { title: 'Cover cuti AM', description: 'Ambil cover operasi kawasan AM yang bercuti sebelum HR boleh approve cuti rasmi.', href: '/hr', module: 'HR Syarikat', cadence: 'Harian' },
  { title: 'Semak stok kiosk', description: 'Pastikan stok rendah dan kritikal diselesaikan melalui inventory.', href: '/inventory', module: 'Inventori', cadence: 'Harian' },
  { title: 'Kawal jadual dan kehadiran', description: 'Semak syif staf, kekurangan tenaga kerja dan laporan pengurus kawasan.', href: '/shifts', module: 'Syif', cadence: 'Harian' },
  { title: 'Kawal collection tunai AM', description: 'Semak cawangan yang belum dikutip, pastikan baki bank-in dibuat, dan semak voucher penggunaan cash untuk barang cawangan, petrol/diesel atau maintenance transport.', href: '/finance', module: 'Kewangan', cadence: 'Harian' },
@@ -161,6 +164,7 @@ const ROLE_WORKFLOWS: Record<UserRole, RoleWorkflow> = {
  { title: 'Jadual spring cleaning bulanan', description: 'Tetapkan tarikh pembersihan mendalam untuk cawangan dalam kawasan.', href: '/dashboard#am-operations-planner', module: 'Perancangan AM', cadence: 'Bulanan' },
  { title: 'Meeting pengurusan highway', description: 'Rekod meeting highway untuk satu atau banyak cawangan yang terlibat.', href: '/dashboard#am-operations-planner', module: 'Perancangan AM', cadence: 'Ikut Keperluan' },
  { title: 'Pantau inventory kiosk', description: 'Selesaikan stok rendah, pindahan cawangan dan order ke HQ.', href: '/inventory', module: 'Inventori', cadence: 'Harian' },
+ { title: 'Mohon cuti dengan cover OM', description: 'Jika AM bercuti, hantar permohonan HRMIS awal supaya OM boleh cover kawasan sebelum HR buat kelulusan rasmi.', href: '/hr', module: 'HR Syarikat', cadence: 'Ikut Keperluan' },
  { title: 'Laporkan maintenance/staf shortage', description: 'Hantar laporan kepada Hanif untuk maintenance atau keperluan staf ganti.', href: '/maintenance', module: 'Maintenance', cadence: 'Ikut Keperluan' },
  ],
  },

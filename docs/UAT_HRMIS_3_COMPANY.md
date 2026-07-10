@@ -68,6 +68,7 @@ Gunakan akaun sebenar UAT yang disediakan oleh owner/admin. Jangan tulis passwor
 | Hantar cuti melebihi baki | Sistem halang dengan mesej baki tidak cukup |
 | HR buka tab syarikat staf | Permohonan muncul dalam syarikat yang betul |
 | HR ambil, lulus, tolak atau selesai | Status berubah dan audit kekal jelas |
+| HR cuba lulus cuti AM tanpa cover OM | Sistem halang kelulusan dan papar mesej perlu cover OM |
 | Staf batalkan sebelum lulus | Pending leave dilepaskan semula |
 
 ## UAT-05 Transfer Antara Syarikat
@@ -95,6 +96,11 @@ Gunakan akaun sebenar UAT yang disediakan oleh owner/admin. Jangan tulis passwor
 | Step | Expected result |
 | --- | --- |
 | Login sebagai OM | OM boleh semak operasi rentas kawasan yang dibenarkan |
+| AM hantar permohonan cuti melalui HRMIS | Permohonan ditanda sebagai perlu **cover OM** |
+| HR cuba lulus sebelum OM cover | Sistem menolak approval rasmi |
+| OM buka **HR & Gaji > Cover Cuti Area Manager** | Senarai cuti AM yang perlu tindakan dipaparkan |
+| OM tekan **Ambil cover** dan isi nota | Status permohonan menjadi **Sedang disemak**, cover OM direkod dengan nama/masa/nota |
+| HR/Admin lulus selepas cover OM | Kelulusan berjaya dan pending leave diproses |
 | Simulasi AM cuti | OM menjadi PIC sementara dalam SOP, bukan mengambil alih semua permission sensitif |
 | Semak order/driver route | Order dan route ikut hari production kilang |
 | Escalate isu HR/operation | Laluan AM -> OM -> Pentadbir HQ -> Owner jelas |
@@ -107,6 +113,8 @@ Gunakan akaun sebenar UAT yang disediakan oleh owner/admin. Jangan tulis passwor
 | Staf RKJ_MFG cuba akses POS retail | Ditolak kecuali role memang diberi kuasa |
 | Ejen cuba akses HR internal | Ditolak |
 | AM cuba guna POS tanpa jadual | Ditolak |
+| OM cuba approve/reject HR request melalui endpoint operasi | Ditolak; OM hanya boleh mark cover/semakan operasi |
+| HR syarikat lain cuba approve permohonan luar legal entity | Ditolak kecuali role group-wide Admin/Super Admin |
 | User tanpa legal entity cuba proses payroll | Perlu semakan HR/admin dahulu |
 | Request dengan branch/syarikat luar organisasi | Ditolak oleh API/RLS jika laluan itu wujud |
 
@@ -138,5 +146,5 @@ Gunakan akaun sebenar UAT yang disediakan oleh owner/admin. Jangan tulis passwor
 - Staf hanya nampak data sendiri.
 - Permohonan cuti dan HR masuk ke syarikat yang betul.
 - AM emergency POS hanya boleh digunakan selepas AM ada jadual syif.
-- OM fallback untuk AM cuti jelas dalam SOP.
+- OM fallback untuk AM cuti jelas dalam SOP dan direkod dalam sistem sebelum HR approve.
 - Tiada Critical atau High bug terbuka.

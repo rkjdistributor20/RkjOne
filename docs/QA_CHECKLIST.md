@@ -12,6 +12,7 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [ ] TypeScript passes.
 - [ ] ESLint passes for changed files.
 - [ ] `npm run build` passes for production-impacting changes.
+- [ ] `npm run verify:workflow` passes after HR/OM/booking workflow changes.
 - [ ] Existing module patterns are followed.
 - [ ] Errors are returned with appropriate status codes.
 - [ ] Empty/loading/error states are handled if UI changed.
