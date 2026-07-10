@@ -45,10 +45,27 @@ const checks = [
   file: 'components/settings/settings-dashboard.tsx',
   patterns: [
    'const canManageUsers = isAdmin;',
-   'title: "Rekod Staf Cawangan"',
-   'title: "Akaun Login & Role"',
+   'title: "Rekod Staf HR"',
+   'title: "Login Sistem & Role"',
+   'Staf HR',
+   'Login & Role',
    'visible: canManageUsers',
    'AM gunakan bahagian ini sahaja untuk tambah staf jualan/POS.',
+  ],
+ },
+ {
+  file: 'components/settings/staff-settings-panel.tsx',
+  patterns: [
+   'rekod pekerja sebenar',
+   'Login &amp; Role',
+  ],
+ },
+ {
+  file: 'components/settings/users-admin-panel.tsx',
+  patterns: [
+   'Panel ini hanya untuk kawal',
+   'Tambah Akaun Login',
+   'Tambah Akaun Login Sistem',
   ],
  },
  {

@@ -69,8 +69,8 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 
 ## Settings & HR Responsibility Review
 
-- [x] `Rekod Staf Cawangan` is described as real staff records, placement, payroll/basic HR and portal account setup.
-- [x] `Akaun Login & Role` is described as Admin HQ control for system login, role and dashboard AI.
+- [x] `Staf HR` is described as real staff records, placement, payroll/basic HR and portal account setup.
+- [x] `Login & Role` is described as Admin HQ control for system login, role and dashboard AI.
 - [x] Area Manager sees staff workflow only and cannot use the separate Users panel.
 - [x] `/api/settings/users` list/create/edit/delete is Admin HQ only.
 - [x] Area Manager staff creation remains through `/api/settings/staff` and keeps branch/sales-staff restrictions.

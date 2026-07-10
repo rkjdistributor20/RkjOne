@@ -139,7 +139,7 @@ export function UsersAdminPanel({
 
  function openEdit(u: SettingsUser) {
  if (u.has_login === false || u.id.startsWith('staff:')) {
- toast.error('Staf ini belum ada akaun login - cipta dari tab Staf');
+ toast.error('Staf ini belum ada akaun login - cipta dari tab Staf HR');
  return;
  }
  setEditUser(u);
@@ -200,8 +200,8 @@ export function UsersAdminPanel({
  });
  toast.success(
  result.temporary_password
- ? `Pengguna ditambah. Password sementara: ${result.temporary_password}`
- : 'Pengguna ditambah');
+ ? `Akaun login ditambah. Password sementara: ${result.temporary_password}`
+ : 'Akaun login ditambah');
  setAddOpen(false);
  await onRefresh();
  } catch (err) {
@@ -226,7 +226,7 @@ export function UsersAdminPanel({
  dashboard_home: DASHBOARD_HOME[dashboardProfile],
  dashboard_ai_reason: dashboardReason || 'Diset oleh pentadbir',
  });
- toast.success('Pengguna dikemaskini');
+ toast.success('Login & role dikemaskini');
  setEditUser(null);
  await onRefresh();
  } catch (err) {
@@ -270,10 +270,10 @@ export function UsersAdminPanel({
  toast.error('Tidak boleh padam akaun sendiri');
  return;
  }
- if (!confirm(`Padam pengguna "${name}"?`)) return;
+ if (!confirm(`Padam akaun login "${name}"?`)) return;
  try {
  await deleteUser(id);
- toast.success('Pengguna dipadam');
+ toast.success('Akaun login dipadam');
  await onRefresh();
  } catch (err) {
  toast.error(err instanceof Error ? err.message : 'Gagal padam');
@@ -282,6 +282,12 @@ export function UsersAdminPanel({
 
  return (
  <div className="space-y-4">
+ <div className="rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 text-sm text-amber-950">
+ <KeyRound className="mr-1.5 inline h-4 w-4" />
+ Panel ini hanya untuk kawal <strong>akaun login, role dan dashboard AI</strong>.
+ Untuk daftar pekerja sebenar, guna tab <strong>Staf HR</strong>.
+ </div>
+
  <div className="rounded-lg border border-violet-200 bg-violet-50/50 px-3 py-2 text-sm text-violet-950">
  <Bot className="mr-1.5 inline h-4 w-4" />
  AI menilai peranan & syarikat (RKJ / RKJ_DIST / RKJ_MFG) untuk tentukan dashboard sesuai.
@@ -296,10 +302,11 @@ export function UsersAdminPanel({
  <div className="flex flex-wrap items-center gap-2">
  <Badge variant="outline" className="gap-1 tabular-nums">
  <Users className="h-3.5 w-3.5" />
- {staffTotal ?? users.length} rekod staf
- {loginTotal != null && loginTotal !== (staffTotal ?? users.length)
- ? ` - ${loginTotal} akaun login`
- : ''}
+ Rujukan staf: {staffTotal ?? users.length}
+ </Badge>
+ <Badge variant="outline" className="gap-1 tabular-nums">
+ <KeyRound className="h-3.5 w-3.5" />
+ Login sistem: {loginTotal ?? users.length}
  </Badge>
  <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
  <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -342,7 +349,7 @@ export function UsersAdminPanel({
  }}
  >
  <Plus className="h-4 w-4" />
- Tambah Pengguna
+ Tambah Akaun Login
  </Button>
  </div>
 
@@ -442,7 +449,7 @@ export function UsersAdminPanel({
  <Dialog open={addOpen} onOpenChange={setAddOpen}>
  <DialogContent className="sm:max-w-md">
  <DialogHeader>
- <DialogTitle>Tambah Pengguna</DialogTitle>
+ <DialogTitle>Tambah Akaun Login Sistem</DialogTitle>
  </DialogHeader>
  <div className="space-y-3">
  <div className="space-y-1">
@@ -508,7 +515,7 @@ export function UsersAdminPanel({
  >
  <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
  <DialogHeader>
- <DialogTitle>Edit Pengguna</DialogTitle>
+ <DialogTitle>Edit Login &amp; Role</DialogTitle>
  </DialogHeader>
  <div className="space-y-3">
  <div className="space-y-1">

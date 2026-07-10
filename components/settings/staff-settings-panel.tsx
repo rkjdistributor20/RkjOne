@@ -102,6 +102,12 @@ export function StaffSettingsPanel({
 
  return (
  <div className="space-y-4">
+ <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-950">
+ Ini ialah <strong>rekod pekerja sebenar</strong>: kod staf, syarikat majikan,
+ cawangan, jawatan, jenis pekerja dan kadar gaji. Akaun portal staf boleh dijana
+ daripada rekod ini; kawalan role admin/HQ berada di tab <strong>Login &amp; Role</strong>.
+ </p>
+
  <div className="flex flex-wrap items-center justify-between gap-2">
  {pickerVisible && (
  <BranchScopeSelect

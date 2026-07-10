@@ -272,9 +272,9 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
         },
         {
           value: "staff",
-          title: "Rekod Staf Cawangan",
+          title: "Rekod Staf HR",
           description:
-            "Rekod pekerja, penempatan, gaji asas, portal login staf dan reset password staf.",
+            "Rekod pekerja sebenar: syarikat, cawangan, jawatan, gaji asas, HR dan portal staf.",
           icon: Users,
           metric: usersStaffTotal ? `${usersStaffTotal} staf` : "Staf",
           tone: "emerald",
@@ -282,8 +282,8 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
         },
         {
           value: "users",
-          title: "Akaun Login & Role",
-          description: "Akaun sistem, role, dashboard AI dan akses pentadbiran HQ.",
+          title: "Login Sistem & Role",
+          description: "Kawalan akaun login, role, dashboard AI dan akses pentadbiran HQ.",
           icon: FileCog,
           metric: usersLoginTotal ? `${usersLoginTotal} login` : "Akses",
           tone: "amber",
@@ -379,14 +379,14 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
 
             <div className="mb-4 grid gap-3 md:grid-cols-2">
               <div className="rounded-lg border border-emerald-200 bg-emerald-50/80 p-3 text-sm text-emerald-950">
-                <p className="font-semibold">Rekod Staf Cawangan</p>
+                <p className="font-semibold">Rekod Staf HR</p>
                 <p className="mt-1 text-emerald-900/80">
-                  Untuk daftar pekerja sebenar, tetapkan cawangan, gaji, maklumat HR dan cipta/reset akaun portal staf.
+                  Untuk daftar pekerja sebenar, tetapkan syarikat/cawangan, jawatan, gaji, maklumat HR dan portal staf.
                   AM gunakan bahagian ini sahaja untuk tambah staf jualan/POS.
                 </p>
               </div>
               <div className="rounded-lg border border-amber-200 bg-amber-50/80 p-3 text-sm text-amber-950">
-                <p className="font-semibold">Akaun Login & Role</p>
+                <p className="font-semibold">Login Sistem & Role</p>
                 <p className="mt-1 text-amber-900/80">
                   Untuk Pentadbir HQ mengawal role sistem, dashboard AI dan akaun pengurusan. Ia bukan tempat daftar staf cawangan harian.
                 </p>
@@ -485,12 +485,12 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
             )}
             {canViewStaff && (
               <TabsTrigger value="staff" className={moduleTabsTriggerClass}>
-                <Users className="h-4 w-4" /> Rekod Staf
+                <Users className="h-4 w-4" /> Staf HR
               </TabsTrigger>
             )}
             {canManageUsers && (
               <TabsTrigger value="users" className={moduleTabsTriggerClass}>
-                <FileCog className="h-4 w-4" /> Pengguna
+                <FileCog className="h-4 w-4" /> Login & Role
               </TabsTrigger>
             )}
             {isAdmin && (

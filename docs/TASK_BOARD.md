@@ -151,7 +151,7 @@ Status key: `Todo`, `In Progress`, `Review`, `Blocked`, `Done`.
 
 | ID | Status | Owner | Task | Acceptance |
 |----|--------|-------|------|------------|
-| HR-SET-001 | Done | Frontend/Security AI | Pisahkan `Rekod Staf Cawangan` daripada `Akaun Login & Role`. | Tetapan menerangkan staf sebenar vs akaun sistem; AM melihat laluan rekod staf sahaja; panel Pengguna hanya untuk Admin HQ. |
+| HR-SET-001 | Done | Frontend/Security AI | Pisahkan `Staf HR` daripada `Login & Role`. | Tetapan menerangkan staf sebenar vs akaun sistem; AM melihat laluan rekod staf sahaja; panel Login & Role hanya untuk Admin HQ. |
 | HR-SET-002 | Done | Backend/Security AI | Ketatkan API `settings/users` kepada Admin HQ. | List/create/edit/delete akaun pengguna memerlukan `SUPER_ADMIN`/`ADMIN`; branch assignment pengguna disahkan dalam organisasi yang sama. |
 | HR-SET-003 | Done | HR/Frontend AI | Tambah panel jurang HR antara pengurusan dan staf. | HR dashboard memaparkan tindakan pengurusan/HR dan tindakan staf berasingan untuk portal, profil, cuti, permohonan dan rekod belum tetap. |
 | HR-SET-004 | Done | QA AI | Tambah workflow guard untuk boundary Settings/HR. | `npm run verify:workflow` menyemak boundary Pengguna Admin-only dan panel HR pengurusan vs staf. |
