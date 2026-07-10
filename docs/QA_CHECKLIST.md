@@ -14,6 +14,7 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [ ] `npm run build` passes for production-impacting changes.
 - [ ] `npm run verify:workflow` passes after HR/OM/booking/Sales Agent workflow changes.
 - [ ] `npm run verify:performance` passes after dashboard/workflow performance changes.
+- [ ] `npm run perf:budget` passes before/after deployment when route latency is changed.
 - [ ] Existing module patterns are followed.
 - [ ] Errors are returned with appropriate status codes.
 - [ ] Empty/loading/error states are handled if UI changed.
@@ -82,6 +83,11 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [x] Fleet overview uses count queries for delivery status and bounded latest vehicle status logs.
 - [x] Workflow SOP panel renders only the first four priority steps and summarizes the rest.
 - [x] `npm run verify:performance` guards the lightweight workflow/dashboard path.
+- [x] Dashboard branch scope can use `get_dashboard_snapshot` RPC with code fallback.
+- [x] Dashboard performance migration adds delivery/fleet/finance/approval/POS shift composite indexes.
+- [x] `dashboard_daily_rollups` materialized view is direct-access restricted for anon/authenticated users.
+- [x] Dashboard route has a `loading.tsx` fast shell for slow data waits.
+- [x] `npm run perf:budget` monitors production login, health, dashboard auth gate, booking API and Sales Agent auth gate latency.
 
 ## M6 Release QA Notes
 

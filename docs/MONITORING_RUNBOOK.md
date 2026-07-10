@@ -45,6 +45,27 @@ Escalate immediately if:
 - Middleware/auth errors create login loops.
 - Production alias points to an unexpected deployment.
 
+## Slow Route Checks
+
+Run after every performance-impacting deployment and whenever users report the system feels slow:
+
+```powershell
+npm run perf:budget
+```
+
+Optional custom target:
+
+```powershell
+$env:PERFORMANCE_BASE_URL="https://rkj.one"; npm run perf:budget
+```
+
+Escalate immediately if:
+
+- `/api/health` exceeds the route budget twice in a row.
+- `/dashboard` auth gate becomes slow before login.
+- Protected API auth gates return anything other than `401`.
+- Budget failures appear together with Vercel runtime errors or Supabase slow queries.
+
 ## Supabase Checks
 
 Frequency during stabilization: daily and before UAT payment testing.

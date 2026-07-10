@@ -122,6 +122,11 @@ Status key: `Todo`, `In Progress`, `Review`, `Blocked`, `Done`.
 | PERF-002 | Done | Performance AI | Ringankan POS dan fleet overview. | POS hanya ambil branch visible; fleet guna count query dan bounded latest status log. |
 | PERF-003 | Done | Frontend/Performance AI | Padatkan panel Aliran Kerja & SOP. | Panel memaparkan 4 langkah utama dan ringkaskan baki langkah sokongan. |
 | PERF-004 | Done | QA AI | Tambah performance guard. | `npm run verify:performance` lulus dan dimasukkan dalam QA checklist. |
+| PERF-005 | Done | Database/Performance AI | Tambah index dashboard kritikal. | Migration `20260710151434_dashboard_performance_acceleration.sql` tambah composite index untuk delivery, fleet status, finance, approvals dan POS shifts. |
+| PERF-006 | Done | Backend/Database AI | Tambah branch-scoped dashboard snapshot RPC. | `get_dashboard_snapshot` menggabungkan sales, approval dan outstanding cash untuk scope cawangan dengan `SECURITY INVOKER` serta fallback code jika RPC belum tersedia. |
+| PERF-007 | Done | Database AI | Sediakan daily dashboard rollup materialized view. | `dashboard_daily_rollups` diwujudkan untuk admin/reporting refresh, access direct kepada anon/authenticated ditutup. |
+| PERF-008 | Done | Frontend/Performance AI | Tambah fast loading shell dashboard. | `app/(dashboard)/dashboard/loading.tsx` memberi shell skeleton semasa data dashboard dimuat. |
+| PERF-009 | Done | QA/DevOps AI | Tambah performance budget command. | `npm run perf:budget` ukur endpoint production penting dan fail jika status/latency melebihi budget. |
 
 ## Backlog
 
@@ -131,3 +136,4 @@ Status key: `Todo`, `In Progress`, `Review`, `Blocked`, `Done`.
 - Add audit log events for booking create/update/status changes.
 - Add audit log events for Sales Agent payment route actions and HR OM coverage actions.
 - Add owner dashboard card for open operational bookings if approved.
+- Schedule `refresh_dashboard_daily_rollups()` through Supabase cron only after confirming refresh frequency and database load window.

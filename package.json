@@ -23,6 +23,7 @@
     "verify:all": "node scripts/verify-all-production.mjs",
     "verify:workflow": "node scripts/verify-workflow-guards.mjs",
     "verify:performance": "node scripts/verify-performance-guards.mjs",
+    "perf:budget": "node scripts/performance-budget.mjs",
     "verify:settings-users": "node scripts/verify-settings-users.mjs",
     "verify:auth": "node scripts/verify-go-live-36.mjs auth",
     "verify:delivery": "node scripts/verify-go-live-36.mjs delivery",

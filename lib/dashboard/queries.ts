@@ -4,6 +4,95 @@ import { fetchKioskOverviewForBranches } from '@/lib/inventory/kiosk-overview-da
 
 type KioskOverviewSnapshot = Awaited<ReturnType<typeof fetchKioskOverviewForBranches>>;
 
+type DashboardSnapshotRow = {
+ organization_id?: string | null;
+ sales_today?: number | string | null;
+ sales_this_week?: number | string | null;
+ sales_this_month?: number | string | null;
+ pending_approvals?: number | string | null;
+ critical_stock_count?: number | string | null;
+ low_stock_count?: number | string | null;
+ outstanding_cash?: number | string | null;
+};
+
+type DashboardRpcClient = {
+ rpc: (
+  fn: 'get_dashboard_snapshot',
+  args: { p_org_id: string; p_branch_ids: string[] | null }) => {
+  maybeSingle: () => Promise<{
+   data: DashboardSnapshotRow | null;
+   error: { message: string } | null;
+  }>;
+ };
+};
+
+function toNumber(value: number | string | null | undefined) {
+ return Number(value ?? 0);
+}
+
+function toInteger(value: number | string | null | undefined) {
+ return Math.trunc(Number(value ?? 0));
+}
+
+function emptyDashboardStats(orgId: string): DashboardStats {
+ return {
+ organization_id: orgId,
+ sales_today: 0,
+ sales_this_week: 0,
+ sales_this_month: 0,
+ pending_approvals: 0,
+ critical_stock_count: 0,
+ low_stock_count: 0,
+ outstanding_cash: 0,
+ };
+}
+
+function normalizeDashboardSnapshot(row: DashboardSnapshotRow, orgId: string): DashboardStats {
+ return {
+ organization_id: row.organization_id ?? orgId,
+ sales_today: toNumber(row.sales_today),
+ sales_this_week: toNumber(row.sales_this_week),
+ sales_this_month: toNumber(row.sales_this_month),
+ pending_approvals: toInteger(row.pending_approvals),
+ critical_stock_count: toInteger(row.critical_stock_count),
+ low_stock_count: toInteger(row.low_stock_count),
+ outstanding_cash: toNumber(row.outstanding_cash),
+ };
+}
+
+async function getDashboardSnapshotViaRpc(
+ supabase: unknown,
+ orgId: string,
+ branchIds: string[] | null): Promise<DashboardStats | null> {
+ const { data, error } = await (supabase as DashboardRpcClient)
+ .rpc('get_dashboard_snapshot', { p_org_id: orgId, p_branch_ids: branchIds })
+ .maybeSingle();
+
+ if (error) {
+  const message = error.message.toLowerCase();
+  if (!message.includes('could not find') && !message.includes('does not exist')) {
+   console.error('[get_dashboard_snapshot]', error.message);
+  }
+  return null;
+ }
+
+ return data ? normalizeDashboardSnapshot(data, orgId) : null;
+}
+
+function getDashboardDateWindow() {
+ const now = new Date();
+ const today = now.toISOString().slice(0, 10);
+ const weekStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+ const daysSinceMonday = (weekStart.getUTCDay() + 6) % 7;
+ weekStart.setUTCDate(weekStart.getUTCDate() - daysSinceMonday);
+
+ return {
+  today,
+  weekStart: weekStart.toISOString().slice(0, 10),
+  monthStart: `${today.slice(0, 8)}01`,
+ };
+}
+
 export function hydrateDashboardStatsStockCounts(
  stats: DashboardStats,
  kioskOverview: KioskOverviewSnapshot): DashboardStats {
@@ -32,23 +121,8 @@ export async function getDashboardStats(
  }
 
  if (branchIds.length === 0) {
- return {
- organization_id: orgId,
- sales_today: 0,
- sales_this_week: 0,
- sales_this_month: 0,
- pending_approvals: 0,
- critical_stock_count: 0,
- low_stock_count: 0,
- outstanding_cash: 0,
- };
+ return emptyDashboardStats(orgId);
  }
-
- const today = new Date().toISOString().slice(0, 10);
- const weekStart = new Date();
- weekStart.setDate(weekStart.getDate() ?? weekStart.getDay());
- const weekStartStr = weekStart.toISOString().slice(0, 10);
- const monthStart = `${today.slice(0, 8)}01`;
 
  const stockCountsPromise =
  options.includeStockCounts === false
@@ -57,12 +131,25 @@ export async function getDashboardStats(
  ? Promise.resolve(options.kioskOverview)
  : fetchKioskOverviewForBranches(supabase, orgId, branchIds);
 
+ const [snapshot, snapshotKioskOverview] = await Promise.all([
+ getDashboardSnapshotViaRpc(supabase, orgId, branchIds),
+ stockCountsPromise,
+ ]);
+
+ if (snapshot) {
+  return snapshotKioskOverview
+  ? hydrateDashboardStatsStockCounts(snapshot, snapshotKioskOverview)
+  : snapshot;
+ }
+
+ const { today, weekStart, monthStart } = getDashboardDateWindow();
+
  const [todayRes, weekRes, monthRes, approvalsRes, kioskOverview] = await Promise.all([
  supabase.from('pos_daily_summaries').select('total_sales').eq('organization_id', orgId).eq('summary_date', today).in('branch_id', branchIds),
- supabase.from('pos_daily_summaries').select('total_sales').eq('organization_id', orgId).gte('summary_date', weekStartStr).in('branch_id', branchIds),
+ supabase.from('pos_daily_summaries').select('total_sales').eq('organization_id', orgId).gte('summary_date', weekStart).in('branch_id', branchIds),
  supabase.from('pos_daily_summaries').select('total_sales').eq('organization_id', orgId).gte('summary_date', monthStart).in('branch_id', branchIds),
  supabase.from('approval_requests').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).eq('status', 'PENDING').in('branch_id', branchIds),
- stockCountsPromise,
+ Promise.resolve(snapshotKioskOverview),
  ]);
 
  const sum = (rows: Array<{ total_sales?: number }> | null) =>

@@ -138,6 +138,7 @@ Expected result:
 - [x] Production alias points to latest expected deployment.
 - [x] Error logs checked.
 - [x] Changed API/page smoke-tested.
+- [x] Performance budget checked for changed dashboard/API route.
 - [x] Task board updated.
 - [x] QA checklist updated for known issues.
 

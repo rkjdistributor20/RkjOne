@@ -13,8 +13,11 @@ const checks = [
  ],
  },
  {
- file: 'lib/dashboard/queries.ts',
- patterns: [
+  file: 'lib/dashboard/queries.ts',
+  patterns: [
+  'getDashboardSnapshotViaRpc',
+  'get_dashboard_snapshot',
+  'getDashboardDateWindow',
   'stockCountsPromise',
   'visibleBranchIds',
   "select('id', { count: 'exact', head: true })",
@@ -22,11 +25,43 @@ const checks = [
  ],
  forbidden: [
   'fleet_status_log(status, logged_at)',
- ],
+  ],
  },
  {
- file: 'lib/dashboard/am-branch-metrics.ts',
- patterns: [
+  file: 'app/(dashboard)/dashboard/loading.tsx',
+  patterns: [
+  'DashboardLoading',
+  'Skeleton',
+  'ModuleLayout',
+  ],
+ },
+ {
+  file: 'supabase/migrations/20260710151434_dashboard_performance_acceleration.sql',
+  patterns: [
+  'idx_delivery_orders_org_status_created',
+  'idx_fleet_status_log_org_vehicle_logged',
+  'dashboard_daily_rollups',
+  'get_dashboard_snapshot',
+  'SECURITY INVOKER',
+  ],
+ },
+ {
+  file: 'scripts/performance-budget.mjs',
+  patterns: [
+  'Performance budget target',
+  'bestOfTwo',
+  'expectedStatuses',
+  ],
+ },
+ {
+  file: 'package.json',
+  patterns: [
+  '"perf:budget": "node scripts/performance-budget.mjs"',
+  ],
+ },
+ {
+  file: 'lib/dashboard/am-branch-metrics.ts',
+  patterns: [
   'summariesByBranch',
   'summariesByBranch.get(b.id)',
  ],
