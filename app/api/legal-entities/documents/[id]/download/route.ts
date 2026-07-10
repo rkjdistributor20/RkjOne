@@ -91,23 +91,16 @@ async function findStoredDocument(
  if (tried.has(path)) return null;
  tried.add(path);
 
- const { data: signed, error: signedErr } = await service.storage
+ const { data: blob, error } = await service.storage
  .from(BUCKET)
- .createSignedUrl(path, 300);
+ .download(path);
 
- if (signedErr || !signed?.signedUrl) {
- lastError = signedErr?.message ?? 'Gagal jana link dokumen';
+ if (error || !blob) {
+ lastError = error?.message ?? 'Object not found';
  return null;
  }
 
- const upstream = await fetch(signed.signedUrl, { cache: 'no-store' });
- if (!upstream.ok || !upstream.body) {
- const text = await upstream.text().catch(() => '');
- lastError = text || `Storage status ${upstream.status}`;
- return null;
- }
-
- return { path, upstream };
+ return { path, blob };
  }
 
  for (const path of candidates) {
@@ -156,11 +149,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
  const fileName = row.file_name?.trim() || 'dokumen-rkj-one';
  const dispositionMode = mode === 'download' ? 'attachment' : 'inline';
  const headers = new Headers();
- headers.set('Content-Type', row.mime_type || stored.upstream.headers.get('content-type') || 'application/octet-stream');
+ headers.set('Content-Type', row.mime_type || stored.blob.type || 'application/octet-stream');
  headers.set('Content-Disposition', `${dispositionMode}; filename*=UTF-8''${encodeURIComponent(fileName)}`);
  headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
  headers.set('Pragma', 'no-cache');
  headers.set('Expires', '0');
 
- return new NextResponse(stored.upstream.body, { status: 200, headers });
+ return new NextResponse(stored.blob.stream(), { status: 200, headers });
 }
