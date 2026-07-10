@@ -67,6 +67,16 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [ ] HR/Admin can approve/reject HR requests only within their legal entity scope unless group-wide.
 - [ ] Payroll, leave and documents do not mix records across legal entities.
 
+## Settings & HR Responsibility Review
+
+- [x] `Rekod Staf Cawangan` is described as real staff records, placement, payroll/basic HR and portal account setup.
+- [x] `Akaun Login & Role` is described as Admin HQ control for system login, role and dashboard AI.
+- [x] Area Manager sees staff workflow only and cannot use the separate Users panel.
+- [x] `/api/settings/users` list/create/edit/delete is Admin HQ only.
+- [x] Area Manager staff creation remains through `/api/settings/staff` and keeps branch/sales-staff restrictions.
+- [x] HR dashboard separates management/HR actions from staff self-service actions.
+- [x] `npm run verify:workflow` guards the Settings/HR responsibility boundary.
+
 ## Deployment Review
 
 - [ ] Migration applied to Supabase if schema changed.

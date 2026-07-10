@@ -3,19 +3,12 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getCurrentProfile } from '@/lib/auth/session';
-import { isSettingsAdmin } from '@/lib/settings/admin-auth';
+import { assertSettingsAdmin } from '@/lib/settings/admin-auth';
 import {
- assertBranchInPersonnelScope,
- assertCanManagePersonnel,
  assertRoleCreatable,
- isAreaManagerRole,
- loadPersonnelScope,
 } from '@/lib/settings/personnel-access';
 import { resolveLegalEntityIdForRole } from '@/lib/settings/legal-entity';
-import {
- loadSettingsUsersForAdmin,
- loadSettingsUsersFromProfiles,
-} from '@/lib/settings/users-list';
+import { loadSettingsUsersForAdmin } from '@/lib/settings/users-list';
 import {
  adviseUserDashboard,
  dashboardMetadataPatch,
@@ -26,22 +19,35 @@ import { generateTemporaryPassword } from '@/lib/security/passwords';
 
 import type { UserRole } from '@/types/enums';
 
+async function resolveAdminBranchAssignment(
+ supabase: SupabaseClient,
+ organizationId: string,
+ branchIdInput: unknown) {
+ const branchId = String(branchIdInput ?? '').trim() || null;
+ if (!branchId) return { branchId: null, regionId: null };
+
+ const { data, error } = await supabase
+ .from('branches')
+ .select('id, region_id')
+ .eq('id', branchId)
+ .eq('organization_id', organizationId)
+ .maybeSingle();
+
+ if (error) throw new Error(error.message);
+ if (!data) throw new Error('Cawangan tidak dijumpai dalam organisasi ini');
+
+ return {
+ branchId: data.id as string,
+ regionId: (data.region_id as string | null) ?? null,
+ };
+}
+
 export async function GET() {
  const profile = await getCurrentProfile();
  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
  try {
- assertCanManagePersonnel(profile);
- } catch (err) {
- return NextResponse.json(
- { error: err instanceof Error ? err.message : 'Forbidden' },
- { status: 403 });
- }
-
- const supabase = await createClient();
- let scope;
- try {
- scope = await loadPersonnelScope(supabase, profile);
+ assertSettingsAdmin(profile);
  } catch (err) {
  return NextResponse.json(
  { error: err instanceof Error ? err.message : 'Forbidden' },
@@ -50,8 +56,6 @@ export async function GET() {
 
  try {
  const admin = createAdminClient();
-
- if (isSettingsAdmin(profile.role)) {
  const { users, staff_total, login_total } = await loadSettingsUsersForAdmin(
  admin,
  profile.organization_id);
@@ -61,14 +65,6 @@ export async function GET() {
  staff_total,
  login_total,
  });
- }
-
- const users = await loadSettingsUsersFromProfiles(admin, profile.organization_id, {
- role: 'STAFF',
- branchIds: scope.branchIds,
- });
-
- return NextResponse.json({ users, total: users.length });
  } catch (err) {
  return NextResponse.json(
  { error: err instanceof Error ? err.message : 'Gagal muat pengguna' },
@@ -85,7 +81,7 @@ export async function POST(request: Request) {
  });
  if (limited) return limited;
 
- const profile = assertCanManagePersonnel(await getCurrentProfile());
+ const profile = assertSettingsAdmin(await getCurrentProfile());
  const body = await request.json();
  const email = String(body.email ?? '').trim().toLowerCase();
  const fullName = String(body.full_name ?? '').trim();
@@ -98,20 +94,11 @@ export async function POST(request: Request) {
  assertRoleCreatable(profile, role);
 
  const supabase = await createClient();
- const branchId = await assertBranchInPersonnelScope(
+ const { branchId, regionId: branchRegionId } = await resolveAdminBranchAssignment(
  supabase,
- profile,
+ profile.organization_id,
  body.branch_id);
-
- let regionId: string | null = profile.region_id;
- if (branchId) {
- const { data: branch } = await supabase.from('branches').select('region_id').eq('id', branchId).maybeSingle();
- regionId = (branch as { region_id: string } | null)?.region_id ?? regionId;
- }
-
- if (isAreaManagerRole(profile.role) && !branchId) {
- return NextResponse.json({ error: 'Cawangan wajib' }, { status: 400 });
- }
+ const regionId: string | null = branchRegionId ?? profile.region_id;
 
  const service = await createServiceClient();
  const suppliedPassword = String(body.password ?? '').trim();
@@ -147,7 +134,6 @@ export async function POST(request: Request) {
  return NextResponse.json({ error: profileErr.message }, { status: 400 });
  }
 
- if (isSettingsAdmin(profile.role)) {
  const advice = adviseUserDashboard({
  role: role as UserRole,
  legal_entity_code: null,
@@ -156,7 +142,6 @@ export async function POST(request: Request) {
  await (service as SupabaseClient).from('profiles').update({
  metadata: mergeMetadata(null, dashboardMetadataPatch(advice)),
  }).eq('id', authData.user.id);
- }
 
  return NextResponse.json({
  user: {

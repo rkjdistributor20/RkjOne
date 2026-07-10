@@ -655,6 +655,163 @@ function CompanyFocusPanel({
  );
 }
 
+function HrManagementStaffGapPanel({
+ data,
+ onAddStaff,
+}: {
+ data: HrDashboardData;
+ onAddStaff: () => void;
+}) {
+ const people = [
+ ...data.companies.flatMap((company) => company.people),
+ ...data.unassigned,
+ ...data.group_owners,
+ ];
+ const currentYear = new Date().getFullYear();
+ const activeRequests = data.service_requests.filter((request) =>
+ ['SUBMITTED', 'IN_REVIEW'].includes(request.status));
+ const staffWithoutPortal = people.filter((person) =>
+ person.status === 'ACTIVE' && !person.email && !person.profile_id);
+ const incompleteProfiles = people.filter((person) =>
+ person.profile_id && !person.profile_completed_at);
+ const mustChangePassword = people.filter((person) => person.must_change_password);
+ const localWithoutAnnualLeave = people.filter((person) =>
+ person.status === 'ACTIVE' &&
+ person.worker_type === 'LOCAL' &&
+ !(person.leave_balances ?? []).some((balance) =>
+ balance.leave_year === currentYear && balance.leave_type === 'ANNUAL'));
+
+ const managementActions = [
+ {
+ title: 'Daftar staf melalui Rekod Staf',
+ count: staffWithoutPortal.length,
+ detail: 'Pastikan setiap pekerja ada rekod staf, majikan legal, cawangan dan akaun portal jika perlu.',
+ icon: UserPlus,
+ urgent: staffWithoutPortal.length > 0,
+ },
+ {
+ title: 'Lengkapkan baki cuti pekerja local',
+ count: localWithoutAnnualLeave.length,
+ detail: 'Tetapkan entitlement tahunan supaya permohonan cuti boleh dikira dengan betul.',
+ icon: CalendarDays,
+ urgent: localWithoutAnnualLeave.length > 0,
+ },
+ {
+ title: 'Proses permohonan HR kendiri',
+ count: activeRequests.length,
+ detail: 'Ambil, lulus/tolak, dan selesaikan permohonan staf mengikut syarikat dan cawangan.',
+ icon: Inbox,
+ urgent: activeRequests.length > 0,
+ },
+ {
+ title: 'Betulkan rekod belum tetap',
+ count: data.unassigned.length,
+ detail: 'Pindahkan rekod tanpa syarikat ke majikan legal yang betul supaya payroll dan akses tidak bercampur.',
+ icon: AlertTriangle,
+ urgent: data.unassigned.length > 0,
+ },
+ ];
+
+ const staffActions = [
+ {
+ title: 'Lengkapkan profil HR',
+ count: incompleteProfiles.length,
+ detail: 'Staf perlu lengkapkan telefon, IC/passport, bank, alamat dan waris di Profil Saya.',
+ icon: UserCog,
+ urgent: incompleteProfiles.length > 0,
+ },
+ {
+ title: 'Tukar password pertama',
+ count: mustChangePassword.length,
+ detail: 'Akaun yang baru dijana mesti tukar password sebelum operasi harian.',
+ icon: ShieldCheck,
+ urgent: mustChangePassword.length > 0,
+ },
+ {
+ title: 'Semak cuti pending',
+ count: Number(data.summary.leave_pending ?? 0),
+ detail: 'Staf boleh pantau baki cuti, status permohonan dan nota HR melalui HRMIS kendiri.',
+ icon: CalendarDays,
+ urgent: Number(data.summary.leave_pending ?? 0) > 0,
+ },
+ {
+ title: 'Gunakan katalog HRMIS',
+ count: data.service_requests.length,
+ detail: 'Cuti, dokumen, gaji, claim, uniform, training dan pertukaran tempat kerja dihantar dari portal staf.',
+ icon: ClipboardCheck,
+ urgent: false,
+ },
+ ];
+
+ return (
+ <SectionCard
+ title="Jurang HR: Pengurusan vs Staf"
+ description="Panel ini memisahkan kerja HR/Admin daripada tindakan yang perlu dibuat oleh staf supaya aliran tidak bercampur dengan Tetapan Pengguna."
+ action={
+ <Button size="sm" className="gap-1.5 bg-amber-500 hover:bg-amber-600" onClick={onAddStaff}>
+ <UserPlus className="h-4 w-4" />
+ Tambah Staf
+ </Button>
+ }
+ >
+ <div className="grid gap-4 xl:grid-cols-2">
+ <div className="rounded-xl border border-violet-200 bg-violet-50/60 p-4">
+ <div className="mb-3 flex items-center justify-between gap-3">
+ <div>
+ <p className="text-sm font-semibold text-violet-950">Tanggungjawab Pengurusan / HR</p>
+ <p className="text-xs text-violet-900/80">Rekod, akses, baki cuti, kelulusan dan audit.</p>
+ </div>
+ <Badge variant="outline" className="bg-white">{managementActions.filter((item) => item.urgent).length} perlu tindakan</Badge>
+ </div>
+ <div className="grid gap-2">
+ {managementActions.map((item) => (
+ <div key={item.title} className="rounded-lg border bg-white px-3 py-2 text-sm">
+ <div className="flex items-start justify-between gap-3">
+ <div className="flex gap-2">
+ <item.icon className={cn('mt-0.5 h-4 w-4 shrink-0', item.urgent ? 'text-amber-600' : 'text-emerald-600')} />
+ <div>
+ <p className="font-semibold text-stone-950">{item.title}</p>
+ <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{item.detail}</p>
+ </div>
+ </div>
+ <Badge variant={item.urgent ? 'default' : 'secondary'} className="shrink-0 tabular-nums">
+ {item.count}
+ </Badge>
+ </div>
+ </div>))}
+ </div>
+ </div>
+
+ <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
+ <div className="mb-3 flex items-center justify-between gap-3">
+ <div>
+ <p className="text-sm font-semibold text-emerald-950">Tanggungjawab Staf</p>
+ <p className="text-xs text-emerald-900/80">Profil, password, permohonan, jadual dan slip sendiri.</p>
+ </div>
+ <Badge variant="outline" className="bg-white">{staffActions.filter((item) => item.urgent).length} perlu tindakan</Badge>
+ </div>
+ <div className="grid gap-2">
+ {staffActions.map((item) => (
+ <div key={item.title} className="rounded-lg border bg-white px-3 py-2 text-sm">
+ <div className="flex items-start justify-between gap-3">
+ <div className="flex gap-2">
+ <item.icon className={cn('mt-0.5 h-4 w-4 shrink-0', item.urgent ? 'text-amber-600' : 'text-emerald-600')} />
+ <div>
+ <p className="font-semibold text-stone-950">{item.title}</p>
+ <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{item.detail}</p>
+ </div>
+ </div>
+ <Badge variant={item.urgent ? 'default' : 'secondary'} className="shrink-0 tabular-nums">
+ {item.count}
+ </Badge>
+ </div>
+ </div>))}
+ </div>
+ </div>
+ </div>
+ </SectionCard>);
+}
+
 function ComplianceStrip({ company }: { company: HrCompanyGroup }) {
  const checks = [
  { label: 'Entiti legal aktif', ok: company.status === 'ACTIVE' },
@@ -1979,6 +2136,11 @@ async function handleServiceRequestStatus(
  selectedCompanyKey={selectedCompanyKey}
  selectedCompany={selectedCompany}
  onSelectCompany={setSelectedCompanyKey}
+ />
+
+ <HrManagementStaffGapPanel
+ data={data}
+ onAddStaff={() => setAddStaffOpen(true)}
  />
 
  <WorkflowSopPanel workflow={workflow} />

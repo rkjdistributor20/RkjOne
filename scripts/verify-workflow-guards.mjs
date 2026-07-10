@@ -32,15 +32,44 @@ const checks = [
  ],
  },
  {
- file: 'components/hr/company-hr-dashboard.tsx',
- patterns: [
-  'Cuti AM perlu di-cover oleh OM dahulu sebelum HR boleh luluskan.',
-  'Perlu cover OM',
- ],
+  file: 'components/hr/company-hr-dashboard.tsx',
+  patterns: [
+   'Cuti AM perlu di-cover oleh OM dahulu sebelum HR boleh luluskan.',
+   'Perlu cover OM',
+   'Jurang HR: Pengurusan vs Staf',
+   'Tanggungjawab Pengurusan / HR',
+   'Tanggungjawab Staf',
+  ],
  },
  {
- file: 'lib/auth/permissions.ts',
- patterns: [
+  file: 'components/settings/settings-dashboard.tsx',
+  patterns: [
+   'const canManageUsers = isAdmin;',
+   'title: "Rekod Staf Cawangan"',
+   'title: "Akaun Login & Role"',
+   'visible: canManageUsers',
+   'AM gunakan bahagian ini sahaja untuk tambah staf jualan/POS.',
+  ],
+ },
+ {
+  file: 'app/api/settings/users/route.ts',
+  patterns: [
+   'assertSettingsAdmin(profile)',
+   'assertSettingsAdmin(await getCurrentProfile())',
+   'Cawangan tidak dijumpai dalam organisasi ini',
+  ],
+ },
+ {
+  file: 'app/api/settings/users/[id]/route.ts',
+  patterns: [
+   'assertSettingsAdmin(await getCurrentProfile())',
+   ".eq('organization_id', profile.organization_id)",
+   'Pengguna tidak dijumpai',
+  ],
+ },
+ {
+  file: 'lib/auth/permissions.ts',
+  patterns: [
   'canAccessBookings',
   "['SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER']",
  ],

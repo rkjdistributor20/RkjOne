@@ -147,6 +147,15 @@ Status key: `Todo`, `In Progress`, `Review`, `Blocked`, `Done`.
 | PERF-017 | Done | Frontend/Backend Performance AI | Ringankan HQ Distributor. | `/warehouse` render shell dan KPI dahulu; balances/audit hanya dimuat bila tab berkaitan dibuka; summary API query parallel; order history HQ dihadkan kepada recent rows. |
 | PERF-018 | Done | Frontend/Backend Performance AI | Speed pass keseluruhan untuk Reports, Finance dan Fleet. | Reports/Finance/Fleet elak bulk initial fetch, tab berat dimuat bila dibuka, API list utama ada limit, query summary kritikal berjalan parallel, dan response read-only guna short private cache. |
 
+## Milestone 11 - Settings & HR Responsibility Clarity
+
+| ID | Status | Owner | Task | Acceptance |
+|----|--------|-------|------|------------|
+| HR-SET-001 | Done | Frontend/Security AI | Pisahkan `Rekod Staf Cawangan` daripada `Akaun Login & Role`. | Tetapan menerangkan staf sebenar vs akaun sistem; AM melihat laluan rekod staf sahaja; panel Pengguna hanya untuk Admin HQ. |
+| HR-SET-002 | Done | Backend/Security AI | Ketatkan API `settings/users` kepada Admin HQ. | List/create/edit/delete akaun pengguna memerlukan `SUPER_ADMIN`/`ADMIN`; branch assignment pengguna disahkan dalam organisasi yang sama. |
+| HR-SET-003 | Done | HR/Frontend AI | Tambah panel jurang HR antara pengurusan dan staf. | HR dashboard memaparkan tindakan pengurusan/HR dan tindakan staf berasingan untuk portal, profil, cuti, permohonan dan rekod belum tetap. |
+| HR-SET-004 | Done | QA AI | Tambah workflow guard untuk boundary Settings/HR. | `npm run verify:workflow` menyemak boundary Pengguna Admin-only dan panel HR pengurusan vs staf. |
+
 ## Backlog
 
 - Confirm owner SOP for booking users/lifecycle before reopening booking UI beyond Admin/OM.

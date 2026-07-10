@@ -72,8 +72,9 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
   const role = profile?.role;
   const isAdmin = role === "SUPER_ADMIN" || role === "ADMIN";
   const isAreaManager = role === "AREA_MANAGER";
-  const canManagePersonnel = isAdmin || isAreaManager;
-  const canViewStaff = canManagePersonnel || role === "OPERATION_MANAGER";
+  const canManageStaff = isAdmin || isAreaManager;
+  const canManageUsers = isAdmin;
+  const canViewStaff = canManageStaff || role === "OPERATION_MANAGER";
   const creatableRoles = profile ? rolesCreatableBy(profile) : [];
 
   const defaultTab =
@@ -81,13 +82,15 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
       ? "branches"
       : tabParam === "companies"
         ? "companies"
-        : tabParam === "users"
+        : tabParam === "users" && canManageUsers
           ? "users"
+          : tabParam === "staff" && canViewStaff
+            ? "staff"
           : tabParam === "planning"
             ? "planning"
             : tabParam === "system"
               ? "system"
-              : canManagePersonnel && !isAdmin
+              : canManageStaff && !isAdmin
                 ? "staff"
                 : "products";
   const [activeTab, setActiveTab] = useState(defaultTab);
@@ -108,7 +111,7 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
   const [loading, setLoading] = useState(true);
 
   const loadUsers = useCallback(async () => {
-    if (!canManagePersonnel) return;
+    if (!canManageUsers) return;
     setUsersLoading(true);
     setUsersError(null);
     try {
@@ -125,7 +128,7 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
     } finally {
       setUsersLoading(false);
     }
-  }, [canManagePersonnel, initialUsers?.users.length]);
+  }, [canManageUsers, initialUsers?.users.length]);
 
   const loadData = useCallback(async () => {
     if (!profile) return;
@@ -155,7 +158,7 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
       );
     }
 
-    if (canManagePersonnel && activeTab === "users") {
+    if (canManageUsers && activeTab === "users") {
       tasks.push(loadUsers());
     }
 
@@ -177,7 +180,7 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
   }, [
     profile,
     isAdmin,
-    canManagePersonnel,
+    canManageUsers,
     canViewStaff,
     role,
     activeTab,
@@ -269,9 +272,9 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
         },
         {
           value: "staff",
-          title: "HR Cawangan",
+          title: "Rekod Staf Cawangan",
           description:
-            "Penempatan staf, maklumat pekerjaan dan pautan cawangan.",
+            "Rekod pekerja, penempatan, gaji asas, portal login staf dan reset password staf.",
           icon: Users,
           metric: usersStaffTotal ? `${usersStaffTotal} staf` : "Staf",
           tone: "emerald",
@@ -279,12 +282,12 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
         },
         {
           value: "users",
-          title: "Akses Pengguna",
-          description: "Role, dashboard, akaun login dan had akses sistem.",
+          title: "Akaun Login & Role",
+          description: "Akaun sistem, role, dashboard AI dan akses pentadbiran HQ.",
           icon: FileCog,
           metric: usersLoginTotal ? `${usersLoginTotal} login` : "Akses",
           tone: "amber",
-          visible: canManagePersonnel,
+          visible: canManageUsers,
         },
         {
           value: "system",
@@ -300,7 +303,7 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
     [
       branchGroups,
       canEditPlanning,
-      canManagePersonnel,
+      canManageUsers,
       canViewStaff,
       isAdmin,
       products.length,
@@ -318,7 +321,7 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
         title="Tetapan"
         description={
           isAreaManager
-            ? "Pusat kawalan kawasan anda: staf, pengguna kiosk, akses dan aturan operasi."
+            ? "Pusat kawalan kawasan anda: rekod staf jualan, akses portal staf dan aturan operasi."
             : "Pusat kawalan RKJ One untuk produk, cawangan, stok, staf, akses, dokumen syarikat dan kesihatan sistem."
         }
         icon={Settings2}
@@ -372,6 +375,22 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
                 {controlCards.filter((card) => card.visible).length} modul
                 tersedia
               </Badge>
+            </div>
+
+            <div className="mb-4 grid gap-3 md:grid-cols-2">
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50/80 p-3 text-sm text-emerald-950">
+                <p className="font-semibold">Rekod Staf Cawangan</p>
+                <p className="mt-1 text-emerald-900/80">
+                  Untuk daftar pekerja sebenar, tetapkan cawangan, gaji, maklumat HR dan cipta/reset akaun portal staf.
+                  AM gunakan bahagian ini sahaja untuk tambah staf jualan/POS.
+                </p>
+              </div>
+              <div className="rounded-lg border border-amber-200 bg-amber-50/80 p-3 text-sm text-amber-950">
+                <p className="font-semibold">Akaun Login & Role</p>
+                <p className="mt-1 text-amber-900/80">
+                  Untuk Pentadbir HQ mengawal role sistem, dashboard AI dan akaun pengurusan. Ia bukan tempat daftar staf cawangan harian.
+                </p>
+              </div>
             </div>
 
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -466,12 +485,12 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
             )}
             {canViewStaff && (
               <TabsTrigger value="staff" className={moduleTabsTriggerClass}>
-                <Users className="h-4 w-4" /> Staf
+                <Users className="h-4 w-4" /> Rekod Staf
               </TabsTrigger>
             )}
-            {canManagePersonnel && (
+            {canManageUsers && (
               <TabsTrigger value="users" className={moduleTabsTriggerClass}>
-                <Users className="h-4 w-4" /> Pengguna
+                <FileCog className="h-4 w-4" /> Pengguna
               </TabsTrigger>
             )}
             {isAdmin && (
@@ -527,13 +546,13 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
             <TabsContent value="staff" className="mt-4">
               <StaffSettingsPanel
                 branchGroups={branchGroups}
-                canManage={canManagePersonnel}
+                canManage={canManageStaff}
                 onRefresh={loadData}
               />
             </TabsContent>
           )}
 
-          {canManagePersonnel && (
+          {canManageUsers && (
             <TabsContent value="users" className="mt-4">
               <UsersSettingsPanel
                 users={users}
