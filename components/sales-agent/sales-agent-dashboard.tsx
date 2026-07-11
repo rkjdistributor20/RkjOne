@@ -921,6 +921,7 @@ function AdminSalesAgentManagement({ workflow }: { workflow: ReturnType<typeof g
  const [form, setForm] = useState<AdminAgentForm>(EMPTY_ADMIN_AGENT_FORM);
  const [editForm, setEditForm] = useState<AdminAgentForm>(EMPTY_ADMIN_AGENT_FORM);
  const [lastLogin, setLastLogin] = useState<{ email: string; password: string } | null>(null);
+ const [agentListFilter, setAgentListFilter] = useState<'ALL' | 'NORMAL' | 'SPECIAL'>('ALL');
 
  const loadAdmin = useCallback(async () => {
  setLoading(true);
@@ -947,9 +948,15 @@ function AdminSalesAgentManagement({ workflow }: { workflow: ReturnType<typeof g
  const activePriceGroups = useMemo(
  () => priceGroups.filter((g) => g.id && g.name && g.status !== 'INACTIVE'),
  [priceGroups]);
+ const normalPriceGroups = useMemo(
+ () => activePriceGroups.filter((g) => !g.payment_exempt && g.code !== 'EJEN_KHAS_SYARIKAT'),
+ [activePriceGroups]);
  const priceGroupSelectValues = useMemo(
  () => ['DEFAULT', ...activePriceGroups.map((group) => group.id)],
  [activePriceGroups]);
+ const normalPriceGroupSelectValues = useMemo(
+ () => ['DEFAULT', ...normalPriceGroups.map((group) => group.id)],
+ [normalPriceGroups]);
  const assignableStaffValues = useMemo(
  () => ['NONE', ...assignableStaff.map((staff) => staff.id)],
  [assignableStaff]);
@@ -1023,7 +1030,7 @@ function AdminSalesAgentManagement({ workflow }: { workflow: ReturnType<typeof g
  }, [activePriceGroups]);
 
  const formPriceGroup = activePriceGroups.find((g) => g.id === form.assigned_price_group_id) ?? null;
- const formPriceGroupSelectValue = boundSelectValue(form.assigned_price_group_id || 'DEFAULT', priceGroupSelectValues) ?? 'DEFAULT';
+ const normalFormPriceGroupSelectValue = boundSelectValue(form.assigned_price_group_id || 'DEFAULT', normalPriceGroupSelectValues) ?? 'DEFAULT';
  const editPriceGroupSelectValue = boundSelectValue(editForm.assigned_price_group_id || 'DEFAULT', priceGroupSelectValues) ?? 'DEFAULT';
  const formStaffSelectValue = boundSelectValue(form.staff_id || 'NONE', assignableStaffValues) ?? 'NONE';
  const addingSpecialAgent = Boolean(formPriceGroup?.payment_exempt || formPriceGroup?.code === 'EJEN_KHAS_SYARIKAT');
@@ -1192,9 +1199,15 @@ function AdminSalesAgentManagement({ workflow }: { workflow: ReturnType<typeof g
  setSaving(false);
  }
  }
- const activeCount = accounts.filter((a) => a.status === 'ACTIVE').length;
  const suspendedCount = reportEvents.filter((e) => e.event_type === 'ARCHIVED' || e.event_type === 'SUSPENDED').length;
+ const normalAccounts = accounts.filter((a) => !a.price_group?.payment_exempt);
  const specialAccounts = accounts.filter((a) => a.price_group?.payment_exempt);
+ const visibleAccounts =
+ agentListFilter === 'NORMAL'
+ ? normalAccounts
+ : agentListFilter === 'SPECIAL'
+ ? specialAccounts
+ : accounts;
 
  return (
  <ModuleLayout>
@@ -1214,8 +1227,8 @@ function AdminSalesAgentManagement({ workflow }: { workflow: ReturnType<typeof g
 
  <KpiGrid cols={4}>
  <KpiCard title={t('module.agent.totalAgents')} value={accounts.length} icon={Store} />
- <KpiCard title={t('module.agent.activeAgents')} value={activeCount} icon={UserPlus} variant="success" />
- <KpiCard title={t('module.agent.priceGroup')} value={activePriceGroups.length} icon={CreditCard} />
+ <KpiCard title="Ejen Biasa" value={normalAccounts.length} icon={UserPlus} variant="success" />
+ <KpiCard title="Ejen Khas" value={specialAccounts.length} icon={UserCheck} />
  <KpiCard title={t('module.agent.exitReports')} value={suspendedCount} icon={Trash2} variant={suspendedCount ? 'warning' : 'default'} />
  </KpiGrid>
 
@@ -1248,7 +1261,7 @@ function AdminSalesAgentManagement({ workflow }: { workflow: ReturnType<typeof g
  <UserPlus className="mr-3 h-5 w-5 shrink-0" />
  <span>
  <span className="block font-semibold">Ejen Biasa</span>
- <span className="block text-xs opacity-80">Cipta akaun login baharu, tetapkan group rate dan caj biasa.</span>
+ <span className="block text-xs opacity-80">Ejen luar: login baru, group rate biasa, bayaran order dan subscription POS.</span>
  </span>
  </Button>
  <Button
@@ -1266,7 +1279,7 @@ function AdminSalesAgentManagement({ workflow }: { workflow: ReturnType<typeof g
  <UserCheck className="mr-3 h-5 w-5 shrink-0" />
  <span>
  <span className="block font-semibold">Ejen Khas Syarikat</span>
- <span className="block text-xs opacity-80">Pilih staf sedia ada dan benarkan order/POS tanpa bayaran.</span>
+ <span className="block text-xs opacity-80">Staf dalaman: guna login sedia ada, tanpa bayaran, dashboard auto aktif.</span>
  </span>
  </Button>
  </div>
@@ -1330,11 +1343,11 @@ function AdminSalesAgentManagement({ workflow }: { workflow: ReturnType<typeof g
  </div>
  <div className="space-y-1">
  <Label>Group Rate</Label>
- <Select value={formPriceGroupSelectValue} onValueChange={(value) => setForm((p) => ({...p, assigned_price_group_id: value === 'DEFAULT' ? '' : String(value), staff_id: value === 'DEFAULT' ? '' : p.staff_id }))}>
+ <Select value={normalFormPriceGroupSelectValue} onValueChange={(value) => setForm((p) => ({...p, assigned_price_group_id: value === 'DEFAULT' ? '' : String(value), staff_id: '' }))}>
  <SelectTrigger className="w-full"><SelectValue placeholder="Pilih group rate">{groupRateLabel(form.assigned_price_group_id)}</SelectValue></SelectTrigger>
  <SelectContent>
  <SelectItem value="DEFAULT">Default sistem</SelectItem>
- {activePriceGroups.map((g) => <SelectItem key={g.id} value={g.id}>{groupRateLabel(g.id)}</SelectItem>)}
+ {normalPriceGroups.map((g) => <SelectItem key={g.id} value={g.id}>{groupRateLabel(g.id)}</SelectItem>)}
  </SelectContent>
  </Select>
  </div>
@@ -1344,13 +1357,10 @@ function AdminSalesAgentManagement({ workflow }: { workflow: ReturnType<typeof g
  <div className="grid gap-3 md:grid-cols-2">
  <div className="space-y-1">
  <Label>Group Rate</Label>
- <Select value={formPriceGroupSelectValue} onValueChange={(value) => setForm((p) => ({...p, assigned_price_group_id: value === 'DEFAULT' ? '' : String(value), staff_id: value === 'DEFAULT' ? '' : p.staff_id }))}>
- <SelectTrigger className="w-full"><SelectValue>{groupRateLabel(form.assigned_price_group_id)}</SelectValue></SelectTrigger>
- <SelectContent>
- <SelectItem value="DEFAULT">Default sistem</SelectItem>
- {activePriceGroups.map((g) => <SelectItem key={g.id} value={g.id}>{groupRateLabel(g.id)}</SelectItem>)}
- </SelectContent>
- </Select>
+ <div className="rounded-md border bg-emerald-50 px-3 py-2 text-sm text-emerald-950">
+ <p className="font-medium">{groupRateLabel(form.assigned_price_group_id)}</p>
+ <p className="text-xs text-emerald-800">Tetap untuk Ejen Khas: order dan POS tanpa bayaran.</p>
+ </div>
  </div>
  <div className="space-y-1">
  <Label>Email Contact</Label>
@@ -1584,13 +1594,28 @@ function AdminSalesAgentManagement({ workflow }: { workflow: ReturnType<typeof g
  </div>))}
  </div>)}
  </SectionCard>
- <SectionCard title="Senarai Agent / Ejen" description="Edit maklumat ejen, tetapkan group rate, atau nonaktifkan ejen.">
+ <SectionCard title="Senarai Ejen Mengikut Jenis" description="Ejen Biasa dan Ejen Khas diasingkan supaya bayaran, dashboard staf dan SOP tidak bercampur.">
+ {accounts.length > 0 && (
+ <div className="mb-4 flex flex-wrap gap-2">
+ <Button size="sm" variant={agentListFilter === 'ALL' ? 'default' : 'outline'} onClick={() => setAgentListFilter('ALL')}>
+ Semua ({accounts.length})
+ </Button>
+ <Button size="sm" variant={agentListFilter === 'NORMAL' ? 'default' : 'outline'} onClick={() => setAgentListFilter('NORMAL')}>
+ Ejen Biasa ({normalAccounts.length})
+ </Button>
+ <Button size="sm" variant={agentListFilter === 'SPECIAL' ? 'default' : 'outline'} onClick={() => setAgentListFilter('SPECIAL')}>
+ Ejen Khas ({specialAccounts.length})
+ </Button>
+ </div>)}
  {loading ? (
  <p className="text-sm text-muted-foreground">Memuatkan senarai ejen...</p>) : accounts.length === 0 ? (
  <EmptyState title="Tiada ejen" description="Tambah ejen baharu menggunakan borang di atas." />) : (
+ visibleAccounts.length === 0 ? (
+ <EmptyState title="Tiada rekod dalam kategori ini" description="Tukar filter atau tambah ejen baharu mengikut jenis yang diperlukan." />) : (
  <div className="space-y-3">
- {accounts.map((account) => {
+ {visibleAccounts.map((account) => {
  const editing = editingId === account.id;
+ const isSpecialAccount = Boolean(account.price_group?.payment_exempt);
  return (
  <div key={account.id} className="rounded-xl border bg-background p-4 text-sm shadow-sm">
  {!editing ? (
@@ -1599,14 +1624,15 @@ function AdminSalesAgentManagement({ workflow }: { workflow: ReturnType<typeof g
  <div className="flex flex-wrap items-center gap-2">
  <p className="font-semibold text-foreground">{account.company_name}</p>
  <Badge variant={account.status === 'ACTIVE' ? 'default' : 'secondary'}>{account.status}</Badge>
+ <Badge variant={isSpecialAccount ? 'outline' : 'secondary'}>{isSpecialAccount ? 'Ejen Khas' : 'Ejen Biasa'}</Badge>
  </div>
  <p className="mt-1 text-xs text-muted-foreground">{account.profile?.full_name ?? account.contact_person ?? '-'} - {account.profile?.email ?? account.contact_email ?? '-'}</p>
  <p className="mt-1 text-xs text-muted-foreground">{account.contact_phone ?? '-'} - {account.registration_no ?? 'Tiada SSM'}</p>
  <p className="mt-1 text-xs text-muted-foreground">Driver/Area: {compactLogistics(account.assigned_driver_name)} | Pickup/Cawangan: {compactLogistics(account.pickup_location)}</p>
  </div>
  <div>
- <p className="text-xs text-muted-foreground">Group Rate</p>
- <p className="font-medium">{account.price_group?.name ?? 'Default sistem'}{account.price_group?.payment_exempt ? ' - Tanpa bayaran' : ''}</p>
+ <p className="text-xs text-muted-foreground">{isSpecialAccount ? 'Jenis Akaun' : 'Group Rate'}</p>
+ <p className="font-medium">{isSpecialAccount ? 'Staf dalaman - tanpa bayaran' : (account.price_group?.name ?? 'Default sistem')}</p>
  </div>
  <div className="grid grid-cols-3 gap-2 text-center text-xs">
  <div className="rounded-lg bg-muted/40 px-2 py-2"><p className="font-bold">{account.stats.orders}</p><p>Order</p></div>
@@ -1684,7 +1710,7 @@ function AdminSalesAgentManagement({ workflow }: { workflow: ReturnType<typeof g
  </div>)}
  </div>);
  })}
- </div>)}
+ </div>))}
  </SectionCard>
  </ModuleLayout>);
 }

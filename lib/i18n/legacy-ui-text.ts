@@ -2754,12 +2754,25 @@ const enText: Record<string, string> = {
   "Driver, route & POD": "Driver, Route & POD",
   "ejen aktif": "active agents",
   "Ejen Biasa -": "Normal Agent -",
+  "Ejen luar: login baru, group rate biasa, bayaran order dan subscription POS.":
+    "External agent: new login, normal group rate, order payments and POS subscription.",
+  "Senarai Ejen Mengikut Jenis": "Agent List by Type",
+  "Ejen Biasa dan Ejen Khas diasingkan supaya bayaran, dashboard staf dan SOP tidak bercampur.":
+    "Normal Agents and Special Agents are separated so payments, staff dashboards and SOPs do not mix.",
+  "Semua": "All",
+  "Tiada rekod dalam kategori ini": "No records in this category",
+  "Tukar filter atau tambah ejen baharu mengikut jenis yang diperlukan.":
+    "Change the filter or add a new agent based on the required type.",
+  "Jenis Akaun": "Account Type",
+  "Staf dalaman - tanpa bayaran": "Internal staff - no payment",
   "Ejen dikeluarkan dari dashboard aktif dan disimpan dalam laporan":
     "Agent removed from the active dashboard and saved in reports",
   "Ejen Jualan": "Sales Agent",
   "Ejen Khas akan dipautkan terus kepada staf yang dipilih.":
     "The Special Agent will be linked directly to the selected staff member.",
   "Staf Ejen Khas": "Special Agent Staff",
+  "Staf dalaman: guna login sedia ada, tanpa bayaran, dashboard auto aktif.":
+    "Internal staff: uses existing login, no payment, dashboard auto activated.",
   "Pilih staf RKJ Distributor atau Manufacturing sekali sahaja. Sistem akan auto-simpan, pautkan akaun Ejen Khas dan munculkan dashboard berkaitan pada staf tersebut.":
     "Select RKJ Distributor or Manufacturing staff once. The system will auto-save, link the Special Agent account and show the related dashboard for that staff member.",
   "Tambah Ejen Khas melalui borang di atas. Selepas staf dipilih, dashboard Ejen Khas akan aktif secara automatik untuk staf tersebut.":
