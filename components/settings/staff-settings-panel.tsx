@@ -242,7 +242,8 @@ export function StaffSettingsPanel({
  </p>
  <h3 className="text-lg font-semibold text-stone-950">Rekod Staf HR</h3>
  <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
- Rekod pekerja sebenar mengikut syarikat, cawangan, jawatan, kadar gaji dan akses portal staf.
+ rekod pekerja sebenar mengikut syarikat, cawangan, jawatan, kadar gaji dan akses portal staf.
+ Akses sistem, reset password dan role dikawal berasingan di tab Login &amp; Role.
  </p>
  </div>
  <div className="flex flex-wrap items-center gap-2">

@@ -278,7 +278,9 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
           value: "staff",
           title: "Rekod Staf HR",
           description:
-            "Rekod pekerja sebenar: syarikat, cawangan, jawatan, gaji asas, HR dan portal staf.",
+            isAreaManager
+              ? "AM gunakan bahagian ini sahaja untuk tambah staf jualan/POS."
+              : "Rekod pekerja sebenar: syarikat, cawangan, jawatan, gaji asas, HR dan portal staf.",
           icon: Users,
           metric: usersStaffTotal ? `${usersStaffTotal} staf` : "Staf",
           group: "HR & Akses",
@@ -288,7 +290,7 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
         {
           value: "users",
           title: "Login Sistem & Role",
-          description: "Kawalan akaun login, role, dashboard AI dan akses pentadbiran HQ.",
+          description: "Login & Role, dashboard AI dan akses pentadbiran HQ.",
           icon: FileCog,
           metric: usersLoginTotal ? `${usersLoginTotal} login` : "Akses",
           group: "HR & Akses",

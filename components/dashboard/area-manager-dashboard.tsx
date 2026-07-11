@@ -34,6 +34,7 @@ import {
 import { AmInsightsPanel } from '@/components/dashboard/am-insights-panel';
 import { AmBranchPerformanceTable } from '@/components/dashboard/am-branch-performance-table';
 import { WorkflowSopPanel } from '@/components/dashboard/workflow-sop-panel';
+import { OperationsWorkflowMap } from '@/components/dashboard/operations-workflow-map';
 import { getRoleWorkflow } from '@/lib/dashboard/role-workflows';
 import { RoleProactiveCockpit } from '@/components/dashboard/role-proactive-cockpit';
 import { AmOperationsPlanner } from '@/components/dashboard/am-operations-planner';
@@ -143,6 +144,8 @@ export function AreaManagerDashboard({
  stats={stats}
  branchCount={context.branchCount}
  />
+
+ <OperationsWorkflowMap focus="overview" compact />
 
  <AmInsightsPanel insights={insights} summary={insightsSummary} />
 

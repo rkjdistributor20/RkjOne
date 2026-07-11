@@ -13,6 +13,7 @@ import { FactoryGmpDashboard } from '@/components/warehouse/factory-gmp-dashboar
 import { getManufacturingGmpSummary } from '@/lib/manufacturing/gmp';
 import { COMPANY } from '@/lib/brand/company';
 import { WorkflowSopPanel } from '@/components/dashboard/workflow-sop-panel';
+import { OperationsWorkflowMap } from '@/components/dashboard/operations-workflow-map';
 import { getRoleWorkflow } from '@/lib/dashboard/role-workflows';
 import { useAuthStore } from '@/stores/auth-store';
 import {
@@ -66,6 +67,8 @@ export function FactoryDashboard() {
  />
 
  <WorkflowSopPanel workflow={workflow} />
+
+ <OperationsWorkflowMap focus="factory" compact />
 
  <SectionCard
  title={t('module.factory.muhammadTasks')}

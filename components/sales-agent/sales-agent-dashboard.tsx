@@ -76,6 +76,7 @@ import { formatRM } from '@/components/shared/module-ui';
 import { useAuthStore } from '@/stores/auth-store';
 import { isSalesAgentRole } from '@/lib/auth/sales-agent-access';
 import { WorkflowSopPanel } from '@/components/dashboard/workflow-sop-panel';
+import { OperationsWorkflowMap } from '@/components/dashboard/operations-workflow-map';
 import { getRoleWorkflow } from '@/lib/dashboard/role-workflows';
 import { formatProductionDayLabel } from '@/lib/production/week-utils';
 import { boundSelectValue } from '@/lib/ui/select-utils';
@@ -390,6 +391,7 @@ export function SalesAgentDashboard() {
  icon={Store}
  />
  <WorkflowSopPanel workflow={workflow} />
+ <OperationsWorkflowMap focus="agent" compact />
  <Card className="max-w-lg">
  <CardContent className="pt-6 text-sm text-muted-foreground">
  <p>
@@ -410,6 +412,7 @@ export function SalesAgentDashboard() {
  icon={Store}
  />
  <WorkflowSopPanel workflow={workflow} />
+ <OperationsWorkflowMap focus="agent" compact />
  <Card className="max-w-lg border-emerald-200 bg-gradient-to-br from-emerald-50/80 to-white">
  <CardHeader>
  <div className="flex items-center gap-3">
@@ -456,6 +459,7 @@ export function SalesAgentDashboard() {
  />
 
  <WorkflowSopPanel workflow={workflow} />
+ <OperationsWorkflowMap focus="agent" compact />
 
  {!data.payment_gateway.ipay88_configured && (
  <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
@@ -1190,6 +1194,7 @@ function AdminSalesAgentManagement({ workflow }: { workflow: ReturnType<typeof g
  />
 
  <WorkflowSopPanel workflow={workflow} />
+ <OperationsWorkflowMap focus="agent" compact />
 
  <KpiGrid cols={4}>
  <KpiCard title={t('module.agent.totalAgents')} value={accounts.length} icon={Store} />

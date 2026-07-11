@@ -69,6 +69,7 @@ import { staffQuickActionsFromMetadata } from '@/lib/settings/dashboard-quick-ac
 import { getRoleWorkflow } from '@/lib/dashboard/role-workflows';
 import { WorkflowSopPanel } from '@/components/dashboard/workflow-sop-panel';
 import { RoleProactiveCockpit } from '@/components/dashboard/role-proactive-cockpit';
+import { OperationsWorkflowMap } from '@/components/dashboard/operations-workflow-map';
 import { ManagementGovernancePanel } from '@/components/dashboard/management-governance-panel';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { UserRole } from '@/types/enums';
@@ -434,6 +435,8 @@ export default async function DashboardPage() {
  stats={stats}
  branchCount={scope.branchIds?.length ?? null}
  />
+
+ <OperationsWorkflowMap focus="overview" compact />
 
  <WorkflowSopPanel workflow={workflow} />
 

@@ -290,7 +290,7 @@ export function UsersAdminPanel({
  </p>
  <h3 className="text-lg font-semibold text-stone-950">Login Sistem &amp; Role</h3>
  <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
- Akaun login, peranan sistem, dashboard AI dan reset kata laluan untuk akses pengurusan.
+ Panel ini hanya untuk kawal akaun login, peranan sistem, dashboard AI dan reset kata laluan untuk akses pengurusan.
  </p>
  </div>
  <div className="flex flex-wrap items-center gap-2">

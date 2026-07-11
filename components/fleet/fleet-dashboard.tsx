@@ -37,6 +37,7 @@ import { DriverWorkSchedulePanel } from '@/components/fleet/driver-work-schedule
 import { DriverManualRoutePanel } from '@/components/fleet/driver-manual-route-panel';
 import { FleetOverviewPanel } from '@/components/fleet/fleet-overview-panel';
 import { WorkflowSopPanel } from '@/components/dashboard/workflow-sop-panel';
+import { OperationsWorkflowMap } from '@/components/dashboard/operations-workflow-map';
 import { getRoleWorkflow } from '@/lib/dashboard/role-workflows';
 import {
  ModuleLayout,
@@ -86,7 +87,7 @@ function driverMainRole(driver: FleetDriver) {
  ['DRV001', 'DIST-DRV-001'].includes(driver.driver_code) ||
  areas.includes('teluk intan > kuala lumpur')
  ) {
- return 'Driver hub utama: ambil stok dari Teluk Intan dan bawa ke laluan utama Kuala Lumpur/Utara.';
+ return 'Driver hub utama: ambil stok dari kilang/HQ, lengkapkan handoff hub dan bawa ke laluan utama Kuala Lumpur/Utara.';
  }
  if (driver.driver_code === 'DIST-AST-001') {
  return 'Pembantu driver kepada Abdul Samad: ikut tugas, waktu, kenderaan dan area yang sama untuk hub Kuala Lumpur/Utara.';
@@ -95,23 +96,24 @@ function driverMainRole(driver: FleetDriver) {
  return 'Driver kilang ganti: pool khas untuk staf kilang yang ditugaskan sementara sebagai driver tambahan atau backup.';
  }
  if (areas.includes('kuala lumpur')) {
- return 'Driver relay Kuala Lumpur: terima stok, pecahkan ikut kiosk/ejen dan lengkapkan penghantaran kawasan KL.';
+ return 'Driver relay Kuala Lumpur: terima stok dari hub/HQ, pecahkan ikut kiosk, AM kawasan dan pickup ejen kawasan KL.';
  }
  if (areas.includes('sungkai')) {
  return 'Driver laluan Sungkai: urus penghantaran khas dan sokongan laluan tengah.';
  }
  if (areas.includes('utara')) {
- return 'Driver laluan Utara: hantar stok ke cawangan/ejen Utara dan bantu sambungan dari Teluk Intan.';
+ return 'Driver laluan Utara: hantar stok ke cawangan dan pickup ejen Utara, serta bantu sambungan dari Teluk Intan.';
  }
- return 'Driver penghantaran aktif RKJ Distributor mengikut arahan HQ/OM.';
+ return 'Driver penghantaran aktif RKJ Distributor mengikut arahan OM/HQ, readiness AM, cawangan dan pickup agent.';
 }
 
 function driverSop(driver: FleetDriver) {
  const base = [
- 'Semak arahan penghantaran harian dalam Logistik sebelum bergerak.',
- 'Sahkan kenderaan, kuantiti stok dan destinasi pickup/cawangan sebelum load.',
- 'Update status bila keluar, sampai pickup point, serah stok dan selesai route.',
- 'Ambil bukti penghantaran/POD: penerima, nota isu, masa dan lokasi jika diperlukan.',
+ 'Semak arahan OM/HQ dalam Logistik sebelum bergerak.',
+ 'Pastikan AM/cawangan atau PIC pickup agent jelas sebelum keluar.',
+ 'Sahkan kenderaan, kuantiti stok, HQ/hub handoff dan destinasi cawangan/pickup sebelum load.',
+ 'Update status bila keluar, sampai cawangan/HQ/pickup agent, serah stok dan selesai route.',
+ 'Ambil bukti penghantaran/POD: penerima, nota isu, masa, kuantiti dan lokasi jika diperlukan.',
  ];
  const areas = driverAreas(driver).join(' / ').toLowerCase();
  if (['DRV001', 'DIST-DRV-001', 'DIST-AST-001'].includes(driver.driver_code)) {
@@ -510,6 +512,7 @@ export function FleetDashboard() {
  icon={Truck}
  />
  <WorkflowSopPanel workflow={workflow} />
+ <OperationsWorkflowMap focus="fleet" compact />
  <div className="space-y-6">
  <DriverWorkSchedulePanel driverMode />
  <div>
@@ -551,6 +554,7 @@ export function FleetDashboard() {
  />
 
  <WorkflowSopPanel workflow={workflow} />
+ <OperationsWorkflowMap focus="fleet" compact />
 
  {loading ? (
  <ModuleLoading />) : (

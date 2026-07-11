@@ -26,6 +26,7 @@ import {
 import { fetchProductionCalendar } from '@/lib/production/api';
 import type { PublishedProductionDate } from '@/lib/production/types';
 import { HqFactoryOrderPanel } from '@/components/warehouse/hq-factory-order-panel';
+import { OperationsWorkflowMap } from '@/components/dashboard/operations-workflow-map';
 import { COMPANY } from '@/lib/brand/company';
 import { HQ_DISTRIBUTOR_LABEL } from '@/lib/brand/legal-entities';
 import { LOGISTIK_LABEL } from '@/lib/fleet/logistics-label';
@@ -240,6 +241,8 @@ export function WarehouseDashboard() {
  dan dihantar terus ke cawangan mengikut laluan driver. Tiada simpanan stok di HQ - 
  driver sahkan penghantaran di tab {LOGISTIK_LABEL} ke Jadual Kerja.
  </p>)}
+
+ <OperationsWorkflowMap focus="hq" compact />
 
  <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as WarehouseTab)} className="space-y-4">
  <TabsList className={moduleTabsListClass}>

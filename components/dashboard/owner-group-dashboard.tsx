@@ -35,6 +35,7 @@ import { DashboardAlert } from '@/components/dashboard/dashboard-brand-ui';
 import { OwnerExecutiveHero } from '@/components/dashboard/owner-executive-hero';
 import { PosOverviewPanel } from '@/components/dashboard/pos-overview-panel';
 import { WorkflowSopPanel } from '@/components/dashboard/workflow-sop-panel';
+import { OperationsWorkflowMap } from '@/components/dashboard/operations-workflow-map';
 import { RkjOperatingMap } from '@/components/dashboard/rkj-operating-map';
 import { RoleProactiveCockpit } from '@/components/dashboard/role-proactive-cockpit';
 import { OwnerDelegationPanel } from '@/components/dashboard/owner-delegation-panel';
@@ -218,6 +219,8 @@ export function OwnerGroupDashboard({
  stats={stats}
  branchCount={COMPANY.branchCount}
  />
+
+ <OperationsWorkflowMap focus="overview" compact />
 
  <OwnerDelegationPanel />
 
