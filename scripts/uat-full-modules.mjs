@@ -275,12 +275,13 @@ if (!amLogin.ok) {
 
 // --- Agent ---
 console.log('\n--- Portal Ejen ---');
-const agentLogin = await login('agent001@rkj.com', password);
+const activeAgentEmail = 'ejen.ag008@rkjdistributor.my';
+const agentLogin = await login(activeAgentEmail, password);
 if (!agentLogin.ok) {
-  fail('Login agent001@rkj.com', agentLogin.error);
+  fail(`Login ${activeAgentEmail}`, agentLogin.error);
   failed++;
 } else {
-  ok('Login ejen', 'auth OK');
+  ok('Login ejen aktif', `${activeAgentEmail} - auth OK`);
   const c = authCookie(agentLogin.data.session, agentLogin.data.user);
   const dash = await apiJson(c, '/api/sales-agent/dashboard');
   if (dash.ok) ok('Dashboard ejen', dash.body.dashboard?.account?.company_name ?? 'OK');
