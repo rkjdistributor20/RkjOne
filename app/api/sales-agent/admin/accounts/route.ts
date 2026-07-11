@@ -257,7 +257,7 @@ export async function POST(request: Request) {
  : null;
 
  if (isSpecialAgent && staffId && assignedStaff) {
- await (service as SupabaseClient).from('agent_special_staff_assignments').update({ status: 'ENDED', ended_by: profile.id, ended_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('agent_account_id', account.id as string).eq('staff_id', staffId).eq('status', 'ACTIVE');
+ await (service as SupabaseClient).from('agent_special_staff_assignments').update({ status: 'ENDED', ended_by: profile.id, ended_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('agent_account_id', account.id as string).eq('status', 'ACTIVE');
 
  const { error: assignmentErr } = await (service as SupabaseClient).from('agent_special_staff_assignments').insert({
  organization_id: profile.organization_id,
@@ -265,7 +265,7 @@ export async function POST(request: Request) {
  agent_account_id: account.id,
  staff_id: staffId,
  profile_id: targetProfileId,
- role_title: 'Agent Khas Syarikat',
+ role_title: 'Ejen Khas Syarikat',
  assignment_note: 'Dipautkan semasa tambah Ejen Khas oleh Pentadbir Utama',
  assigned_by: profile.id,
  status: 'ACTIVE',

@@ -2759,6 +2759,20 @@ const enText: Record<string, string> = {
   "Ejen Jualan": "Sales Agent",
   "Ejen Khas akan dipautkan terus kepada staf yang dipilih.":
     "The Special Agent will be linked directly to the selected staff member.",
+  "Staf Ejen Khas": "Special Agent Staff",
+  "Pilih staf RKJ Distributor atau Manufacturing sekali sahaja. Sistem akan auto-simpan, pautkan akaun Ejen Khas dan munculkan dashboard berkaitan pada staf tersebut.":
+    "Select RKJ Distributor or Manufacturing staff once. The system will auto-save, link the Special Agent account and show the related dashboard for that staff member.",
+  "Tambah Ejen Khas melalui borang di atas. Selepas staf dipilih, dashboard Ejen Khas akan aktif secara automatik untuk staf tersebut.":
+    "Add a Special Agent using the form above. Once staff is selected, the Special Agent dashboard will activate automatically for that staff member.",
+  "Staf Ejen Khas (auto)": "Special Agent Staff (auto)",
+  "Dashboard Ejen Khas sudah aktif pada staf ini. Pilih staf lain untuk tukar automatik.":
+    "The Special Agent dashboard is already active for this staff member. Select another staff member to switch automatically.",
+  "Pilih staf untuk auto aktifkan dashboard Ejen Khas.":
+    "Select staff to automatically activate the Special Agent dashboard.",
+  "Dashboard Ejen Khas auto aktif":
+    "Special Agent dashboard auto activated",
+  "Gagal auto pautkan staf Ejen Khas":
+    "Failed to auto-link Special Agent staff",
   "Ejen Khas berjaya dipautkan kepada staf":
     "Special Agent successfully linked to staff",
   "Ejen, order & POS": "Agents, Orders & POS",

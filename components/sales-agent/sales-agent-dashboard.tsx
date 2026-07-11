@@ -1140,25 +1140,41 @@ function AdminSalesAgentManagement({ workflow }: { workflow: ReturnType<typeof g
  }
  }
 
- async function assignSpecialStaff(account: AdminSalesAgentAccount) {
- const staffId = specialStaffByAccount[account.id];
- if (!staffId) {
- toast.error('Pilih staf dahulu');
- return;
+ function currentSpecialAssignment(accountId: string) {
+ return specialAssignments.find((assignment) => assignment.agent_account_id === accountId) ?? null;
  }
+
+ function specialStaffSelectValue(accountId: string) {
+ const pendingStaffId = specialStaffByAccount[accountId];
+ if (pendingStaffId !== undefined) return pendingStaffId || 'NONE';
+ return currentSpecialAssignment(accountId)?.staff_id ?? 'NONE';
+ }
+
+ async function autoLinkSpecialStaff(account: AdminSalesAgentAccount, staffId: string) {
+ const nextStaffId = staffId === 'NONE' ? '' : staffId;
+ if (!nextStaffId) return;
+ const currentStaffId = currentSpecialAssignment(account.id)?.staff_id ?? null;
+ if (currentStaffId === nextStaffId) return;
+
+ setSpecialStaffByAccount((prev) => ({...prev, [account.id]: nextStaffId }));
  setSaving(true);
  try {
  await assignSpecialAgentStaff({
  agent_account_id: account.id,
- staff_id: staffId,
- role_title: 'Agent Khas Syarikat',
- assignment_note: 'Ditugaskan oleh Pentadbir Utama melalui Portal Ejen',
+ staff_id: nextStaffId,
+ role_title: 'Ejen Khas Syarikat',
+ assignment_note: 'Auto dipautkan apabila Pentadbir Utama memilih staf Ejen Khas',
  });
- toast.success('Tugasan Agent Khas dipautkan kepada staf');
- setSpecialStaffByAccount((prev) => ({...prev, [account.id]: '' }));
+ const staff = assignableStaff.find((item) => item.id === nextStaffId);
+ toast.success(`Dashboard Ejen Khas auto aktif${staff ? ` untuk ${staff.full_name}` : ''}`);
+ setSpecialStaffByAccount((prev) => {
+ const next = {...prev };
+ delete next[account.id];
+ return next;
+ });
  await loadAdmin();
  } catch (e) {
- toast.error(e instanceof Error ? e.message : 'Gagal tugaskan staf Agent Khas');
+ toast.error(e instanceof Error ? e.message : 'Gagal auto pautkan staf Ejen Khas');
  } finally {
  setSaving(false);
  }
@@ -1431,12 +1447,14 @@ function AdminSalesAgentManagement({ workflow }: { workflow: ReturnType<typeof g
  </div>
  </div>
  </SectionCard>
- <SectionCard title="Tugasan Ejen Khas" description="Pautkan Ejen Khas Syarikat kepada staf RKJ Distributor atau Manufacturing. Tugasan ini akan muncul pada dashboard staf tersebut.">
+ <SectionCard title="Staf Ejen Khas" description="Pilih staf RKJ Distributor atau Manufacturing sekali sahaja. Sistem akan auto-simpan, pautkan akaun Ejen Khas dan munculkan dashboard berkaitan pada staf tersebut.">
  {specialAccounts.length === 0 ? (
- <EmptyState title="Tiada Ejen Khas" description="Tetapkan group rate Ejen Khas Syarikat pada akaun ejen dahulu. Bahagian PIC staf dibiarkan kosong sehingga Pentadbir Utama memilih staf bertugas." />) : (
+ <EmptyState title="Tiada Ejen Khas" description="Tambah Ejen Khas melalui borang di atas. Selepas staf dipilih, dashboard Ejen Khas akan aktif secara automatik untuk staf tersebut." />) : (
  <div className="space-y-3">
  {specialAccounts.map((account) => {
  const assigned = specialAssignments.filter((a) => a.agent_account_id === account.id);
+ const activeAssignment = currentSpecialAssignment(account.id);
+ const selectValue = boundSelectValue(specialStaffSelectValue(account.id), assignableStaffValues) ?? 'NONE';
  return (
  <div key={account.id} className="rounded-xl border bg-background p-4 text-sm shadow-sm">
  <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1447,21 +1465,21 @@ function AdminSalesAgentManagement({ workflow }: { workflow: ReturnType<typeof g
  </div>
  <div className="flex min-w-[280px] flex-1 flex-wrap items-end gap-2 sm:justify-end">
  <div className="min-w-[240px] flex-1 space-y-1">
- <Label>Staf Bertugas</Label>
- <Select value={boundSelectValue(specialStaffByAccount[account.id] || 'NONE', assignableStaffValues) ?? 'NONE'} onValueChange={(value) => setSpecialStaffByAccount((prev) => ({...prev, [account.id]: value === 'NONE' ? '' : String(value) }))}>
+ <Label>Staf Ejen Khas (auto)</Label>
+ <Select value={selectValue} onValueChange={(value) => void autoLinkSpecialStaff(account, String(value))} disabled={saving}>
  <SelectTrigger><SelectValue placeholder="Pilih staf" /></SelectTrigger>
  <SelectContent>
- <SelectItem value="NONE">Pilih staf</SelectItem>
+ <SelectItem value="NONE" disabled={Boolean(activeAssignment)}>Pilih staf</SelectItem>
  {assignableStaff.map((s) => (
  <SelectItem key={s.id} value={s.id}>{s.full_name} - {s.staff_code} - {s.legal_entity?.code}</SelectItem>))}
  </SelectContent>
  </Select>
+ <p className="text-xs text-muted-foreground">
+ {activeAssignment ? 'Dashboard Ejen Khas sudah aktif pada staf ini. Pilih staf lain untuk tukar automatik.' : 'Pilih staf untuk auto aktifkan dashboard Ejen Khas.'}
+ </p>
  </div>
  <Button size="sm" variant={editingId === account.id ? 'default' : 'outline'} onClick={() => beginEdit(account)} disabled={saving}>
  <Pencil className="mr-1 h-3.5 w-3.5" /> {editingId === account.id ? 'Sedang Edit' : 'Edit Profil'}
- </Button>
- <Button size="sm" onClick={() => void assignSpecialStaff(account)} disabled={saving}>
- <UserCheck className="mr-1 h-3.5 w-3.5" /> Tugaskan
  </Button>
  </div>
  </div>

@@ -26,7 +26,7 @@ export async function POST(request: Request) {
  const body = await request.json().catch(() => ({}));
  const agentAccountId = String(body.agent_account_id ?? '').trim();
  const staffId = String(body.staff_id ?? '').trim();
- const roleTitle = String(body.role_title ?? 'Agent Khas Syarikat').trim() || 'Agent Khas Syarikat';
+ const roleTitle = String(body.role_title ?? 'Ejen Khas Syarikat').trim() || 'Ejen Khas Syarikat';
  const assignmentNote = String(body.assignment_note ?? '').trim() || null;
 
  if (!agentAccountId || !staffId) {
@@ -41,14 +41,35 @@ export async function POST(request: Request) {
  return NextResponse.json({ error: 'Hanya akaun Ejen Khas Syarikat boleh dipautkan kepada staf' }, { status: 400 });
  }
 
- const { data: staff, error: staffErr } = await service.from('staff').select('id, profile_id, legal_entity_id, full_name, staff_code, legal_entity:legal_entities!inner(code, legal_name, name)').eq('organization_id', profile.organization_id).eq('id', staffId).eq('status', 'ACTIVE').in('legal_entity.code', ['RKJ_DIST', 'RKJ_MFG']).maybeSingle();
+ const { data: staff, error: staffErr } = await service.from('staff').select('id, profile_id, legal_entity_id, full_name, staff_code, legal_entity:legal_entities!inner(code, legal_name, name), profile:profiles!staff_profile_id_fkey(id, email, full_name)').eq('organization_id', profile.organization_id).eq('id', staffId).eq('status', 'ACTIVE').in('legal_entity.code', ['RKJ_DIST', 'RKJ_MFG']).maybeSingle();
  if (staffErr) throw new Error(staffErr.message);
  const staffRow = staff as Record<string, unknown> | null;
  if (!staffRow?.profile_id) {
  return NextResponse.json({ error: 'Staf mesti aktif, ada akaun login, dan berada bawah RKJ Distributor atau Manufacturing' }, { status: 400 });
  }
 
- await (service as SupabaseClient).from('agent_special_staff_assignments').update({ status: 'ENDED', ended_by: profile.id, ended_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('agent_account_id', agentAccountId).eq('staff_id', staffId).eq('status', 'ACTIVE');
+ const { data: existingProfileAccount, error: existingProfileAccountErr } = await service
+ .from('sales_agent_accounts')
+ .select('id, company_name')
+ .eq('organization_id', profile.organization_id)
+ .eq('profile_id', staffRow.profile_id as string)
+ .is('archived_at', null)
+ .maybeSingle();
+ if (existingProfileAccountErr) throw new Error(existingProfileAccountErr.message);
+ const existingAccountRow = existingProfileAccount as { id?: string; company_name?: string | null } | null;
+ if (existingAccountRow?.id && existingAccountRow.id !== agentAccountId) {
+ return NextResponse.json({ error: `Staf ini sudah dipautkan kepada ${existingAccountRow.company_name ?? 'akaun Ejen Khas lain'}` }, { status: 400 });
+ }
+
+ const { error: accountUpdateErr } = await (service as SupabaseClient).from('sales_agent_accounts').update({
+ profile_id: staffRow.profile_id,
+ contact_person: staffRow.full_name ?? null,
+ contact_email: ((staffRow.profile as { email?: string | null } | null)?.email ?? null),
+ updated_at: new Date().toISOString(),
+ }).eq('id', agentAccountId).eq('organization_id', profile.organization_id);
+ if (accountUpdateErr) throw new Error(accountUpdateErr.message);
+
+ await (service as SupabaseClient).from('agent_special_staff_assignments').update({ status: 'ENDED', ended_by: profile.id, ended_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('agent_account_id', agentAccountId).eq('status', 'ACTIVE');
 
  const { data: assignment, error } = await (service as SupabaseClient).from('agent_special_staff_assignments').insert({
  organization_id: profile.organization_id,
