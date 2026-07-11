@@ -4,10 +4,13 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { loadProjectEnv } from './lib/load-env.mjs';
+import fs from 'fs';
+import path from 'path';
+import { loadProjectEnv, ROOT } from './lib/load-env.mjs';
 import { DEFAULT_PASSWORD } from './lib/default-password.mjs';
 
 const PRODUCTION_URL = process.env.PRODUCTION_URL ?? 'https://rkj.one';
+const GO_LIVE_PASSWORD_FILE = path.join(ROOT, 'csv_import', '.go-live-temp-password.txt');
 const env = loadProjectEnv();
 const url = env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY;
@@ -73,33 +76,27 @@ async function apiJson(cookieHeader, path, init = {}) {
   return { ok: res.ok, status: res.status, body };
 }
 
-async function findAuthUser(email) {
-  let page = 1;
-  while (page <= 20) {
-    const { data } = await admin.auth.admin.listUsers({ page, perPage: 200 });
-    const user = data.users.find((u) => u.email?.toLowerCase() === email.toLowerCase());
-    if (user || data.users.length < 200) return user ?? null;
-    page += 1;
-  }
-  return null;
-}
-
 async function login(email, password) {
-  let client = createAnonClient();
-  let result = await client.auth.signInWithPassword({ email, password });
-  if (result.error) {
-    const user = await findAuthUser(email);
-    if (user) {
-      await admin.auth.admin.updateUserById(user.id, { password, email_confirm: true });
-      client = createAnonClient();
-      result = await client.auth.signInWithPassword({ email, password });
-    }
-  }
+  const client = createAnonClient();
+  const result = await client.auth.signInWithPassword({ email, password });
   if (result.error) return { ok: false, error: result.error.message };
   return { ok: true, data: result.data };
 }
 
-const password = env.GO_LIVE_PASSWORD?.trim() || DEFAULT_PASSWORD;
+function readGoLivePassword() {
+  if (env.GO_LIVE_PASSWORD?.trim()) return env.GO_LIVE_PASSWORD.trim();
+  if (fs.existsSync(GO_LIVE_PASSWORD_FILE)) {
+    const passwordFromFile = fs
+      .readFileSync(GO_LIVE_PASSWORD_FILE, 'utf8')
+      .split('\n')
+      .map((line) => line.trim())
+      .find((line) => line && !line.startsWith('#'));
+    if (passwordFromFile) return passwordFromFile;
+  }
+  return DEFAULT_PASSWORD;
+}
+
+const password = readGoLivePassword();
 let failed = 0;
 
 console.log('\n=== UAT Full Modules — Production ===\n');
