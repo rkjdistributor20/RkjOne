@@ -12,7 +12,7 @@ iOS scaffold sudah disediakan dalam folder `ios/`. Fail ini ialah panduan kerja 
 - Kategori: `Business`
 - Akses app: login staf dalaman sahaja
 - Online payment QR: belum live; payment manual masih digunakan
-- D-U-N-S: permohonan D&B Malaysia sudah dihantar, tunggu nombor 9 digit
+- D-U-N-S: `47-331-2040` / digit-only `473312040`
 
 ## Laluan Disyorkan
 
@@ -34,7 +34,7 @@ Gunakan maklumat syarikat sebenar dan konsisten dengan SSM/D&B:
 - Website/public URL: `https://rkj.one`
 - Privacy policy URL: `https://rkj.one/privacy`
 - Apple ID: guna akaun syarikat, aktifkan 2FA
-- D-U-N-S: tunggu nombor rasmi daripada D&B, jangan guna nombor SSM
+- D-U-N-S: `473312040` (D&B email format: `47-331-2040`)
 
 Jika mahu App Store untuk syarikat lain secara berasingan, setiap legal entity perlu semakan D-U-N-S masing-masing.
 
@@ -175,12 +175,12 @@ Dalam Xcode:
 - Privacy explanation: `docs/mobile/DATA_SAFETY.md`
 - Release checklist: `docs/mobile/RELEASE_CHECKLIST.md`
 
-## Belum Boleh Disiapkan Dari Windows
+## Belum Boleh Disiapkan Dari Windows / Tanpa Akaun Apple
 
-- Apple Developer enrollment final tanpa D-U-N-S
+- Apple Developer enrollment final memerlukan akses Apple ID syarikat dan pembayaran Apple Developer Program
 - Xcode archive
 - Apple code signing
 - Upload build ke App Store Connect
 - TestFlight / App Review submission
 
-Semua ini memerlukan D-U-N-S dan akses Mac/Xcode atau cloud Mac.
+Semua ini memerlukan akses akaun Apple Developer Organization dan Mac/Xcode atau cloud Mac.

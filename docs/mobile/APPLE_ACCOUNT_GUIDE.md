@@ -2,11 +2,17 @@
 
 Panduan ini untuk siapkan akaun Apple sehingga RKJ One boleh dihantar ke TestFlight dan App Store/Custom App.
 
-## 1. Tunggu D-U-N-S
+## 1. D-U-N-S Syarikat
 
-Status semasa: permohonan D-U-N-S kepada D&B Malaysia sudah dihantar.
+Status semasa: D-U-N-S rasmi daripada D&B Malaysia sudah diterima pada 16 Julai 2026.
 
-Bila email D&B masuk, semak:
+```text
+Legal entity: RKJ DISTRIBUTOR SDN. BHD.
+D-U-N-S: 47-331-2040
+D-U-N-S digit-only: 473312040
+```
+
+Semasa isi Apple/Google, semak:
 
 - D-U-N-S number mesti 9 digit.
 - Nama syarikat mesti padan dengan `RKJ DISTRIBUTOR SDN. BHD.`
@@ -35,7 +41,7 @@ Organization
 Masukkan:
 
 - Legal entity: `RKJ DISTRIBUTOR SDN. BHD.`
-- D-U-N-S: nombor 9 digit daripada D&B
+- D-U-N-S: `473312040`
 - Website: `https://rkj.one`
 - Contact person: wakil syarikat yang boleh jawab panggilan/email Apple
 

@@ -16,6 +16,7 @@ Dokumen ini merekod status PWA, Android shell dan laluan penerbitan Play Store/A
 - iOS project scaffold sudah dibuat di `ios/` untuk sambungan build di Mac/Xcode.
 - Bahan Play Store/App Store sudah dijana di `outputs/mobile-release/store-assets/`.
 - Dokumen submission tersedia di `docs/mobile/`.
+- D-U-N-S rasmi RKJ Distributor sudah diterima: `47-331-2040` / digit-only `473312040`.
 
 ## Kawalan Keselamatan Mobile
 
@@ -32,6 +33,7 @@ Syarat komputer:
 - Android Studio terkini
 - JDK yang disokong Android Studio
 - Google Play Developer Account
+- D-U-N-S `473312040` untuk akaun Organization jika diminta
 - Keystore upload rasmi syarikat
 
 Command dari root projek:
@@ -80,6 +82,12 @@ iOS tidak boleh dibina sepenuhnya dari Windows sahaja. Untuk App Store, perlu sa
 - Mac dengan Xcode dan Apple Developer Program
 - Cloud Mac build service
 - Apple Business Manager Custom App jika aplikasi hanya untuk staf dalaman
+
+D-U-N-S untuk Apple Developer Organization:
+
+```text
+RKJ DISTRIBUTOR SDN. BHD. - 473312040
+```
 
 Cadangan terbaik untuk RKJ One ialah `Custom App` melalui Apple Business Manager kerana sistem ini aplikasi operasi dalaman, bukan aplikasi umum.
 

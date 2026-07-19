@@ -76,7 +76,7 @@ Sebelum payroll real:
 
 Untuk Play Store dan App Store:
 
-- Tunggu D-U-N-S 9 digit jika akaun organisasi memerlukan pengesahan.
+- Guna D-U-N-S RKJ Distributor `473312040` untuk akaun organisasi jika diminta.
 - Jalankan `npm run mobile:readiness`.
 - Pastikan screenshot tidak dedahkan gaji, password, token, dokumen sensitif atau data pelanggan.
 - Sediakan reviewer account dengan akses terhad.

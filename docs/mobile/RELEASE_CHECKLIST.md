@@ -16,7 +16,7 @@
 - App Store listing draft.
 - Data Safety draft.
 - Google Play reviewer account untuk BR011.
-- D-U-N-S request kepada D&B Malaysia telah dihantar; tunggu nombor 9 digit.
+- D-U-N-S rasmi RKJ Distributor telah diterima: `47-331-2040` / digit-only `473312040`.
 - iOS export-compliance flag ditetapkan untuk standard HTTPS/TLS sahaja.
 - App Store review notes, privacy answers dan Custom App flow sudah disediakan.
 
@@ -24,7 +24,7 @@
 
 Google Play Console:
 
-- Selesaikan developer account Organization selepas D-U-N-S diterima.
+- Selesaikan developer account Organization menggunakan D-U-N-S `473312040`.
 - Buat app baru `RKJ One Staff`.
 - Upload `android/app/build/outputs/bundle/release/app-release.aab`.
 - Isi Store Listing menggunakan `docs/mobile/PLAY_STORE_SUBMISSION.md`.
@@ -35,8 +35,7 @@ Google Play Console:
 
 Apple:
 
-- Tunggu nombor D-U-N-S daripada D&B Malaysia.
-- Siapkan Apple Developer Program jenis Organization untuk `RKJ DISTRIBUTOR SDN. BHD.`.
+- Siapkan Apple Developer Program jenis Organization untuk `RKJ DISTRIBUTOR SDN. BHD.` menggunakan D-U-N-S `473312040`.
 - Jika app hanya untuk staf dalaman, gunakan Custom App / Apple Business Manager.
 - Build iOS di Mac/Xcode.
 - Upload ke App Store Connect.

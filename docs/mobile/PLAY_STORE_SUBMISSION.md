@@ -95,7 +95,7 @@ Rujuk `docs/mobile/DATA_SAFETY.md`.
 
 ## Checklist Submit
 
-- Selesaikan D-U-N-S number untuk akaun Organization Google Play Console.
+- Guna D-U-N-S `473312040` untuk akaun Organization Google Play Console jika diminta.
 - Upload `app-release.aab`.
 - Upload 5 phone screenshots.
 - Upload feature graphic.
