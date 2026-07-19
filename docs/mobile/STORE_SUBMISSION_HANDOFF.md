@@ -41,6 +41,12 @@ Store listing:
 docs/mobile/PLAY_STORE_SUBMISSION.md
 ```
 
+Step-by-step:
+
+```text
+docs/mobile/PLAY_CONSOLE_STEP_BY_STEP.md
+```
+
 Data Safety:
 
 ```text
@@ -102,6 +108,12 @@ Submission copy:
 
 ```text
 docs/mobile/APP_STORE_SUBMISSION.md
+```
+
+Step-by-step:
+
+```text
+docs/mobile/APP_STORE_CONNECT_STEP_BY_STEP.md
 ```
 
 Build iOS di Mac/Xcode:
