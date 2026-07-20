@@ -76,13 +76,28 @@ export function DriverWorkSchedulePanel({ driverMode = false }: DriverWorkSchedu
  }
  setConfirmingStop(stopId);
  try {
+ const position = await new Promise<{ gps_latitude: number | null; gps_longitude: number | null }>((resolve) => {
+  if (!navigator.geolocation) return resolve({ gps_latitude: null, gps_longitude: null });
+  navigator.geolocation.getCurrentPosition(
+   (value) => resolve({ gps_latitude: value.coords.latitude, gps_longitude: value.coords.longitude }),
+   () => resolve({ gps_latitude: null, gps_longitude: null }),
+   { enableHighAccuracy: true, maximumAge: 30_000, timeout: 5_000 },
+  );
+ });
  const { result } = await confirmRouteStopDelivery(stopId, {
  receiver_name: receiverName,
+ ...position,
  });
  toast.success(
  (result as { order_fulfilled?: boolean }).order_fulfilled
  ? `Stok dihantar ke ${branchName} - semua cawangan selesai`
  : `Stok disahkan di ${branchName}`);
+ const learning = (result as { location_learning?: { learned?: boolean; status?: string; observation_count?: number } }).location_learning;
+ if (learning?.learned) {
+  toast.success(learning.status === 'VERIFIED'
+   ? 'Lokasi drop Waze telah disahkan.'
+   : `Lokasi drop sedang dipelajari (${learning.observation_count ?? 1}/3).`);
+ }
  setReceiverByStop((prev) => {
  const next = {...prev };
  delete next[stopId];
@@ -294,7 +309,7 @@ function ManifestCard({
   size="sm"
   variant="outline"
   className="h-7 gap-1 border-sky-200 px-2 text-xs text-sky-800 hover:bg-sky-50"
-  onClick={() => window.open(buildWazeLocationUrl(stop.branch_name), '_blank', 'noopener,noreferrer')}
+  onClick={() => window.open(buildWazeLocationUrl(`${stop.branch_code} - ${stop.branch_name}${stop.area ? `, ${stop.area}` : ''}, Malaysia`), '_blank', 'noopener,noreferrer')}
   aria-label={`Navigasi Waze ke ${stop.branch_name}`}
  >
   <Navigation className="h-3 w-3" /> Waze

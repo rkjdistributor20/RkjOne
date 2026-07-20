@@ -244,7 +244,9 @@ export interface FleetNavigationStop {
  latitude: number | null;
  longitude: number | null;
  geofence_id: string | null;
- coordinate_status: 'VERIFIED' | 'NAME_FALLBACK';
+ coordinate_status: 'VERIFIED' | 'LEARNING' | 'NAME_FALLBACK';
+ observation_count: number;
+ confidence_score: number | null;
  status: string;
  waze_url: string;
 }
@@ -293,6 +295,7 @@ export interface FleetNavigationResponse {
   blocked_attempts: number;
   locations_with_coordinates: number;
   locations_without_coordinates: number;
+  locations_learning: number;
  };
 }
 

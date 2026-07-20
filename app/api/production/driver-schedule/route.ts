@@ -89,7 +89,7 @@ async function fetchCompanionSchedule(
  const branchIds = [...new Set(stopRows.map((stop: any) => stop.branch_id).filter(Boolean))];
  const [{ data: branches }, { data: stopItems }] = await Promise.all([
  branchIds.length
- ? admin.from('branches').select('id, branch_code, branch_name').in('id', branchIds)
+ ? admin.from('branches').select('id, branch_code, branch_name, area').in('id', branchIds)
  : Promise.resolve({ data: [] }),
  stopIds.length
  ? admin.from('hq_delivery_route_stop_items').select('stop_id, stock_item_id, quantity, planned_quantity, adjusted_quantity, unit').in('stop_id', stopIds)
@@ -146,6 +146,7 @@ async function fetchCompanionSchedule(
  sequence: Number(stop.stop_sequence ?? 0),
  branch_code: branch?.branch_code ?? 'HANDOFF',
  branch_name: branch?.branch_name ?? stop.notes ?? 'Sambut Stok',
+ area: branch?.area ?? null,
  branch_id: stop.branch_id,
  is_handoff: Boolean(stop.is_handoff),
  status: stop.status,

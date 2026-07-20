@@ -137,7 +137,11 @@ export function WazeNavigationPanel() {
       <div className="mt-2 flex flex-wrap items-center gap-2">
        <Badge variant="outline" className={next.coordinate_status === 'VERIFIED' ? 'border-emerald-300 text-emerald-800' : 'border-amber-300 text-amber-900'}>
         {next.coordinate_status === 'VERIFIED' ? <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> : <CircleAlert className="mr-1 h-3.5 w-3.5" />}
-        {next.coordinate_status === 'VERIFIED' ? text('Koordinat disahkan', 'Verified coordinates') : text('Fallback nama lokasi', 'Location-name fallback')}
+        {next.coordinate_status === 'VERIFIED'
+         ? text('Koordinat drop disahkan', 'Verified drop coordinates')
+         : next.coordinate_status === 'LEARNING'
+          ? text(`Sedang dipelajari (${next.observation_count}/3 drop)`, `Learning (${next.observation_count}/3 drops)`)
+          : text('Carian nama Waze', 'Waze name search')}
        </Badge>
        {data.session?.plate_number && <Badge variant="outline">{data.session.plate_number}</Badge>}
       </div>
@@ -227,7 +231,8 @@ function ManagementNavigation({ data, en, text, onRefresh }: { data: FleetNaviga
  const metricRows = [
   [Navigation, text('Waze hari ini', 'Waze today'), metrics.launches_today],
   [ShieldCheck, text('Driver aktif', 'Active drivers'), metrics.active_drivers],
-  [MapPinned, text('Koordinat lengkap', 'Coordinates ready'), metrics.locations_with_coordinates],
+  [MapPinned, text('Lokasi bertitik', 'Mapped locations'), metrics.locations_with_coordinates],
+  [Clock3, text('Sedang dipelajari', 'Learning locations'), metrics.locations_learning],
   [AlertTriangle, text('Lokasi belum lengkap', 'Locations incomplete'), metrics.locations_without_coordinates],
   [CircleAlert, text('Cubaan disekat', 'Blocked attempts'), metrics.blocked_attempts],
   [Route, text('Fallback lokasi', 'Location fallbacks'), metrics.coordinate_fallbacks],
@@ -237,7 +242,7 @@ function ManagementNavigation({ data, en, text, onRefresh }: { data: FleetNaviga
    <div className="flex gap-3"><div className="grid h-10 w-10 place-items-center rounded-md bg-[#05c8f7] text-neutral-950"><Navigation className="h-5 w-5" /></div><div><h3 id="waze-management-title" className="text-base font-semibold">{text('Kawalan Navigasi Waze', 'Waze Navigation Control')}</h3><p className="text-sm text-muted-foreground">{text('Audit perjalanan driver, kualiti lokasi dan pengecualian operasi.', 'Driver journey audit, location quality and operations exceptions.')}</p></div></div>
    <Button type="button" size="sm" variant="ghost" onClick={() => void onRefresh()}><RefreshCw className="mr-1.5 h-4 w-4" />{text('Segar semula', 'Refresh')}</Button>
   </div>
-  <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
+  <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-7">
    {metricRows.map(([Icon, label, value]) => <div key={label} className="border px-3 py-3"><Icon className="h-4 w-4 text-muted-foreground" /><p className="mt-2 text-xl font-semibold">{value}</p><p className="text-xs text-muted-foreground">{label}</p></div>)}
   </div>
   {metrics.locations_without_coordinates > 0 && <div className="mt-3 border-l-4 border-amber-400 bg-amber-50 px-4 py-3 text-sm"><strong>{metrics.locations_without_coordinates} {text('lokasi perlu dikemaskan.', 'locations need attention.')}</strong> {text('Gunakan Geofence dengan lokasi Cartrack semasa supaya Waze membuka titik yang tepat.', 'Use Geofence with the current Cartrack location so Waze opens the exact point.')}</div>}

@@ -45,6 +45,10 @@ export async function POST(request: Request) {
   longitude,
   radius_m: radius,
   is_active: true,
+  location_source: 'MANUAL',
+  confidence_score: 1,
+  observation_count: 0,
+  verified_at: new Date().toISOString(),
   created_by: profile.id,
   updated_at: new Date().toISOString(),
  }, { onConflict: 'organization_id,name' }).select('id').single();

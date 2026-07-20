@@ -183,7 +183,7 @@ export async function fetchDeliveryRoutePlans(orderId?: string) {
 
 export async function confirmRouteStopDelivery(
  stopId: string,
- payload?: { receiver_name?: string; driver_notes?: string }) {
+ payload?: { receiver_name?: string; driver_notes?: string; gps_latitude?: number | null; gps_longitude?: number | null }) {
  return fetchJson<{ result: Record<string, unknown> }>(
  `/api/production/routes/stops/${stopId}/confirm`,
  {

@@ -85,13 +85,14 @@ async function recentEvents(service: any, organizationId: string, driverIds?: st
 async function locationMetrics(service: any, organizationId: string) {
  const [{ data: branches }, { data: geofences }] = await Promise.all([
   service.from('branches').select('id, latitude, longitude').eq('organization_id', organizationId).eq('status', 'ACTIVE'),
-  service.from('fleet_geofences').select('branch_id').eq('organization_id', organizationId).eq('is_active', true).not('branch_id', 'is', null),
+  service.from('fleet_geofences').select('branch_id, verified_at').eq('organization_id', organizationId).eq('is_active', true).not('branch_id', 'is', null),
  ]);
  const geofenced = new Set(((geofences ?? []) as Array<{ branch_id: string }>).map((row) => row.branch_id));
+ const verified = new Set(((geofences ?? []) as Array<{ branch_id: string; verified_at: string | null }>).filter((row) => row.verified_at).map((row) => row.branch_id));
  const rows = (branches ?? []) as Array<{ id: string; latitude: number | null; longitude: number | null }>;
  const withCoordinates = rows.filter((branch) =>
   (branch.latitude !== null && branch.longitude !== null) || geofenced.has(branch.id)).length;
- return { withCoordinates, withoutCoordinates: Math.max(0, rows.length - withCoordinates) };
+ return { withCoordinates, withoutCoordinates: Math.max(0, rows.length - withCoordinates), learning: Math.max(0, geofenced.size - verified.size) };
 }
 
 async function driverContext(profile: Profile) {
@@ -134,8 +135,8 @@ async function driverContext(profile: Profile) {
  const stopRows = (stops ?? []) as any[];
  const branchIds = [...new Set(stopRows.map((stop) => stop.branch_id).filter(Boolean))];
  const [{ data: branches }, { data: geofences }, { data: quickGeofences }] = await Promise.all([
-  branchIds.length ? service.from('branches').select('id, branch_code, branch_name, latitude, longitude').in('id', branchIds) : Promise.resolve({ data: [] }),
-  branchIds.length ? service.from('fleet_geofences').select('id, branch_id, latitude, longitude').eq('organization_id', profile.organization_id).eq('is_active', true).in('branch_id', branchIds) : Promise.resolve({ data: [] }),
+  branchIds.length ? service.from('branches').select('id, branch_code, branch_name, area, latitude, longitude').in('id', branchIds) : Promise.resolve({ data: [] }),
+  branchIds.length ? service.from('fleet_geofences').select('id, branch_id, latitude, longitude, confidence_score, observation_count, verified_at, location_source').eq('organization_id', profile.organization_id).eq('is_active', true).in('branch_id', branchIds) : Promise.resolve({ data: [] }),
   service.from('fleet_geofences').select('id, name, geofence_type, latitude, longitude')
    .eq('organization_id', profile.organization_id).eq('is_active', true)
    .in('geofence_type', ['FACTORY', 'HQ', 'HUB']).order('geofence_type'),
@@ -153,7 +154,11 @@ async function driverContext(profile: Profile) {
   const fence = fenceByBranch.get(stop.branch_id);
   const latitude = fence?.latitude != null ? Number(fence.latitude) : branch?.latitude != null ? Number(branch.latitude) : null;
   const longitude = fence?.longitude != null ? Number(fence.longitude) : branch?.longitude != null ? Number(branch.longitude) : null;
-  const destinationName = branch?.branch_name ?? stop.notes ?? 'Hentian operasi';
+  const destinationName = branch
+   ? `${branch.branch_code} - ${branch.branch_name}${branch.area ? `, ${branch.area}` : ''}, Malaysia`
+   : stop.notes ?? 'Hentian operasi';
+  const coordinateStatus: FleetNavigationStop['coordinate_status'] = latitude === null || longitude === null
+   ? 'NAME_FALLBACK' : fence && !fence.verified_at ? 'LEARNING' : 'VERIFIED';
   return {
    id: stop.id,
    route_plan_id: stop.route_plan_id,
@@ -164,7 +169,9 @@ async function driverContext(profile: Profile) {
    latitude,
    longitude,
    geofence_id: fence?.id ?? null,
-   coordinate_status: latitude !== null && longitude !== null ? 'VERIFIED' : 'NAME_FALLBACK',
+   coordinate_status: coordinateStatus,
+   observation_count: Number(fence?.observation_count ?? 0),
+   confidence_score: fence?.confidence_score == null ? null : Number(fence.confidence_score),
    status: stop.status,
    waze_url: wazeUrl({ latitude, longitude, name: destinationName }, preferences),
   };
@@ -202,6 +209,7 @@ async function metrics(service: any, organizationId: string, events: FleetNaviga
   blocked_attempts: todayEvents.filter((event) => event.event_type === 'BLOCKED').length,
   locations_with_coordinates: location.withCoordinates,
   locations_without_coordinates: location.withoutCoordinates,
+  locations_learning: location.learning,
  };
 }
 

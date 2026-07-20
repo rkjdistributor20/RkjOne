@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { inventoryRpc } from '@/lib/supabase/inventory-rpc';
 import { getCurrentProfile } from '@/lib/auth/session';
 import { distanceKm } from '@/lib/fleet/gps-analytics';
+import { learnDropLocation } from '@/lib/fleet/location-learning';
 
 export async function POST(
  request: Request,
@@ -35,7 +36,7 @@ export async function POST(
   const service = createAdminClient() as any;
   const { data: leg } = await service
    .from('delivery_legs')
-   .select('to_location:inventory_locations!delivery_legs_to_location_id_fkey(branch_id)')
+   .select('driver_id, vehicle_id, to_location:inventory_locations!delivery_legs_to_location_id_fkey(branch_id)')
    .eq('id', id)
    .maybeSingle();
   const branchId = leg?.to_location?.branch_id ?? null;
@@ -66,7 +67,14 @@ export async function POST(
    gps_verification_status: verification,
   }).eq('id', result.pod_id).eq('organization_id', profile.organization_id);
 
-  return NextResponse.json({ result: { ...result, gps_verification_status: verification, distance_from_destination_m: distanceM } });
+  const locationLearning = branchId ? await learnDropLocation({
+   service, organizationId: profile.organization_id, profileId: profile.id, branchId,
+   deliveryLegId: id, podId: result.pod_id, driverId: leg?.driver_id ?? null,
+   vehicleId: leg?.vehicle_id ?? null, reportedLatitude: body.gps_latitude ?? null,
+   reportedLongitude: body.gps_longitude ?? null,
+  }) : { learned: false, reason: 'BRANCH_NOT_FOUND' };
+
+  return NextResponse.json({ result: { ...result, gps_verification_status: verification, distance_from_destination_m: distanceM, location_learning: locationLearning } });
  }
  return NextResponse.json({ result: data });
 }

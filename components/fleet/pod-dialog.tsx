@@ -69,8 +69,14 @@ export function PodDialog({ open, onOpenChange, leg, onSuccess }: PodDialogProps
  gps_longitude: gps.lng,
  image_urls: imageUrl ? [imageUrl] : [],
  };
- await submitPod(leg.id, payload);
+ const { result } = await submitPod(leg.id, payload);
  toast.success('Bukti penghantaran dihantar');
+ const learning = (result as { location_learning?: { learned?: boolean; status?: string; observation_count?: number } }).location_learning;
+ if (learning?.learned) {
+  toast.success(learning.status === 'VERIFIED'
+   ? 'Lokasi drop Waze telah disahkan.'
+   : `Lokasi drop sedang dipelajari (${learning.observation_count ?? 1}/3).`);
+ }
  onOpenChange(false);
  setReceiverName('');
  setDriverNotes('');

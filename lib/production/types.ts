@@ -264,6 +264,7 @@ export interface DriverWorkScheduleEntry {
  sequence: number;
  branch_code: string;
  branch_name: string;
+ area?: string | null;
  branch_id?: string | null;
  is_handoff: boolean;
  status?: string;
