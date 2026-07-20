@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getCurrentProfile } from '@/lib/auth/session';
-import { createServiceClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 const MANAGEMENT_ROLES = new Set(['SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER']);
 const REQUIRED_CHECKS = ['vehicle_condition', 'tyres', 'load_secured', 'documents'];
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
   return NextResponse.json({ error: 'Lengkapkan semua semakan keselamatan sebelum mula.' }, { status: 400 });
  }
 
- const service = (await createServiceClient()) as any;
+ const service = createAdminClient() as any;
  const { data: driver } = await service
   .from('drivers')
   .select('id, profile_id, status')
@@ -92,7 +92,7 @@ export async function PATCH(request: Request) {
  };
  if (!body.session_id) return NextResponse.json({ error: 'Sesi diperlukan.' }, { status: 400 });
 
- const service = (await createServiceClient()) as any;
+ const service = createAdminClient() as any;
  const { data: session } = await service
   .from('fleet_driver_sessions')
   .select('id, profile_id, status')

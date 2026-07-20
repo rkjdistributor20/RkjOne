@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { inventoryRpc } from '@/lib/supabase/inventory-rpc';
 import { getCurrentProfile } from '@/lib/auth/session';
 import { distanceKm } from '@/lib/fleet/gps-analytics';
@@ -31,7 +32,7 @@ export async function POST(
 
  const result = data as { pod_id?: string } | null;
  if (result?.pod_id) {
-  const service = (await createServiceClient()) as any;
+  const service = createAdminClient() as any;
   const { data: leg } = await service
    .from('delivery_legs')
    .select('to_location:inventory_locations!delivery_legs_to_location_id_fkey(branch_id)')

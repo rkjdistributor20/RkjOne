@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getCurrentProfile } from '@/lib/auth/session';
-import { createServiceClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { getCartrackFleetGpsStatus } from '@/lib/fleet/cartrack';
 import {
  alertDedupeKey,
@@ -19,7 +19,7 @@ export async function POST() {
   return NextResponse.json({ error: 'Hanya OM atau pentadbir boleh menjalankan analisis GPS.' }, { status: 403 });
  }
 
- const service = (await createServiceClient()) as any;
+ const service = createAdminClient() as any;
  const { data: vehicles, error: vehicleError } = await service
   .from('vehicles')
   .select('id, vehicle_code, plate_number, vehicle_type')

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getCurrentProfile } from '@/lib/auth/session';
-import { createServiceClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 const MANAGE_ROLES = new Set(['SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER']);
 const TYPES = new Set(['FACTORY', 'HQ', 'BRANCH', 'AGENT_PICKUP', 'HUB', 'OTHER']);
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
  }
  if (radius < 50 || radius > 5000) return NextResponse.json({ error: 'Radius mesti antara 50 hingga 5000 meter.' }, { status: 400 });
 
- const service = (await createServiceClient()) as any;
+ const service = createAdminClient() as any;
  if (body.branch_id) {
   const { data: branch } = await service.from('branches').select('id').eq('id', body.branch_id).eq('organization_id', profile.organization_id).maybeSingle();
   if (!branch) return NextResponse.json({ error: 'Cawangan tidak dijumpai.' }, { status: 404 });

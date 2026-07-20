@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getCurrentProfile } from '@/lib/auth/session';
-import { createServiceClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 const ACTION_ROLES = new Set(['SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER', 'AREA_MANAGER']);
 
@@ -22,7 +22,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
  const update = status === 'ACKNOWLEDGED'
   ? { status, acknowledged_by: profile.id, acknowledged_at: now, updated_at: now }
   : { status, resolved_by: profile.id, resolved_at: now, updated_at: now };
- const service = (await createServiceClient()) as any;
+ const service = createAdminClient() as any;
  const { data, error } = await service
   .from('fleet_gps_alerts')
   .update(update)
