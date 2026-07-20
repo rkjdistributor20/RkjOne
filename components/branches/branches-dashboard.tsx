@@ -19,6 +19,7 @@ import {
  FilePlus2,
  FileText,
  MapPin,
+ Navigation,
  MoveRight,
  Package,
  RefreshCw,
@@ -70,6 +71,7 @@ import {
 import { DocumentPreviewDialog } from '@/components/shared/document-preview-dialog';
 import { cn } from '@/lib/utils';
 import { boundSelectValue } from '@/lib/ui/select-utils';
+import { buildWazeLocationUrl } from '@/lib/navigation/waze';
 
 export type BranchInventoryStatus = 'OK' | 'LOW' | 'CRITICAL' | 'NO_LOCATION';
 
@@ -1888,8 +1890,21 @@ function BranchProfileHero({
  Profile operasi lengkap untuk pantau kedai, staf, POS, inventory kiosk dan isu harian cawangan ini.
  </p>
  </div>
- {canManageBranches ? (
  <div className="flex flex-wrap gap-2">
+ <Button
+  type="button"
+  variant="outline"
+  className="bg-white text-sky-800 hover:bg-sky-50"
+  onClick={() => window.open(
+   buildWazeLocationUrl([branch.branch_name, branch.area ?? branch.region_name].filter(Boolean).join(', ')),
+   '_blank',
+   'noopener,noreferrer')}
+  aria-label={`Navigasi Waze ke ${branch.branch_name}`}
+ >
+  <Navigation className="h-4 w-4" /> Waze
+ </Button>
+ {canManageBranches ? (
+ <>
  <Button type="button" variant="outline" className="bg-white text-[#141414] hover:bg-amber-50" onClick={onEdit}>
  <SlidersHorizontal className="h-4 w-4" />
  Kemaskini
@@ -1897,8 +1912,9 @@ function BranchProfileHero({
  <Button type="button" variant="destructive" disabled={saving} onClick={onDelete}>
  Delete
  </Button>
- </div>
+ </>
  ) : null}
+ </div>
  </div>
  <div className="mt-5 grid gap-3 sm:grid-cols-3">
  <BranchHeroMetric icon={MapPin} label="Region / Area" value={`${branch.region_name ?? '-'} / ${branch.area ?? '-'}`} />

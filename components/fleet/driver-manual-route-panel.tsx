@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import {
- MapPin,
  Navigation,
  Sparkles,
  Package,
@@ -24,6 +23,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/shared/module-ui';
 import { cn } from '@/lib/utils';
+import { buildWazeLocationUrl } from '@/lib/navigation/waze';
 
 function branchLegs(order: DeliveryOrder): DeliveryLeg[] {
  return (order.delivery_legs ?? []).filter((l) => l.leg_type === 'VEHICLE_TO_BRANCH').sort((a, b) => a.leg_sequence ?? b.leg_sequence);
@@ -205,7 +205,16 @@ export function DriverManualRoutePanel() {
  </li>))}
  </ul>
  </div>
- <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
+ <Button
+  type="button"
+  size="sm"
+  variant="outline"
+  className="h-8 shrink-0 gap-1 border-sky-200 px-2 text-xs text-sky-800 hover:bg-sky-50"
+  onClick={() => window.open(buildWazeLocationUrl(leg.to_location.name), '_blank', 'noopener,noreferrer')}
+  aria-label={`Navigasi Waze ke ${leg.to_location.name}`}
+ >
+  <Navigation className="h-3.5 w-3.5" /> Waze
+ </Button>
  </li>))}
  </ol>)}
  </div>);

@@ -5,7 +5,6 @@ import { toast } from 'sonner';
 import {
  CalendarDays,
  MapPin,
- Truck,
  Clock,
  CheckCircle2,
  Sparkles,
@@ -35,6 +34,7 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/shared/module-ui';
 import { cn } from '@/lib/utils';
+import { buildWazeLocationUrl } from '@/lib/navigation/waze';
 
 const PHASE_LABELS: Record<string, string> = {
  PREDICTION: 'Ramalan',
@@ -289,6 +289,16 @@ function ManifestCard({
  <Navigation className="h-3 w-3" />
  {stop.route_hint}
  </Badge>)}
+ <Button
+  type="button"
+  size="sm"
+  variant="outline"
+  className="h-7 gap-1 border-sky-200 px-2 text-xs text-sky-800 hover:bg-sky-50"
+  onClick={() => window.open(buildWazeLocationUrl(stop.branch_name), '_blank', 'noopener,noreferrer')}
+  aria-label={`Navigasi Waze ke ${stop.branch_name}`}
+ >
+  <Navigation className="h-3 w-3" /> Waze
+ </Button>
  </div>
 
  {stop.items?.length > 0 && (

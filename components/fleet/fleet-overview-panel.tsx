@@ -339,10 +339,11 @@ function GpsVehicleRow({ vehicle }: { vehicle: FleetGpsVehicleStatus }) {
  <button
  type="button"
  onClick={() => window.open(vehicle.map_url ?? '', '_blank', 'noopener,noreferrer')}
- className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-blue-700 hover:underline"
+ className="mt-2 inline-flex items-center gap-1 rounded-md bg-sky-50 px-2 py-1 text-xs font-semibold text-sky-800 transition hover:bg-sky-100"
+ aria-label={`Navigasi Waze ke lokasi ${vehicle.label}`}
  >
  <MapPinned className="h-3.5 w-3.5" />
- Buka peta
+ Navigasi Waze
  </button>)}
  </div>);
 }

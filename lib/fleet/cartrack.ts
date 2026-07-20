@@ -1,4 +1,5 @@
 import type { FleetGpsStatusResponse, FleetGpsVehicleStatus } from './types';
+import { buildWazeUrl } from '@/lib/navigation/waze';
 
 const DEFAULT_API_BASE_URL = 'https://fleetapi-my.cartrack.com/rest';
 const DEFAULT_FLEETWEB_URL = 'https://fleetweb-my.cartrack.com/map/fleet';
@@ -237,7 +238,7 @@ async function requestCartrackStatuses(credentials: CartrackCredentials): Promis
 
 function buildMapUrl(latitude: number | null, longitude: number | null) {
  if (latitude === null || longitude === null) return null;
- return `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+ return buildWazeUrl({ latitude, longitude });
 }
 
 function reconcileStatuses(
