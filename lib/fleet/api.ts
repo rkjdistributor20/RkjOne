@@ -10,6 +10,7 @@ import type {
  PodPayload,
 } from './types';
 import { fetchJson } from '@/lib/client/fetch-json';
+import type { CompanyVehicleActionPayload, CompanyVehicleDashboardResponse } from './company-vehicle-types';
 
 export async function fetchFleetVehicles() {
  return fetchJson<{ vehicles: FleetVehicle[] }>(
@@ -203,5 +204,19 @@ export async function logFleetStatus(payload: {
  return fetchJson<{ result: unknown }>('/api/fleet/status', {
  method: 'POST',
  body: JSON.stringify(payload),
+ });
+}
+
+export async function fetchCompanyVehicles() {
+ return fetchJson<CompanyVehicleDashboardResponse>(
+  '/api/fleet/company-vehicles',
+  undefined,
+  { ttlMs: 15_000 });
+}
+
+export async function submitCompanyVehicleAction(payload: CompanyVehicleActionPayload) {
+ return fetchJson<{ ok: boolean; id: string | null }>('/api/fleet/company-vehicles', {
+  method: 'POST',
+  body: JSON.stringify(payload),
  });
 }

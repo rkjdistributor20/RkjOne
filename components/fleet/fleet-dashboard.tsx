@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Truck, Plus, MapPin, Package, CalendarDays, LayoutDashboard, ClipboardCheck, Route, UserRound, Pencil, Trash2, Search, MapPinned, ShieldCheck } from 'lucide-react';
+import { Truck, Plus, MapPin, Package, CalendarDays, LayoutDashboard, ClipboardCheck, Route, UserRound, Pencil, Trash2, Search, MapPinned, ShieldCheck, Car } from 'lucide-react';
 import {
  deleteFleetDriver,
  fetchDeliveryOrders,
@@ -36,6 +36,7 @@ import { PodDialog } from '@/components/fleet/pod-dialog';
 import { DriverWorkSchedulePanel } from '@/components/fleet/driver-work-schedule-panel';
 import { DriverManualRoutePanel } from '@/components/fleet/driver-manual-route-panel';
 import { FleetOverviewPanel } from '@/components/fleet/fleet-overview-panel';
+import { CompanyVehicleDashboard } from '@/components/fleet/company-vehicle-dashboard';
 import { WorkflowSopPanel } from '@/components/dashboard/workflow-sop-panel';
 import { OperationsWorkflowMap } from '@/components/dashboard/operations-workflow-map';
 import { getRoleWorkflow } from '@/lib/dashboard/role-workflows';
@@ -61,7 +62,7 @@ const STATUS_VARIANT: Record<string, 'outline' | 'secondary' | 'destructive' | '
 };
 
 const VEHICLE_STATUS_OPTIONS = Object.keys(FLEET_VEHICLE_STATUS_LABELS);
-type FleetTab = 'overview' | 'schedule' | 'drivers' | 'deliveries' | 'vehicles' | 'status';
+type FleetTab = 'overview' | 'schedule' | 'drivers' | 'deliveries' | 'vehicles' | 'company' | 'status';
 
 function parseFleetRemark(remarks?: string | null) {
  const parts = (remarks ?? '').split('|').map((part) => part.trim());
@@ -575,6 +576,9 @@ export function FleetDashboard() {
  <TabsTrigger value="vehicles" className={moduleTabsTriggerClass}>
  <Truck className="h-4 w-4" /> {t('module.fleet.activeVehicles')}
  </TabsTrigger>
+ <TabsTrigger value="company" className={moduleTabsTriggerClass} data-rkj-i18n-skip>
+ <Car className="h-4 w-4" /> {locale === 'en' ? 'Company Vehicles' : 'Kenderaan Syarikat'}
+ </TabsTrigger>
  <TabsTrigger value="status" className={moduleTabsTriggerClass}>
  <MapPin className="h-4 w-4" /> {t('module.fleet.statusLog')}
  </TabsTrigger>
@@ -886,6 +890,10 @@ export function FleetDashboard() {
  </CardContent>
  </Card>))}
  </div>)}
+ </TabsContent>
+
+ <TabsContent value="company" className="mt-2">
+  <CompanyVehicleDashboard />
  </TabsContent>
 
  <TabsContent value="status" className="mt-2 space-y-2">
