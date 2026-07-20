@@ -125,14 +125,14 @@ export function CompanyVehicleDashboard() {
    <div className="grid gap-5 p-5 lg:grid-cols-[1fr_auto] lg:items-center">
     <div>
      <div className="flex items-center gap-2 text-xs font-semibold uppercase text-amber-300"><ShieldCheck className="h-4 w-4" />{text('Tadbir urus aset syarikat', 'Company asset governance')}</div>
-     <h2 className="mt-2 text-xl font-semibold">{text('Kenderaan Syarikat', 'Company Vehicles')}</h2>
+     <h2 className="mt-2 text-xl font-semibold text-white">{text('Kenderaan Syarikat', 'Company Vehicles')}</h2>
      <p className="mt-1 max-w-3xl text-sm leading-6 text-neutral-300">{text('Serahan penjaga, perjalanan rasmi, kos, dokumen, penyelenggaraan dan insiden dalam satu rekod audit.', 'Custody, official trips, costs, documents, maintenance and incidents in one audit trail.')}</p>
     </div>
     <Button variant="outline" onClick={() => void load()} disabled={loading} className="border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white"><RefreshCw className={cn('mr-2 h-4 w-4', loading && 'animate-spin')} />{text('Segarkan', 'Refresh')}</Button>
    </div>
   </div>
 
-  <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border bg-neutral-200 sm:grid-cols-3 xl:grid-cols-7">
+  <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border bg-neutral-200 sm:grid-cols-4 xl:grid-cols-8">
    <Metric icon={Car} label={text('Kenderaan', 'Vehicles')} value={data.kpis.total} />
    <Metric icon={Route} label={text('Sedang digunakan', 'In use')} value={data.kpis.in_use} tone={data.kpis.in_use ? 'blue' : undefined} />
    <Metric icon={CalendarClock} label={text('Dokumen perlu tindakan', 'Documents due')} value={data.kpis.documents_due} tone={data.kpis.documents_due ? 'amber' : undefined} />
@@ -140,6 +140,7 @@ export function CompanyVehicleDashboard() {
    <Metric icon={Banknote} label={text('Kos bulan ini', 'Cost this month')} value={`RM ${data.kpis.monthly_cost.toLocaleString('en-MY', { minimumFractionDigits: 2 })}`} />
    <Metric icon={ClipboardCheck} label={text('Belanja menunggu', 'Pending expenses')} value={data.kpis.pending_expenses} tone={data.kpis.pending_expenses ? 'amber' : undefined} />
    <Metric icon={Wrench} label={text('Servis perlu tindakan', 'Service due')} value={data.kpis.maintenance_due} tone={data.kpis.maintenance_due ? 'amber' : undefined} />
+   <Metric icon={MapPin} label={text('GPS aktif', 'Active GPS')} value={data.kpis.tracked_gps} tone={data.kpis.tracked_gps ? 'blue' : undefined} />
   </div>
 
   <div className="flex flex-wrap items-center justify-between gap-3">

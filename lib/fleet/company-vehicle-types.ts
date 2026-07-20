@@ -106,6 +106,7 @@ export interface CompanyVehicleDashboardResponse {
   monthly_cost: number;
   pending_expenses: number;
   maintenance_due: number;
+  tracked_gps: number;
  };
  vehicles: CompanyVehicleRecord[];
  custodians: Array<{ id: string; full_name: string; role: string }>;

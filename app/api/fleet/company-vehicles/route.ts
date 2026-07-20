@@ -130,6 +130,7 @@ export async function GET() {
    monthly_cost: responseVehicles.reduce((sum, vehicle) => sum + vehicle.monthly_cost, 0),
    pending_expenses: (expensesResult.data ?? []).filter((row: any) => row.status === 'SUBMITTED').length,
    maintenance_due: (maintenanceResult.data ?? []).filter((row: any) => ['DUE', 'OVERDUE'].includes(row.status) || (row.next_service_date && new Date(`${row.next_service_date}T23:59:59`) <= dueCutoff)).length,
+   tracked_gps: responseVehicles.filter((vehicle) => Boolean(vehicle.gps?.event_ts)).length,
   },
   vehicles: responseVehicles,
   custodians: custodiansResult.data ?? [],
