@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { FleetControlCenter } from '@/components/fleet/fleet-control-center';
+import { useLanguage } from '@/components/i18n/language-provider';
 
 export function FleetOverviewPanel() {
  const [schedule, setSchedule] = useState<DriverWorkScheduleEntry[]>([]);
@@ -300,6 +301,7 @@ function GpsMetric({
 }
 
 function GpsVehicleRow({ vehicle }: { vehicle: FleetGpsVehicleStatus }) {
+ const { locale } = useLanguage();
  const speed = Number(vehicle.speed_kph ?? 0);
  const location = vehicle.location_description ??
  (vehicle.latitude !== null && vehicle.longitude !== null
@@ -319,8 +321,8 @@ function GpsVehicleRow({ vehicle }: { vehicle: FleetGpsVehicleStatus }) {
  {updated}
  </p>
  {vehicle.company_custodian_name && (
- <p className="mt-1 text-xs font-medium text-blue-800">
- Kenderaan syarikat - Penjaga: {vehicle.company_custodian_name}
+ <p className="mt-1 text-xs font-medium text-blue-800" data-rkj-i18n-skip>
+ {locale === 'en' ? 'Company vehicle - Custodian:' : 'Kenderaan syarikat - Penjaga:'} {vehicle.company_custodian_name}
  </p>)}
  </div>
  <div className="flex flex-wrap gap-1">
