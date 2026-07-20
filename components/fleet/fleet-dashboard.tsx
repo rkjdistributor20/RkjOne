@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Truck, Plus, MapPin, Package, CalendarDays, LayoutDashboard, ClipboardCheck, Route, UserRound, Pencil, Trash2, Search, MapPinned, ShieldCheck, Car } from 'lucide-react';
+import { Truck, Plus, MapPin, Package, CalendarDays, LayoutDashboard, ClipboardCheck, Route, UserRound, Pencil, Trash2, Search, MapPinned, ShieldCheck, Car, CheckCircle2, CircleAlert } from 'lucide-react';
 import {
+ acknowledgeDriverVehicleAssignment,
  deleteFleetDriver,
  fetchDeliveryOrders,
  fetchFleetDrivers,
@@ -14,7 +15,7 @@ import {
  updateFleetDriver,
 } from '@/lib/fleet/api';
 import { fetchLocations, fetchStockItems } from '@/lib/inventory/api';
-import type { DeliveryLeg, DeliveryOrder, FleetDriver, FleetRouteOption, FleetStatusLog, FleetVehicle } from '@/lib/fleet/types';
+import type { DeliveryLeg, DeliveryOrder, DriverVehicleAssignmentRole, FleetDriver, FleetRouteOption, FleetStatusLog, FleetVehicle } from '@/lib/fleet/types';
 import { LEG_TYPE_LABELS } from '@/lib/fleet/types';
 import { HQ_DISTRIBUTOR_LABEL } from '@/lib/brand/legal-entities';
 import type { InventoryLocation, StockItemOption } from '@/lib/inventory/types';
@@ -148,6 +149,28 @@ function driverSop(driver: FleetDriver) {
  return base;
 }
 
+const DRIVER_VEHICLE_RESPONSIBILITIES = [
+ 'Buat pemeriksaan tayar, lampu, brek, minyak enjin, kebersihan dan kerosakan sebelum bergerak.',
+ 'Gunakan kenderaan hanya untuk arahan rasmi OM/HQ dan laluan yang diluluskan.',
+ 'Aktifkan sesi driver, pastikan GPS tersedia dan kemas kini status pada setiap hentian penting.',
+ 'Rekod minyak, tol, parkir, odometer dan resit pada hari transaksi dibuat.',
+ 'Semak kuantiti stok semasa loading dan lengkapkan POD semasa serahan kepada cawangan atau ejen.',
+ 'Lapor kemalangan, saman, kerosakan atau kehilangan serta-merta; jangan teruskan perjalanan jika tidak selamat.',
+ 'Pulangkan kenderaan bersih, berkunci dan dengan baki stok/dokumen diserahkan kepada pihak bertanggungjawab.',
+];
+
+function assignmentRoleLabel(role: DriverVehicleAssignmentRole) {
+ if (role === 'PRIMARY') return 'Driver Utama';
+ if (role === 'ASSISTANT') return 'Pembantu Driver';
+ return 'Driver Ganti';
+}
+
+function assignmentRoleClass(role: DriverVehicleAssignmentRole) {
+ if (role === 'PRIMARY') return 'border-emerald-200 bg-emerald-50 text-emerald-800';
+ if (role === 'ASSISTANT') return 'border-blue-200 bg-blue-50 text-blue-800';
+ return 'border-amber-200 bg-amber-50 text-amber-800';
+}
+
 function routeTypeLabel(type?: string | null) {
  if (type === 'BRANCH_KIOSK') return 'Cawangan';
  if (type === 'AGENT_DROP_POINT') return 'Pickup Ejen';
@@ -157,12 +180,14 @@ function routeTypeLabel(type?: string | null) {
 function DriverProfileEditor({
  driver,
  routeOptions,
+ availableVehicles,
  open,
  onOpenChange,
  onSaved,
 }: {
  driver: FleetDriver | null;
  routeOptions: FleetRouteOption[];
+ availableVehicles: FleetVehicle[];
  open: boolean;
  onOpenChange: (open: boolean) => void;
  onSaved: () => void;
@@ -171,6 +196,7 @@ function DriverProfileEditor({
  const [phone, setPhone] = useState('');
  const [routeDescription, setRouteDescription] = useState('');
  const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
+ const [vehicleAssignments, setVehicleAssignments] = useState<Array<{ vehicle_id: string; assignment_role: DriverVehicleAssignmentRole; responsibility_notes: string }>>([]);
  const [search, setSearch] = useState('');
  const [saving, setSaving] = useState(false);
 
@@ -180,6 +206,11 @@ function DriverProfileEditor({
  setPhone(driver.phone ?? '');
  setRouteDescription(driver.route_description ?? '');
  setSelectedKeys(driver.assigned_route_keys ?? []);
+ setVehicleAssignments((driver.vehicles ?? []).map((vehicle) => ({
+  vehicle_id: vehicle.id,
+  assignment_role: vehicle.assignment_role,
+  responsibility_notes: vehicle.responsibility_notes ?? DRIVER_VEHICLE_RESPONSIBILITIES.join(' '),
+ })));
  setSearch('');
  }, [driver]);
 
@@ -209,6 +240,16 @@ function DriverProfileEditor({
  current.includes(key) ? current.filter((item) => item !== key) : [...current, key]);
  }
 
+ function toggleVehicle(vehicleId: string) {
+  setVehicleAssignments((current) => current.some((item) => item.vehicle_id === vehicleId)
+   ? current.filter((item) => item.vehicle_id !== vehicleId)
+   : [...current, { vehicle_id: vehicleId, assignment_role: 'RELIEF', responsibility_notes: DRIVER_VEHICLE_RESPONSIBILITIES.join(' ') }]);
+ }
+
+ function setVehicleRole(vehicleId: string, assignmentRole: DriverVehicleAssignmentRole) {
+  setVehicleAssignments((current) => current.map((item) => item.vehicle_id === vehicleId ? { ...item, assignment_role: assignmentRole } : item));
+ }
+
  async function handleSave() {
  if (!driver) return;
  if (!fullName.trim()) {
@@ -224,6 +265,7 @@ function DriverProfileEditor({
  phone: phone.trim() || null,
  route_description: routeDescription.trim() || null,
  route_keys: selectedKeys,
+ vehicle_assignments: vehicleAssignments,
  });
  toast.success('Profil driver dikemaskini');
  onSaved();
@@ -273,6 +315,36 @@ function DriverProfileEditor({
  />
  </div>
  </div>
+
+ <section className="space-y-3 border-y py-4">
+  <div>
+   <p className="font-semibold">Kenderaan Ditetapkan Syarikat</p>
+   <p className="mt-1 text-xs text-muted-foreground">Pilih kenderaan operasi dan peranan driver. Kenderaan manager tidak ditawarkan dalam senarai ini.</p>
+  </div>
+  <div className="grid gap-2 sm:grid-cols-2">
+   {availableVehicles.map((vehicle) => {
+    const assignment = vehicleAssignments.find((item) => item.vehicle_id === vehicle.id);
+    const details = parseFleetRemark(vehicle.remarks);
+    return (
+     <div key={vehicle.id} className={cn('rounded-lg border p-3', assignment ? 'border-amber-300 bg-amber-50/60' : 'bg-white')}>
+      <label className="flex cursor-pointer items-start gap-3">
+       <input type="checkbox" checked={Boolean(assignment)} onChange={() => toggleVehicle(vehicle.id)} className="mt-1 h-4 w-4 accent-amber-500" />
+       <span className="min-w-0 flex-1">
+        <span className="block font-medium">{vehicle.plate_number ?? vehicle.vehicle_code}</span>
+        <span className="block text-xs text-muted-foreground">{vehicle.vehicle_type}{vehicle.capacity ? ` - ${vehicle.capacity}` : ''}{details.model ? ` - ${details.model}` : ''}</span>
+       </span>
+      </label>
+      {assignment && <div className="mt-3 grid grid-cols-3 gap-1">
+       {(['PRIMARY', 'RELIEF', 'ASSISTANT'] as DriverVehicleAssignmentRole[]).map((role) => (
+        <Button key={role} type="button" size="sm" variant={assignment.assignment_role === role ? 'default' : 'outline'} onClick={() => setVehicleRole(vehicle.id, role)} className={cn('h-auto min-h-8 whitespace-normal px-2 py-1 text-[11px]', assignment.assignment_role === role && 'bg-neutral-900 hover:bg-neutral-800')}>
+         {assignmentRoleLabel(role)}
+        </Button>))}
+      </div>}
+     </div>);
+   })}
+  </div>
+  {availableVehicles.length === 0 && <p className="text-sm text-muted-foreground">Tiada kenderaan operasi aktif tersedia.</p>}
+ </section>
 
  <div className="rounded-xl border bg-amber-50/50 p-4">
  <div className="flex flex-wrap items-center justify-between gap-3">
@@ -363,6 +435,73 @@ function DriverProfileEditor({
  </Dialog>);
 }
 
+function DriverVehicleResponsibilityPanel() {
+ const [driver, setDriver] = useState<FleetDriver | null>(null);
+ const [loading, setLoading] = useState(true);
+ const [acknowledging, setAcknowledging] = useState<string | null>(null);
+
+ const load = useCallback(async () => {
+  setLoading(true);
+  try {
+   const response = await fetchFleetDrivers();
+   setDriver(response.drivers[0] ?? null);
+  } catch (error) {
+   toast.error(error instanceof Error ? error.message : 'Gagal memuatkan padanan kenderaan.');
+  } finally { setLoading(false); }
+ }, []);
+
+ useEffect(() => { void load(); }, [load]);
+
+ async function acknowledge(assignmentId: string) {
+  setAcknowledging(assignmentId);
+  try {
+   await acknowledgeDriverVehicleAssignment(assignmentId);
+   toast.success('Penerimaan tanggungjawab kenderaan direkodkan.');
+   await load();
+  } catch (error) {
+   toast.error(error instanceof Error ? error.message : 'Pengesahan gagal.');
+  } finally { setAcknowledging(null); }
+ }
+
+ if (loading) return <div className="flex min-h-32 items-center justify-center rounded-lg border"><span className="text-sm text-muted-foreground">Memuatkan kenderaan ditetapkan...</span></div>;
+ if (!driver) return <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"><p className="font-semibold">Profil driver belum dipautkan</p><p className="mt-1">Hubungi OM/HQ untuk memadankan akaun pengguna kepada profil driver dan kenderaan operasi.</p></div>;
+
+ return (
+  <section className="overflow-hidden rounded-lg border bg-white shadow-sm" data-rkj-i18n-skip>
+   <div className="border-b bg-neutral-950 p-5 text-white">
+    <p className="flex items-center gap-2 text-xs font-semibold uppercase text-amber-300"><ShieldCheck className="h-4 w-4" />Amanah kenderaan syarikat</p>
+    <h2 className="mt-2 text-xl font-semibold">Kenderaan Saya</h2>
+    <p className="mt-1 text-sm leading-6 text-neutral-300">Semak kenderaan yang dibenarkan, peranan dan tanggungjawab sebelum memulakan perjalanan.</p>
+   </div>
+   <div className="grid gap-5 p-4 lg:grid-cols-[1fr_1.1fr] lg:p-5">
+    <div className="space-y-3">
+     {(driver.vehicles ?? []).map((vehicle) => (
+      <article key={vehicle.id} className="rounded-lg border p-4">
+       <div className="flex flex-wrap items-start justify-between gap-3">
+        <div><h3 className="font-semibold">{vehicle.plate_number ?? vehicle.vehicle_code}</h3><p className="mt-1 text-xs text-muted-foreground">{vehicle.vehicle_type}{vehicle.capacity ? ` - ${vehicle.capacity}` : ''}</p></div>
+        <Badge variant="outline" className={assignmentRoleClass(vehicle.assignment_role)}>{assignmentRoleLabel(vehicle.assignment_role)}</Badge>
+       </div>
+       <p className="mt-3 text-xs leading-5 text-muted-foreground">{vehicle.responsibility_notes ?? DRIVER_VEHICLE_RESPONSIBILITIES.join(' ')}</p>
+       <div className="mt-3 border-t pt-3">
+        {vehicle.acknowledged_at
+         ? <p className="flex items-center gap-2 text-xs font-medium text-emerald-700"><CheckCircle2 className="h-4 w-4" />Diterima pada {new Date(vehicle.acknowledged_at).toLocaleString('ms-MY')}</p>
+         : <Button size="sm" onClick={() => void acknowledge(vehicle.assignment_id)} disabled={acknowledging === vehicle.assignment_id} className="bg-amber-500 text-black hover:bg-amber-600"><ClipboardCheck className="mr-2 h-4 w-4" />Sahkan Penerimaan</Button>}
+       </div>
+      </article>))}
+     {(driver.vehicles ?? []).length === 0 && <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Belum ada kenderaan ditetapkan. Driver tidak boleh check-in sehingga OM/HQ membuat padanan.</div>}
+    </div>
+    <div>
+     <h3 className="flex items-center gap-2 font-semibold"><ClipboardCheck className="h-4 w-4 text-amber-600" />Tanggungjawab Driver</h3>
+     <ol className="mt-3 space-y-2">
+      {DRIVER_VEHICLE_RESPONSIBILITIES.map((responsibility, index) => <li key={responsibility} className="flex gap-3 text-sm leading-6"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-xs font-semibold text-white">{index + 1}</span><span>{responsibility}</span></li>)}
+     </ol>
+     <div className="mt-4 flex gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-950"><CircleAlert className="mt-0.5 h-5 w-5 shrink-0" /><p><strong>Jangan bergerak</strong> jika kenderaan tidak selamat, assignment tiada, atau muatan/dokumen tidak sepadan. Hubungi OM/HQ dengan segera.</p></div>
+    </div>
+   </div>
+  </section>
+ );
+}
+
 export function FleetDashboard() {
  const { locale, t } = useLanguage();
  const profile = useAuthStore((s) => s.profile);
@@ -376,6 +515,7 @@ export function FleetDashboard() {
  const [vehicles, setVehicles] = useState<FleetVehicle[]>([]);
  const [drivers, setDrivers] = useState<FleetDriver[]>([]);
  const [routeOptions, setRouteOptions] = useState<FleetRouteOption[]>([]);
+ const [assignableVehicles, setAssignableVehicles] = useState<FleetVehicle[]>([]);
  const [statusLogs, setStatusLogs] = useState<FleetStatusLog[]>([]);
  const [locations, setLocations] = useState<InventoryLocation[]>([]);
  const [stockItems, setStockItems] = useState<StockItemOption[]>([]);
@@ -404,6 +544,7 @@ export function FleetDashboard() {
  setVehicles(veh.vehicles);
  setDrivers(drv.drivers);
  setRouteOptions(drv.route_options ?? []);
+ setAssignableVehicles(drv.available_vehicles ?? []);
  } catch (err) {
  toast.error(err instanceof Error ? err.message : 'Gagal memuatkan data logistik');
  } finally {
@@ -515,6 +656,7 @@ export function FleetDashboard() {
  <WorkflowSopPanel workflow={workflow} />
  <OperationsWorkflowMap focus="fleet" compact />
  <div className="space-y-6">
+ <DriverVehicleResponsibilityPanel />
  <DriverWorkSchedulePanel driverMode />
  <div>
  <h2 className="mb-3 text-sm font-semibold text-muted-foreground">
@@ -716,11 +858,18 @@ export function FleetDashboard() {
  const details = parseFleetRemark(vehicle.remarks);
  return (
  <div key={vehicle.id} className="rounded-lg bg-muted/40 px-3 py-2 text-xs">
- <p className="font-medium">
- {vehicle.plate_number ?? vehicle.vehicle_code} - {vehicle.vehicle_type ?? 'Kenderaan'}
- {vehicle.capacity ? ` (${vehicle.capacity})` : ''}
- </p>
+ <div className="flex flex-wrap items-start justify-between gap-2">
+  <p className="font-medium">
+  {vehicle.plate_number ?? vehicle.vehicle_code} - {vehicle.vehicle_type ?? 'Kenderaan'}
+  {vehicle.capacity ? ` (${vehicle.capacity})` : ''}
+  </p>
+  <Badge variant="outline" className={cn('text-[10px]', assignmentRoleClass(vehicle.assignment_role))}>{assignmentRoleLabel(vehicle.assignment_role)}</Badge>
+ </div>
  {details.model && <p className="text-muted-foreground">Model: {details.model}</p>}
+ <p className={cn('mt-1 flex items-center gap-1', vehicle.acknowledged_at ? 'text-emerald-700' : 'text-amber-700')}>
+  {vehicle.acknowledged_at ? <CheckCircle2 className="h-3 w-3" /> : <CircleAlert className="h-3 w-3" />}
+  {vehicle.acknowledged_at ? 'Tanggungjawab diterima driver' : 'Menunggu pengesahan driver'}
+ </p>
  </div>);
  }) : (
  <p className="text-xs text-muted-foreground">Belum ada kenderaan aktif dipautkan.</p>)}
@@ -940,6 +1089,7 @@ export function FleetDashboard() {
  onOpenChange={setDriverEditorOpen}
  driver={editingDriver}
  routeOptions={routeOptions}
+ availableVehicles={assignableVehicles}
  onSaved={loadData}
  />
 

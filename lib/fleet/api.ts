@@ -1,10 +1,9 @@
 import type {
  CreateDeliveryPayload,
  DeliveryOrder,
- FleetDriver,
+ FleetDriverResponse,
  FleetControlCenterResponse,
  FleetGpsStatusResponse,
- FleetRouteOption,
  FleetStatusLog,
  FleetVehicle,
  PodPayload,
@@ -20,7 +19,7 @@ export async function fetchFleetVehicles() {
 }
 
 export async function fetchFleetDrivers() {
- return fetchJson<{ drivers: FleetDriver[]; route_options: FleetRouteOption[] }>(
+ return fetchJson<FleetDriverResponse>(
  '/api/fleet/drivers',
  undefined,
  { ttlMs: 60_000 });
@@ -32,10 +31,22 @@ export async function updateFleetDriver(payload: {
  phone?: string | null;
  route_description?: string | null;
  route_keys: string[];
+ vehicle_assignments?: Array<{
+  vehicle_id: string;
+  assignment_role: 'PRIMARY' | 'RELIEF' | 'ASSISTANT';
+  responsibility_notes?: string | null;
+ }>;
 }) {
  return fetchJson<{ ok: boolean }>('/api/fleet/drivers', {
  method: 'PATCH',
  body: JSON.stringify(payload),
+ });
+}
+
+export async function acknowledgeDriverVehicleAssignment(assignmentId: string) {
+ return fetchJson<{ ok: boolean }>('/api/fleet/drivers', {
+  method: 'POST',
+  body: JSON.stringify({ action: 'ACKNOWLEDGE_ASSIGNMENT', assignment_id: assignmentId }),
  });
 }
 

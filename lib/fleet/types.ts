@@ -21,7 +21,10 @@ export interface FleetVehicle {
  company_usage_note?: string | null;
  status: string;
  latest_status?: string | null;
+ vehicle_category?: 'MANAGER' | 'DELIVERY' | 'FACTORY' | 'REPLACEMENT';
 }
+
+export type DriverVehicleAssignmentRole = 'PRIMARY' | 'RELIEF' | 'ASSISTANT';
 
 export interface FleetDriver {
  id: string;
@@ -37,7 +40,12 @@ export interface FleetDriver {
  vehicle_type: string | null;
  capacity: string | null;
  remarks: string | null;
- status: string;
+  vehicle_category: 'MANAGER' | 'DELIVERY' | 'FACTORY' | 'REPLACEMENT';
+  status: string;
+  assignment_id: string;
+  assignment_role: DriverVehicleAssignmentRole;
+  responsibility_notes: string | null;
+  acknowledged_at: string | null;
  }>;
  route_rows?: Array<{
  id?: string;
@@ -51,6 +59,14 @@ export interface FleetDriver {
  notes: string | null;
  status: string;
  }>;
+}
+
+export interface FleetDriverResponse {
+ drivers: FleetDriver[];
+ route_options: FleetRouteOption[];
+ available_vehicles: FleetVehicle[];
+ current_driver_id: string | null;
+ can_manage: boolean;
 }
 
 export interface FleetRouteOption {
