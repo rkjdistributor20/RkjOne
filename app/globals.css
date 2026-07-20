@@ -127,7 +127,12 @@
   * {
     @apply border-border outline-ring/50;
   }
-body {
+  html,
+  body {
+    min-height: 100%;
+    background-color: var(--background);
+  }
+  body {
     @apply bg-background text-foreground;
     background-image:
       linear-gradient(135deg, oklch(0.99 0.004 100) 0%, oklch(0.985 0.006 155) 42%, oklch(0.98 0.008 220) 100%),

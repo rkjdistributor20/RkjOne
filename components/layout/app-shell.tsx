@@ -215,9 +215,9 @@ export function AppShell({ children }: AppShellProps) {
  : navLabel;
 
  return (
- <div className="flex min-h-screen bg-background">
+ <div className="flex h-dvh min-h-0 overflow-hidden bg-background">
  <AreaManagerRouteGuard />
- <aside className="hidden w-72 shrink-0 border-r border-white/10 bg-[linear-gradient(180deg,#111411_0%,#17130f_48%,#0f1b17_100%)] md:flex md:flex-col">
+ <aside className="hidden min-h-0 w-72 shrink-0 border-r border-white/10 bg-[linear-gradient(180deg,#111411_0%,#17130f_48%,#0f1b17_100%)] md:flex md:flex-col">
  <SidebarBrand />
  <div className="rkj-scrollbar flex-1 overflow-y-auto py-4">
  <NavLinks />
@@ -225,7 +225,7 @@ export function AppShell({ children }: AppShellProps) {
  <UserFooter onLogout={handleLogout} />
  </aside>
 
- <div className="flex min-w-0 flex-1 flex-col">
+ <div className="flex min-h-0 min-w-0 flex-1 flex-col">
  <header className="sticky top-0 z-20 flex min-h-16 items-center gap-4 border-b border-amber-200/40 bg-background/88 px-4 shadow-sm backdrop-blur-xl md:px-6">
  <Sheet>
  <SheetTrigger
@@ -266,7 +266,7 @@ export function AppShell({ children }: AppShellProps) {
 
  <ProfileAvatarReminder />
 
- <main className="rkj-scrollbar flex-1 overflow-y-auto bg-transparent p-4 md:p-6">{children}</main>
+ <main className="rkj-scrollbar min-h-0 flex-1 overflow-y-auto bg-transparent p-4 md:p-6">{children}</main>
  </div>
  </div>);
 }
