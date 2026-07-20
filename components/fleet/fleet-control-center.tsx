@@ -41,6 +41,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/components/i18n/language-provider';
 
 const severityStyle: Record<FleetAlertSeverity, string> = {
  LOW: 'border-emerald-200 bg-emerald-50 text-emerald-800',
@@ -49,11 +50,48 @@ const severityStyle: Record<FleetAlertSeverity, string> = {
  CRITICAL: 'border-red-200 bg-red-50 text-red-900',
 };
 
-const severityLabel: Record<FleetAlertSeverity, string> = {
- LOW: 'Makluman', MEDIUM: 'Perhatian', HIGH: 'Tinggi', CRITICAL: 'Kritikal',
-};
+function useFleetLocale() {
+ const { locale } = useLanguage();
+ const en = locale === 'en';
+ return { en, locale, text: (ms: string, english: string) => en ? english : ms };
+}
+
+function localizedAlert(alert: FleetControlAlert, en: boolean) {
+ if (!en) return { title: alert.title, message: alert.message };
+ const plate = alert.plate_number ?? 'Vehicle';
+ const metadata = alert.metadata ?? {};
+ if (alert.alert_type === 'OFFLINE') {
+  const age = typeof metadata.age_minutes === 'number' ? metadata.age_minutes : null;
+  return { title: `${plate} is not transmitting GPS`, message: age === null ? 'No GPS coordinates have been received for this vehicle.' : `The latest data was received ${age} minutes ago.` };
+ }
+ if (alert.alert_type === 'SPEEDING') {
+  const speed = Math.round(Number(metadata.speed_kph ?? 0));
+  return { title: `${plate} exceeded the operating speed limit`, message: `Current speed is ${speed} km/h. The OM should verify the situation with the driver.` };
+ }
+ if (alert.alert_type === 'LOW_FUEL') {
+  const fuel = Math.round(Number(metadata.fuel_level ?? 0));
+  return { title: `${plate} has low fuel`, message: `Fuel level is ${fuel}%. Plan refuelling before the next route.` };
+ }
+ if (alert.alert_type === 'IDLE') return { title: `${plate} has been idling too long`, message: 'Check the route, traffic conditions and driver status before taking action.' };
+ if (alert.alert_type === 'MAINTENANCE_DUE') return { title: `${plate} requires maintenance`, message: 'Review the service plan before assigning the next route.' };
+ return { title: alert.title, message: alert.message };
+}
+
+function localizedRecommendation(item: FleetControlCenterResponse['recommendations'][number], en: boolean) {
+ if (!en) return { title: item.title, detail: item.detail };
+ const copy: Record<string, { title: string; detail: string }> = {
+  'critical-alerts': { title: 'Review critical alerts', detail: 'One or more alerts require immediate action by the OM or Owner.' },
+  'offline-gps': { title: 'Restore inactive GPS units', detail: 'Some vehicles are not transmitting their latest location.' },
+  maintenance: { title: 'Plan vehicle maintenance', detail: 'One or more services are approaching their limit or overdue.' },
+  geofence: { title: 'Complete branch coordinates', detail: 'Locations without coordinates cannot automatically verify arrivals or POD.' },
+  healthy: { title: 'Fleet operations are under control', detail: 'There are no critical exceptions. Continue monitoring ETA, POD and scheduled maintenance.' },
+  'no-assignment': { title: 'No vehicle assigned', detail: 'Ask OM/HQ to link the driver profile to a vehicle before check-in.' },
+ };
+ return copy[item.id] ?? { title: item.title, detail: item.detail };
+}
 
 export function FleetControlCenter() {
+ const { en, text } = useFleetLocale();
  const [data, setData] = useState<FleetControlCenterResponse | null>(null);
  const [loading, setLoading] = useState(true);
  const [syncing, setSyncing] = useState(false);
@@ -63,11 +101,11 @@ export function FleetControlCenter() {
   try {
    setData(await fetchFleetControlCenter());
   } catch (error) {
-   toast.error(error instanceof Error ? error.message : 'Gagal memuatkan Fleet Control Center');
+   toast.error(error instanceof Error ? error.message : en ? 'Failed to load Fleet Control Center' : 'Gagal memuatkan Fleet Control Center');
   } finally {
    setLoading(false);
   }
- }, []);
+ }, [en]);
 
  useEffect(() => {
   const timer = window.setTimeout(() => void load(), 0);
@@ -78,10 +116,10 @@ export function FleetControlCenter() {
   setSyncing(true);
   try {
    const result = await syncFleetGps();
-   toast.success(`${result.snapshots} GPS dianalisis, ${result.alerts} isyarat diproses`);
+   toast.success(en ? `${result.snapshots} GPS records analyzed, ${result.alerts} signals processed` : `${result.snapshots} GPS dianalisis, ${result.alerts} isyarat diproses`);
    await load();
   } catch (error) {
-   toast.error(error instanceof Error ? error.message : 'Analisis GPS gagal');
+   toast.error(error instanceof Error ? error.message : text('Analisis GPS gagal', 'GPS analysis failed'));
   } finally {
    setSyncing(false);
   }
@@ -89,15 +127,15 @@ export function FleetControlCenter() {
 
  async function handleAlert(alert: FleetControlAlert, status: 'ACKNOWLEDGED' | 'RESOLVED') {
   if (alert.live) {
-   toast.info('Jalankan Analisis GPS dahulu untuk merekodkan amaran ini.');
+   toast.info(text('Jalankan Analisis GPS dahulu untuk merekodkan amaran ini.', 'Run GPS Analysis first to record this alert.'));
    return;
   }
   try {
    await updateFleetAlert(alert.id, status);
-   toast.success(status === 'ACKNOWLEDGED' ? 'Amaran telah diambil tindakan' : 'Amaran telah diselesaikan');
+   toast.success(status === 'ACKNOWLEDGED' ? text('Amaran telah diambil tindakan', 'Alert acknowledged') : text('Amaran telah diselesaikan', 'Alert resolved'));
    await load();
   } catch (error) {
-   toast.error(error instanceof Error ? error.message : 'Gagal mengemaskini amaran');
+   toast.error(error instanceof Error ? error.message : text('Gagal mengemaskini amaran', 'Failed to update alert'));
   }
  }
 
@@ -105,7 +143,7 @@ export function FleetControlCenter() {
  if (!data) return null;
 
  return (
-  <section className="space-y-5 border-t pt-6" aria-labelledby="fleet-control-title">
+  <section className="space-y-5 border-t pt-6" aria-labelledby="fleet-control-title" data-rkj-i18n-skip>
    <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
     <div>
      <div className="flex items-center gap-2">
@@ -116,15 +154,15 @@ export function FleetControlCenter() {
        <h2 id="fleet-control-title" className="text-lg font-semibold">Fleet Control Center</h2>
        <p className="text-sm text-muted-foreground">
         {data.mode === 'DRIVER'
-         ? 'Syif, keselamatan dan tugasan anda dalam satu paparan.'
-         : 'Pantau pengecualian, ETA, keselamatan dan kos tanpa perlu memerhati peta sepanjang masa.'}
+         ? text('Syif, keselamatan dan tugasan anda dalam satu paparan.', 'Your shift, safety and assignments in one view.')
+         : text('Pantau pengecualian, ETA, keselamatan dan kos tanpa perlu memerhati peta sepanjang masa.', 'Monitor exceptions, ETA, safety and cost without watching the map all day.')}
        </p>
       </div>
      </div>
     </div>
     <div className="flex items-center gap-2">
      <span className="text-xs text-muted-foreground">
-      {new Date(data.generated_at).toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' })}
+      {new Date(data.generated_at).toLocaleTimeString(en ? 'en-MY' : 'ms-MY', { hour: '2-digit', minute: '2-digit' })}
      </span>
      {data.mode === 'MANAGEMENT' && (
       <>
@@ -133,7 +171,7 @@ export function FleetControlCenter() {
        </Button>
        <Button type="button" size="sm" onClick={handleSync} disabled={syncing}>
         {syncing ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-1.5 h-4 w-4" />}
-        Analisis GPS
+        {text('Analisis GPS', 'Analyze GPS')}
        </Button>
       </>
      )}
@@ -145,13 +183,13 @@ export function FleetControlCenter() {
    )}
 
    <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-8">
-    <ControlMetric icon={Truck} label="Kenderaan" value={data.kpis.total_vehicles} />
-    <ControlMetric icon={Navigation} label="Bergerak" value={data.kpis.moving} tone="success" />
+    <ControlMetric icon={Truck} label={text('Kenderaan', 'Vehicles')} value={data.kpis.total_vehicles} />
+    <ControlMetric icon={Navigation} label={text('Bergerak', 'Moving')} value={data.kpis.moving} tone="success" />
     <ControlMetric icon={Clock3} label="Idle" value={data.kpis.idle} tone={data.kpis.idle ? 'warning' : 'neutral'} />
     <ControlMetric icon={AlertTriangle} label="Offline" value={data.kpis.offline} tone={data.kpis.offline ? 'danger' : 'neutral'} />
-    <ControlMetric icon={BellRing} label="Amaran" value={data.kpis.open_alerts} tone={data.kpis.critical_alerts ? 'danger' : 'neutral'} />
-    <ControlMetric icon={Route} label="Penghantaran" value={data.kpis.active_deliveries} />
-    <ControlMetric icon={Wrench} label="Servis" value={data.kpis.maintenance_due} tone={data.kpis.maintenance_due ? 'warning' : 'success'} />
+    <ControlMetric icon={BellRing} label={text('Amaran', 'Alerts')} value={data.kpis.open_alerts} tone={data.kpis.critical_alerts ? 'danger' : 'neutral'} />
+    <ControlMetric icon={Route} label={text('Penghantaran', 'Deliveries')} value={data.kpis.active_deliveries} />
+    <ControlMetric icon={Wrench} label={text('Servis', 'Service')} value={data.kpis.maintenance_due} tone={data.kpis.maintenance_due ? 'warning' : 'success'} />
     <ControlMetric icon={MapPinned} label="Geofence" value={data.kpis.geofence_coverage} />
    </div>
 
@@ -177,6 +215,7 @@ function GeofenceDialog({
  data: FleetControlCenterResponse;
  onSaved: () => Promise<void>;
 }) {
+ const { text } = useFleetLocale();
  const usableVehicles = data.gps.vehicles.filter((vehicle) => vehicle.latitude !== null && vehicle.longitude !== null);
  const [vehicleKey, setVehicleKey] = useState(usableVehicles[0]?.vehicle_id ?? usableVehicles[0]?.registration ?? '');
  const [branchId, setBranchId] = useState('none');
@@ -201,49 +240,49 @@ function GeofenceDialog({
     name: name.trim(), geofence_type: type, branch_id: branchId === 'none' ? null : branchId,
     latitude: selectedVehicle.latitude, longitude: selectedVehicle.longitude, radius_m: Number(radius),
    });
-   toast.success('Geofence disimpan daripada lokasi GPS semasa');
+   toast.success(text('Geofence disimpan daripada lokasi GPS semasa', 'Geofence saved from the current GPS location'));
    onOpenChange(false);
    await onSaved();
   } catch (error) {
-   toast.error(error instanceof Error ? error.message : 'Gagal menyimpan geofence');
+   toast.error(error instanceof Error ? error.message : text('Gagal menyimpan geofence', 'Failed to save geofence'));
   } finally { setSaving(false); }
  }
 
  return (
   <Dialog open={open} onOpenChange={onOpenChange}>
-   <DialogContent className="sm:max-w-lg">
+   <DialogContent className="sm:max-w-lg" data-rkj-i18n-skip>
     <DialogHeader>
-     <DialogTitle>Tambah Geofence Operasi</DialogTitle>
-     <DialogDescription>Pilih kenderaan yang sedang berada di lokasi sebenar. RKJ One akan menggunakan koordinat Cartrack tanpa taip manual.</DialogDescription>
+     <DialogTitle>{text('Tambah Geofence Operasi', 'Add Operations Geofence')}</DialogTitle>
+     <DialogDescription>{text('Pilih kenderaan yang sedang berada di lokasi sebenar. RKJ One akan menggunakan koordinat Cartrack tanpa taip manual.', 'Select a vehicle currently at the actual location. RKJ One will use its Cartrack coordinates without manual entry.')}</DialogDescription>
     </DialogHeader>
     <div className="space-y-4">
      <div className="space-y-1.5">
-      <Label>Sumber lokasi Cartrack</Label>
+      <Label>{text('Sumber lokasi Cartrack', 'Cartrack location source')}</Label>
       <Select value={vehicleKey} onValueChange={(value) => setVehicleKey(value ?? '')}>
-       <SelectTrigger><SelectValue placeholder="Pilih kenderaan di lokasi" /></SelectTrigger>
-       <SelectContent>{usableVehicles.map((vehicle) => <SelectItem key={vehicle.vehicle_id ?? vehicle.registration ?? vehicle.label} value={vehicle.vehicle_id ?? vehicle.registration ?? vehicle.label}>{vehicle.plate_number ?? vehicle.label} · {vehicle.location_description ?? 'Lokasi GPS'}</SelectItem>)}</SelectContent>
+       <SelectTrigger><SelectValue placeholder={text('Pilih kenderaan di lokasi', 'Select a vehicle at the location')} /></SelectTrigger>
+       <SelectContent>{usableVehicles.map((vehicle) => <SelectItem key={vehicle.vehicle_id ?? vehicle.registration ?? vehicle.label} value={vehicle.vehicle_id ?? vehicle.registration ?? vehicle.label}>{vehicle.plate_number ?? vehicle.label} - {vehicle.location_description ?? text('Lokasi GPS', 'GPS location')}</SelectItem>)}</SelectContent>
       </Select>
      </div>
      <div className="space-y-1.5">
-      <Label>Pautkan cawangan (pilihan)</Label>
+      <Label>{text('Pautkan cawangan (pilihan)', 'Link a branch (optional)')}</Label>
       <Select value={branchId} onValueChange={selectBranch}>
        <SelectTrigger><SelectValue /></SelectTrigger>
        <SelectContent>
-        <SelectItem value="none">Bukan cawangan</SelectItem>
+        <SelectItem value="none">{text('Bukan cawangan', 'Not a branch')}</SelectItem>
         {data.geofence_options.map((option) => <SelectItem key={option.id} value={option.id}>{option.label}</SelectItem>)}
        </SelectContent>
       </Select>
      </div>
      <div className="grid gap-3 sm:grid-cols-2">
-      <div className="space-y-1.5"><Label>Nama lokasi</Label><Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Contoh: HQ Distributor" /></div>
-      <div className="space-y-1.5"><Label>Jenis</Label><Select value={type} onValueChange={(value) => setType(value ?? 'OTHER')}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="BRANCH">Cawangan</SelectItem><SelectItem value="HQ">HQ</SelectItem><SelectItem value="FACTORY">Kilang</SelectItem><SelectItem value="HUB">Hub</SelectItem><SelectItem value="AGENT_PICKUP">Pickup ejen</SelectItem><SelectItem value="OTHER">Lain-lain</SelectItem></SelectContent></Select></div>
+      <div className="space-y-1.5"><Label>{text('Nama lokasi', 'Location name')}</Label><Input value={name} onChange={(event) => setName(event.target.value)} placeholder={text('Contoh: HQ Distributor', 'Example: Distributor HQ')} /></div>
+      <div className="space-y-1.5"><Label>{text('Jenis', 'Type')}</Label><Select value={type} onValueChange={(value) => setType(value ?? 'OTHER')}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="BRANCH">{text('Cawangan', 'Branch')}</SelectItem><SelectItem value="HQ">HQ</SelectItem><SelectItem value="FACTORY">{text('Kilang', 'Factory')}</SelectItem><SelectItem value="HUB">Hub</SelectItem><SelectItem value="AGENT_PICKUP">{text('Pickup ejen', 'Agent pickup')}</SelectItem><SelectItem value="OTHER">{text('Lain-lain', 'Other')}</SelectItem></SelectContent></Select></div>
      </div>
-     <div className="space-y-1.5"><Label>Radius (meter)</Label><Input inputMode="numeric" value={radius} onChange={(event) => setRadius(event.target.value)} /></div>
-     {selectedVehicle && <div className="rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground"><strong>{selectedVehicle.plate_number}</strong> · {selectedVehicle.latitude?.toFixed(5)}, {selectedVehicle.longitude?.toFixed(5)}<br />Pastikan kenderaan benar-benar berada di lokasi sebelum menyimpan.</div>}
+     <div className="space-y-1.5"><Label>{text('Radius (meter)', 'Radius (metres)')}</Label><Input inputMode="numeric" value={radius} onChange={(event) => setRadius(event.target.value)} /></div>
+     {selectedVehicle && <div className="rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground"><strong>{selectedVehicle.plate_number}</strong> - {selectedVehicle.latitude?.toFixed(5)}, {selectedVehicle.longitude?.toFixed(5)}<br />{text('Pastikan kenderaan benar-benar berada di lokasi sebelum menyimpan.', 'Confirm the vehicle is physically at the location before saving.')}</div>}
     </div>
     <DialogFooter>
-     <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
-     <Button type="button" disabled={!selectedVehicle || !name.trim() || saving} onClick={save}>{saving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Simpan Geofence</Button>
+     <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{text('Batal', 'Cancel')}</Button>
+     <Button type="button" disabled={!selectedVehicle || !name.trim() || saving} onClick={save}>{saving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} {text('Simpan Geofence', 'Save Geofence')}</Button>
     </DialogFooter>
    </DialogContent>
   </Dialog>
@@ -281,24 +320,29 @@ function AlertQueue({
  data: FleetControlCenterResponse;
  onAlert: (alert: FleetControlAlert, status: 'ACKNOWLEDGED' | 'RESOLVED') => void;
 }) {
+ const { en, text } = useFleetLocale();
+ const severityLabel: Record<FleetAlertSeverity, string> = en
+  ? { LOW: 'Information', MEDIUM: 'Attention', HIGH: 'High', CRITICAL: 'Critical' }
+  : { LOW: 'Makluman', MEDIUM: 'Perhatian', HIGH: 'Tinggi', CRITICAL: 'Kritikal' };
  const visible = data.alerts.slice(0, 7);
  return (
   <div className="min-w-0 space-y-3">
    <div className="flex items-center justify-between gap-3">
     <div>
-     <h3 className="font-semibold">Pusat Amaran</h3>
-     <p className="text-xs text-muted-foreground">Utamakan perkara yang memerlukan tindakan, bukan semua pergerakan.</p>
+     <h3 className="font-semibold">{text('Pusat Amaran', 'Alert Center')}</h3>
+     <p className="text-xs text-muted-foreground">{text('Utamakan perkara yang memerlukan tindakan, bukan semua pergerakan.', 'Focus on exceptions that require action, not every movement.')}</p>
     </div>
     <Badge variant={data.kpis.critical_alerts ? 'destructive' : 'secondary'}>
-     {data.kpis.critical_alerts} kritikal/tinggi
+     {data.kpis.critical_alerts} {text('kritikal/tinggi', 'critical/high')}
     </Badge>
    </div>
    {visible.length === 0 ? (
     <div className="flex items-center gap-3 rounded-md border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
-     <CheckCircle2 className="h-5 w-5" /> Tiada amaran aktif. Operasi dalam keadaan terkawal.
+     <CheckCircle2 className="h-5 w-5" /> {text('Tiada amaran aktif. Operasi dalam keadaan terkawal.', 'No active alerts. Operations are under control.')}
     </div>
-   ) : visible.map((alert) => (
-    <div key={alert.id} className={cn('rounded-md border p-3', severityStyle[alert.severity])}>
+   ) : visible.map((alert) => {
+    const copy = localizedAlert(alert, en);
+    return <div key={alert.id} className={cn('rounded-md border p-3', severityStyle[alert.severity])}>
      <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start">
       <div className="min-w-0">
        <div className="flex flex-wrap items-center gap-2">
@@ -306,78 +350,81 @@ function AlertQueue({
         {alert.plate_number && <span className="text-xs font-semibold">{alert.plate_number}</span>}
         {alert.live && <span className="text-[11px]">Live</span>}
        </div>
-       <p className="mt-1.5 text-sm font-semibold">{alert.title}</p>
-       <p className="mt-0.5 text-xs leading-relaxed opacity-85">{alert.message}</p>
+       <p className="mt-1.5 text-sm font-semibold">{copy.title}</p>
+       <p className="mt-0.5 text-xs leading-relaxed opacity-85">{copy.message}</p>
       </div>
       {data.mode === 'MANAGEMENT' && (
        <div className="flex shrink-0 gap-1.5">
         {alert.status === 'OPEN' && (
          <Button type="button" size="sm" variant="outline" className="bg-white/80" onClick={() => onAlert(alert, 'ACKNOWLEDGED')}>
-          <Check className="mr-1 h-3.5 w-3.5" /> Ambil
+          <Check className="mr-1 h-3.5 w-3.5" /> {text('Ambil', 'Acknowledge')}
          </Button>
         )}
         {!alert.live && (
          <Button type="button" size="sm" variant="outline" className="bg-white/80" onClick={() => onAlert(alert, 'RESOLVED')}>
-          Selesai
+          {text('Selesai', 'Resolve')}
          </Button>
         )}
        </div>
       )}
      </div>
-    </div>
-   ))}
+    </div>;
+   })}
   </div>
  );
 }
 
 function RecommendationQueue({ data }: { data: FleetControlCenterResponse }) {
+ const { en, text } = useFleetLocale();
  return (
   <div className="space-y-3">
    <div>
-    <h3 className="flex items-center gap-2 font-semibold"><Sparkles className="h-4 w-4 text-amber-600" /> Cadangan Tindakan</h3>
-    <p className="text-xs text-muted-foreground">Susunan kerja berdasarkan keadaan fleet semasa.</p>
+    <h3 className="flex items-center gap-2 font-semibold"><Sparkles className="h-4 w-4 text-amber-600" /> {text('Cadangan Tindakan', 'Recommended Actions')}</h3>
+    <p className="text-xs text-muted-foreground">{text('Susunan kerja berdasarkan keadaan fleet semasa.', 'Prioritized work based on current fleet conditions.')}</p>
    </div>
    <div className="divide-y rounded-md border bg-white">
-    {data.recommendations.map((item) => (
-     <div key={item.id} className="p-3">
+    {data.recommendations.map((item) => {
+     const copy = localizedRecommendation(item, en);
+     return <div key={item.id} className="p-3">
       <div className="flex items-start gap-3">
        <Badge variant={item.priority === 'SEGERA' ? 'destructive' : item.priority === 'HARI_INI' ? 'default' : 'secondary'}>
-        {item.priority === 'HARI_INI' ? 'Hari ini' : item.priority === 'SEGERA' ? 'Segera' : 'Rancang'}
+        {item.priority === 'HARI_INI' ? text('Hari ini', 'Today') : item.priority === 'SEGERA' ? text('Segera', 'Urgent') : text('Rancang', 'Plan')}
        </Badge>
        <div>
-        <p className="text-sm font-semibold">{item.title}</p>
-        <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{item.detail}</p>
+        <p className="text-sm font-semibold">{copy.title}</p>
+        <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{copy.detail}</p>
        </div>
       </div>
-     </div>
-    ))}
+     </div>;
+    })}
    </div>
    <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-xs leading-relaxed text-blue-950">
-    <strong>SOP:</strong> GPS membantu membuat keputusan. OM tetap menyemak konteks driver, trafik, cuaca dan arahan operasi sebelum tindakan disiplin.
+    <strong>SOP:</strong> {text('GPS membantu membuat keputusan. OM tetap menyemak konteks driver, trafik, cuaca dan arahan operasi sebelum tindakan disiplin.', 'GPS supports decisions. The OM must still review driver context, traffic, weather and operating instructions before disciplinary action.')}
    </div>
   </div>
  );
 }
 
 function DeliveryEtaPanel({ data }: { data: FleetControlCenterResponse }) {
+ const { text } = useFleetLocale();
  return (
   <div className="space-y-3">
    <div>
-    <h3 className="font-semibold">ETA Penghantaran</h3>
-    <p className="text-xs text-muted-foreground">Jarak dan anggaran masa berdasarkan GPS kenderaan serta koordinat destinasi.</p>
+    <h3 className="font-semibold">{text('ETA Penghantaran', 'Delivery ETA')}</h3>
+    <p className="text-xs text-muted-foreground">{text('Jarak dan anggaran masa berdasarkan GPS kenderaan serta koordinat destinasi.', 'Distance and estimated time based on vehicle GPS and destination coordinates.')}</p>
    </div>
    <div className="divide-y rounded-md border bg-white">
     {data.deliveries.length === 0 ? (
-     <p className="p-4 text-sm text-muted-foreground">Tiada penghantaran aktif.</p>
+     <p className="p-4 text-sm text-muted-foreground">{text('Tiada penghantaran aktif.', 'No active deliveries.')}</p>
     ) : data.deliveries.slice(0, 6).map((delivery) => (
      <div key={delivery.id} className="flex items-center justify-between gap-3 p-3">
       <div className="min-w-0">
-       <p className="truncate text-sm font-semibold">{delivery.order_number} · {delivery.destination}</p>
-       <p className="text-xs text-muted-foreground">{delivery.plate_number ?? 'Kenderaan belum dipilih'} · {delivery.status}</p>
+       <p className="truncate text-sm font-semibold">{delivery.order_number} - {delivery.destination}</p>
+       <p className="text-xs text-muted-foreground">{delivery.plate_number ?? text('Kenderaan belum dipilih', 'Vehicle not assigned')} - {delivery.status}</p>
       </div>
       <div className="shrink-0 text-right">
-       <p className="text-sm font-semibold tabular-nums">{delivery.eta_minutes !== null ? `${delivery.eta_minutes} min` : 'ETA belum ada'}</p>
-       <p className="text-[11px] text-muted-foreground">{delivery.distance_km !== null ? `${delivery.distance_km} km` : 'Koordinat diperlukan'}</p>
+       <p className="text-sm font-semibold tabular-nums">{delivery.eta_minutes !== null ? `${delivery.eta_minutes} min` : text('ETA belum ada', 'ETA unavailable')}</p>
+       <p className="text-[11px] text-muted-foreground">{delivery.distance_km !== null ? `${delivery.distance_km} km` : text('Koordinat diperlukan', 'Coordinates required')}</p>
       </div>
      </div>
     ))}
@@ -387,26 +434,27 @@ function DeliveryEtaPanel({ data }: { data: FleetControlCenterResponse }) {
 }
 
 function MaintenancePanel({ data }: { data: FleetControlCenterResponse }) {
+ const { en, text } = useFleetLocale();
  const sorted = useMemo(() => [...data.maintenance].sort((a, b) => (a.remaining_km ?? 999999) - (b.remaining_km ?? 999999)), [data.maintenance]);
  return (
   <div className="space-y-3">
    <div>
-    <h3 className="font-semibold">Kesihatan Kenderaan</h3>
-    <p className="text-xs text-muted-foreground">Servis dirancang berdasarkan tarikh dan odometer Cartrack.</p>
+    <h3 className="font-semibold">{text('Kesihatan Kenderaan', 'Vehicle Health')}</h3>
+    <p className="text-xs text-muted-foreground">{text('Servis dirancang berdasarkan tarikh dan odometer Cartrack.', 'Services are planned using dates and Cartrack odometer readings.')}</p>
    </div>
    <div className="divide-y rounded-md border bg-white">
     {sorted.length === 0 ? (
-     <p className="p-4 text-sm text-muted-foreground">Pelan servis belum tersedia.</p>
+     <p className="p-4 text-sm text-muted-foreground">{text('Pelan servis belum tersedia.', 'No service plans are available yet.')}</p>
     ) : sorted.slice(0, 6).map((plan) => {
      const due = plan.remaining_km !== null && plan.remaining_km <= 500;
      return (
       <div key={plan.id} className="flex items-center justify-between gap-3 p-3">
        <div className="min-w-0">
-        <p className="truncate text-sm font-semibold">{plan.plate_number ?? 'Kenderaan'} · {plan.service_name}</p>
-        <p className="text-xs text-muted-foreground">{plan.next_service_date ? `Tarikh ${new Date(plan.next_service_date).toLocaleDateString('ms-MY')}` : 'Tarikh belum ditetapkan'}</p>
+        <p className="truncate text-sm font-semibold">{plan.plate_number ?? text('Kenderaan', 'Vehicle')} - {plan.service_name}</p>
+        <p className="text-xs text-muted-foreground">{plan.next_service_date ? `${text('Tarikh', 'Date')} ${new Date(plan.next_service_date).toLocaleDateString(en ? 'en-MY' : 'ms-MY')}` : text('Tarikh belum ditetapkan', 'Date not set')}</p>
        </div>
        <Badge variant={due ? 'destructive' : 'secondary'}>
-        {plan.remaining_km === null ? plan.status : plan.remaining_km < 0 ? `${Math.abs(plan.remaining_km)} km lewat` : `${plan.remaining_km} km lagi`}
+        {plan.remaining_km === null ? plan.status : plan.remaining_km < 0 ? `${Math.abs(plan.remaining_km)} km ${text('lewat', 'overdue')}` : `${plan.remaining_km} km ${text('lagi', 'remaining')}`}
        </Badge>
       </div>
      );
@@ -417,6 +465,7 @@ function MaintenancePanel({ data }: { data: FleetControlCenterResponse }) {
 }
 
 function DriverShiftPanel({ data, onUpdated }: { data: FleetControlCenterResponse; onUpdated: () => Promise<void> }) {
+ const { en, text } = useFleetLocale();
  const setup = data.driver_setup;
  const active = data.active_sessions[0] ?? null;
  const [vehicleId, setVehicleId] = useState(setup?.vehicles[0]?.id ?? '');
@@ -446,10 +495,10 @@ function DriverShiftPanel({ data, onUpdated }: { data: FleetControlCenterRespons
     driver_id: setup.driver_id, vehicle_id: vehicleId, checklist: checks,
     odometer_km: odometer ? Number(odometer) : null, notes: notes || null, ...gps,
    });
-   toast.success('Syif bermula. Pandu dengan selamat.');
+   toast.success(text('Syif bermula. Pandu dengan selamat.', 'Shift started. Drive safely.'));
    await onUpdated();
   } catch (error) {
-   toast.error(error instanceof Error ? error.message : 'Gagal memulakan syif');
+   toast.error(error instanceof Error ? error.message : text('Gagal memulakan syif', 'Failed to start shift'));
   } finally { setSaving(false); }
  }
 
@@ -459,29 +508,29 @@ function DriverShiftPanel({ data, onUpdated }: { data: FleetControlCenterRespons
   try {
    const gps = await coordinates();
    await endFleetDriverSession({ session_id: active.id, odometer_km: odometer ? Number(odometer) : null, notes: notes || null, ...gps });
-   toast.success('Syif ditutup dan rekod perjalanan disimpan.');
+   toast.success(text('Syif ditutup dan rekod perjalanan disimpan.', 'Shift closed and trip record saved.'));
    await onUpdated();
   } catch (error) {
-   toast.error(error instanceof Error ? error.message : 'Gagal menutup syif');
+   toast.error(error instanceof Error ? error.message : text('Gagal menutup syif', 'Failed to close shift'));
   } finally { setSaving(false); }
  }
 
  if (!setup) return (
   <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-   Profil driver atau kenderaan belum dipadankan. Hubungi OM/HQ sebelum memulakan perjalanan.
+   {text('Profil driver atau kenderaan belum dipadankan. Hubungi OM/HQ sebelum memulakan perjalanan.', 'The driver profile or vehicle is not linked. Contact OM/HQ before starting a trip.')}
   </div>
  );
 
  if (active) return (
   <div className="flex flex-col justify-between gap-4 rounded-md border border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center">
    <div>
-    <p className="flex items-center gap-2 font-semibold text-emerald-950"><ShieldCheck className="h-4 w-4" /> Syif aktif · {active.plate_number}</p>
-    <p className="mt-1 text-xs text-emerald-800">Bermula {new Date(active.started_at).toLocaleString('ms-MY')} · Lengkapkan POD sebelum tutup syif.</p>
+    <p className="flex items-center gap-2 font-semibold text-emerald-950"><ShieldCheck className="h-4 w-4" /> {text('Syif aktif', 'Active shift')} - {active.plate_number}</p>
+    <p className="mt-1 text-xs text-emerald-800">{text('Bermula', 'Started')} {new Date(active.started_at).toLocaleString(en ? 'en-MY' : 'ms-MY')} - {text('Lengkapkan POD sebelum tutup syif.', 'Complete all POD records before closing the shift.')}</p>
    </div>
    <div className="flex gap-2">
-    <Input className="w-32 bg-white" inputMode="decimal" placeholder="Odometer akhir" value={odometer} onChange={(event) => setOdometer(event.target.value)} />
+    <Input className="w-32 bg-white" inputMode="decimal" placeholder={text('Odometer akhir', 'End odometer')} value={odometer} onChange={(event) => setOdometer(event.target.value)} />
     <Button type="button" variant="outline" className="bg-white" disabled={saving} onClick={end}>
-     {saving && <Loader2 className="mr-1 h-4 w-4 animate-spin" />} Tamat Syif
+     {saving && <Loader2 className="mr-1 h-4 w-4 animate-spin" />} {text('Tamat Syif', 'End Shift')}
     </Button>
    </div>
   </div>
@@ -489,15 +538,15 @@ function DriverShiftPanel({ data, onUpdated }: { data: FleetControlCenterRespons
 
  const allChecked = Object.values(checks).every(Boolean);
  const checklist = [
-  ['vehicle_condition', 'Lampu, brek dan keadaan kenderaan baik'],
-  ['tyres', 'Tayar dan tekanan angin diperiksa'],
-  ['load_secured', 'Muatan dikira dan diikat dengan selamat'],
-  ['documents', 'Lesen, road tax dan dokumen perjalanan tersedia'],
+  ['vehicle_condition', text('Lampu, brek dan keadaan kenderaan baik', 'Lights, brakes and vehicle condition are good')],
+  ['tyres', text('Tayar dan tekanan angin diperiksa', 'Tyres and air pressure have been checked')],
+  ['load_secured', text('Muatan dikira dan diikat dengan selamat', 'The load has been counted and secured safely')],
+  ['documents', text('Lesen, road tax dan dokumen perjalanan tersedia', 'Licence, road tax and travel documents are available')],
  ] as const;
  return (
   <div className="rounded-md border border-sky-200 bg-sky-50 p-4">
-   <div className="flex items-center gap-2 text-sky-950"><TimerReset className="h-4 w-4" /><p className="font-semibold">Mula Syif Driver</p></div>
-   <p className="mt-1 text-xs text-sky-800">Checklist ringkas ini melindungi driver, kenderaan dan stok sebelum bergerak.</p>
+   <div className="flex items-center gap-2 text-sky-950"><TimerReset className="h-4 w-4" /><p className="font-semibold">{text('Mula Syif Driver', 'Start Driver Shift')}</p></div>
+   <p className="mt-1 text-xs text-sky-800">{text('Checklist ringkas ini melindungi driver, kenderaan dan stok sebelum bergerak.', 'This short checklist protects the driver, vehicle and stock before departure.')}</p>
    <div className="mt-4 grid gap-4 lg:grid-cols-2">
     <div className="space-y-3">
      {checklist.map(([key, label]) => (
@@ -514,16 +563,16 @@ function DriverShiftPanel({ data, onUpdated }: { data: FleetControlCenterRespons
     </div>
     <div className="space-y-3">
      <div className="space-y-1.5">
-      <Label>Kenderaan</Label>
+      <Label>{text('Kenderaan', 'Vehicle')}</Label>
       <Select value={vehicleId} onValueChange={(value) => setVehicleId(value ?? '')}>
-       <SelectTrigger className="bg-white"><SelectValue placeholder="Pilih kenderaan" /></SelectTrigger>
-       <SelectContent>{setup.vehicles.map((vehicle) => <SelectItem key={vehicle.id} value={vehicle.id}>{vehicle.plate_number ?? vehicle.vehicle_type ?? 'Kenderaan'}</SelectItem>)}</SelectContent>
+       <SelectTrigger className="bg-white"><SelectValue placeholder={text('Pilih kenderaan', 'Select vehicle')} /></SelectTrigger>
+       <SelectContent>{setup.vehicles.map((vehicle) => <SelectItem key={vehicle.id} value={vehicle.id}>{vehicle.plate_number ?? vehicle.vehicle_type ?? text('Kenderaan', 'Vehicle')}</SelectItem>)}</SelectContent>
       </Select>
      </div>
-     <Input className="bg-white" inputMode="decimal" placeholder="Odometer mula (pilihan)" value={odometer} onChange={(event) => setOdometer(event.target.value)} />
-     <Textarea className="min-h-20 bg-white" placeholder="Catatan keadaan kenderaan (pilihan)" value={notes} onChange={(event) => setNotes(event.target.value)} />
+     <Input className="bg-white" inputMode="decimal" placeholder={text('Odometer mula (pilihan)', 'Start odometer (optional)')} value={odometer} onChange={(event) => setOdometer(event.target.value)} />
+     <Textarea className="min-h-20 bg-white" placeholder={text('Catatan keadaan kenderaan (pilihan)', 'Vehicle condition notes (optional)')} value={notes} onChange={(event) => setNotes(event.target.value)} />
      <Button type="button" className="w-full" disabled={!allChecked || !vehicleId || saving} onClick={start}>
-      {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Gauge className="mr-1.5 h-4 w-4" />} Mula Perjalanan
+      {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Gauge className="mr-1.5 h-4 w-4" />} {text('Mula Perjalanan', 'Start Trip')}
      </Button>
     </div>
    </div>
