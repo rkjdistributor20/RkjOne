@@ -42,6 +42,12 @@ function plausibleOdometer(value: unknown) {
  return numeric !== null && numeric >= 0 && numeric <= 2_000_000 ? numeric : null;
 }
 
+function isRecentGpsEvent(value: unknown, now: Date) {
+ if (typeof value !== 'string' || !value) return false;
+ const eventTime = new Date(value).getTime();
+ return Number.isFinite(eventTime) && eventTime <= now.getTime() + 60_000 && now.getTime() - eventTime <= 30 * 60_000;
+}
+
 export async function GET() {
  const profile = await getCurrentProfile();
  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -92,6 +98,7 @@ export async function GET() {
   const documents = (documentsResult.data ?? []).filter((row: any) => row.vehicle_id === vehicle.id);
   const gpsItem = gpsByVehicle.get(vehicle.id);
   const hasLiveGps = Boolean(gpsItem?.matched && gpsItem.latitude !== null && gpsItem.longitude !== null);
+  const gpsActive = hasLiveGps && isRecentGpsEvent(gpsItem?.event_ts, now);
   const gpsOdometer = hasLiveGps ? plausibleOdometer(gpsItem?.odometer_km) : null;
   const maintenance = (maintenanceResult.data ?? []).filter((row: any) => row.vehicle_id === vehicle.id).map((row: any) => ({
    ...row,
@@ -117,7 +124,7 @@ export async function GET() {
    monthly_cost: expenses.filter((row: any) => row.expense_date?.startsWith(monthKey) && row.status !== 'REJECTED').reduce((sum: number, row: any) => sum + Number(row.amount || 0), 0),
    open_incidents: incidents.filter((row: any) => !['RESOLVED', 'CLOSED'].includes(row.status)).length,
    documents_due: documentsDue,
-   gps: hasLiveGps && gpsItem ? { status: gpsItem.raw_status ?? (gpsItem.speed_kph && gpsItem.speed_kph >= 5 ? 'MOVING' : 'IDLE'), speed_kph: gpsItem.speed_kph, odometer_km: gpsOdometer, event_ts: gpsItem.event_ts, map_url: gpsItem.map_url } : null,
+   gps: hasLiveGps && gpsItem ? { active: gpsActive, status: gpsItem.raw_status ?? (gpsItem.speed_kph && gpsItem.speed_kph >= 5 ? 'MOVING' : 'IDLE'), speed_kph: gpsItem.speed_kph, odometer_km: gpsOdometer, event_ts: gpsItem.event_ts, map_url: gpsItem.map_url } : null,
   };
  });
 
@@ -137,7 +144,7 @@ export async function GET() {
    monthly_cost: responseVehicles.reduce((sum, vehicle) => sum + vehicle.monthly_cost, 0),
    pending_expenses: (expensesResult.data ?? []).filter((row: any) => row.status === 'SUBMITTED').length,
    maintenance_due: (maintenanceResult.data ?? []).filter((row: any) => ['DUE', 'OVERDUE'].includes(row.status) || (row.next_service_date && new Date(`${row.next_service_date}T23:59:59`) <= dueCutoff)).length,
-   tracked_gps: responseVehicles.filter((vehicle) => vehicle.gps !== null).length,
+   tracked_gps: responseVehicles.filter((vehicle) => vehicle.gps?.active).length,
   },
   vehicles: responseVehicles,
   custodians: custodiansResult.data ?? [],

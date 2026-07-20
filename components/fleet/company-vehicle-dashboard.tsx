@@ -40,6 +40,17 @@ function isoDate(value?: string | null) {
  return value ? value.slice(0, 10) : '';
 }
 
+function gpsSummary(item: CompanyVehicleRecord, locale: string) {
+ if (!item.gps) return locale === 'en' ? 'Location hidden / unavailable' : 'Lokasi disembunyikan / tiada data';
+ const movement = `${item.gps.status} - ${Math.round(item.gps.speed_kph ?? 0)} km/j`;
+ if (item.gps.active) return locale === 'en' ? `${movement} - current` : `${movement} - terkini`;
+ const eventTime = item.gps.event_ts ? new Date(item.gps.event_ts) : null;
+ const timestamp = eventTime && Number.isFinite(eventTime.getTime())
+  ? eventTime.toLocaleString(locale === 'en' ? 'en-MY' : 'ms-MY')
+  : (locale === 'en' ? 'unknown time' : 'masa tidak diketahui');
+ return locale === 'en' ? `Last data: ${timestamp}` : `Data terakhir: ${timestamp}`;
+}
+
 export function CompanyVehicleDashboard() {
  const { locale } = useLanguage();
  const text = useCallback((bm: string, en: string) => locale === 'en' ? en : bm, [locale]);
@@ -163,7 +174,7 @@ export function CompanyVehicleDashboard() {
      <div className="grid gap-4 p-4 sm:grid-cols-2">
       <div className="space-y-3">
        <Info icon={UserRound} label={text('Penjaga syarikat', 'Company custodian')} value={item.company_custodian_name ?? text('Belum ditetapkan', 'Not assigned')} />
-       <Info icon={MapPin} label="GPS Cartrack" value={item.gps ? `${item.gps.status} - ${Math.round(item.gps.speed_kph ?? 0)} km/j` : text('Lokasi disembunyikan / tiada data', 'Location hidden / unavailable')} />
+       <Info icon={MapPin} label="GPS Cartrack" value={gpsSummary(item, locale)} />
        <Info icon={Gauge} label={text('Odometer GPS', 'GPS odometer')} value={item.gps?.odometer_km ? `${Math.round(item.gps.odometer_km).toLocaleString()} km` : '-'} />
       </div>
       <div className="grid grid-cols-3 gap-2">

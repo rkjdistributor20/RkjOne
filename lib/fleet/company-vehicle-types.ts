@@ -82,6 +82,7 @@ export interface CompanyVehicleRecord {
  open_incidents: number;
  documents_due: number;
  gps: {
+  active: boolean;
   status: string;
   speed_kph: number | null;
   odometer_km: number | null;
