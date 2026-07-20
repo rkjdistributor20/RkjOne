@@ -16,7 +16,7 @@ export async function GET() {
  const supabase = await createClient();
  let query = supabase
  .from('vehicles')
- .select('id, vehicle_code, plate_number, vehicle_type')
+ .select('id, vehicle_code, plate_number, vehicle_type, company_custodian:profiles!vehicles_company_custodian_profile_id_fkey(full_name, role)')
  .eq('organization_id', profile.organization_id)
  .eq('status', 'ACTIVE')
  .order('vehicle_code');
@@ -45,6 +45,20 @@ export async function GET() {
 
  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
- const result = await getCartrackFleetGpsStatus(data ?? []);
+ const localVehicles = ((data ?? []) as unknown as Array<{
+  id: string;
+  vehicle_code: string;
+  plate_number: string | null;
+  vehicle_type: string | null;
+  company_custodian: { full_name: string; role: string } | null;
+ }>).map((vehicle) => ({
+  id: vehicle.id,
+  vehicle_code: vehicle.vehicle_code,
+  plate_number: vehicle.plate_number,
+  vehicle_type: vehicle.vehicle_type,
+  company_custodian_name: vehicle.company_custodian?.full_name ?? null,
+  company_custodian_role: vehicle.company_custodian?.role ?? null,
+ }));
+ const result = await getCartrackFleetGpsStatus(localVehicles);
  return jsonWithPrivateCache(result, 20, 40);
 }

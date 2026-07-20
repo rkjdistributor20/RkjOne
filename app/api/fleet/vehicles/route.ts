@@ -10,7 +10,8 @@ export async function GET() {
  const supabase = await createClient();
  const { data, error } = await supabase.from('vehicles').select(`
  id, vehicle_code, plate_number, vehicle_type, capacity, remarks,
- default_driver_id, status,
+ default_driver_id, company_custodian_profile_id, company_assigned_at, company_usage_note, status,
+ company_custodian:profiles!vehicles_company_custodian_profile_id_fkey(full_name, role),
  fleet_status_log(status, logged_at)
  `).eq('organization_id', profile.organization_id).eq('status', 'ACTIVE').order('vehicle_code');
 
@@ -26,6 +27,10 @@ export async function GET() {
  capacity: string | null;
  remarks: string | null;
  default_driver_id: string | null;
+ company_custodian_profile_id: string | null;
+ company_assigned_at: string | null;
+ company_usage_note: string | null;
+ company_custodian: { full_name: string; role: string } | null;
  status: string;
  fleet_status_log: Array<{ status: string; logged_at: string }> | null;
  }>;
@@ -42,6 +47,11 @@ export async function GET() {
  capacity: v.capacity,
  remarks: v.remarks,
  default_driver_id: v.default_driver_id,
+ company_custodian_profile_id: v.company_custodian_profile_id,
+ company_custodian_name: v.company_custodian?.full_name ?? null,
+ company_custodian_role: v.company_custodian?.role ?? null,
+ company_assigned_at: v.company_assigned_at,
+ company_usage_note: v.company_usage_note,
  status: v.status,
  latest_status: latest?.status ?? null,
  };

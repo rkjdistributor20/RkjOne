@@ -857,6 +857,10 @@ export function FleetDashboard() {
  Kod: {v.vehicle_code}
  {details.model ? ` | Model: ${details.model}` : ''}
  </p>
+ {v.company_custodian_name && (
+ <p className="rounded-md border border-blue-200 bg-blue-50 px-2 py-1.5 text-xs text-blue-950">
+ <span className="font-semibold">Penjaga syarikat:</span> {v.company_custodian_name}
+ </p>)}
  {details.route && (
  <p className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
  Laluan: {details.route}

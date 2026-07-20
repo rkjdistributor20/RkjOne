@@ -318,6 +318,10 @@ function GpsVehicleRow({ vehicle }: { vehicle: FleetGpsVehicleStatus }) {
  {vehicle.driver_name ? `${vehicle.driver_name} - ` : ''}
  {updated}
  </p>
+ {vehicle.company_custodian_name && (
+ <p className="mt-1 text-xs font-medium text-blue-800">
+ Kenderaan syarikat - Penjaga: {vehicle.company_custodian_name}
+ </p>)}
  </div>
  <div className="flex flex-wrap gap-1">
  <Badge variant={speed > 0 ? 'default' : 'outline'}>{Math.round(speed)} km/j</Badge>

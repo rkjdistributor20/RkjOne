@@ -14,6 +14,11 @@ export interface FleetVehicle {
  capacity: string | null;
  remarks: string | null;
  default_driver_id: string | null;
+ company_custodian_profile_id?: string | null;
+ company_custodian_name?: string | null;
+ company_custodian_role?: string | null;
+ company_assigned_at?: string | null;
+ company_usage_note?: string | null;
  status: string;
  latest_status?: string | null;
 }
@@ -134,6 +139,8 @@ export interface FleetGpsVehicleStatus {
  ignition: boolean | null;
  heading: number | null;
  driver_name: string | null;
+ company_custodian_name: string | null;
+ company_custodian_role: string | null;
  location_description: string | null;
  event_ts: string | null;
  received_at: string;

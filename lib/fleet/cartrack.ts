@@ -9,6 +9,8 @@ type LocalFleetVehicle = {
  vehicle_code: string;
  plate_number: string | null;
  vehicle_type: string | null;
+ company_custodian_name?: string | null;
+ company_custodian_role?: string | null;
 };
 
 type RawGpsStatus = {
@@ -271,6 +273,8 @@ function reconcileStatuses(
  ignition: status.ignition,
  heading: status.heading,
  driver_name: status.driver_name,
+ company_custodian_name: matched?.company_custodian_name ?? null,
+ company_custodian_role: matched?.company_custodian_role ?? null,
  location_description: status.location_description,
  event_ts: status.event_ts,
  received_at: fetchedAt,
@@ -298,6 +302,8 @@ function reconcileStatuses(
  ignition: null,
  heading: null,
  driver_name: null,
+ company_custodian_name: vehicle.company_custodian_name ?? null,
+ company_custodian_role: vehicle.company_custodian_role ?? null,
  location_description: 'Belum dipadankan dengan data Cartrack.',
  event_ts: null,
  received_at: fetchedAt,

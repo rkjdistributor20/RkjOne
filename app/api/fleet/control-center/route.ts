@@ -12,13 +12,6 @@ import type {
 const MANAGEMENT_ROLES = new Set(['SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER', 'AREA_MANAGER']);
 const ACTIVE_DELIVERY_STATUSES = ['DRAFT', 'PENDING', 'IN_TRANSIT'];
 
-type VehicleRow = {
- id: string;
- vehicle_code: string;
- plate_number: string | null;
- vehicle_type: string | null;
-};
-
 type StoredAlertRow = Omit<FleetControlAlert, 'plate_number'> & {
  vehicle?: { plate_number: string | null } | null;
 };
@@ -94,7 +87,7 @@ export async function GET() {
 
  let vehiclesQuery = supabase
   .from('vehicles')
-  .select('id, vehicle_code, plate_number, vehicle_type')
+  .select('id, vehicle_code, plate_number, vehicle_type, company_custodian:profiles!vehicles_company_custodian_profile_id_fkey(full_name, role)')
   .eq('organization_id', profile.organization_id)
   .eq('status', 'ACTIVE')
   .order('vehicle_code');
@@ -114,7 +107,20 @@ export async function GET() {
 
  const { data: vehicles, error: vehiclesError } = await vehiclesQuery;
  if (vehiclesError) return NextResponse.json({ error: vehiclesError.message }, { status: 500 });
- const vehicleRows = (vehicles ?? []) as VehicleRow[];
+ const vehicleRows = ((vehicles ?? []) as unknown as Array<{
+  id: string;
+  vehicle_code: string;
+  plate_number: string | null;
+  vehicle_type: string | null;
+  company_custodian: { full_name: string; role: string } | null;
+ }>).map((vehicle) => ({
+  id: vehicle.id,
+  vehicle_code: vehicle.vehicle_code,
+  plate_number: vehicle.plate_number,
+  vehicle_type: vehicle.vehicle_type,
+  company_custodian_name: vehicle.company_custodian?.full_name ?? null,
+  company_custodian_role: vehicle.company_custodian?.role ?? null,
+ }));
  const gps = await getCartrackFleetGpsStatus(vehicleRows);
  const activeVehicleIds = vehicleRows.map((vehicle) => vehicle.id);
 
