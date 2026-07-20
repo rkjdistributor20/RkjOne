@@ -116,6 +116,45 @@ export interface FleetStatusLog {
  driver: { full_name: string } | null;
 }
 
+export type FleetGpsConnectionStatus = 'ok' | 'not_configured' | 'error';
+
+export interface FleetGpsVehicleStatus {
+ provider: 'cartrack';
+ registration: string | null;
+ vehicle_id: string | null;
+ vehicle_code: string | null;
+ plate_number: string | null;
+ vehicle_type: string | null;
+ label: string;
+ latitude: number | null;
+ longitude: number | null;
+ speed_kph: number | null;
+ odometer_km: number | null;
+ fuel_level: number | null;
+ ignition: boolean | null;
+ heading: number | null;
+ driver_name: string | null;
+ location_description: string | null;
+ event_ts: string | null;
+ received_at: string;
+ raw_status: string | null;
+ matched: boolean;
+ map_url: string | null;
+}
+
+export interface FleetGpsStatusResponse {
+ source: 'cartrack';
+ configured: boolean;
+ status: FleetGpsConnectionStatus;
+ fetched_at: string;
+ message: string | null;
+ fleetweb_url: string;
+ docs_url: string;
+ matched_count: number;
+ unmatched_count: number;
+ vehicles: FleetGpsVehicleStatus[];
+}
+
 export interface CreateDeliveryPayload {
  origin_location_id: string;
  final_destination_id: string;

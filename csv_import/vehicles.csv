@@ -1,6 +1,12 @@
-﻿VEHICLE_ID,Nama/No Plat,Jenis,Kapasiti,Driver Default,Status,Nota
-V001,,Lori 5 Tan,5 Tan,Samad,Active,No plat isi kemudian
-V002,,Lori 3 Tan,3 Tan,Samad,Active,No plat isi kemudian
-V003,,Lori 1 Tan,1 Tan,Anuar,Active,No plat isi kemudian
-V004,,Van,,Anuar,Active,No plat isi kemudian
-V005,,Lori/Van,,Farid,Active,Butiran isi kemudian
+VEHICLE_ID,Nama/No Plat,Jenis,Kapasiti,Driver Default,Status,Nota
+VEH-VFM2224,VFM 2224,Lori Rigid,5 Tan,Samad,Active,Cartrack FleetWeb verified
+VEH-ALL2224,ALL 2224,Lori Rigid,3 Tan,Samad,Active,Cartrack FleetWeb verified
+VEH-VFL2224,VFL 2224,Lori Rigid,1 Tan,Fazil,Active,Cartrack FleetWeb verified
+VEH-WB4631T,WB 4631 T,Lori Rigid,1 Tan,Ahmad,Active,Cartrack FleetWeb verified
+VEH-WA1202J,WA 1202 J,Panel Van,,Hazrul,Active,Cartrack FleetWeb verified
+VEH-VCH7221,VCH 7221,Panel Van,,Farid,Active,Cartrack FleetWeb verified
+VEH-SYP2224,SYP 2224,Panel Van,,Anuar,Active,Cartrack FleetWeb verified
+VEH-AMC2224,AMC 2224,Kenderaan Cartrack,,,Active,Cartrack-only plate; driver/type to confirm
+VEH-AMC3919,AMC 3919,Kenderaan Cartrack,,,Active,Cartrack-only plate; driver/type to confirm
+VEH-JUX2224,JUX 2224,Kenderaan Cartrack,,,Active,Cartrack-only plate; driver/type to confirm
+VEH-VS4284,VS 4284,Kenderaan Cartrack,,,Active,Cartrack-only plate; driver/type to confirm

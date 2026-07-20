@@ -2,6 +2,7 @@ import type {
  CreateDeliveryPayload,
  DeliveryOrder,
  FleetDriver,
+ FleetGpsStatusResponse,
  FleetRouteOption,
  FleetStatusLog,
  FleetVehicle,
@@ -121,6 +122,13 @@ export async function fetchFleetStatus() {
  '/api/fleet/status',
  undefined,
  { ttlMs: 10_000 });
+}
+
+export async function fetchFleetGpsStatus() {
+ return fetchJson<FleetGpsStatusResponse>(
+ '/api/fleet/gps/status',
+ undefined,
+ { ttlMs: 20_000 });
 }
 
 export async function logFleetStatus(payload: {

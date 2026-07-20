@@ -301,6 +301,17 @@ Generic gateway callbacks must provide `x-payment-signature` as HMAC-SHA256 of t
 | Legal Entities | `/api/legal-entities` | Company records and document download. |
 | Bookings | `/api/bookings` | API-only booking workflow. |
 
+### GET `/api/fleet/gps/status`
+
+Server-side Cartrack GPS bridge for transport monitoring. Requires login and is limited to HQ/operations/area manager roles. Credentials are read only from server env:
+
+- `CARTRACK_API_BASE_URL`
+- `CARTRACK_API_USERNAME`
+- `CARTRACK_API_TOKEN`
+- `CARTRACK_FLEETWEB_URL`
+
+Response includes `configured`, `status`, `matched_count`, `unmatched_count`, `fleetweb_url`, and normalized `vehicles[]` with plate, location, speed, ignition, driver, timestamp and map URL when coordinates are available.
+
 ## Error and Access Expectations
 
 Preferred route-level status codes:
