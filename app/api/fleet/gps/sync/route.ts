@@ -34,7 +34,7 @@ export async function POST() {
  }
 
  const vehicleIds = gps.vehicles.flatMap((vehicle) => vehicle.vehicle_id ? [vehicle.vehicle_id] : []);
- const [{ data: geofences }, { data: previousSnapshots }, { data: maintenancePlans }] = await Promise.all([
+ const [{ data: geofences }, { data: previousSnapshots }, { data: maintenancePlans }, { data: activeSessions }] = await Promise.all([
   service.from('fleet_geofences').select('id, name, geofence_type, latitude, longitude, radius_m, branch_id').eq('organization_id', profile.organization_id).eq('is_active', true),
   vehicleIds.length
    ? service.from('fleet_gps_snapshots').select('vehicle_id, latitude, longitude, speed_kph, ignition, event_at').eq('organization_id', profile.organization_id).in('vehicle_id', vehicleIds).order('event_at', { ascending: false }).limit(Math.max(vehicleIds.length * 3, 20))
@@ -42,7 +42,25 @@ export async function POST() {
   vehicleIds.length
    ? service.from('fleet_maintenance_plans').select('id, vehicle_id, service_name, next_service_date, next_service_odometer_km, status').eq('organization_id', profile.organization_id).in('vehicle_id', vehicleIds).neq('status', 'CANCELLED')
    : Promise.resolve({ data: [] }),
+  vehicleIds.length
+   ? service.from('fleet_driver_sessions').select('id, driver_id, vehicle_id, current_route_stop_id').eq('organization_id', profile.organization_id).eq('status', 'ACTIVE').in('vehicle_id', vehicleIds)
+   : Promise.resolve({ data: [] }),
  ]);
+
+ const sessionByVehicle = new Map<string, any>(((activeSessions ?? []) as any[]).map((session) => [session.vehicle_id, session]));
+ const currentStopIds = ((activeSessions ?? []) as any[]).map((session) => session.current_route_stop_id).filter(Boolean);
+ const [{ data: currentStops }, { data: recordedArrivals }] = await Promise.all([
+  currentStopIds.length
+   ? service.from('hq_delivery_route_stops').select('id, route_plan_id, branch_id').in('id', currentStopIds)
+   : Promise.resolve({ data: [] }),
+  currentStopIds.length
+   ? service.from('fleet_navigation_events').select('session_id, route_stop_id').eq('organization_id', profile.organization_id).eq('event_type', 'ARRIVED').in('route_stop_id', currentStopIds)
+   : Promise.resolve({ data: [] }),
+ ]);
+ const stopById = new Map<string, any>(((currentStops ?? []) as any[]).map((stop) => [stop.id, stop]));
+ const arrivalKeys = new Set(((recordedArrivals ?? []) as any[]).map((event) => `${event.session_id}:${event.route_stop_id}`));
+ const navigationRows: any[] = [];
+ const arrivedSessionIds = new Set<string>();
 
  const previousByVehicle = new Map<string, any>();
  for (const snapshot of previousSnapshots ?? []) {
@@ -113,6 +131,21 @@ export async function POST() {
      plate_number: vehicle.plate_number,
      metadata: { geofence_id: currentFence.geofence.id, geofence_name: currentFence.geofence.name, distance_m: Math.round(currentFence.distance_m) }, live: true,
     });
+    const session = sessionByVehicle.get(vehicle.vehicle_id);
+    const stop = session?.current_route_stop_id ? stopById.get(session.current_route_stop_id) : null;
+    const arrivalKey = session && stop ? `${session.id}:${stop.id}` : null;
+    if (session && stop && currentFence.geofence.branch_id === stop.branch_id && arrivalKey && !arrivalKeys.has(arrivalKey)) {
+     navigationRows.push({
+      organization_id: profile.organization_id, session_id: session.id, driver_id: session.driver_id,
+      vehicle_id: vehicle.vehicle_id, route_plan_id: stop.route_plan_id, route_stop_id: stop.id,
+      geofence_id: currentFence.geofence.id, event_type: 'ARRIVED', navigation_provider: 'CARTRACK',
+      destination_name: currentFence.geofence.name, destination_latitude: currentFence.geofence.latitude,
+      destination_longitude: currentFence.geofence.longitude, origin_latitude: vehicle.latitude,
+      origin_longitude: vehicle.longitude, metadata: { distance_m: Math.round(currentFence.distance_m), verified_by: 'CARTRACK_GEOFENCE' },
+     });
+     arrivalKeys.add(arrivalKey);
+     arrivedSessionIds.add(session.id);
+    }
    }
    if (previousFence?.inside && (!currentFence.inside || previousFence.geofence.id !== currentFence.geofence.id)) {
     alerts.push({
@@ -145,6 +178,16 @@ export async function POST() {
   }
  }
 
+ if (navigationRows.length > 0) {
+  const { error } = await service.from('fleet_navigation_events').insert(navigationRows);
+  if (error && error.code !== '23505') return NextResponse.json({ error: error.message }, { status: 500 });
+ }
+ if (arrivedSessionIds.size > 0) {
+  await service.from('fleet_driver_sessions').update({
+   safe_driving_mode: false, updated_at: new Date().toISOString(),
+  }).in('id', [...arrivedSessionIds]).eq('organization_id', profile.organization_id);
+ }
+
  const alertRows = alerts.map((alert) => ({
   organization_id: profile.organization_id,
   vehicle_id: alert.vehicle_id,
@@ -165,5 +208,5 @@ export async function POST() {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
  }
 
- return NextResponse.json({ ok: true, snapshots: snapshotRows.length, alerts: alertRows.length });
+ return NextResponse.json({ ok: true, snapshots: snapshotRows.length, alerts: alertRows.length, navigation_events: navigationRows.length });
 }

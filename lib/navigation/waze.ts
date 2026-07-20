@@ -6,6 +6,11 @@ export interface WazeDestination {
  longitude?: number | null;
  query?: string | null;
  navigate?: boolean;
+ avoidTolls?: boolean;
+ avoidFerries?: boolean;
+ avoidFreeways?: boolean;
+ avoidDangerousTurns?: boolean;
+ avoidTrails?: 'avoid_all' | 'allow' | 'avoid_long';
 }
 
 function validCoordinate(value: number | null | undefined) {
@@ -17,6 +22,11 @@ export function buildWazeUrl({
  longitude,
  query,
  navigate = true,
+ avoidTolls,
+ avoidFerries,
+ avoidFreeways,
+ avoidDangerousTurns,
+ avoidTrails,
 }: WazeDestination) {
  const params = new URLSearchParams();
  const cleanQuery = query?.trim();
@@ -26,6 +36,11 @@ export function buildWazeUrl({
  }
  if (cleanQuery) params.set('q', cleanQuery);
  if (navigate) params.set('navigate', 'yes');
+ if (avoidTolls !== undefined) params.set('avoid_tolls', String(avoidTolls));
+ if (avoidFerries !== undefined) params.set('avoid_ferries', String(avoidFerries));
+ if (avoidFreeways !== undefined) params.set('avoid_freeways', String(avoidFreeways));
+ if (avoidDangerousTurns !== undefined) params.set('avoid_dangerous_turns', String(avoidDangerousTurns));
+ if (avoidTrails) params.set('avoid_trails', avoidTrails);
  params.set('utm_source', WAZE_SOURCE);
 
  return `${WAZE_BASE_URL}?${params.toString()}`;

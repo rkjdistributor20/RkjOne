@@ -226,6 +226,76 @@ export interface FleetDriverSessionSummary {
  checklist: Record<string, boolean>;
 }
 
+export interface FleetRoutePreferences {
+ avoid_tolls: boolean;
+ avoid_ferries: boolean;
+ avoid_freeways: boolean;
+ avoid_dangerous_turns: boolean;
+ avoid_trails: 'avoid_all' | 'allow' | 'avoid_long';
+}
+
+export interface FleetNavigationStop {
+ id: string;
+ route_plan_id: string;
+ route_name: string;
+ sequence: number;
+ branch_code: string | null;
+ destination_name: string;
+ latitude: number | null;
+ longitude: number | null;
+ geofence_id: string | null;
+ coordinate_status: 'VERIFIED' | 'NAME_FALLBACK';
+ status: string;
+ waze_url: string;
+}
+
+export interface FleetNavigationEvent {
+ id: string;
+ event_type: string;
+ destination_name: string;
+ driver_name: string | null;
+ plate_number: string | null;
+ used_coordinate_fallback: boolean;
+ reason: string | null;
+ created_at: string;
+}
+
+export interface FleetNavigationResponse {
+ mode: 'MANAGEMENT' | 'DRIVER';
+ generated_at: string;
+ session: {
+  id: string;
+  driver_id: string;
+  vehicle_id: string;
+  driver_name: string;
+  plate_number: string | null;
+  started_at: string;
+  safe_driving_mode: boolean;
+  route_preferences: FleetRoutePreferences;
+ } | null;
+ readiness: Array<{ key: string; label: string; passed: boolean; detail: string }>;
+ ready_to_navigate: boolean;
+ next_stop: FleetNavigationStop | null;
+ remaining_stops: number;
+ quick_destinations: Array<{
+  id: string;
+  name: string;
+  geofence_type: string;
+  latitude: number;
+  longitude: number;
+  waze_url: string;
+ }>;
+ recent_events: FleetNavigationEvent[];
+ metrics: {
+  launches_today: number;
+  active_drivers: number;
+  coordinate_fallbacks: number;
+  blocked_attempts: number;
+  locations_with_coordinates: number;
+  locations_without_coordinates: number;
+ };
+}
+
 export interface FleetDeliveryEta {
  id: string;
  order_number: string;

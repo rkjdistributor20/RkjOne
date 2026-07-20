@@ -106,6 +106,8 @@ export async function PATCH(request: Request) {
 
  const { error } = await service.from('fleet_driver_sessions').update({
   status: 'COMPLETED',
+  safe_driving_mode: false,
+  current_route_stop_id: null,
   ended_at: new Date().toISOString(),
   end_odometer_km: body.odometer_km ?? null,
   end_latitude: body.latitude ?? null,

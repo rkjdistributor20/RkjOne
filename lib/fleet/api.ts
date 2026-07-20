@@ -3,6 +3,8 @@ import type {
  DeliveryOrder,
  FleetDriverResponse,
  FleetControlCenterResponse,
+ FleetNavigationResponse,
+ FleetRoutePreferences,
  FleetGpsStatusResponse,
  FleetStatusLog,
  FleetVehicle,
@@ -152,7 +154,7 @@ export async function fetchFleetControlCenter() {
 }
 
 export async function syncFleetGps() {
- return fetchJson<{ ok: boolean; snapshots: number; alerts: number }>(
+ return fetchJson<{ ok: boolean; snapshots: number; alerts: number; navigation_events?: number }>(
   '/api/fleet/gps/sync',
   { method: 'POST' });
 }
@@ -161,6 +163,24 @@ export async function updateFleetAlert(id: string, status: 'ACKNOWLEDGED' | 'RES
  return fetchJson<{ ok: boolean }>(`/api/fleet/alerts/${id}`, {
   method: 'PATCH',
   body: JSON.stringify({ status }),
+ });
+}
+
+export async function fetchFleetNavigation() {
+ return fetchJson<FleetNavigationResponse>('/api/fleet/navigation', undefined, { ttlMs: 5_000 });
+}
+
+export async function runFleetNavigationAction(payload: {
+ action: 'LAUNCH_NEXT' | 'LAUNCH_QUICK' | 'SHARE' | 'FALLBACK_COPIED' | 'SET_PREFERENCES' | 'REPORT_ISSUE';
+ destination_id?: string;
+ route_stop_id?: string;
+ latitude?: number | null;
+ longitude?: number | null;
+ reason?: string;
+ preferences?: FleetRoutePreferences;
+}) {
+ return fetchJson<{ ok: boolean; waze_url?: string; share_text?: string }>('/api/fleet/navigation', {
+  method: 'POST', body: JSON.stringify(payload),
  });
 }
 

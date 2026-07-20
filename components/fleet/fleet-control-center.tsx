@@ -42,6 +42,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/components/i18n/language-provider';
+import { WazeNavigationPanel } from '@/components/fleet/waze-navigation-panel';
 
 const severityStyle: Record<FleetAlertSeverity, string> = {
  LOW: 'border-emerald-200 bg-emerald-50 text-emerald-800',
@@ -181,6 +182,8 @@ export function FleetControlCenter() {
    {data.mode === 'DRIVER' && (
     <DriverShiftPanel data={data} onUpdated={load} />
    )}
+
+   <WazeNavigationPanel />
 
    <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-8">
     <ControlMetric icon={Truck} label={text('Kenderaan', 'Vehicles')} value={data.kpis.total_vehicles} />
