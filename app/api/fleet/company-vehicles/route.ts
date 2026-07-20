@@ -37,6 +37,11 @@ function numberOrNull(value: unknown) {
  return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
+function plausibleOdometer(value: unknown) {
+ const numeric = numberOrNull(value);
+ return numeric !== null && numeric >= 0 && numeric <= 2_000_000 ? numeric : null;
+}
+
 export async function GET() {
  const profile = await getCurrentProfile();
  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -86,10 +91,11 @@ export async function GET() {
   const incidents = (incidentsResult.data ?? []).filter((row: any) => row.vehicle_id === vehicle.id);
   const documents = (documentsResult.data ?? []).filter((row: any) => row.vehicle_id === vehicle.id);
   const gpsItem = gpsByVehicle.get(vehicle.id);
+  const gpsOdometer = gpsItem?.matched ? plausibleOdometer(gpsItem.odometer_km) : null;
   const maintenance = (maintenanceResult.data ?? []).filter((row: any) => row.vehicle_id === vehicle.id).map((row: any) => ({
    ...row,
    next_service_odometer_km: row.next_service_odometer_km === null ? null : Number(row.next_service_odometer_km),
-   remaining_km: row.next_service_odometer_km === null || gpsItem?.odometer_km === null || gpsItem?.odometer_km === undefined ? null : Number(row.next_service_odometer_km) - gpsItem.odometer_km,
+   remaining_km: row.next_service_odometer_km === null || gpsOdometer === null ? null : Number(row.next_service_odometer_km) - gpsOdometer,
   }));
   const supplementaryExpiry = documents.filter((row: any) => ['REGISTRATION', 'OTHER'].includes(row.document_type)).map((row: any) => row.expires_at);
   const expiryValues = [vehicle.road_tax_expiry, vehicle.insurance_expiry, vehicle.inspection_expiry, vehicle.permit_expiry, ...supplementaryExpiry].filter(Boolean);
@@ -110,7 +116,7 @@ export async function GET() {
    monthly_cost: expenses.filter((row: any) => row.expense_date?.startsWith(monthKey) && row.status !== 'REJECTED').reduce((sum: number, row: any) => sum + Number(row.amount || 0), 0),
    open_incidents: incidents.filter((row: any) => !['RESOLVED', 'CLOSED'].includes(row.status)).length,
    documents_due: documentsDue,
-   gps: gpsItem ? { status: gpsItem.raw_status ?? (gpsItem.speed_kph && gpsItem.speed_kph >= 5 ? 'MOVING' : 'IDLE'), speed_kph: gpsItem.speed_kph, odometer_km: gpsItem.odometer_km, event_ts: gpsItem.event_ts, map_url: gpsItem.map_url } : null,
+   gps: gpsItem?.matched ? { status: gpsItem.raw_status ?? (gpsItem.speed_kph && gpsItem.speed_kph >= 5 ? 'MOVING' : 'IDLE'), speed_kph: gpsItem.speed_kph, odometer_km: gpsOdometer, event_ts: gpsItem.event_ts, map_url: gpsItem.map_url } : null,
   };
  });
 
@@ -130,7 +136,7 @@ export async function GET() {
    monthly_cost: responseVehicles.reduce((sum, vehicle) => sum + vehicle.monthly_cost, 0),
    pending_expenses: (expensesResult.data ?? []).filter((row: any) => row.status === 'SUBMITTED').length,
    maintenance_due: (maintenanceResult.data ?? []).filter((row: any) => ['DUE', 'OVERDUE'].includes(row.status) || (row.next_service_date && new Date(`${row.next_service_date}T23:59:59`) <= dueCutoff)).length,
-   tracked_gps: responseVehicles.filter((vehicle) => Boolean(vehicle.gps?.event_ts)).length,
+   tracked_gps: gps?.matched_count ?? 0,
   },
   vehicles: responseVehicles,
   custodians: custodiansResult.data ?? [],
