@@ -19,7 +19,7 @@ export const COMPANY = {
  tiktok: 'https://www.tiktok.com/@rotikayajunus',
  linktree: 'https://linktr.ee/rotikayajunus',
  },
- logoPath: '/brand/logo-official.jpg',
+ logoPath: '/brand/logo-premium.png',
  products: [
  { name: 'Roti Kaya', desc: 'Inti kaya buatan sendiri - stok roti Planta' },
  { name: 'Roti Kacang', desc: 'Kacang merah klasik' },
