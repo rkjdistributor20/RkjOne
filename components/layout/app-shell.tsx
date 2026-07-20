@@ -225,7 +225,7 @@ export function AppShell({ children }: AppShellProps) {
  <UserFooter onLogout={handleLogout} />
  </aside>
 
- <div className="flex flex-1 flex-col">
+ <div className="flex min-w-0 flex-1 flex-col">
  <header className="sticky top-0 z-20 flex min-h-16 items-center gap-4 border-b border-amber-200/40 bg-background/88 px-4 shadow-sm backdrop-blur-xl md:px-6">
  <Sheet>
  <SheetTrigger
