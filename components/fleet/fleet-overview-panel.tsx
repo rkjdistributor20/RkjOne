@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { FleetControlCenter } from '@/components/fleet/fleet-control-center';
 
 export function FleetOverviewPanel() {
  const [schedule, setSchedule] = useState<DriverWorkScheduleEntry[]>([]);
@@ -154,6 +155,7 @@ export function FleetOverviewPanel() {
  </Card>
 
  <CartrackGpsPanel gps={gps} onRefresh={load} />
+ <FleetControlCenter />
  </div>);
 }
 

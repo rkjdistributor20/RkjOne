@@ -63,7 +63,28 @@ Migration `00112_cartrack_vehicle_plate_sync.sql` keeps these plates in RKJ One 
 - Store real Cartrack credentials in Vercel/server env only.
 - Do not commit API username, token or password.
 - If Cartrack returns different field names, RKJ One keeps a tolerant parser for common field variants.
-- If persistent GPS history is required later, add a separate `vehicle_gps_snapshots` table with RLS and retention policy.
+- GPS history is stored in `fleet_gps_snapshots` with organization RLS. Retention must be reviewed as data volume grows.
+
+## Fleet Control Center
+
+1. OM opens Fleet and runs **Analisis GPS** at dispatch checkpoints.
+2. RKJ One stores one idempotent snapshot per vehicle/event time.
+3. The analytics layer creates deduplicated alerts for GPS offline, speeding, prolonged idle, low fuel, geofence movement and maintenance due.
+4. OM acknowledges an alert when ownership is accepted and resolves it only after operational confirmation.
+5. Drivers only see vehicles assigned to their own profile and must complete the safety checklist before a shift can start.
+6. POD GPS is compared against the destination branch geofence. Outside-geofence POD remains recorded but is marked for manager review.
+
+### Default Thresholds
+
+| Signal | Default | Operational response |
+|---|---:|---|
+| GPS offline | 30 minutes | Contact driver and check device, power or network. |
+| Speeding | 90 km/h | OM reviews context and coaches driver; 110 km/h is critical. |
+| Idle | 15 minutes | Confirm loading, traffic or unnecessary engine use. |
+| Low fuel | 20% | Plan refuelling before the next route. |
+| Maintenance | 500 km / 14 days | Reserve a workshop slot without disrupting delivery. |
+
+GPS signals support decisions and must not be the sole basis for disciplinary action. OM should consider traffic, weather, emergency instructions and device accuracy.
 
 ## Aliran Operasi
 

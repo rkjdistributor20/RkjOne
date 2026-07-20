@@ -312,6 +312,18 @@ Server-side Cartrack GPS bridge for transport monitoring. Requires login and is 
 
 Response includes `configured`, `status`, `matched_count`, `unmatched_count`, `fleetweb_url`, and normalized `vehicles[]` with plate, location, speed, ignition, driver, timestamp and map URL when coordinates are available.
 
+### Fleet Control Center
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/api/fleet/control-center` | Role-scoped KPI, live alerts, ETA, geofence coverage, active driver sessions and maintenance summary. Drivers only receive their assigned vehicles. |
+| `POST` | `/api/fleet/gps/sync` | OM/admin telemetry ingestion, snapshot persistence and alert generation. |
+| `PATCH` | `/api/fleet/alerts/:id` | Acknowledge or resolve a stored fleet alert with actor and timestamp audit. |
+| `POST` | `/api/fleet/driver-session` | Start a driver shift after all safety checks pass. |
+| `PATCH` | `/api/fleet/driver-session` | End an active driver shift with final odometer, location and notes. |
+
+Default operational signals are GPS stale over 30 minutes, speed at or above 90 km/h, fuel at or below 20%, idle for at least 15 minutes across persisted readings, geofence entry/exit, and maintenance within 500 km or 14 days. These are coaching and exception-management signals; they do not automatically apply disciplinary action or complete a delivery.
+
 ## Error and Access Expectations
 
 Preferred route-level status codes:

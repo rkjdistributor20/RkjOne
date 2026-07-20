@@ -2,6 +2,7 @@ import type {
  CreateDeliveryPayload,
  DeliveryOrder,
  FleetDriver,
+ FleetControlCenterResponse,
  FleetGpsStatusResponse,
  FleetRouteOption,
  FleetStatusLog,
@@ -129,6 +130,65 @@ export async function fetchFleetGpsStatus() {
  '/api/fleet/gps/status',
  undefined,
  { ttlMs: 20_000 });
+}
+
+export async function fetchFleetControlCenter() {
+ return fetchJson<FleetControlCenterResponse>(
+  '/api/fleet/control-center',
+  undefined,
+  { ttlMs: 15_000 });
+}
+
+export async function syncFleetGps() {
+ return fetchJson<{ ok: boolean; snapshots: number; alerts: number }>(
+  '/api/fleet/gps/sync',
+  { method: 'POST' });
+}
+
+export async function updateFleetAlert(id: string, status: 'ACKNOWLEDGED' | 'RESOLVED') {
+ return fetchJson<{ ok: boolean }>(`/api/fleet/alerts/${id}`, {
+  method: 'PATCH',
+  body: JSON.stringify({ status }),
+ });
+}
+
+export async function startFleetDriverSession(payload: {
+ driver_id: string;
+ vehicle_id: string;
+ checklist: Record<string, boolean>;
+ odometer_km?: number | null;
+ latitude?: number | null;
+ longitude?: number | null;
+ notes?: string | null;
+}) {
+ return fetchJson<{ ok: boolean; session_id: string }>('/api/fleet/driver-session', {
+  method: 'POST', body: JSON.stringify(payload),
+ });
+}
+
+export async function endFleetDriverSession(payload: {
+ session_id: string;
+ odometer_km?: number | null;
+ latitude?: number | null;
+ longitude?: number | null;
+ notes?: string | null;
+}) {
+ return fetchJson<{ ok: boolean }>('/api/fleet/driver-session', {
+  method: 'PATCH', body: JSON.stringify(payload),
+ });
+}
+
+export async function createFleetGeofence(payload: {
+ name: string;
+ geofence_type: string;
+ branch_id?: string | null;
+ latitude: number;
+ longitude: number;
+ radius_m: number;
+}) {
+ return fetchJson<{ ok: boolean; id: string }>('/api/fleet/geofences', {
+  method: 'POST', body: JSON.stringify(payload),
+ });
 }
 
 export async function logFleetStatus(payload: {

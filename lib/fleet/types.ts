@@ -155,6 +155,100 @@ export interface FleetGpsStatusResponse {
  vehicles: FleetGpsVehicleStatus[];
 }
 
+export type FleetAlertSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+export type FleetAlertStatus = 'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED';
+
+export interface FleetControlAlert {
+ id: string;
+ alert_type: string;
+ severity: FleetAlertSeverity;
+ status: FleetAlertStatus;
+ title: string;
+ message: string;
+ event_at: string;
+ vehicle_id: string | null;
+ plate_number: string | null;
+ metadata?: Record<string, unknown>;
+ live?: boolean;
+}
+
+export interface FleetGeofenceSummary {
+ id: string;
+ name: string;
+ geofence_type: string;
+ radius_m: number;
+ branch_id: string | null;
+}
+
+export interface FleetMaintenanceSummary {
+ id: string;
+ vehicle_id: string;
+ plate_number: string | null;
+ service_name: string;
+ status: string;
+ next_service_date: string | null;
+ next_service_odometer_km: number | null;
+ current_odometer_km: number | null;
+ remaining_km: number | null;
+}
+
+export interface FleetDriverSessionSummary {
+ id: string;
+ driver_id: string;
+ driver_name: string;
+ vehicle_id: string;
+ plate_number: string | null;
+ status: string;
+ started_at: string;
+ checklist: Record<string, boolean>;
+}
+
+export interface FleetDeliveryEta {
+ id: string;
+ order_number: string;
+ status: string;
+ destination: string;
+ plate_number: string | null;
+ distance_km: number | null;
+ eta_minutes: number | null;
+ gps_available: boolean;
+}
+
+export interface FleetControlCenterResponse {
+ mode: 'MANAGEMENT' | 'DRIVER';
+ generated_at: string;
+ gps: FleetGpsStatusResponse;
+ kpis: {
+  total_vehicles: number;
+  moving: number;
+  idle: number;
+  offline: number;
+  open_alerts: number;
+  critical_alerts: number;
+  active_deliveries: number;
+  maintenance_due: number;
+  geofence_coverage: number;
+ };
+ alerts: FleetControlAlert[];
+ geofences: FleetGeofenceSummary[];
+ geofence_options: Array<{ id: string; label: string }>;
+ maintenance: FleetMaintenanceSummary[];
+ active_sessions: FleetDriverSessionSummary[];
+ deliveries: FleetDeliveryEta[];
+ driver_setup: {
+  driver_id: string;
+  driver_name: string;
+  vehicles: Array<{ id: string; plate_number: string | null; vehicle_type: string | null }>;
+ } | null;
+ recommendations: Array<{
+  id: string;
+  priority: 'SEGERA' | 'HARI_INI' | 'RANCANG';
+  title: string;
+  detail: string;
+  action_tab: 'overview' | 'schedule' | 'drivers' | 'deliveries' | 'vehicles' | 'status';
+ }>;
+}
+
 export interface CreateDeliveryPayload {
  origin_location_id: string;
  final_destination_id: string;
