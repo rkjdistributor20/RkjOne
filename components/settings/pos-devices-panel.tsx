@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Ban, CheckCircle2, CircleAlert, Clock3, Copy, KeyRound, Layers3, Plus, RotateCcw, ShieldCheck, TabletSmartphone } from 'lucide-react';
+import { Ban, CheckCircle2, CircleAlert, Clock3, Copy, KeyRound, Layers3, Plus, ShieldCheck, TabletSmartphone } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -195,31 +195,17 @@ export function PosDevicesPanel() {
     }
   }
 
-  async function revoke(device: Device) {
-    if (!window.confirm(`Batalkan akses ${device.device_name}? Tablet itu akan terus masuk Mod Latihan.`)) return;
+  async function cancelDevice(device: Device) {
+    if (!window.confirm(`Batalkan ${device.device_name}? Rekod aset, kod aktivasi dan akses tablet ini akan dipadam. Untuk menggunakannya semula, tablet mesti didaftarkan semula.`)) return;
     try {
       await requestJson('/api/settings/pos-devices', {
-        method: 'PATCH',
+        method: 'DELETE',
         body: JSON.stringify({ device_id: device.id }),
       });
-      toast.success('Akses tablet dibatalkan');
+      toast.success('Tablet dibatalkan dan rekodnya telah dipadam');
       await load();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Gagal membatalkan tablet');
-    }
-  }
-
-  async function reactivate(device: Device) {
-    if (!window.confirm(`Aktifkan semula ${device.device_name}? Rekod aset dikekalkan tetapi kod aktivasi baharu masih perlu dijana.`)) return;
-    try {
-      await requestJson('/api/settings/pos-devices', {
-        method: 'PATCH',
-        body: JSON.stringify({ device_id: device.id, action: 'reactivate' }),
-      });
-      toast.success('Tablet diaktifkan semula dan kini menunggu kod aktivasi baharu');
-      await load();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Gagal mengaktifkan semula tablet');
     }
   }
 
@@ -442,16 +428,9 @@ export function PosDevicesPanel() {
                         <KeyRound className="h-4 w-4" /> {device.asset_verified_at ? 'Kemaskini Aset / Jana Kod' : 'Daftar Aset'}
                       </Button>
                     )}
-                    {device.status !== 'REVOKED' && (
-                      <Button variant="outline" size="sm" className="gap-2 text-red-700" onClick={() => revoke(device)}>
-                        <Ban className="h-4 w-4" /> Batalkan
-                      </Button>
-                    )}
-                    {device.status === 'REVOKED' && (
-                      <Button size="sm" className="gap-2" onClick={() => reactivate(device)}>
-                        <RotateCcw className="h-4 w-4" /> Aktifkan Semula
-                      </Button>
-                    )}
+                    <Button variant="outline" size="sm" className="gap-2 text-red-700" onClick={() => cancelDevice(device)}>
+                      <Ban className="h-4 w-4" /> Batalkan
+                    </Button>
                   </div>
                 </div>
               );
