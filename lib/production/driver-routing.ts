@@ -27,7 +27,7 @@ export const ROUTE_STATUS_LABELS: Record<string, string> = {
 export function driverRoleFromCode(driverCode: string): DriverRouteRole {
  const code = driverCode.toUpperCase();
  if (['D001', 'DRV001', 'ROAD001', 'DIST-DRV-001', 'DIST-AST-001'].includes(code)) return 'HUB_PRIMARY';
- if (['D004', 'D005', 'DRV003', 'DRV004', 'ROAD005', 'ROAD006', 'DIST-DRV-004'].includes(code)) {
+ if (['D004', 'D005', 'DRV003', 'DRV004', 'ROAD004', 'ROAD005', 'ROAD006', 'DIST-DRV-004', 'DIST-DRV-005'].includes(code)) {
  return 'HUB_RELAY';
  }
  return 'DIRECT';
@@ -56,6 +56,7 @@ export function driversForRegion(
  'ROAD008',
  ],
  TENGAH: [
+ 'DIST-DRV-005',
  'DIST-DRV-001',
  'DIST-AST-001',
  'DIST-DRV-002',

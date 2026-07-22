@@ -7,6 +7,7 @@ import {
  assertCanAccessPosBranch,
  posAccessErrorStatus,
 } from '@/lib/pos/access';
+import { assertOfficialPosDevice } from '@/lib/pos/device-auth';
 
 const POS_SHIFT_COUNT_ITEM_CODES = [...RKJ_MANUFACTURING_OWN_PRODUCT_CODES, 'ST-BUTTER'] as const;
 const POS_SHIFT_COUNT_ORDER = new Map<string, number>(
@@ -348,7 +349,6 @@ export async function GET(request: Request) {
  const { searchParams } = new URL(request.url);
  const branchId = searchParams.get('branch_id') ?? profile.branch_id;
  if (!branchId) return NextResponse.json({ error: 'Branch required' }, { status: 400 });
-
  const supabase = await createClient();
  const db = supabase as any;
 
@@ -439,7 +439,16 @@ export async function POST(request: Request) {
  const body = await request.json().catch(() => ({}));
  const action = String(body.action ?? '');
  const branchId = body.branch_id ?? profile.branch_id;
- if (!branchId) return NextResponse.json({ error: 'Branch required' }, { status: 400 });
+ if (!branchId) {
+  return NextResponse.json({ error: 'Branch required' }, { status: 400 });
+ }
+ try {
+  await assertOfficialPosDevice(profile, branchId);
+ } catch (err) {
+  return NextResponse.json(
+   { error: err instanceof Error ? err.message : 'Tablet POS rasmi diperlukan' },
+   { status: 403 });
+ }
 
  const supabase = await createClient();
  const db = supabase as any;

@@ -10,6 +10,7 @@ const SAMAD = 'ABDUL SAMAD BIN RAHMATHULLAH';
 const FARID = 'MUHAMMAD FARID BIN YAMAN';
 const ANUAR = 'MOHAMAD ANUAR BIN MOHAMAD TAN';
 const FAZIL = 'MD FAZIL BIN HUSIN';
+const AHMAD_NIZA = 'AHMAD NIZA BIN RAMLI';
 const NADZIR = 'MUHAMMAD NADZIR BIN MOHAMED HASHIRAF';
 const DRIVER_KILANG = 'DRIVER KILANG - POOL GANTI';
 
@@ -48,6 +49,13 @@ const DRIVER_MASTER = [
  employeeCode: 'DIST005',
  route: 'Laluan Pantai Timur/KL relay - Temerloh, KL dan tugasan sokongan tengah/selatan.',
  remarks: 'Staf berdaftar RKJ Distributor | Driver relay Pantai Timur/KL | Rebuilt 2026-06-29',
+ },
+ {
+ code: 'DIST-DRV-005',
+ name: AHMAD_NIZA,
+ employeeCode: 'ROAD004',
+ route: 'Laluan Tengah di bawah AM Hakim - pickup utama daripada lori Samad di Sungkai; ambil terus dari kilang hanya apabila permintaan tinggi atau diarahkan OM/HQ.',
+ remarks: 'Staf berdaftar RKJ Distributor | Driver relay Wilayah Tengah | Pickup utama Sungkai daripada DIST-DRV-001',
  },
  {
  code: 'MFG-DRV-POOL',
@@ -95,9 +103,9 @@ const VEHICLES = [
  type: 'Lori Rigid',
  capacity: '1 Tan',
  model: 'Isuzu',
- defaultDriverCode: 'DIST-DRV-004',
+ defaultDriverCode: 'DIST-DRV-005',
  route: 'Sungkai / Tengah',
- driverCodes: ['DIST-DRV-004', 'MFG-DRV-POOL'],
+ driverCodes: ['DIST-DRV-005', 'DIST-DRV-001', 'MFG-DRV-POOL'],
  },
  {
  code: 'VEH-WA1202J',
@@ -146,7 +154,7 @@ function compactName(value) {
 function routeGroupForRegion(regionCode, branchCode = '') {
  const rank = Number(String(branchCode).replace(/\D/g, '') || 1);
  if (regionCode === 'UTARA') return rank % 2 === 0 ? [FARID] : [ANUAR];
- if (regionCode === 'TENGAH') return [SAMAD, NADZIR];
+ if (regionCode === 'TENGAH') return [AHMAD_NIZA];
  return [FAZIL];
 }
 
@@ -187,6 +195,9 @@ function driverGroupForPickup(agent, point) {
  }
  if (text.includes('kuala lumpur') || text.includes('sg buluh') || text.includes('samad') || text.includes('nadzira') || text.includes('nadzir')) {
  return [SAMAD, NADZIR];
+ }
+ if (text.includes('behrang') || text.includes('sungkai') || text.includes('bikam') || text.includes('tapah') || text.includes('tanjung malim')) {
+ return [AHMAD_NIZA];
  }
  return [SAMAD, NADZIR];
 }
@@ -335,7 +346,8 @@ async function main() {
  else if (text.includes('nadzir') || text.includes('nadzira') || oldDriver.driver_code === 'ROAD008') targetCode = 'DIST-AST-001';
  else if (text.includes('farid') || ['DRV002', 'ROAD003'].includes(oldDriver.driver_code)) targetCode = 'DIST-DRV-002';
  else if (text.includes('anuar') || ['DRV006', 'ROAD002'].includes(oldDriver.driver_code)) targetCode = 'DIST-DRV-003';
- else if (text.includes('fazil') || text.includes('fadzil') || text.includes('hazrul') || text.includes('azrul') || text.includes('ahmad') || ['DRV003', 'DRV004', 'DRV005', 'ROAD004', 'ROAD005', 'ROAD006'].includes(oldDriver.driver_code)) targetCode = 'DIST-DRV-004';
+ else if (text.includes('ahmad') || oldDriver.driver_code === 'ROAD004') targetCode = 'DIST-DRV-005';
+ else if (text.includes('fazil') || text.includes('fadzil') || text.includes('hazrul') || text.includes('azrul') || ['DRV003', 'DRV004', 'DRV005', 'ROAD005', 'ROAD006'].includes(oldDriver.driver_code)) targetCode = 'DIST-DRV-004';
  else if (text.includes('driver kilang') || oldDriver.driver_code === 'ROAD007') targetCode = 'MFG-DRV-POOL';
  const target = targetCode ? newDriverByCode.get(targetCode) : null;
  if (target && target.id !== oldDriver.id) oldToNew.set(oldDriver.id, target.id);
@@ -392,6 +404,16 @@ async function main() {
  organization_id: org.id,
  driver_id: driver.id,
  vehicle_id: savedVehicle.id,
+ assignment_role: driver.driver_code === vehicle.defaultDriverCode
+ ? 'PRIMARY'
+ : driver.driver_code === 'DIST-AST-001'
+ ? 'ASSISTANT'
+ : 'RELIEF',
+ responsibility_notes: driver.driver_code === vehicle.defaultDriverCode
+ ? 'Periksa kenderaan sebelum bergerak; gunakan untuk tugasan rasmi; rekod GPS/status, minyak, tol, POD dan kerosakan; pulangkan bersih dan selamat.'
+ : driver.driver_code === 'DIST-AST-001'
+ ? 'Bantu driver utama semak muatan, dokumen, handoff dan POD. Tidak boleh membawa kenderaan tanpa arahan OM/HQ dan lesen yang sah.'
+ : 'Driver ganti yang dibenarkan OM/HQ. Semak kenderaan dan lengkapkan semua rekod perjalanan apabila ditugaskan.',
  assigned_at: now,
  unassigned_at: null,
  is_active: true,
@@ -435,7 +457,9 @@ async function main() {
  route_code: routeCode(`${regionCode}-${driverNames.join('-')}`, 'BR'),
  driver_name: driverNames.join(' / '),
  assistant_name: driverNames.includes(NADZIR) ? NADZIR : null,
- collect_from: 'RKJ Distributor HQ / Kilang mengikut jadual production',
+ collect_from: regionCode === 'TENGAH'
+ ? 'Pickup utama daripada lori Samad di Sungkai; kilang hanya untuk permintaan tinggi atau arahan OM/HQ'
+ : 'RKJ Distributor HQ / Kilang mengikut jadual production',
  sequence_no: Number(String(branch.branch_code).replace(/\D/g, '') || 0),
  location_name: `${branch.branch_code} - ${branch.branch_name}`,
  location_type: 'BRANCH_KIOSK',

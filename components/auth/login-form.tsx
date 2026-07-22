@@ -68,6 +68,15 @@ export function LoginForm() {
       .eq("id", authData.user?.id ?? "")
       .maybeSingle();
 
+    const deviceResponse = await fetch('/api/pos/device', { cache: 'no-store' });
+    if (deviceResponse.ok) {
+      const deviceContext = await deviceResponse.json();
+      if (deviceContext.mode === 'PRODUCTION') {
+        window.location.href = '/pos';
+        return;
+      }
+    }
+
     if ((profile as { role?: string } | null)?.role === "STAFF") {
       setIsStaffLogin(true);
       setShowSchedule(true);

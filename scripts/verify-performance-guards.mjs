@@ -245,7 +245,7 @@ const checks = [
  {
  file: 'components/fleet/fleet-dashboard.tsx',
  patterns: [
-  "type FleetTab = 'overview' | 'schedule' | 'drivers' | 'deliveries' | 'vehicles' | 'status'",
+  "type FleetTab = 'overview' | 'schedule' | 'drivers' | 'deliveries' | 'vehicles' | 'company' | 'status'",
   'const loadStatusLogs',
   'const loadCreateResources',
  '<Tabs value={activeTab}',

@@ -109,6 +109,32 @@ export async function assertAreaManagerScheduledForPos(
  };
 }
 
+export async function assertActivePosShiftMember(
+ supabase: SupabaseClient,
+ profile: Pick<Profile, 'id' | 'role'>,
+ shiftId: string,
+ branchId: string) {
+ if (POS_BRANCH_ALL_ACCESS_ROLES.has(profile.role as UserRole)) return null;
+
+ const { data: member, error } = await supabase
+ .from('pos_shift_staff_members')
+ .select('id, status, role_in_shift')
+ .eq('shift_id', shiftId)
+ .eq('branch_id', branchId)
+ .eq('profile_id', profile.id)
+ .eq('status', 'ACTIVE')
+ .maybeSingle();
+
+ if (error) throw new Error(error.message);
+ if (!member) {
+ throw new PosAccessError(
+ 'Anda belum aktif dalam syif POS ini. Minta AM atau pengurus meluluskan keahlian syif sebelum merekod jualan sebenar.',
+ 403);
+ }
+
+ return member;
+}
+
 export async function assertCanAccessPosBranch(
  supabase: SupabaseClient,
  profile: Pick<Profile, 'organization_id' | 'role' | 'region_id' | 'branch_id'>,

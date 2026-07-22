@@ -6,6 +6,7 @@ import {
   canApprovePosShiftStaff,
   posAccessErrorStatus,
 } from '@/lib/pos/access';
+import { assertOfficialPosDevice } from '@/lib/pos/device-auth';
 
 const SHIFT_ROLES = new Set(['PIC', 'JUALAN', 'PEMBANTU', 'GANTI']);
 
@@ -174,7 +175,6 @@ export async function GET(request: Request) {
   const branchId = searchParams.get('branch_id') ?? profile.branch_id;
   const shiftId = searchParams.get('shift_id');
   if (!branchId) return NextResponse.json({ error: 'Branch required' }, { status: 400 });
-
   const supabase = await createClient();
   const db = supabase as any;
 
@@ -217,8 +217,16 @@ export async function POST(request: Request) {
 
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
   const branchId = body.branch_id ? String(body.branch_id) : profile.branch_id;
-  const shiftId = body.shift_id ? String(body.shift_id) : null;
   if (!branchId) return NextResponse.json({ error: 'Branch required' }, { status: 400 });
+  try {
+    await assertOfficialPosDevice(profile, branchId);
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Tablet POS rasmi diperlukan' },
+      { status: 403 }
+    );
+  }
+  const shiftId = body.shift_id ? String(body.shift_id) : null;
 
   const supabase = await createClient();
   const db = supabase as any;
@@ -339,6 +347,7 @@ export async function PATCH(request: Request) {
     if (memberError) throw new Error(memberError.message);
     if (!member) return NextResponse.json({ error: 'Rekod staf syif tidak dijumpai' }, { status: 404 });
     await assertCanAccessPosBranch(supabase, profile, member.branch_id);
+    await assertOfficialPosDevice(profile, member.branch_id);
 
     if (action === 'approve') {
       if (!canApprovePosShiftStaff(profile.role)) {

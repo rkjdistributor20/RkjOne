@@ -9,6 +9,8 @@ Status teknikal Android sudah siap untuk dihantar ke Google Play Console.
 - Version code: `1`
 - Version name: `1.0`
 - Privacy policy: `https://rkj.one/privacy`
+- Support: `https://rkj.one/support`
+- Account deletion: `https://rkj.one/delete-account`
 - Feature graphic: `outputs/mobile-release/store-assets/play-store-feature-graphic.png`
 - Phone screenshots: `outputs/mobile-release/store-assets/01-secure-login.png` hingga `05-logistics-agent.png`
 

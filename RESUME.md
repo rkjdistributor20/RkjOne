@@ -142,7 +142,7 @@ npm run db:push               # migrations (00111+)
 | Owner | matisa@rkj.com | Pentadbir Utama |
 | Ejen UAT | agent001@rkj.com | Portal Ejen |
 | AM Utara/Tengah/Selatan | dist009@ / dist001@ / dist010@ | 12/10/14 kiosk |
-| Kata laluan UAT | `RkjOne@2026` | Tukar selepas go-live |
+| Kata laluan UAT | Rujuk pengurus kata laluan syarikat | Jangan simpan dalam Git |
 
 ---
 

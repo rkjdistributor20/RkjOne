@@ -2,9 +2,12 @@ import { createServerClient } from '@supabase/ssr';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse, type NextRequest } from 'next/server';
 import type { Database } from '@/types/database';
+import { verifyKioskBypassToken } from '@/lib/pos/kiosk-token';
 
 const CHANGE_PASSWORD_PATH = '/change-password';
 const CHANGE_PASSWORD_API = '/api/auth/change-password';
+const POS_DEVICE_COOKIE = 'rkj_pos_device';
+const POS_KIOSK_BYPASS_COOKIE = 'rkj_pos_kiosk_bypass';
 const PUBLIC_API_PATHS = new Set([
  '/api/health',
  '/api/pos/qr-payments/webhook',
@@ -55,6 +58,10 @@ export async function updateSession(request: NextRequest) {
 
  const isChangePasswordRoute =
  pathname === CHANGE_PASSWORD_PATH || pathname.startsWith(CHANGE_PASSWORD_API);
+ const hasOfficialPosCredential = Boolean(request.cookies.get(POS_DEVICE_COOKIE)?.value);
+ const kioskBypassed = user
+ ? await verifyKioskBypassToken(request.cookies.get(POS_KIOSK_BYPASS_COOKIE)?.value, user.id)
+ : false;
 
  if (!user && !isPublicRoute) {
  if (isApiRoute) {
@@ -68,7 +75,22 @@ export async function updateSession(request: NextRequest) {
 
  if (user && pathname === '/login') {
  const url = request.nextUrl.clone();
- url.pathname = '/dashboard';
+ url.pathname = hasOfficialPosCredential && !kioskBypassed ? '/pos' : '/dashboard';
+ return NextResponse.redirect(url);
+ }
+
+ if (
+ user &&
+ hasOfficialPosCredential &&
+ !kioskBypassed &&
+ !isApiRoute &&
+ !isPublicAsset &&
+ !isChangePasswordRoute &&
+ pathname !== '/pos'
+ ) {
+ const url = request.nextUrl.clone();
+ url.pathname = '/pos';
+ url.search = '';
  return NextResponse.redirect(url);
  }
 

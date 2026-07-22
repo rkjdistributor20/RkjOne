@@ -82,7 +82,19 @@ RKJ One, staff operations, POS, inventory, logistics, HR
 Support URL:
 
 ```text
-https://rkj.one/privacy
+https://rkj.one/support
+```
+
+Account deletion URL:
+
+```text
+https://rkj.one/delete-account
+```
+
+Terms of use:
+
+```text
+https://rkj.one/terms
 ```
 
 Marketing URL:

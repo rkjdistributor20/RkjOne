@@ -7,6 +7,9 @@ Dokumen ini ialah rujukan terakhir untuk submit RKJ One Staff ke Google Play Con
 - Mobile readiness audit: `54 passed, 0 warning, 0 failure`
 - Production URL: `https://rkj.one`
 - Privacy policy: `https://rkj.one/privacy`
+- Support: `https://rkj.one/support`
+- Account deletion: `https://rkj.one/delete-account`
+- Terms of use: `https://rkj.one/terms`
 - App name: `RKJ One Staff`
 - Package / bundle identifier: `com.rkjone.staff`
 - Version name: `1.0`
@@ -24,7 +27,8 @@ D-U-N-S: 47-331-2040
 D-U-N-S digit-only: 473312040
 Website: https://rkj.one
 Privacy policy: https://rkj.one/privacy
-Contact email: rkjdistributor20@gmail.com
+Public support email: developer@rkj.one
+Account owner email: rkjdistributor20@gmail.com
 ```
 
 ## Google Play Console

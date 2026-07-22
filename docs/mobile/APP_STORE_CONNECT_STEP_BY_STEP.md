@@ -63,6 +63,18 @@ Privacy policy:
 https://rkj.one/privacy
 ```
 
+Support URL:
+
+```text
+https://rkj.one/support
+```
+
+Account deletion URL:
+
+```text
+https://rkj.one/delete-account
+```
+
 Review notes:
 
 ```text

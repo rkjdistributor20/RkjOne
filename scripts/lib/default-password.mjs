@@ -1,3 +1,3 @@
-/** Kata laluan lalai production / UAT (Jun 2026) */
-export const DEFAULT_PASSWORD = 'RkjOne@2026';
-export const LEGACY_PASSWORD = 'RkjOne@2025';
+/** Credentials must be supplied at runtime and must never be committed. */
+export const DEFAULT_PASSWORD = process.env.RKJ_INITIAL_PASSWORD?.trim() || '';
+export const LEGACY_PASSWORD = process.env.RKJ_LEGACY_PASSWORD?.trim() || '';

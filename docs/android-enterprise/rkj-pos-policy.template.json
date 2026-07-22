@@ -1,0 +1,63 @@
+{
+  "applications": [
+    {
+      "packageName": "com.rkjone.staff",
+      "installType": "REQUIRED_FOR_SETUP",
+      "roles": [
+        {
+          "roleType": "KIOSK"
+        }
+      ],
+      "autoUpdateMode": "AUTO_UPDATE_HIGH_PRIORITY",
+      "defaultPermissionPolicy": "GRANT"
+    }
+  ],
+  "addUserDisabled": true,
+  "adjustVolumeDisabled": false,
+  "autoDateAndTimeZone": "AUTO_DATE_AND_TIME_ZONE_ENFORCED",
+  "factoryResetDisabled": true,
+  "installAppsDisabled": true,
+  "modifyAccountsDisabled": true,
+  "safeBootDisabled": true,
+  "uninstallAppsDisabled": true,
+  "passwordPolicies": [
+    {
+      "passwordMinimumLength": 6,
+      "passwordQuality": "NUMERIC_COMPLEX",
+      "passwordScope": "SCOPE_DEVICE"
+    }
+  ],
+  "systemUpdate": {
+    "type": "WINDOWED",
+    "startMinutes": 120,
+    "endMinutes": 300
+  },
+  "kioskCustomization": {
+    "deviceSettings": "SETTINGS_ACCESS_BLOCKED",
+    "powerButtonActions": "POWER_BUTTON_AVAILABLE",
+    "statusBar": "SYSTEM_INFO_ONLY",
+    "systemErrorWarnings": "ERROR_AND_WARNINGS_MUTED",
+    "systemNavigation": "NAVIGATION_DISABLED"
+  },
+  "advancedSecurityOverrides": {
+    "developerSettings": "DEVELOPER_SETTINGS_DISABLED",
+    "googlePlayProtectVerifyApps": "VERIFY_APPS_ENFORCED",
+    "untrustedAppsPolicy": "DISALLOW_INSTALL"
+  },
+  "statusReportingSettings": {
+    "applicationReportsEnabled": true,
+    "deviceSettingsEnabled": true,
+    "displayInfoEnabled": true,
+    "hardwareStatusEnabled": true,
+    "memoryInfoEnabled": true,
+    "networkInfoEnabled": true,
+    "powerManagementEventsEnabled": true,
+    "softwareInfoEnabled": true
+  },
+  "shortSupportMessage": {
+    "defaultMessage": "Tablet POS milik Roti Kaya Junus. Hubungi HQ atau AM."
+  },
+  "longSupportMessage": {
+    "defaultMessage": "Peranti ini dikawal oleh RKJ One dan hanya digunakan untuk operasi POS rasmi cawangan."
+  }
+}

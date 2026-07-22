@@ -57,7 +57,7 @@ console.log(' http://localhost:3000/auth/callback');
 console.log(' Enable email signup = OFF\n');
 
 console.log('C) Uji login pertama');
-console.log(' matisa@rkj.com / RkjOne@2025 ke akan diminta tukar kata laluan');
+console.log(' Akaun pemilik akan diminta menukar kata laluan semasa login pertama');
 console.log(' Area Manager: safuan@rkj.com, hakim@rkj.com, yati@rkj.com\n');
 
 console.log('D) Go-live 36 cawangan - operasi sebenar serentak');

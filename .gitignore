@@ -14,6 +14,7 @@ csv_import/.go-live-temp-password.txt
 csv_import/go_live_credentials_export.csv
 csv_import/password_rotation_*.csv
 outputs/
+artifacts/
 outputs/mobile-release/play-store-reviewer-account.*
 _restore/
 

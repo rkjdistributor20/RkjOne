@@ -14,6 +14,7 @@ import {
   Sparkles,
   Settings2,
   Users,
+  TabletSmartphone,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { BranchesSettingsPanel } from "@/components/settings/branches-settings-panel";
@@ -24,6 +25,7 @@ import { StockPlanningSettingsPanel } from "@/components/settings/stock-planning
 import { StaffSettingsPanel } from "@/components/settings/staff-settings-panel";
 import { SystemHealthPanel } from "@/components/settings/system-health-panel";
 import { UsersSettingsPanel } from "@/components/settings/users-settings-panel";
+import { PosDevicesPanel } from "@/components/settings/pos-devices-panel";
 import {
   fetchSettingsUsers,
   fetchSettingsProducts,
@@ -82,6 +84,8 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
         ? "companies"
         : tabParam === "users" && canManageUsers
           ? "users"
+          : tabParam === "pos-devices" && isAdmin
+            ? "pos-devices"
           : tabParam === "staff" && canViewStaff
             ? "staff"
           : tabParam === "planning"
@@ -262,6 +266,16 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
           group: "Operasi",
           tone: "violet",
           visible: showPlanningTab,
+        },
+        {
+          value: "pos-devices",
+          title: "Tablet POS Rasmi",
+          description: "Daftar satu tablet rasmi bagi setiap cawangan dan kunci transaksi sebenar kepada peranti tersebut.",
+          icon: TabletSmartphone,
+          metric: "Kawalan peranti",
+          group: "Operasi",
+          tone: "sky",
+          visible: isAdmin,
         },
         {
           value: "companies",
@@ -550,6 +564,12 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
           {showPlanningTab && (
             <TabsContent value="planning" className="mt-4">
               <StockPlanningSettingsPanel canEdit={canEditPlanning} />
+            </TabsContent>
+          )}
+
+          {isAdmin && (
+            <TabsContent value="pos-devices" className="mt-4">
+              <PosDevicesPanel />
             </TabsContent>
           )}
 

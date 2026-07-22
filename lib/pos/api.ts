@@ -13,6 +13,8 @@ import type {
  PosShiftStockCheckType,
  PosTransactionRow,
  ProductStockInfo,
+ PosDeviceContext,
+ PosDeviceManagementStatus,
  SaleResult,
 } from './types';
 import type { Product } from '@/types/database';
@@ -45,6 +47,24 @@ async function fetchCachedJson<T>(
 
 export function clearPosReferenceCache() {
  referenceCache.clear();
+}
+
+export async function fetchPosDeviceContext() {
+ return fetchJson<PosDeviceContext>('/api/pos/device');
+}
+
+export async function enrollPosDevice(enrollmentCode: string) {
+ return fetchJson<{ success: true; device: PosDeviceContext['device'] }>('/api/pos/device', {
+  method: 'POST',
+  body: JSON.stringify({ enrollment_code: enrollmentCode }),
+ });
+}
+
+export async function syncPosDeviceManagement(status: PosDeviceManagementStatus) {
+ return fetchJson<{ success: true; management: PosDeviceManagementStatus }>('/api/pos/device', {
+  method: 'PUT',
+  body: JSON.stringify({ status }),
+ });
 }
 
 export async function fetchProducts(branchId: string) {

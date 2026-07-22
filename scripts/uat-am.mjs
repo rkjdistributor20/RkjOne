@@ -9,6 +9,7 @@ import { loadProjectEnv } from './lib/load-env.mjs';
 import { DEFAULT_PASSWORD } from './lib/default-password.mjs';
 
 const PRODUCTION_URL = process.env.PRODUCTION_URL ?? 'https://rkj.one';
+const ALLOW_PASSWORD_RESET = process.env.ALLOW_UAT_PASSWORD_RESET === '1';
 
 const AM_ACCOUNTS = [
  { email: 'dist009@rkj.com', region: 'UTARA', expectedKiosks: 12, label: 'Safuan (Utara)' },
@@ -100,7 +101,7 @@ for (const acc of AM_ACCOUNTS) {
  ok('Profil', `${prof.full_name} - ${acc.region} - majikan ${prof.legal_entity?.code ?? '?'}`);
 
  let login = await anon.auth.signInWithPassword({ email: acc.email, password });
- if (login.error) {
+ if (login.error && ALLOW_PASSWORD_RESET) {
  let page = 1;
  let user = null;
  while (page <= 20) {
@@ -113,6 +114,12 @@ for (const acc of AM_ACCOUNTS) {
  await admin.auth.admin.updateUserById(user.id, { password, email_confirm: true });
  login = await anon.auth.signInWithPassword({ email: acc.email, password });
  }
+ }
+
+ if (login.error && !ALLOW_PASSWORD_RESET) {
+ fail('Login', `${login.error.message} (password reset dilangkau; set ALLOW_UAT_PASSWORD_RESET=1 pada staging)`);
+ failed += 1;
+ continue;
  }
 
  if (login.error || !login.data.session) {

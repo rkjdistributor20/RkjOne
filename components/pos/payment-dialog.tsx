@@ -26,6 +26,7 @@ interface PaymentDialogProps {
  onOpenChange: (open: boolean) => void;
  branchId: string;
  onSuccess: (receipt: SaleResult) => void;
+ trainingMode?: boolean;
 }
 
 function buildQuickAmounts(total: number): number[] {
@@ -80,6 +81,7 @@ export function PaymentDialog({
  onOpenChange,
  branchId,
  onSuccess,
+ trainingMode = false,
 }: PaymentDialogProps) {
  const profile = useAuthStore((s) => s.profile);
  const cart = usePosStore((s) => s.cart);
@@ -115,7 +117,7 @@ export function PaymentDialog({
 
  const shortfall = Math.max(total - paidAmount, 0);
  const paymentError =
- !shift
+ !shift && !trainingMode
  ? 'Buka syif POS dahulu.'
  : cart.length === 0
  ? 'Troli masih kosong.'
@@ -170,16 +172,44 @@ export function PaymentDialog({
  }
 
  async function handlePay() {
- const currentShift = shift;
- if (!currentShift) {
+  const currentShift = shift;
+  if (!currentShift && !trainingMode) {
  toast.error('Buka syif POS dahulu.');
  return;
  }
- if (!canPay) {
+  if (!canPay) {
  toast.error(paymentError ?? 'Bayaran belum lengkap.');
  return;
- }
- const payload = buildSalePayload();
+  }
+  if (trainingMode) {
+   const trainingId = `TRAINING-${generateOfflineId()}`;
+   const trainingReceipt: SaleResult = {
+    transaction_id: trainingId,
+    transaction_number: trainingId,
+    receipt_number: `LATIHAN-${trainingId.slice(-8)}`,
+    subtotal: total,
+    discount: 0,
+    total,
+    change_amount: changeAmount,
+    items: cart.map((item) => ({
+     name: item.name,
+     sku: item.sku,
+     quantity: item.quantity,
+     unit_price: item.price,
+     line_total: item.price * item.quantity,
+    })),
+   };
+   toast.success('Latihan selesai. Tiada jualan, bayaran atau stok sebenar direkodkan.');
+   clearCart();
+   handleDialogOpenChange(false);
+   onSuccess(trainingReceipt);
+   return;
+  }
+  if (!currentShift) {
+   toast.error('Buka syif POS dahulu.');
+   return;
+  }
+  const payload = buildSalePayload();
  if (!payload) {
  toast.error('Buka syif POS dahulu.');
  return;
@@ -247,9 +277,9 @@ export function PaymentDialog({
  return (
  <Dialog open={open} onOpenChange={handleDialogOpenChange}>
  <DialogContent className="flex max-h-[92vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
- <div className="bg-gradient-to-br from-amber-500 to-orange-600 px-5 py-5 text-white">
+  <div className={cn('px-5 py-5 text-white', trainingMode ? 'bg-sky-700' : 'bg-gradient-to-br from-amber-500 to-orange-600')}>
  <p className="text-xs font-medium uppercase tracking-wider text-white/80">
- Kounter Tunai
+  {trainingMode ? 'Simulasi Latihan' : 'Kaunter Tunai'}
  </p>
  <p className="mt-1 text-sm text-white/90">Jumlah perlu bayar</p>
  <p className="mt-0.5 text-4xl font-bold tabular-nums tracking-tight">
@@ -467,7 +497,7 @@ export function PaymentDialog({
  onClick={handlePay}
  >
  {method === 'QR' ? <QrCode className="h-5 w-5" /> : <Banknote className="h-5 w-5" />}
- {loading ? 'Memproses...' : 'Sahkan Bayaran'}
+  {loading ? 'Memproses...' : trainingMode ? 'Sahkan Simulasi' : 'Sahkan Bayaran'}
  </Button>
  </div>
  </DialogContent>

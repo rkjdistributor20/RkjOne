@@ -6,11 +6,13 @@ import { inventoryRpc } from '@/lib/supabase/inventory-rpc';
 import { getCurrentProfile } from '@/lib/auth/session';
 import {
  assertAreaManagerScheduledForPos,
+ assertActivePosShiftMember,
  assertCanAccessPosBranch,
  canViewFullPosHistory,
  posAccessErrorStatus,
 } from '@/lib/pos/access';
 import type { CreateSalePayload, SaleResult } from '@/lib/pos/types';
+import { assertOfficialPosDevice } from '@/lib/pos/device-auth';
 
 export async function GET(request: Request) {
  const profile = await getCurrentProfile();
@@ -74,6 +76,8 @@ export async function POST(request: Request) {
  try {
  await assertCanAccessPosBranch(supabase, profile, body.branchId);
  await assertAreaManagerScheduledForPos(supabase, profile, body.branchId);
+ await assertOfficialPosDevice(profile, body.branchId);
+ await assertActivePosShiftMember(supabase, profile, body.shiftId, body.branchId);
  } catch (err) {
  return NextResponse.json(
  { error: err instanceof Error ? err.message : 'Akses cawangan ditolak' },

@@ -28,6 +28,9 @@ const REQUIRED_DOCS = [
   'docs/mobile/RELEASE_CHECKLIST.md',
   'docs/MOBILE_APP_RELEASE.md',
   'app/privacy/page.tsx',
+  'app/support/page.tsx',
+  'app/delete-account/page.tsx',
+  'app/terms/page.tsx',
 ];
 const REQUIRED_ASSETS = [
   'outputs/mobile-release/builds/rkj-one-staff-v1.0-release.aab',
@@ -167,6 +170,15 @@ async function main() {
   const privacy = await getText(`${PRODUCTION_URL}/privacy`);
   record('PWA', 'privacy policy live', privacy.ok && privacy.text.includes('RKJ One'), `HTTP ${privacy.status}`);
 
+  const support = await getText(`${PRODUCTION_URL}/support`);
+  record('PWA', 'support page live', support.ok && support.text.includes('developer@rkj.one'), `HTTP ${support.status}`);
+
+  const deletion = await getText(`${PRODUCTION_URL}/delete-account`);
+  record('PWA', 'account deletion page live', deletion.ok && deletion.text.includes('Pemadaman Akaun'), `HTTP ${deletion.status}`);
+
+  const terms = await getText(`${PRODUCTION_URL}/terms`);
+  record('PWA', 'terms page live', terms.ok && terms.text.includes('Terma Penggunaan'), `HTTP ${terms.status}`);
+
   const offline = await getText(`${PRODUCTION_URL}/offline`);
   record('PWA', 'offline fallback live', offline.ok, `HTTP ${offline.status}`);
 
@@ -270,6 +282,15 @@ async function main() {
     const profileApi = await getJson(`${PRODUCTION_URL}/api/profile`, { headers: { Cookie: cookie } });
     record('POS', 'profile API', profileApi.ok, `HTTP ${profileApi.status}`);
 
+    const deviceApi = await getJson(`${PRODUCTION_URL}/api/pos/device`, { headers: { Cookie: cookie } });
+    const reviewerTrainingMode = deviceApi.ok && deviceApi.body?.mode === 'TRAINING';
+    record(
+      'POS',
+      'reviewer device mode',
+      deviceApi.ok && ['TRAINING', 'PRODUCTION'].includes(deviceApi.body?.mode),
+      reviewerTrainingMode ? 'TRAINING (no live sales)' : deviceApi.body?.mode ?? `HTTP ${deviceApi.status}`,
+    );
+
     const productsApi = await getJson(`${PRODUCTION_URL}/api/pos/products?branch_id=${branch.id}`, { headers: { Cookie: cookie } });
     const productCount = productsApi.body?.products?.length ?? 0;
     record('POS', 'products API has active menu', productsApi.ok && productCount > 0, `${productCount} products`);
@@ -290,8 +311,17 @@ async function main() {
       'warn',
     );
 
-    const shiftApi = await getJson(`${PRODUCTION_URL}/api/pos/shift?branch_id=${branch.id}`, { headers: { Cookie: cookie } });
-    record('POS', 'shift API', shiftApi.ok, shiftApi.body?.shift ? `open: ${shiftApi.body.shift.shift_number}` : 'no open shift');
+    if (reviewerTrainingMode) {
+      record('POS', 'live shift isolation', true, 'training mode intentionally skips live shift data');
+    } else {
+      const shiftApi = await getJson(`${PRODUCTION_URL}/api/pos/shift?branch_id=${branch.id}`, { headers: { Cookie: cookie } });
+      record(
+        'POS',
+        'shift API responds',
+        shiftApi.ok,
+        shiftApi.body?.shift ? `open: ${shiftApi.body.shift.shift_number}` : 'ready; no open shift',
+      );
+    }
 
     const summaryApi = await getJson(`${PRODUCTION_URL}/api/pos/summary?branch_id=${branch.id}`, { headers: { Cookie: cookie } });
     const hasWorkFields = summaryApi.ok && Object.prototype.hasOwnProperty.call(summaryApi.body?.summary ?? {}, 'business_started_at');

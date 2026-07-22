@@ -17,6 +17,7 @@ const ROOT = PROJECT_ROOT;
 const PRODUCTION_URL = process.env.PRODUCTION_URL ?? 'https://rkj.one';
 const PROJECT_REF = 'mtygxueknokcihofdttl';
 const GO_LIVE_PASSWORD_FILE = path.join(ROOT, 'csv_import', '.go-live-temp-password.txt');
+const ALLOW_AUTH_WRITE_TEST = process.env.ALLOW_AUTH_WRITE_TEST === '1';
 
 function readGoLivePassword() {
  if (process.env.GO_LIVE_PASSWORD?.trim()) return process.env.GO_LIVE_PASSWORD.trim();
@@ -136,6 +137,9 @@ async function mainAuth() {
  }
 
  console.log('\n4. Signup public (mesti DISABLED)');
+ if (!ALLOW_AUTH_WRITE_TEST) {
+ warn('Ujian signup yang menulis Auth dilangkau. Set ALLOW_AUTH_WRITE_TEST=1 hanya pada staging.');
+ } else {
  const fakeEmail = `blocked-test-${Date.now()}@example.com`;
  const { data: signUpData, error: signUpErr } = await anon.auth.signUp({
  email: fakeEmail,
@@ -143,15 +147,16 @@ async function mainAuth() {
  });
  if (signUpErr) {
  pass(`Signup blocked - ${signUpErr.message}`);
- } else if (signUpData.user && !signUpData.session) {
- pass('Signup tiada session - anggap signup OFF / confirm email');
- } else if (signUpData.session) {
- fail('Signup BERJAYA dengan session - WAJIB matikan signup di Supabase!');
+ } else if (signUpData.user) {
+ fail('Signup mencipta pengguna - WAJIB matikan signup di Supabase!');
  if (serviceKey) {
  const admin = createClient(url, serviceKey, {
  auth: { autoRefreshToken: false, persistSession: false },
  });
- await admin.auth.admin.deleteUser(signUpData.user.id);
+ const { error: cleanupError } = await admin.auth.admin.deleteUser(signUpData.user.id);
+ if (cleanupError) fail(`Cleanup pengguna ujian gagal - ${cleanupError.message}`);
+ else pass('Cleanup pengguna signup ujian');
+ }
  }
  }
 

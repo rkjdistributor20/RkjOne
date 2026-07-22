@@ -118,7 +118,8 @@ async function main() {
  console.log('Kata laluan baharu dijana.');
  }
 
- if (password.length < 10 || password === 'RkjOne@2025') {
+ const legacyPassword = env.RKJ_LEGACY_PASSWORD?.trim();
+ if (password.length < 10 || (legacyPassword && password === legacyPassword)) {
  console.error('✗ Kata laluan tidak sah');
  process.exit(1);
  }

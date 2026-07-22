@@ -1,5 +1,6 @@
 ﻿'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -24,6 +25,8 @@ import {
  Store,
  CalendarDays,
  ShieldCheck,
+ MonitorSmartphone,
+ UnlockKeyhole,
  type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -42,6 +45,8 @@ import { AreaManagerRouteGuard } from '@/components/layout/area-manager-route-gu
 import { ProfileAvatarReminder } from '@/components/profile/profile-avatar-reminder';
 import { LanguageSwitcher } from '@/components/i18n/language-switcher';
 import { useLanguage } from '@/components/i18n/language-provider';
+import type { PosDeviceContext } from '@/lib/pos/device-auth';
+import { toast } from 'sonner';
 
 const ICONS: Record<string, LucideIcon> = {
  LayoutDashboard,
@@ -66,6 +71,8 @@ const ICONS: Record<string, LucideIcon> = {
 
 interface AppShellProps {
  children: React.ReactNode;
+ posDeviceContext: PosDeviceContext;
+ kioskBypassed: boolean;
 }
 
 function SidebarBrand() {
@@ -189,11 +196,22 @@ function UserFooter({ onLogout }: { onLogout: () => void }) {
  </div>);
 }
 
-export function AppShell({ children }: AppShellProps) {
+export function AppShell({ children, posDeviceContext, kioskBypassed }: AppShellProps) {
  const router = useRouter();
  const pathname = usePathname();
  const { profile } = useAuthStore();
  const { t } = useLanguage();
+ const [changingKiosk, setChangingKiosk] = useState(false);
+
+ const officialDevice = posDeviceContext.mode === 'PRODUCTION' ? posDeviceContext.device : null;
+ const kioskMode = Boolean(officialDevice && !kioskBypassed);
+ const canOpenManagement = profile
+ ? ['SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER', 'AREA_MANAGER'].includes(profile.role)
+ : false;
+
+ useEffect(() => {
+ if (kioskMode && pathname !== '/pos') router.replace('/pos');
+ }, [kioskMode, pathname, router]);
 
  async function handleLogout() {
  const supabase = createClient();
@@ -202,6 +220,46 @@ export function AppShell({ children }: AppShellProps) {
  router.push('/login');
  router.refresh();
  }
+
+ async function openManagementMode() {
+ setChangingKiosk(true);
+ try {
+ const response = await fetch('/api/pos/kiosk', { method: 'POST' });
+ const data = await response.json();
+ if (!response.ok) throw new Error(data.error ?? 'Mod pengurusan tidak dapat dibuka');
+ toast.success('Mod pengurusan dibuka selama 15 minit');
+ router.push('/dashboard');
+ router.refresh();
+ } catch (error) {
+ toast.error(error instanceof Error ? error.message : 'Mod pengurusan tidak dapat dibuka');
+ } finally {
+ setChangingKiosk(false);
+ }
+ }
+
+ async function returnToKiosk() {
+ setChangingKiosk(true);
+ try {
+ await fetch('/api/pos/kiosk', { method: 'DELETE' });
+ router.push('/pos');
+ router.refresh();
+ } finally {
+ setChangingKiosk(false);
+ }
+ }
+
+ useEffect(() => {
+  if (!officialDevice || !kioskBypassed) return;
+
+  const timeout = window.setTimeout(() => {
+   void fetch('/api/pos/kiosk', { method: 'DELETE' }).finally(() => {
+    router.push('/pos');
+    router.refresh();
+   });
+  }, 15 * 60 * 1000);
+
+  return () => window.clearTimeout(timeout);
+ }, [officialDevice, kioskBypassed, router]);
 
  const greeting = profile?.full_name?.split(' ')[0] ?? t('layout.staffFallback');
  const navLabel = getNavLabelForPath(pathname);
@@ -213,6 +271,62 @@ export function AppShell({ children }: AppShellProps) {
  : navKey
  ? t(navKey)
  : navLabel;
+
+ if (kioskMode) {
+ if (pathname !== '/pos') {
+ return (
+ <div className="flex h-dvh items-center justify-center bg-stone-950 text-white">
+ <div className="text-center">
+ <MonitorSmartphone className="mx-auto h-9 w-9 text-amber-400" />
+ <p className="mt-3 font-semibold">Membuka POS rasmi...</p>
+ </div>
+ </div>);
+ }
+
+ const initials = profile?.full_name
+ ?.split(' ').map((name) => name[0]).join('').slice(0, 2).toUpperCase();
+ return (
+ <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-background">
+ <header className="flex min-h-16 items-center gap-3 border-b border-amber-300 bg-stone-950 px-3 text-white sm:px-5">
+ <BrandLogo size="sm" variant="light" />
+ <div className="hidden h-8 w-px bg-white/15 sm:block" />
+ <div className="min-w-0 flex-1">
+ <div className="flex items-center gap-2">
+ <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">POS Rasmi</Badge>
+ <span className="truncate text-xs text-white/60">{officialDevice?.deviceCode}</span>
+ </div>
+ <p className="mt-0.5 truncate text-sm font-semibold">
+ {officialDevice?.branchCode} - {officialDevice?.branchName}
+ </p>
+ </div>
+ <div className="hidden min-w-0 items-center gap-2 sm:flex">
+ <Avatar className="h-8 w-8 border border-white/15">
+ {profile?.avatar_url ? <AvatarImage src={profile.avatar_url} alt={profile.full_name} /> : null}
+ <AvatarFallback className="bg-amber-400 text-xs font-bold text-stone-950">{initials}</AvatarFallback>
+ </Avatar>
+ <div className="min-w-0">
+ <p className="max-w-40 truncate text-xs font-semibold">{profile?.full_name}</p>
+ <p className="text-[11px] text-white/55">Sedang bertugas</p>
+ </div>
+ </div>
+ <LanguageSwitcher compact />
+ {canOpenManagement && (
+ <Button variant="outline" size="sm" className="hidden gap-2 border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white lg:flex" onClick={openManagementMode} disabled={changingKiosk}>
+ <UnlockKeyhole className="h-4 w-4" /> Mod Pengurusan
+ </Button>)}
+ <Button variant="ghost" size="sm" className="gap-2 text-white/75 hover:bg-white/10 hover:text-white" onClick={handleLogout}>
+ <LogOut className="h-4 w-4" /> <span className="hidden md:inline">{t('layout.logout')}</span>
+ </Button>
+ </header>
+ {canOpenManagement && (
+ <div className="border-b border-amber-200 bg-amber-50 px-3 py-2 text-right lg:hidden">
+ <Button variant="outline" size="sm" className="gap-2 bg-white" onClick={openManagementMode} disabled={changingKiosk}>
+ <UnlockKeyhole className="h-4 w-4" /> Mod Pengurusan 15 minit
+ </Button>
+ </div>)}
+ <main className="rkj-scrollbar min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">{children}</main>
+ </div>);
+ }
 
  return (
  <div className="flex h-dvh min-h-0 overflow-hidden bg-background">
@@ -257,6 +371,10 @@ export function AppShell({ children }: AppShellProps) {
  </div>
 
  <div className="hidden items-center gap-2 sm:flex">
+ {officialDevice && kioskBypassed && (
+ <Button size="sm" className="gap-2" onClick={returnToKiosk} disabled={changingKiosk}>
+ <MonitorSmartphone className="h-4 w-4" /> Kembali ke POS
+ </Button>)}
  <LanguageSwitcher compact />
  {profile && isAreaManagerRole(profile.role) ? (
  <Badge variant="secondary">{t('layout.areaManager')}</Badge>) : (

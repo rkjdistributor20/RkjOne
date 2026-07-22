@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { History, BarChart3, LayoutDashboard, Trash2, ClipboardCheck, ShieldAlert, Eye, TimerReset } from 'lucide-react';
+import { History, BarChart3, LayoutDashboard, Trash2, ClipboardCheck, ShieldAlert, Eye, TimerReset, GraduationCap, KeyRound, TabletSmartphone, CheckCircle2, CircleAlert, ShieldCheck } from 'lucide-react';
 import {
  fetchProducts,
  fetchShift,
@@ -16,7 +16,11 @@ import {
  fetchShiftMembers,
  submitPosPresenceCheck,
  syncOfflineSales,
+ fetchPosDeviceContext,
+ enrollPosDevice,
+ syncPosDeviceManagement,
 } from '@/lib/pos/api';
+import { enableOfficialPosKiosk, readDeviceManagementStatus } from '@/lib/pos/device-management-client';
 import {
  getOfflineQueue,
  removeOfflineSale,
@@ -24,7 +28,7 @@ import {
 import { formatRM } from '@/lib/pos/utils';
 import { usePosStore } from '@/stores/pos-store';
 import { useAuthStore } from '@/stores/auth-store';
-import type { PosShiftStockCheckType, PosSopStatus, SaleResult } from '@/lib/pos/types';
+import type { PosDeviceContext, PosDeviceManagementStatus, PosShiftStockCheckType, PosSopStatus, SaleResult } from '@/lib/pos/types';
 import { PageHeader } from '@/components/brand/page-header';
 import { ShiftBar } from '@/components/pos/shift-bar';
 import { OpenShiftDialog } from '@/components/pos/open-shift-dialog';
@@ -52,7 +56,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { useLanguage } from '@/components/i18n/language-provider';
+import { POS_OFFICIAL_TABLETS } from '@/lib/pos/official-tablets';
 
 function envMinutes(value: string | undefined, fallback: number) {
  const parsed = Number(value);
@@ -61,6 +67,43 @@ function envMinutes(value: string | undefined, fallback: number) {
 
 const POS_IDLE_PRESENCE_MS = envMinutes(process.env.NEXT_PUBLIC_POS_IDLE_PRESENCE_MINUTES, 15) * 60 * 1000;
 const POS_PRESENCE_RESPONSE_MS = envMinutes(process.env.NEXT_PUBLIC_POS_PRESENCE_RESPONSE_MINUTES, 2) * 60 * 1000;
+
+function DeviceReadinessPanel({ status }: { status: PosDeviceManagementStatus | null }) {
+ const checks = [
+  { ready: status?.nativeApp === true, label: 'Aplikasi Android RKJ One' },
+  { ready: status?.screenLockSecure === true, label: 'PIN atau kunci skrin aktif' },
+  { ready: status?.deviceOwner === true, label: 'Android Enterprise Device Owner' },
+  { ready: status?.lockTaskPermitted === true && status?.lockTaskActive === true, label: 'Kiosk Android dikunci' },
+ ];
+ const readyCount = checks.filter((check) => check.ready).length;
+ if (readyCount === checks.length) {
+  return (
+   <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-900">
+    <ShieldCheck className="h-4 w-4" /> Peranti mematuhi tetapan POS syarikat
+   </div>
+  );
+ }
+
+ return (
+  <details className="rounded-lg border border-amber-200 bg-amber-50 text-amber-950">
+   <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+    <span className="flex items-center gap-2 font-semibold"><CircleAlert className="h-4 w-4" /> Tetapan Peranti Disyorkan</span>
+    <Badge variant="outline" className="border-amber-300 bg-white">{readyCount} / {checks.length} siap</Badge>
+   </summary>
+   <div className="grid gap-2 border-t border-amber-200 px-4 py-3 sm:grid-cols-2">
+    {checks.map((check) => (
+     <div key={check.label} className="flex items-center gap-2 text-sm">
+      {check.ready
+       ? <CheckCircle2 className="h-4 w-4 text-emerald-700" />
+       : <CircleAlert className="h-4 w-4 text-amber-700" />}
+      {check.label}
+     </div>
+    ))}
+    <p className="sm:col-span-2 mt-1 text-xs text-amber-800">POS masih boleh digunakan, tetapi HQ perlu lengkapkan Android Enterprise untuk menyekat aplikasi lain, mengawal kemas kini dan pengurusan peranti.</p>
+   </div>
+  </details>
+ );
+}
 
 export function PosTerminal() {
  const { t } = useLanguage();
@@ -105,6 +148,10 @@ export function PosTerminal() {
  const [presencePrompt, setPresencePrompt] = useState<{ promptedAt: string; dueAt: number } | null>(null);
  const [presenceSaving, setPresenceSaving] = useState(false);
  const [shiftMemberStats, setShiftMemberStats] = useState({ active: 0, pending: 0 });
+ const [deviceContext, setDeviceContext] = useState<PosDeviceContext | null>(null);
+ const [deviceLoading, setDeviceLoading] = useState(true);
+ const [enrollmentCode, setEnrollmentCode] = useState('');
+ const [enrolling, setEnrolling] = useState(false);
  const lastPosActivityRef = useRef(lastPosActivityAt);
  const presencePromptRef = useRef(presencePrompt);
 
@@ -121,12 +168,15 @@ export function PosTerminal() {
  ? `${branchCode} - ${branchName}`
  : branchName ?? branchCode;
 
- const showBranchPicker = profile ? needsBranchPicker(profile) : false;
+ const trainingMode = deviceContext?.mode === 'TRAINING';
+ const productionDevice = deviceContext?.device ?? null;
+ const productionDeviceId = productionDevice?.id ?? null;
+ const showBranchPicker = profile ? needsBranchPicker(profile) && !productionDevice : false;
  const showRejectTab = profile ? canUsePosRejectStock(profile.role) : false;
  const canViewFullHistory = canViewFullPosHistory(profile?.role);
  const isAreaManagerEmergencyPos = profile?.role === 'AREA_MANAGER';
  const canBypassPosSop = profile?.role === 'SUPER_ADMIN';
- const shiftRequired = !shift;
+ const shiftRequired = !shift && !trainingMode;
  const blockingStockCheck = requiredStockCheck === 'OPENING';
  const advisoryStockCheck =
  requiredStockCheck === 'MID_SHIFT' || requiredStockCheck === 'CLOSE_SHIFT'
@@ -135,7 +185,7 @@ export function PosTerminal() {
  const blockingSopStatus = Boolean(sopSalesBlocked && blockingStockCheck);
  const sopWouldBlockSales =
  shiftRequired || blockingSopStatus || pendingDeliveryCount > 0 || blockingStockCheck || Boolean(activePresenceLeave);
- const salesBlocked = !canBypassPosSop && sopWouldBlockSales;
+ const salesBlocked = trainingMode ? false : !canBypassPosSop && sopWouldBlockSales;
  const shouldRunPresenceCheck =
  profile?.role === 'STAFF' &&
  Boolean(branchId && shift?.id) &&
@@ -161,9 +211,26 @@ export function PosTerminal() {
  : null;
 
  const loadData = useCallback(async () => {
- if (!branchId) return;
+ if (!branchId || !deviceContext) return;
  setLoading(true);
  try {
+ if (trainingMode) {
+  const productsRes = await fetchProducts(branchId);
+  setProducts(productsRes.products, productsRes.categories);
+  setStockByProduct(Object.fromEntries(
+   productsRes.products.map((product) => [product.id, { available: 999, status: 'OK' as const }])));
+  setMenuStockByCategory({});
+  setSupplementStock([]);
+  setShift(null);
+  setTransactions([]);
+  setDailySummary(null);
+  setExpirySummary(null);
+  setPendingDeliveryCount(0);
+  setRequiredStockCheck(null);
+  setActivePresenceLeave(null);
+  setSopSalesBlocked(false);
+  return;
+ }
  const [productsRes, stockRes, shiftRes, summaryRes, expiryRes, stockSopRes] =
  await Promise.allSettled([
  fetchProducts(branchId),
@@ -222,6 +289,8 @@ export function PosTerminal() {
  }
  }, [
  branchId,
+ deviceContext,
+ trainingMode,
  setProducts,
  setStockByProduct,
  setMenuStockByCategory,
@@ -229,7 +298,69 @@ export function PosTerminal() {
  setShift,
  setDailySummary,
  setLoading,
+ setTransactions,
  ]);
+
+ const loadDeviceContext = useCallback(async () => {
+  setDeviceLoading(true);
+  try {
+   const context = await fetchPosDeviceContext();
+   setDeviceContext(context);
+   if (context.device?.branchId) setBranchId(context.device.branchId);
+  } catch (error) {
+   toast.error(error instanceof Error ? error.message : 'Gagal menyemak tablet POS');
+   setDeviceContext({ mode: 'TRAINING', device: null, reason: 'Status tablet tidak dapat disahkan.' });
+  } finally {
+   setDeviceLoading(false);
+  }
+ }, [setBranchId]);
+
+ async function handleEnrollDevice() {
+  const code = enrollmentCode.replace(/[^a-z0-9]/gi, '').toUpperCase();
+  if (code.length !== 10) {
+   toast.error('Masukkan kod pendaftaran 10 aksara daripada HQ.');
+   return;
+  }
+  setEnrolling(true);
+  try {
+   await enrollPosDevice(code);
+   setEnrollmentCode('');
+   const management = await enableOfficialPosKiosk();
+   await syncPosDeviceManagement(management);
+   toast.success('Tablet berjaya didaftarkan sebagai POS rasmi.');
+   window.location.href = '/pos';
+  } catch (error) {
+   toast.error(error instanceof Error ? error.message : 'Pendaftaran tablet gagal');
+  } finally {
+   setEnrolling(false);
+  }
+ }
+
+ useEffect(() => {
+  if (!productionDeviceId) return;
+  let cancelled = false;
+  void (async () => {
+   const status = await readDeviceManagementStatus();
+   const result = await syncPosDeviceManagement(status).catch(() => null);
+   if (!cancelled && result) {
+    setDeviceContext((current) => current?.device
+     ? { ...current, device: { ...current.device, management: result.management } }
+     : current);
+   }
+  })();
+  return () => { cancelled = true; };
+ }, [productionDeviceId]);
+
+ async function clearOldDeviceRegistration() {
+  try {
+   const response = await fetch('/api/pos/device', { method: 'DELETE' });
+   if (!response.ok) throw new Error('Pendaftaran lama tidak dapat dibuang.');
+   toast.success('Pendaftaran lama dibuang. Tablet kini berada dalam Mod Latihan.');
+   window.location.href = '/dashboard';
+  } catch (error) {
+   toast.error(error instanceof Error ? error.message : 'Pendaftaran lama tidak dapat dibuang');
+  }
+ }
 
  const loadShiftMemberStats = useCallback(async () => {
  if (!branchId || !shift?.id) {
@@ -278,7 +409,7 @@ export function PosTerminal() {
 
  const syncOffline = useCallback(async () => {
  const queue = getOfflineQueue();
- if (!queue.length || !navigator.onLine) return;
+ if (!queue.length || !navigator.onLine || trainingMode) return;
 
  try {
  const { synced, failed } = await syncOfflineSales(queue);
@@ -294,7 +425,11 @@ export function PosTerminal() {
  } catch {
  // Silent fail - will retry
  }
- }, [loadData, setOfflineCount]);
+ }, [loadData, setOfflineCount, trainingMode]);
+
+ useEffect(() => {
+  void loadDeviceContext();
+ }, [loadDeviceContext]);
 
  useEffect(() => {
  if (profile?.branch_id) {
@@ -311,8 +446,8 @@ export function PosTerminal() {
 
  useEffect(() => {
  setTransactions([]);
- if (branchId) loadData();
- }, [branchId, loadData, setTransactions]);
+ if (branchId && deviceContext) loadData();
+ }, [branchId, deviceContext, loadData, setTransactions]);
 
  useEffect(() => {
  if (activeTab === 'history') {
@@ -424,14 +559,14 @@ export function PosTerminal() {
  const tag = (e.target as HTMLElement)?.tagName;
  if (tag === 'INPUT' || tag === 'TEXTAREA') return;
 
- if (e.key === 'F2' && shift && cart.length > 0 && !salesBlocked) {
+ if (e.key === 'F2' && (shift || trainingMode) && cart.length > 0 && !salesBlocked) {
  e.preventDefault();
  setPaymentOpen(true);
  }
  }
  window.addEventListener('keydown', onKeyDown);
  return () => window.removeEventListener('keydown', onKeyDown);
- }, [activeTab, paymentOpen, receiptOpen, shift, cart.length, salesBlocked]);
+ }, [activeTab, paymentOpen, receiptOpen, shift, trainingMode, cart.length, salesBlocked]);
 
  async function handlePresenceConfirm() {
  if (!branchId || !shift?.id || !presencePrompt) return;
@@ -510,6 +645,19 @@ export function PosTerminal() {
  </div>);
  }
 
+ if (deviceLoading) {
+  return (
+   <div className="space-y-4">
+    <Skeleton className="h-24 w-full rounded-lg" />
+    <Skeleton className="h-16 w-full rounded-lg" />
+    <div className="grid gap-4 lg:grid-cols-3">
+     <Skeleton className="h-96 lg:col-span-2" />
+     <Skeleton className="h-96" />
+    </div>
+   </div>
+  );
+ }
+
  if (showBranchPicker && !branchId) {
  return (
  <div className="space-y-4">
@@ -539,13 +687,13 @@ export function PosTerminal() {
  <Badge variant="secondary" className="px-3 py-1.5 text-sm tabular-nums">
  {t('module.pos.todaySales')}: {formatRM(Number(dailySummary.total_sales))}
  </Badge>)}
- <Link
+ {!productionDevice && <Link
  href="/dashboard"
  className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'gap-1.5')}
  >
  <LayoutDashboard className="h-4 w-4" />
  {t('module.pos.dashboard')}
- </Link>
+ </Link>}
  {showBranchPicker && (
  <BranchSelector
  branches={branches}
@@ -555,22 +703,74 @@ export function PosTerminal() {
  </div>
  </div>
 
- <ShiftBar
- branchName={branchLabel}
- onOpenShift={() => setOpenShiftOpen(true)}
- onCloseShift={() => setCloseShiftOpen(true)}
- />
+ {productionDevice ? (
+  <>
+   <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-950">
+    <div className="flex items-center gap-3">
+     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white"><TabletSmartphone className="h-5 w-5 text-emerald-700" /></div>
+     <div>
+      <p className="font-semibold">POS rasmi - {productionDevice.deviceName}</p>
+      <p className="text-xs text-emerald-800">Dikunci kepada {productionDevice.branchCode} - {productionDevice.branchName}</p>
+      {productionDevice.hardwareProfile && (
+       <p className="mt-0.5 text-xs text-emerald-800">Model ditetapkan: {POS_OFFICIAL_TABLETS[productionDevice.hardwareProfile].label}</p>
+      )}
+     </div>
+    </div>
+    <Badge className="bg-emerald-700">Transaksi sebenar</Badge>
+   </div>
+   <DeviceReadinessPanel status={productionDevice.management} />
+   <ShiftBar
+    branchName={branchLabel}
+    onOpenShift={() => setOpenShiftOpen(true)}
+    onCloseShift={() => setCloseShiftOpen(true)}
+   />
+  </>
+ ) : (
+  <div className="rounded-lg border-2 border-sky-300 bg-sky-50 p-4 text-sky-950">
+   <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+    <div className="flex items-start gap-3">
+     <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm"><GraduationCap className="h-6 w-6 text-sky-700" /></div>
+     <div>
+      <div className="flex flex-wrap items-center gap-2">
+       <p className="font-bold">Mod Latihan POS</p>
+       <Badge className="bg-sky-700">Selamat untuk belajar</Badge>
+      </div>
+      <p className="mt-1 max-w-2xl text-sm text-sky-900/80">Gunakan menu, troli dan simulasi bayaran seperti biasa. Tiada jualan, bayaran, syif atau stok production akan berubah.</p>
+     </div>
+    </div>
+    <div className="flex w-full gap-2 lg:w-auto">
+     <Input
+      value={enrollmentCode}
+      onChange={(event) => setEnrollmentCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10))}
+      placeholder="Kod tablet HQ"
+      aria-label="Kod pendaftaran tablet rasmi"
+      className="bg-white font-mono tracking-widest lg:w-48"
+     />
+     <Button onClick={handleEnrollDevice} disabled={enrolling} className="gap-2 bg-sky-700 hover:bg-sky-800">
+      <KeyRound className="h-4 w-4" /> {enrolling ? 'Mendaftar...' : 'Daftar'}
+     </Button>
+    </div>
+   </div>
+   {deviceContext?.reason && !deviceContext.reason.includes('belum didaftarkan') && (
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-sky-200 pt-3 text-sm">
+     <span>{deviceContext.reason}</span>
+     <Button variant="outline" size="sm" className="gap-2 bg-white" onClick={clearOldDeviceRegistration}>
+      <Trash2 className="h-4 w-4" /> Buang pendaftaran lama
+     </Button>
+    </div>)}
+  </div>
+ )}
 
- {isAreaManagerEmergencyPos && (
+ {isAreaManagerEmergencyPos && !trainingMode && (
  <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
  <span className="font-semibold">Mode ganti staf:</span> AM mesti ada jadual syif diluluskan untuk cawangan hari ini sebelum buka syif POS atau rekod jualan.
  </div>)}
 
- <ExpiredStockAlert
+ {!trainingMode && <ExpiredStockAlert
  summary={expirySummary}
  canReject={showRejectTab}
  onRejectExpired={handleRejectExpired}
- />
+ />}
 
  {isLoading ? (
  <div className="grid flex-1 gap-4 lg:grid-cols-3">
@@ -580,6 +780,7 @@ export function PosTerminal() {
  <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-1 flex-col">
  <TabsList>
  <TabsTrigger value="sale">{t('module.pos.sale')}</TabsTrigger>
+ {!trainingMode && <>
  <TabsTrigger value="sop" className="gap-1">
  <ClipboardCheck className="h-4 w-4" />
  {t('module.pos.stockSop')}
@@ -600,11 +801,12 @@ export function PosTerminal() {
  <TabsTrigger value="reject" className="gap-1">
  <Trash2 className="h-4 w-4" />
  {t('module.pos.rejectStock')}
- </TabsTrigger>)}
+  </TabsTrigger>)}
+ </>}
  </TabsList>
 
  <TabsContent value="sale" className="mt-4 flex min-h-0 flex-1 flex-col gap-3">
- <LiveCounterGuard
+ {!trainingMode && <LiveCounterGuard
  shift={shift}
  branchLabel={branchLabel}
  activeStaffCount={shiftMemberStats.active}
@@ -619,7 +821,7 @@ export function PosTerminal() {
  onConfirmPresence={handlePresenceConfirm}
  onOpenSop={() => setActiveTab('sop')}
  onOpenShift={() => setOpenShiftOpen(true)}
- />
+ />}
  {salesBlocked ? (
  <div className="flex min-h-0 flex-1 items-center justify-center rounded-2xl border border-red-200 bg-red-50 p-6 text-red-950">
  <div className="max-w-xl text-center">
@@ -754,13 +956,13 @@ export function PosTerminal() {
  <ProductGrid />
  </div>
  <div className="flex min-h-0 flex-col overflow-hidden">
- <CartPanel onCheckout={() => setPaymentOpen(true)} />
+  <CartPanel trainingMode={trainingMode} onCheckout={() => setPaymentOpen(true)} />
  </div>
  </div>
  </div>)}
  </TabsContent>
 
- {branchId && (
+ {!trainingMode && branchId && (
  <TabsContent value="sop" className="mt-4 overflow-y-auto pr-1">
  <PosStockSopPanel
  branchId={branchId}
@@ -769,15 +971,15 @@ export function PosTerminal() {
  />
  </TabsContent>)}
 
- <TabsContent value="history" className="mt-4">
+ {!trainingMode && <TabsContent value="history" className="mt-4">
  <TransactionHistory onRefresh={refreshHistory} canViewFullHistory={canViewFullHistory} />
- </TabsContent>
+ </TabsContent>}
 
- <TabsContent value="summary" className="mt-4">
+ {!trainingMode && <TabsContent value="summary" className="mt-4">
  <DailySummaryPanel />
- </TabsContent>
+ </TabsContent>}
 
- {showRejectTab && branchId && (
+ {!trainingMode && showRejectTab && branchId && (
  <TabsContent value="reject" className="mt-4">
  <RejectStockPanel
  key={rejectPrefill?.map((p) => `${p.stock_item_id}:${p.quantity}`).join('|') ?? 'empty'}
@@ -788,7 +990,7 @@ export function PosTerminal() {
  </TabsContent>)}
  </Tabs>)}
 
- {branchId && (
+ {!trainingMode && branchId && (
  <>
  <OpenShiftDialog
  open={openShiftOpen}
@@ -801,13 +1003,14 @@ export function PosTerminal() {
  onOpenChange={setCloseShiftOpen}
  onSuccess={loadData}
  />
- <PaymentDialog
+ </>)}
+ {branchId && <PaymentDialog
  open={paymentOpen}
  onOpenChange={setPaymentOpen}
  branchId={branchId}
  onSuccess={handlePaymentSuccess}
- />
- </>)}
+ trainingMode={trainingMode}
+ />}
 
  <ReceiptDialog
  open={receiptOpen}

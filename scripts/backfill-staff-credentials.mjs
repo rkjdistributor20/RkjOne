@@ -15,7 +15,8 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
 
-const DEFAULT_PASSWORD = 'RkjOne@2026';
+const DEFAULT_PASSWORD = process.env.RKJ_INITIAL_PASSWORD?.trim();
+if (!DEFAULT_PASSWORD) throw new Error('RKJ_INITIAL_PASSWORD is required');
 const EXCLUDED_STAFF_CODES = new Set(['S015', 'S020', 'S045']);
 
 function loadEnvFile(filePath) {

@@ -9,6 +9,7 @@ import {
  posAccessErrorStatus,
 } from '@/lib/pos/access';
 import type { PosShiftSummary } from '@/lib/pos/types';
+import { assertOfficialPosDevice } from '@/lib/pos/device-auth';
 
 export async function GET(request: Request) {
  const profile = await getCurrentProfile();
@@ -26,6 +27,7 @@ export async function GET(request: Request) {
  const supabase = await createClient();
  try {
  await assertCanAccessPosBranch(supabase, profile, branchId);
+ await assertOfficialPosDevice(profile, branchId);
  } catch (err) {
  return NextResponse.json(
  { error: err instanceof Error ? err.message : 'Akses cawangan ditolak' },
@@ -116,6 +118,7 @@ export async function POST(request: Request) {
  const supabase = await createClient();
  try {
  await assertCanAccessPosBranch(supabase, profile, branchId);
+ await assertOfficialPosDevice(profile, branchId);
  } catch (err) {
  return NextResponse.json(
  { error: err instanceof Error ? err.message : 'Akses cawangan ditolak' },
@@ -297,6 +300,7 @@ export async function PATCH(request: Request) {
  try {
  await assertCanAccessPosBranch(supabase, profile, shift.branch_id);
  await assertAreaManagerScheduledForPos(supabase, profile, shift.branch_id);
+ await assertOfficialPosDevice(profile, shift.branch_id);
  } catch (err) {
  return NextResponse.json(
  { error: err instanceof Error ? err.message : 'Akses cawangan ditolak' },

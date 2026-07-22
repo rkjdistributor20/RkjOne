@@ -2,7 +2,7 @@
  * Reset kata laluan 3 AM aktif untuk UAT.
  *
  * Usage:
- * npm run reset:am-passwords ke RkjOne@2026
+ * RKJ_INITIAL_PASSWORD=<rahsia> npm run reset:am-passwords
  * npm run reset:am-uat ke sama + wajib tukar password
  */
 import { createClient } from '@supabase/supabase-js';

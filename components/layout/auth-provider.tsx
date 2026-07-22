@@ -6,11 +6,14 @@ import { buildPermissionMap } from '@/lib/auth/permissions';
 import { useAuthStore } from '@/stores/auth-store';
 import type { ProfileWithBranch } from '@/types/database';
 import type { PermissionLevel } from '@/types/enums';
+import type { PosDeviceContext } from '@/lib/pos/device-auth';
 
 interface AuthProviderProps {
  profile: ProfileWithBranch | null;
  permissions: Array<{ module: string; permission: PermissionLevel }>;
  children: React.ReactNode;
+ posDeviceContext: PosDeviceContext;
+ kioskBypassed: boolean;
 }
 
 function syncAuthStore(
@@ -28,6 +31,8 @@ function syncAuthStore(
 export function AuthProvider({
  profile,
  permissions,
+ posDeviceContext,
+ kioskBypassed,
  children,
 }: AuthProviderProps) {
  useLayoutEffect(() => {
@@ -38,5 +43,8 @@ export function AuthProvider({
  syncAuthStore(profile, permissions);
  }, [profile, permissions]);
 
- return <AppShell>{children}</AppShell>;
+ return (
+ <AppShell posDeviceContext={posDeviceContext} kioskBypassed={kioskBypassed}>
+ {children}
+ </AppShell>);
 }

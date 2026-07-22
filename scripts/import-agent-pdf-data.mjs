@@ -17,7 +17,8 @@ const env = { ...loadEnv('.env.local'), ...process.env };
 const supabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
  auth: { persistSession: false, autoRefreshToken: false },
 });
-const DEFAULT_PASSWORD = 'RkjAgent@2026';
+const DEFAULT_PASSWORD = process.env.RKJ_AGENT_INITIAL_PASSWORD?.trim();
+if (!DEFAULT_PASSWORD) throw new Error('RKJ_AGENT_INITIAL_PASSWORD is required');
 
 const agents = [
  { code: 'AG001', full_name: 'Ahmad Bin Hussein', pic: 'Ahmad BSP', company: 'MAD MARIANI ENTERPRISE', registration_no: 'SSM Tamat (2023)', driver: 'Abdul Samad / Nadzir', location: 'Kuala Lumpur', status: 'ACTIVE', notes: 'SSM tamat' },

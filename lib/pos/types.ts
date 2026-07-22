@@ -2,6 +2,39 @@ export type PaymentMethod = 'CASH' | 'QR' | 'MIXED';
 
 export type StockStatus = 'OK' | 'LOW' | 'OUT';
 
+export type PosOfficialHardwareProfile = 'SAMSUNG_TAB_S10_LITE_5G_128' | 'HONOR_PAD_X8B_LTE_256';
+
+export interface PosDeviceManagementStatus {
+ nativeApp: boolean;
+ packageName: string | null;
+ manufacturer: string | null;
+ model: string | null;
+ androidVersion: string | null;
+ sdkLevel: number | null;
+ deviceOwner: boolean;
+ lockTaskPermitted: boolean;
+ lockTaskActive: boolean;
+ screenLockSecure: boolean;
+ kioskRequested: boolean;
+ reportedAt: string | null;
+}
+
+export interface PosDeviceContext {
+ mode: 'PRODUCTION' | 'TRAINING';
+ device: {
+  id: string;
+  deviceCode: string;
+  deviceName: string;
+  branchId: string;
+  branchCode: string | null;
+  branchName: string | null;
+  lastSeenAt: string | null;
+  hardwareProfile: PosOfficialHardwareProfile | null;
+  management: PosDeviceManagementStatus | null;
+ } | null;
+ reason?: string;
+}
+
 export interface MenuStockBalance {
  key: string;
  label: string;

@@ -11,6 +11,7 @@ import { DEFAULT_PASSWORD } from './lib/default-password.mjs';
 
 const PRODUCTION_URL = process.env.PRODUCTION_URL ?? 'https://rkj.one';
 const GO_LIVE_PASSWORD_FILE = path.join(ROOT, 'csv_import', '.go-live-temp-password.txt');
+const ALLOW_PRODUCTION_UAT_WRITES = process.env.ALLOW_PRODUCTION_UAT_WRITES === '1';
 const env = loadProjectEnv();
 const url = env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY;
@@ -208,6 +209,9 @@ if (!staffEmail) {
       fail('GET self-service', `${list.status} ${list.body.error ?? ''}`);
       failed++;
     }
+    if (!ALLOW_PRODUCTION_UAT_WRITES) {
+      warn('POST self-service', 'dilangkau; set ALLOW_PRODUCTION_UAT_WRITES=1 hanya pada staging');
+    } else {
     const create = await apiJson(c, '/api/hr/self-service/requests', {
       method: 'POST',
       body: JSON.stringify({
@@ -221,6 +225,7 @@ if (!staffEmail) {
     } else {
       fail('POST self-service', `${create.status} ${create.body.error ?? ''}`);
       failed++;
+    }
     }
   }
 }

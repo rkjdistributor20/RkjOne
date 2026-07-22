@@ -24,6 +24,13 @@ allprojects {
     }
 }
 
+// Keep all generated Android output outside OneDrive. OneDrive may lock Gradle's
+// replaceable intermediate directories while syncing and make valid builds fail.
+subprojects { subproject ->
+    def localBuildRoot = new File(System.getenv("LOCALAPPDATA"), "RKJOne/gradle-builds")
+    subproject.layout.buildDirectory.set(new File(localBuildRoot, subproject.name))
+}
+
 task clean(type: Delete) {
     delete rootProject.buildDir
 }

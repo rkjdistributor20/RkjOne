@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { AuthProvider } from '@/components/layout/auth-provider';
 import { getCurrentProfile, getRolePermissions } from '@/lib/auth/session';
+import { getPosDeviceContext, isPosKioskBypassed } from '@/lib/pos/device-auth';
 
 export default async function DashboardLayout({
  children,
@@ -17,12 +18,19 @@ export default async function DashboardLayout({
  redirect('/change-password');
  }
 
- const permissions = await getRolePermissions(
- profile.organization_id,
- profile.role);
+ const [permissions, posDeviceContext, kioskBypassed] = await Promise.all([
+ getRolePermissions(profile.organization_id, profile.role),
+ getPosDeviceContext(profile),
+ isPosKioskBypassed(profile.id),
+ ]);
 
  return (
- <AuthProvider profile={profile} permissions={permissions}>
+ <AuthProvider
+ profile={profile}
+ permissions={permissions}
+ posDeviceContext={posDeviceContext}
+ kioskBypassed={kioskBypassed}
+ >
  {children}
  </AuthProvider>);
 }

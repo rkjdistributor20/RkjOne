@@ -7,6 +7,7 @@ import {
  assertCanAccessPosBranch,
 } from '@/lib/pos/access';
 import type { OfflineSalePayload } from '@/lib/pos/types';
+import { assertOfficialPosDevice } from '@/lib/pos/device-auth';
 
 export async function POST(request: Request) {
  const profile = await getCurrentProfile();
@@ -36,6 +37,7 @@ export async function POST(request: Request) {
  try {
  await assertCanAccessPosBranch(supabase, profile, sale.branchId);
  await assertAreaManagerScheduledForPos(supabase, profile, sale.branchId);
+ await assertOfficialPosDevice(profile, sale.branchId);
  checkedBranches.add(sale.branchId);
  } catch (err) {
  failed.push({

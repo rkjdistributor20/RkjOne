@@ -14,7 +14,7 @@ import fs from 'fs';
 import path from 'path';
 import { loadProjectEnv, ROOT } from './lib/load-env.mjs';
 
-const OLD_KNOWN = 'RkjOne@2025';
+const OLD_KNOWN = process.env.RKJ_LEGACY_PASSWORD?.trim() || '';
 
 function parseArgs(argv) {
  const out = { dryRun: false, confirm: false, password: '', roles: null, skip: [] };
@@ -108,8 +108,8 @@ async function main() {
  process.exit(1);
  }
 
- if (password === OLD_KNOWN) {
- console.error(`✗ Jangan guna kata laluan lama (${OLD_KNOWN})`);
+ if (OLD_KNOWN && password === OLD_KNOWN) {
+ console.error('✗ Jangan guna kata laluan lama');
  process.exit(1);
  }
 

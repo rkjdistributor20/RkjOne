@@ -11,9 +11,10 @@ import { cn } from '@/lib/utils';
 interface CartPanelProps {
  onCheckout: () => void;
  className?: string;
+ trainingMode?: boolean;
 }
 
-export function CartPanel({ onCheckout, className }: CartPanelProps) {
+export function CartPanel({ onCheckout, className, trainingMode = false }: CartPanelProps) {
  const cart = usePosStore((s) => s.cart);
  const shift = usePosStore((s) => s.shift);
  const stockByProduct = usePosStore((s) => s.stockByProduct);
@@ -43,7 +44,7 @@ export function CartPanel({ onCheckout, className }: CartPanelProps) {
  Kounter POS
  </h3>
  <p className="text-xs text-amber-900/70">
- {shift ? 'Syif aktif - F2 bayar pantas' : 'Buka syif dahulu'}
+ {trainingMode ? 'Mod Latihan - F2 simulasi bayaran' : shift ? 'Syif aktif - F2 bayar pantas' : 'Buka syif dahulu'}
  </p>
  </div>
  </div>
@@ -167,7 +168,7 @@ export function CartPanel({ onCheckout, className }: CartPanelProps) {
  <Button
  className="h-14 w-full gap-2 rounded-xl bg-amber-500 text-lg font-bold shadow-md hover:bg-amber-600 disabled:opacity-50"
  size="lg"
- disabled={!shift || cart.length === 0}
+ disabled={(!shift && !trainingMode) || cart.length === 0}
  onClick={onCheckout}
  >
  <Banknote className="h-6 w-6" />

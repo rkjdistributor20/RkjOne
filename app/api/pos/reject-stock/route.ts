@@ -7,6 +7,7 @@ import {
  stockGuardErrorMessage,
 } from '@/lib/inventory/stock-guard';
 import { canUsePosRejectStock } from '@/lib/auth/stock-access';
+import { assertOfficialPosDevice } from '@/lib/pos/device-auth';
 
 export async function POST(request: Request) {
  const profile = await getCurrentProfile();
@@ -43,6 +44,14 @@ export async function POST(request: Request) {
  }
 
  const supabase = await createClient();
+
+ try {
+  await assertOfficialPosDevice(profile, branchId);
+ } catch (err) {
+  return NextResponse.json(
+   { error: err instanceof Error ? err.message : 'Tablet POS rasmi diperlukan' },
+   { status: 403 });
+ }
 
  const { data: location } = await supabase.from('inventory_locations').select('id').eq('branch_id', branchId).eq('location_type', 'BRANCH_KIOSK').limit(1).maybeSingle();
 
