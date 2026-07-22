@@ -320,7 +320,7 @@ export function AppShell({ children, posDeviceContext, kioskBypassed }: AppShell
  <UnlockKeyhole className="h-4 w-4" /> Mod Pengurusan 15 minit
  </Button>
  </div>)}
- <main className="rkj-scrollbar min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">{children}</main>
+ <main className="rkj-scrollbar min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-3 sm:p-4">{children}</main>
  </div>);
  }
 
@@ -388,7 +388,7 @@ export function AppShell({ children, posDeviceContext, kioskBypassed }: AppShell
 
  <ProfileAvatarReminder />
 
- <main id="main-content" tabIndex={-1} className="rkj-scrollbar min-h-0 flex-1 overflow-y-auto bg-transparent p-4 md:p-6">{children}</main>
+ <main id="main-content" tabIndex={-1} className="rkj-scrollbar min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-transparent p-4 md:p-6">{children}</main>
  </div>
  </div>);
 }

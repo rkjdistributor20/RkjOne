@@ -175,7 +175,7 @@ function PersonRow({
  const isProtected = person.role === 'SUPER_ADMIN' || person.is_group_owner;
 
  return (
- <div className="grid gap-3 rounded-lg border bg-background px-3 py-3 text-sm md:grid-cols-[minmax(180px,1.35fr)_minmax(150px,1fr)_minmax(130px,0.8fr)_minmax(150px,0.8fr)_auto] md:items-center">
+ <div className="grid min-w-0 gap-3 rounded-lg border bg-background px-3 py-3 text-sm sm:grid-cols-2 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,0.9fr)_minmax(0,1fr)_minmax(0,1fr)_auto] xl:items-center">
  <div className="min-w-0">
  <div className="flex flex-wrap items-center gap-2">
  <p className="font-semibold leading-tight text-foreground">{person.full_name}</p>
@@ -185,8 +185,8 @@ function PersonRow({
  {person.staff_code} - {roleLabel(person)}
  </p>
  </div>
- <div className="text-xs text-muted-foreground">
- <p className="font-medium text-foreground">{person.branch_name ?? 'HQ / Syarikat'}</p>
+ <div className="min-w-0 text-xs text-muted-foreground">
+ <p className="break-words font-medium text-foreground">{person.branch_name ?? 'HQ / Syarikat'}</p>
  <p>{person.branch_code ?? person.region_name ?? 'Pentadbiran'}</p>
  </div>
  <div className="flex flex-wrap gap-1.5">
@@ -195,14 +195,14 @@ function PersonRow({
  <Badge variant={status.tone}>{status.label}</Badge>
  {person.must_change_password && <Badge variant="secondary">Perlu tukar password</Badge>}
  </div>
- <div className="text-xs text-muted-foreground md:text-right">
+ <div className="min-w-0 text-xs text-muted-foreground sm:text-right xl:text-left">
  <p className="font-medium text-foreground">{payLabel(person)}</p>
- <p>{person.email ?? 'Email portal belum ada'}</p>
+ <p className="break-all">{person.email ?? 'Email portal belum ada'}</p>
  <p className={cn('mt-1', person.worker_type === 'LOCAL' ? 'text-emerald-700' : 'text-muted-foreground')}>
  {annualLeaveLabel(person)}
  </p>
  </div>
- <div className="flex justify-end">
+ <div className="flex justify-end sm:col-span-2 xl:col-span-1">
  <DropdownMenu>
  <DropdownMenuTrigger
  className={cn(buttonVariants({ variant: 'ghost', size: 'icon' }), 'h-8 w-8 shrink-0')}

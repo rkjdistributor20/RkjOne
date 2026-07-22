@@ -117,7 +117,7 @@ export function KpiGrid({ children, cols = 4 }: { children: React.ReactNode; col
  4: 'sm:grid-cols-2 lg:grid-cols-4',
  5: 'sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5',
  };
- return <div className={cn('grid gap-3', gridCols[cols])}>{children}</div>;
+ return <div className={cn('grid min-w-0 gap-3', gridCols[cols])}>{children}</div>;
 }
 
 /** Keadaan kosong profesional */
@@ -160,7 +160,7 @@ export function SectionCard({
  action?: React.ReactNode;
 }) {
  return (
- <div className={cn('rkj-surface overflow-hidden rounded-lg', className)}>
+ <div className={cn('rkj-surface min-w-0 overflow-hidden rounded-lg', className)}>
  {(title || action) && (
  <div
  className="rkj-panel-head flex items-start justify-between gap-3 border-b border-amber-100/80 px-4 py-3.5 md:px-5"
@@ -172,7 +172,7 @@ export function SectionCard({
  </div>
  {action}
  </div>)}
- <div className="p-4 md:p-5">{children}</div>
+ <div className="min-w-0 p-4 md:p-5">{children}</div>
  </div>);
 }
 
