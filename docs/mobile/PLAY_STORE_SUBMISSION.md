@@ -6,8 +6,8 @@ Status teknikal Android sudah siap untuk dihantar ke Google Play Console.
 
 - App bundle: `android/app/build/outputs/bundle/release/app-release.aab`
 - Package name: `com.rkjone.staff`
-- Version code: `1`
-- Version name: `1.0`
+- Version code: `2`
+- Version name: `1.1`
 - Privacy policy: `https://rkj.one/privacy`
 - Support: `https://rkj.one/support`
 - Account deletion: `https://rkj.one/delete-account`
