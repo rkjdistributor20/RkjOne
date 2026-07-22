@@ -114,14 +114,15 @@ export async function POST(request: Request) {
   if (!branchId || deviceName.length < 3 || deviceName.length > 80) {
     return NextResponse.json({ error: 'Pilih cawangan dan masukkan nama tablet yang jelas.' }, { status: 400 });
   }
-  if (!hardwareProfile) {
-    return NextResponse.json({ error: 'Pilih model tablet rasmi.' }, { status: 400 });
+  const saveOnly = action === 'save_asset';
+  if (!saveOnly && !hardwareProfile) {
+    return NextResponse.json({ error: 'Pilih model tablet rasmi sebelum menjana kod.' }, { status: 400 });
   }
-  if (serialNumber.length < 5 || serialNumber.length > 64) {
-    return NextResponse.json({ error: 'Masukkan nombor siri tablet yang sah.' }, { status: 400 });
+  if ((!saveOnly || serialNumber) && (serialNumber.length < 5 || serialNumber.length > 64)) {
+    return NextResponse.json({ error: 'Nombor siri mesti 5 hingga 64 aksara, atau kosongkan untuk simpan draf.' }, { status: 400 });
   }
-  if (!/^\d{15}$/.test(imei)) {
-    return NextResponse.json({ error: 'IMEI mesti mengandungi tepat 15 digit.' }, { status: 400 });
+  if ((!saveOnly || imei) && !/^\d{15}$/.test(imei)) {
+    return NextResponse.json({ error: 'IMEI mesti tepat 15 digit, atau kosongkan untuk simpan draf.' }, { status: 400 });
   }
   if (purchaseDate && warrantyExpiresAt && warrantyExpiresAt < purchaseDate) {
     return NextResponse.json({ error: 'Tarikh tamat waranti tidak boleh lebih awal daripada tarikh pembelian.' }, { status: 400 });
@@ -154,18 +155,19 @@ export async function POST(request: Request) {
     .limit(1)
     .maybeSingle();
 
-  const saveOnly = action === 'save_asset';
   const enrollmentCode = saveOnly ? null : createEnrollmentCode();
   const expiresAt = saveOnly ? null : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-  const suffix = enrollmentCode?.slice(-4) ?? serialNumber.slice(-6);
+  const suffix = enrollmentCode?.slice(-4)
+    ?? (serialNumber.slice(-6) || branch.id.replace(/-/g, '').slice(0, 6).toUpperCase());
+  const assetComplete = Boolean(hardwareProfile && serialNumber && imei);
   const assetFields = {
     device_name: deviceName,
-    serial_number: serialNumber,
-    imei,
+    serial_number: serialNumber || null,
+    imei: imei || null,
     purchase_date: purchaseDate,
     warranty_expires_at: warrantyExpiresAt,
-    asset_verified_at: new Date().toISOString(),
-    asset_verified_by: profile.id,
+    asset_verified_at: assetComplete ? new Date().toISOString() : null,
+    asset_verified_by: assetComplete ? profile.id : null,
   };
   const enrollmentFields = enrollmentCode
     ? {
@@ -209,7 +211,12 @@ export async function POST(request: Request) {
     const duplicate = error.code === '23505';
     return NextResponse.json({ error: duplicate ? 'Nombor siri atau IMEI sudah didaftarkan pada tablet lain.' : error.message }, { status: 400 });
   }
-  return NextResponse.json({ device, enrollment_code: enrollmentCode, asset_saved: true }, { status: 201 });
+  return NextResponse.json({
+    device,
+    enrollment_code: enrollmentCode,
+    asset_saved: assetComplete,
+    draft_saved: saveOnly && !assetComplete,
+  }, { status: 201 });
 }
 
 export async function DELETE(request: Request) {

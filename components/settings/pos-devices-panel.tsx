@@ -65,7 +65,7 @@ export function PosDevicesPanel() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [branchId, setBranchId] = useState('');
   const [deviceName, setDeviceName] = useState('Tablet POS Cawangan');
-  const [hardwareProfile, setHardwareProfile] = useState<PosOfficialHardwareProfile>('SAMSUNG_TAB_S10_LITE_5G_128');
+  const [hardwareProfile, setHardwareProfile] = useState<PosOfficialHardwareProfile | ''>('');
   const [serialNumber, setSerialNumber] = useState('');
   const [imei, setImei] = useState('');
   const [purchaseDate, setPurchaseDate] = useState('');
@@ -118,7 +118,7 @@ export function PosDevicesPanel() {
     generateCode: boolean,
     targetBranchId = branchId,
     targetDeviceName = deviceName,
-    targetHardwareProfile: PosOfficialHardwareProfile | null = hardwareProfile,
+    targetHardwareProfile: PosOfficialHardwareProfile | null | '' = hardwareProfile,
   ) {
     if (!targetBranchId || targetDeviceName.trim().length < 3) {
       toast.error('Pilih cawangan dan masukkan nama tablet.');
@@ -126,12 +126,16 @@ export function PosDevicesPanel() {
     }
     const normalizedSerial = serialNumber.trim().toUpperCase().replace(/\s+/g, '');
     const normalizedImei = imei.replace(/\D/g, '');
-    if (normalizedSerial.length < 5) {
+    if (generateCode && normalizedSerial.length < 5) {
       toast.error('Masukkan nombor siri daripada kotak atau menu About tablet.');
       return;
     }
-    if (normalizedImei.length !== 15) {
+    if (generateCode && normalizedImei.length !== 15) {
       toast.error('IMEI mesti mengandungi tepat 15 digit.');
+      return;
+    }
+    if (generateCode && !targetHardwareProfile) {
+      toast.error('Pilih model tablet rasmi sebelum menjana kod.');
       return;
     }
     setSaving(true);
@@ -156,7 +160,11 @@ export function PosDevicesPanel() {
       setExpiresAt(data.device.enrollment_expires_at ?? null);
       setSerialNumber(normalizedSerial);
       setImei(normalizedImei);
-      toast.success(generateCode ? 'Aset disimpan dan kod aktivasi dijana' : 'Aset tablet disimpan tanpa menjana kod');
+      toast.success(generateCode
+        ? 'Aset disimpan dan kod aktivasi dijana'
+        : normalizedSerial && normalizedImei && targetHardwareProfile
+          ? 'Maklumat aset tablet berjaya disimpan'
+          : 'Slot tablet berjaya disimpan sebagai draf');
       await load();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Gagal menyimpan rekod aset tablet');
@@ -168,13 +176,13 @@ export function PosDevicesPanel() {
   function prepareDevice(device: Device) {
     setBranchId(device.branch_id);
     setDeviceName(device.device_name);
-    setHardwareProfile(device.hardware_profile ?? 'SAMSUNG_TAB_S10_LITE_5G_128');
+    setHardwareProfile(device.hardware_profile ?? '');
     setSerialNumber(device.serial_number ?? '');
     setImei(device.imei ?? '');
     setPurchaseDate(device.purchase_date ?? '');
     setWarrantyExpiresAt(device.warranty_expires_at ?? '');
     document.getElementById('pos-device-activation')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    toast.info('Lengkapkan daftar aset sebelum menjana kod aktivasi.');
+    toast.info('Maklumat boleh disimpan sebagai draf. Lengkapkan semuanya hanya apabila hendak menjana kod.');
   }
 
   async function prepareAllBranches() {
@@ -269,7 +277,7 @@ export function PosDevicesPanel() {
             <KeyRound className="h-5 w-5 text-amber-600" />
             <h3 className="font-semibold">Rekod aset dan aktifkan tablet</h3>
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">Simpan maklumat aset terlebih dahulu tanpa kod. Apabila tablet sudah sedia di cawangan, jana kod sekali guna yang sah selama 24 jam.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Belum ada tablet? Simpan cawangan sebagai draf dahulu. Lengkapkan model, nombor siri dan IMEI apabila tablet diterima, kemudian jana kod sekali guna.</p>
         </div>
         <div className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3">
           <div className="space-y-2">
@@ -293,20 +301,21 @@ export function PosDevicesPanel() {
               id="pos-device-hardware"
               className="h-10 w-full rounded-md border bg-background px-3 text-sm"
               value={hardwareProfile}
-              onChange={(event) => setHardwareProfile(event.target.value as PosOfficialHardwareProfile)}
+              onChange={(event) => setHardwareProfile(event.target.value as PosOfficialHardwareProfile | '')}
             >
+              <option value="">Belum ditetapkan</option>
               {Object.entries(POS_OFFICIAL_TABLETS).map(([key, tablet]) => (
                 <option key={key} value={key}>{tablet.label}</option>
               ))}
             </select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="pos-device-serial">Nombor siri</Label>
+            <Label htmlFor="pos-device-serial">Nombor siri <span className="font-normal text-muted-foreground">(pilihan untuk draf)</span></Label>
             <Input id="pos-device-serial" value={serialNumber} maxLength={64} placeholder="Contoh: R52X..." onChange={(event) => setSerialNumber(event.target.value.toUpperCase())} />
             <p className="text-xs text-muted-foreground">Salin daripada kotak atau Settings &gt; About tablet.</p>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="pos-device-imei">IMEI</Label>
+            <Label htmlFor="pos-device-imei">IMEI <span className="font-normal text-muted-foreground">(pilihan untuk draf)</span></Label>
             <Input id="pos-device-imei" value={imei} inputMode="numeric" maxLength={18} placeholder="15 digit" onChange={(event) => setImei(event.target.value.replace(/\D/g, '').slice(0, 15))} />
             <p className="text-xs text-muted-foreground">Gunakan IMEI utama jika tablet memaparkan lebih daripada satu.</p>
           </div>
@@ -320,7 +329,7 @@ export function PosDevicesPanel() {
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-end xl:col-span-3">
             <Button variant="outline" onClick={() => void saveAsset(false)} disabled={saving || !branchId} className="w-full gap-2 sm:w-auto">
-              <TabletSmartphone className="h-4 w-4" /> {saving ? 'Menyimpan...' : 'Simpan Aset Sahaja'}
+              <TabletSmartphone className="h-4 w-4" /> {saving ? 'Menyimpan...' : 'Simpan Draf'}
             </Button>
             <Button onClick={() => void saveAsset(true)} disabled={saving || !branchId} className="w-full gap-2 sm:w-auto">
               <Plus className="h-4 w-4" /> {saving ? 'Menyimpan...' : 'Simpan & Jana Kod'}
@@ -425,7 +434,7 @@ export function PosDevicesPanel() {
                   <div className="flex flex-wrap gap-2">
                     {device.status === 'PENDING' && (
                       <Button size="sm" className="gap-2" onClick={() => prepareDevice(device)} disabled={saving}>
-                        <KeyRound className="h-4 w-4" /> {device.asset_verified_at ? 'Kemaskini Aset / Jana Kod' : 'Daftar Aset'}
+                        <KeyRound className="h-4 w-4" /> {device.asset_verified_at ? 'Kemaskini Aset / Jana Kod' : 'Lengkapkan Aset'}
                       </Button>
                     )}
                     <Button variant="outline" size="sm" className="gap-2 text-red-700" onClick={() => cancelDevice(device)}>
