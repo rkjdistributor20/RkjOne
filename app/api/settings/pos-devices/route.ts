@@ -219,9 +219,70 @@ export async function PATCH(request: Request) {
   }
   const body = await request.json().catch(() => ({}));
   const deviceId = String(body.device_id ?? '');
+  const action = String(body.action ?? 'revoke');
   if (!deviceId) return NextResponse.json({ error: 'device_id diperlukan.' }, { status: 400 });
+  if (!['revoke', 'reactivate'].includes(action)) {
+    return NextResponse.json({ error: 'Tindakan tablet tidak sah.' }, { status: 400 });
+  }
   const admin = createAdminClient();
   const now = new Date().toISOString();
+
+  if (action === 'reactivate') {
+    const { data: device, error: lookupError } = await (admin as any)
+      .from('pos_devices')
+      .select('id, branch_id, status')
+      .eq('id', deviceId)
+      .eq('organization_id', profile.organization_id)
+      .maybeSingle();
+    if (lookupError) return NextResponse.json({ error: lookupError.message }, { status: 400 });
+    if (!device) return NextResponse.json({ error: 'Rekod tablet tidak dijumpai.' }, { status: 404 });
+    if (device.status !== 'REVOKED') {
+      return NextResponse.json({ error: 'Hanya tablet yang dibatalkan boleh diaktifkan semula.' }, { status: 409 });
+    }
+
+    const { data: currentDevice } = await (admin as any)
+      .from('pos_devices')
+      .select('id')
+      .eq('branch_id', device.branch_id)
+      .in('status', ['PENDING', 'ACTIVE'])
+      .neq('id', device.id)
+      .limit(1)
+      .maybeSingle();
+    if (currentDevice) {
+      return NextResponse.json({
+        error: 'Cawangan ini sudah mempunyai slot atau tablet POS rasmi lain. Batalkan rekod tersebut dahulu.',
+      }, { status: 409 });
+    }
+
+    const { error: reactivateError } = await (admin as any)
+      .from('pos_devices')
+      .update({
+        status: 'PENDING',
+        secret_hash: null,
+        enrollment_code_hash: null,
+        enrollment_expires_at: null,
+        enrollment_used_at: null,
+        enrolled_at: null,
+        enrolled_by: null,
+        last_seen_at: null,
+        revoked_at: null,
+        revoked_by: null,
+        updated_at: now,
+      })
+      .eq('id', deviceId)
+      .eq('organization_id', profile.organization_id)
+      .eq('status', 'REVOKED');
+    if (reactivateError) {
+      const conflict = reactivateError.code === '23505';
+      return NextResponse.json({
+        error: conflict
+          ? 'Cawangan ini sudah mempunyai slot atau tablet POS rasmi lain.'
+          : reactivateError.message,
+      }, { status: conflict ? 409 : 400 });
+    }
+    return NextResponse.json({ success: true, status: 'PENDING' });
+  }
+
   const { error } = await (admin as any)
     .from('pos_devices')
     .update({
