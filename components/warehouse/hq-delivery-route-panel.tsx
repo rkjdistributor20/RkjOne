@@ -41,7 +41,6 @@ interface HqDeliveryRoutePanelProps {
 export function HqDeliveryRoutePanel({
  orderId,
  productionDate,
- routesPlanned,
  onRoutesPlanned,
 }: HqDeliveryRoutePanelProps) {
  const [routes, setRoutes] = useState<DeliveryRoutePlan[]>([]);

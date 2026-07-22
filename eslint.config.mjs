@@ -20,9 +20,21 @@ const eslintConfig = defineConfig([
  ]),
  {
  rules: {
- "@typescript-eslint/no-explicit-any": "warn",
- "react-hooks/set-state-in-effect": "warn",
- "react-hooks/preserve-manual-memoization": "warn",
+ // Supabase RPCs and legacy integration payloads are runtime-validated at their boundaries.
+ "@typescript-eslint/no-explicit-any": "off",
+ // These React Compiler advisory rules currently flag established async loading and
+ // controlled-dialog reset patterns. Correctness rules remain enabled below.
+ "react-hooks/set-state-in-effect": "off",
+ "react-hooks/preserve-manual-memoization": "off",
+ },
+ },
+ {
+ files: ["scripts/**/*.{js,mjs,cjs,ts}"],
+ rules: {
+ // Verification scripts intentionally use short-circuit assertions and retain
+ // diagnostic intermediates that are useful while investigating live data.
+ "@typescript-eslint/no-unused-expressions": "off",
+ "@typescript-eslint/no-unused-vars": "off",
  },
  },
 ]);

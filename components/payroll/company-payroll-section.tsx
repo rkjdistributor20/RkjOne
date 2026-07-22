@@ -110,8 +110,6 @@ export function CompanyPayrollSection() {
  return <p className="text-sm text-muted-foreground">Memuatkan pecahan syarikat...</p>;
  }
 
- const week = getPreviousCompleteWeek();
-
  return (
  <div className="space-y-4">
  <Card className="border-orange-200 bg-orange-50/40">

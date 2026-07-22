@@ -31,7 +31,7 @@ type NodeSummary = {
  }>;
 };
 
-export async function GET(request: Request) {
+export async function GET() {
  const profile = await getCurrentProfile();
  if (!profile) {
  return NextResponse.json({ error: 'Tidak dibenarkan' }, { status: 401 });
@@ -185,7 +185,6 @@ export async function GET(request: Request) {
  const rows = balByLoc.get(loc.id) ?? [];
  let locLow = 0;
  let locCritical = 0;
- let locQty = 0;
 
  for (const code of HQ_STOCK_ITEM_CODES) {
  const row = rows.find((r) => r.stock_item.item_code === code);
@@ -196,7 +195,6 @@ export async function GET(request: Request) {
  row?.stock_item.critical_threshold);
  if (row) {
  node.item_lines += 1;
- locQty += qty;
  node.total_quantity_pcs += qty;
  }
  if (status === 'LOW') {

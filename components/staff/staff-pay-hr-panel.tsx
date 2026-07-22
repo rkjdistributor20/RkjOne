@@ -1,6 +1,6 @@
 'use client';
 
-import { Building2, Download, FileUp, Sparkles, Wallet } from 'lucide-react';
+import { Download, FileUp, Sparkles, Wallet } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { fetchMyPayroll, uploadMyPayslip } from '@/lib/payroll/api';

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { toast } from 'sonner';
-import { normalizePosCategory, parsePrice, POS_MENU_CATEGORIES } from '@/lib/pos/utils';
+import { parsePrice, POS_MENU_CATEGORIES } from '@/lib/pos/utils';
 import type { Product } from '@/types/database';
 import type {
  CartItem,
@@ -74,7 +74,7 @@ export const usePosStore = create<PosState>((set, get) => ({
  isLoading: false,
 
  setBranchId: (branchId) => set({ branchId }),
- setProducts: (products, _categories) =>
+ setProducts: (products) =>
  set({
  products,
  categories: [...POS_MENU_CATEGORIES],

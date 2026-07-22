@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
  Activity,
@@ -1031,7 +1031,7 @@ function BranchOperationsPanel({
  const [staffDialogOpen, setStaffDialogOpen] = useState(false);
  const [selectedStaff, setSelectedStaff] = useState<BranchStaffRow | null>(null);
 
- async function loadSnapshot() {
+ const loadSnapshot = useCallback(async () => {
  setLoading(true);
  setError(null);
  try {
@@ -1046,11 +1046,11 @@ function BranchOperationsPanel({
  } finally {
  setLoading(false);
  }
- }
+ }, [branch.id]);
 
  useEffect(() => {
  void loadSnapshot();
- }, [branch.id]);
+ }, [loadSnapshot]);
 
  const stockAlerts = snapshot?.balances.filter((item) => item.status !== 'OK').length ?? 0;
  const activeStaff = snapshot?.staff.filter((staff) => staff.status === 'ACTIVE').length ?? 0;
@@ -1599,7 +1599,7 @@ function StockAdjustmentDialog({
  useEffect(() => {
  if (!selected || !open) return;
  setQuantityAfter(String(selected.quantity));
- }, [selected?.stock_item_id, open]);
+ }, [selected, open]);
 
  async function handleSave() {
  if (!snapshot.location) {

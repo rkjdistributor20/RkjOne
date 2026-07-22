@@ -4,7 +4,6 @@ import type {
  AgentPaymentReceipt,
  AgentPaymentStatus,
  AgentPaymentLifecycleStatus,
- AgentPaymentTarget,
  AgentStockOrder,
  AgentSalesStaff,
  AgentSalesStaffPayload,

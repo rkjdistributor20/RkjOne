@@ -328,6 +328,7 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
       canEditPlanning,
       canManageUsers,
       canViewStaff,
+      isAreaManager,
       isAdmin,
       products.length,
       showCatalogTabs,

@@ -33,7 +33,6 @@ import type {
 import { LOGISTIK_LABEL } from '@/lib/fleet/logistics-label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -46,7 +45,6 @@ import {
  PrimaryActionButton,
  moduleTabsListClass,
  moduleTabsTriggerClass,
- formatRM,
 } from '@/components/shared/module-ui';
 
 function fmt(n: number) {

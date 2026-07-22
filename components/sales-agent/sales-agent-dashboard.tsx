@@ -23,7 +23,6 @@ import {
  createAgentPayment,
  fetchAgentDashboard,
  fetchAgentReceipt,
- fetchAgentSalesStaff,
  fetchAdminAgentAccounts,
  createAdminAgentAccount,
  updateAdminAgentAccount,
@@ -114,7 +113,7 @@ export function SalesAgentDashboard() {
  const adminMode = profile ? ADMIN_AGENT_ROLES.has(profile.role) : false;
  const [data, setData] = useState<AgentDashboardData | null>(null);
  const [catalog, setCatalog] = useState<StockCatalogItem[]>([]);
- const [salesStaff, setSalesStaff] = useState<AgentSalesStaff[]>([]);
+ const [salesStaff] = useState<AgentSalesStaff[]>([]);
  const [salesStaffSaving, setSalesStaffSaving] = useState(false);
  const [loading, setLoading] = useState(true);
  const [registering, setRegistering] = useState(false);
@@ -1010,9 +1009,9 @@ function AdminSalesAgentManagement({ workflow }: { workflow: ReturnType<typeof g
  return [staff.full_name, staff.staff_code, staff.legal_entity?.code].filter(Boolean).join(' - ');
  }
 
- function selectedSpecialStaff(source: AdminAgentForm) {
+ const selectedSpecialStaff = useCallback((source: AdminAgentForm) => {
  return source.staff_id ? assignableStaff.find((staff) => staff.id === source.staff_id) ?? null : null;
- }
+ }, [assignableStaff]);
 
  useEffect(() => {
  setForm((prev) => {
@@ -1034,19 +1033,30 @@ function AdminSalesAgentManagement({ workflow }: { workflow: ReturnType<typeof g
  const editPriceGroupSelectValue = boundSelectValue(editForm.assigned_price_group_id || 'DEFAULT', priceGroupSelectValues) ?? 'DEFAULT';
  const formStaffSelectValue = boundSelectValue(form.staff_id || 'NONE', assignableStaffValues) ?? 'NONE';
  const addingSpecialAgent = Boolean(formPriceGroup?.payment_exempt || formPriceGroup?.code === 'EJEN_KHAS_SYARIKAT');
+ const formSpecialStaff = selectedSpecialStaff(form);
 
  useEffect(() => {
  if (!addingSpecialAgent || !form.staff_id) return;
- const staff = selectedSpecialStaff(form);
+ const staff = formSpecialStaff;
  if (!staff) return;
- setForm((prev) => ({...prev,
+ setForm((prev) => {
+ const next = {
+ ...prev,
  full_name: staff.full_name,
  contact_person: staff.full_name,
  company_name: prev.company_name || 'Ejen Khas - ' + staff.full_name,
  contact_email: prev.contact_email || prev.email,
  source_reference: prev.source_reference || 'Ejen Khas Syarikat - ' + (staff.legal_entity?.code ?? 'RKJ'),
- }));
- }, [addingSpecialAgent, form.staff_id, assignableStaff]);
+ };
+ return next.full_name === prev.full_name
+ && next.contact_person === prev.contact_person
+ && next.company_name === prev.company_name
+ && next.contact_email === prev.contact_email
+ && next.source_reference === prev.source_reference
+ ? prev
+ : next;
+ });
+ }, [addingSpecialAgent, form.staff_id, formSpecialStaff]);
 
  function formPayload(source: AdminAgentForm) {
  return {

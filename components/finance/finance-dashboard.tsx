@@ -208,7 +208,6 @@ export function FinanceDashboard() {
  }, [activeTab, loadCore, loadTabData]);
 
  useEffect(() => {
- // eslint-disable-next-line react-hooks/set-state-in-effect
  loadCore();
  }, [loadCore]);
 

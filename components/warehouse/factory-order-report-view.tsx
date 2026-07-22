@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Factory, MapPin, Package, Truck } from 'lucide-react';
+import { Factory, MapPin, Truck } from 'lucide-react';
 import type { FactoryOrderReport } from '@/lib/production/types';
 import { fetchFactoryOrderReport } from '@/lib/production/api';
 import { HQ_FACTORY_ORDER_SECTIONS, formatHqOrderPreview, getHqOrderUnitLabel } from '@/lib/production/hq-order-format';

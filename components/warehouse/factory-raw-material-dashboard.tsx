@@ -4,9 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
  AlertTriangle,
- ClipboardCheck,
  Factory,
- PackageCheck,
  PackageOpen,
  RefreshCw,
  Save,

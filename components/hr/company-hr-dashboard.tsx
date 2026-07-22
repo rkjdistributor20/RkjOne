@@ -295,7 +295,7 @@ function RoleAuditRow({
  </div>);
 }
 
-function RoleAuditPanel({
+export function RoleAuditPanel({
  data,
  selectedCompanyKey,
  onTransfer,
@@ -843,7 +843,7 @@ function ComplianceStrip({ company }: { company: HrCompanyGroup }) {
  </div>);
 }
 
-function CompanyHrCard({
+export function CompanyHrCard({
  company,
  onTransfer,
  onEdit,
@@ -1195,7 +1195,7 @@ function CompanyServiceRequestContent({
  </div>);
 }
 
-function HrServiceRequestPanel({
+export function HrServiceRequestPanel({
  requests,
  company,
  onStatusChange,
@@ -1236,10 +1236,6 @@ function CompanyLeaveBalanceContent({
  .filter((person) => person.worker_type === 'LOCAL' && person.staff_id)
  .map((person) => ({ company, person }))
  : [];
- const pendingTotal = localPeople.reduce((sum, { person }) => {
- return sum + (person.leave_balances ?? []).reduce((n, balance) => n + Number(balance.pending_days ?? 0), 0);
- }, 0);
-
  return (
  <>
  <div className="grid gap-3 md:grid-cols-3">
@@ -1325,14 +1321,13 @@ function CompanyLeaveBalanceContent({
  </>);
 }
 
-function HrLeaveBalancePanel({
+export function HrLeaveBalancePanel({
  company,
  onEditBalance,
 }: {
  company: HrCompanyGroup | null;
  onEditBalance: (person: HrStaffPerson, leaveType: HrLeaveType) => void;
 }) {
- const currentYear = new Date().getFullYear();
  const localPeople = company
  ? company.people
  .filter((person) => person.worker_type === 'LOCAL' && person.staff_id)

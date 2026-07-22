@@ -78,11 +78,6 @@ function round2(n: number) {
  return Math.round(n * 100) / 100;
 }
 
-function one<T>(v: T | T[] | null | undefined): T | null {
- if (Array.isArray(v)) return v[0] ?? null;
- return v ?? null;
-}
-
 function buildNarrativeSummary(
  periodType: ProposalPeriodType,
  periodLabel: string,

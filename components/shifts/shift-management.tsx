@@ -24,7 +24,6 @@ import {
  ModuleLoading,
  BranchRequiredPrompt,
  moduleTabsListClass,
- moduleTabsTriggerClass,
 } from '@/components/shared/module-ui';
 import { StaffByRegionPanel } from '@/components/staff/staff-by-region-panel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -41,7 +40,6 @@ import {
 } from '@/components/ui/select';
 import { boundSelectValue } from '@/lib/ui/select-utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
 import { WeeklyRosterPlanner } from '@/components/shifts/weekly-roster-planner';
 import { StaffSchedulePanel } from '@/components/shifts/staff-schedule-panel';
 

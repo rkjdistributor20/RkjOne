@@ -1,6 +1,5 @@
 import type { Profile } from '@/types/database';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { isAdminRole } from '@/lib/auth/permissions';
 
 export type ScopedBranchFilter = {
  /** null = semua cawangan (admin HQ) */

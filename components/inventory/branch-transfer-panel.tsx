@@ -11,7 +11,6 @@ import {
  Search,
  Store,
  Trash2,
- Warehouse,
 } from 'lucide-react';
 import {
  createTransfer,
@@ -40,12 +39,6 @@ import {
  type TransferLeg,
 } from '@/lib/inventory/branch-rebalance';
 import {
- TRANSFER_ROUTE_LABELS,
- type TransferRouteMode,
- isAllowedInventoryJourneyRoute,
- routeModeFromTransfer,
-} from '@/lib/inventory/transfer-route';
-import {
  formatBranchDestination,
  formatBranchDestinationDetail,
  sortBranchesByName,
@@ -70,10 +63,9 @@ import {
  SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth-store';
-import { isAreaManagerRole, isOperationManagerRole, canManageHqStockInOut } from '@/lib/auth/stock-access';
+import { isAreaManagerRole, isOperationManagerRole } from '@/lib/auth/stock-access';
 import {
  formatExpiryDate,
  ROTI_SHELF_LIFE_DAYS,
@@ -201,36 +193,6 @@ async function loadPickupLinesForLocation(
  ]);
  const official = rows.filter((r) => isHqStockItemCode(r.stock_item.item_code));
  return buildPickupLines(stockItems, official, batches);
-}
-
-function buildHqPickupLines(
- stockItems: StockItemOption[],
- balances: InventoryBalanceRow[]): StockLine[] {
- const byCode = new Map(balances.map((b) => [b.stock_item.item_code, b]));
- return HQ_STOCK_ITEM_CODES.map((code) => {
- const def = getStockByCode(code)!;
- const item = stockItems.find((s) => s.item_code === code);
- const row = byCode.get(code);
- const is_roti = (HQ_ROTI_ITEM_CODES as readonly string[]).includes(code);
- return {
- item_code: code,
- stock_item_id: item?.id ?? row?.stock_item_id ?? '',
- name: def.name,
- unit: row?.unit ?? def.base_unit,
- balance: Number(row?.quantity ?? 0),
- quantity: '',
- production_date: '',
- is_roti,
- };
- });
-}
-
-async function loadHqPickupLines(
- locationId: string,
- stockItems: StockItemOption[]): Promise<StockLine[]> {
- const { balances: rows } = await fetchBalances(locationId);
- const official = rows.filter((r) => isHqStockItemCode(r.stock_item.item_code));
- return buildHqPickupLines(stockItems, official);
 }
 
 function countStopUnits(lines: StockLine[]): number {

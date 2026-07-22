@@ -326,7 +326,6 @@ export async function agentHasPosAccess(
 
  await expireAgentSubscriptions(service, account.organization_id as string);
 
- const today = new Date().toISOString().slice(0, 10);
  const { data: outlets } = await service.from('agent_outlets').select('id').eq('agent_account_id', account.id).eq('pos_enabled', true).eq('subscription_active', true);
 
  for (const o of outlets ?? []) {

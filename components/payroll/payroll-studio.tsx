@@ -196,7 +196,7 @@ export function PayrollStudio({ onGenerated }: { onGenerated?: () => void }) {
 
  useEffect(() => {
  setDraft(makeDraft(selectedStaff));
- }, [selectedStaff?.id]);
+ }, [selectedStaff]);
 
  const preview = previewPay(selectedCompany, selectedStaff, draft, periodStart, periodEnd);
 
