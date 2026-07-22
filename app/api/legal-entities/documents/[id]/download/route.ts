@@ -60,7 +60,8 @@ async function canViewDocument(
  branchName: string | null) {
  if (!profile) return false;
  if (GLOBAL_DOC_ROLES.has(profile.role)) return true;
- if (!branchName) return true;
+ // Dokumen HQ tanpa cawangan hanya boleh dibaca oleh peranan global di atas.
+ if (!branchName) return false;
  if (!SCOPED_DOC_ROLES.has(profile.role)) return false;
 
  const branch = await findBranchByName(service, profile.organization_id, branchName);

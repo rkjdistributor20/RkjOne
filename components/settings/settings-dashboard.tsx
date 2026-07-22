@@ -369,20 +369,9 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
         }
         icon={Settings2}
         badges={
-          <>
-            <Badge
-              variant="outline"
-              className="border-amber-200 bg-amber-50 text-amber-900"
-            >
-              Semua aturan utama
-            </Badge>
-            <Badge
-              variant="outline"
-              className="border-emerald-200 bg-emerald-50 text-emerald-900"
-            >
-              Ikut role pengguna
-            </Badge>
-          </>
+          <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-900">
+            Akses mengikut role
+          </Badge>
         }
       />
 
@@ -394,8 +383,24 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
           onValueChange={setActiveTab}
           className="space-y-4"
         >
-          <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-            <aside className="rkj-surface h-fit rounded-lg p-3 lg:sticky lg:top-4">
+          <div className="grid gap-4 lg:grid-cols-[256px_minmax(0,1fr)]">
+            <div className="rkj-surface rounded-lg p-3 lg:hidden">
+              <label htmlFor="settings-module" className="mb-1.5 block text-xs font-semibold text-muted-foreground">
+                Pilih bahagian tetapan
+              </label>
+              <select
+                id="settings-module"
+                value={activeTab}
+                onChange={(event) => setActiveTab(event.target.value)}
+                className="h-11 w-full rounded-md border bg-white px-3 text-sm font-medium outline-none focus:ring-2 focus:ring-amber-400/40"
+              >
+                {visibleControlCards.map((card) => (
+                  <option key={card.value} value={card.value}>{card.title} · {card.metric}</option>
+                ))}
+              </select>
+            </div>
+
+            <aside className="rkj-surface hidden h-fit rounded-lg p-3 lg:sticky lg:top-4 lg:block">
               <div className="mb-3 rounded-lg border border-amber-100 bg-amber-50/70 p-3">
                 <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-amber-700">
                   <Sparkles className="h-3.5 w-3.5" />
@@ -502,32 +507,6 @@ export function SettingsDashboard({ initialUsers }: Props = {}) {
                     <Badge variant="outline" className="w-fit bg-white">
                       {activeControlCard.metric}
                     </Badge>
-                  </div>
-                  <div className="grid gap-3 p-4 md:grid-cols-3">
-                    <div className="rounded-lg border bg-white px-3 py-2">
-                      <p className="text-xs font-medium text-muted-foreground">
-                        Skop
-                      </p>
-                      <p className="mt-1 font-semibold text-stone-950">
-                        {activeControlCard.group}
-                      </p>
-                    </div>
-                    <div className="rounded-lg border bg-white px-3 py-2">
-                      <p className="text-xs font-medium text-muted-foreground">
-                        Status
-                      </p>
-                      <p className="mt-1 font-semibold text-stone-950">
-                        Sedang dibuka
-                      </p>
-                    </div>
-                    <div className="rounded-lg border bg-white px-3 py-2">
-                      <p className="text-xs font-medium text-muted-foreground">
-                        Rekod
-                      </p>
-                      <p className="mt-1 font-semibold text-stone-950">
-                        {activeControlCard.metric}
-                      </p>
-                    </div>
                   </div>
                 </div>
               )}

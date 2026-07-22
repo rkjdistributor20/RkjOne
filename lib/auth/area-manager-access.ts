@@ -5,12 +5,15 @@ export const AREA_MANAGER_INVENTORY_PATH = '/inventory';
 
 export const AREA_MANAGER_ALLOWED_PATHS = [
  '/dashboard',
+ '/branches',
  '/pos',
  AREA_MANAGER_INVENTORY_PATH,
  '/shifts',
  '/approvals',
  '/finance',
  '/maintenance',
+ '/hr',
+ '/bookings',
  '/reports',
  '/settings',
  '/change-password',

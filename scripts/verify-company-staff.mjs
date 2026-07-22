@@ -5,7 +5,10 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
-const input = process.argv[2] ?? path.join(ROOT, 'csv_import', 'rkj_company_staff_register.json');
+const input = process.argv[2];
+if (!input) {
+ throw new Error('Fail staf private diperlukan. Gunakan: node scripts/verify-company-staff.mjs <path-ke-fail-json-private>');
+}
 
 function loadEnvFile(filePath) {
  if (!fs.existsSync(filePath)) return {};

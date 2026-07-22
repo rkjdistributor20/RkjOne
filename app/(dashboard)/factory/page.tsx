@@ -12,7 +12,7 @@ export default async function FactoryPage() {
  if (profile.role === 'OPERATION_MANAGER' && legalEntityCode !== 'RKJ_MFG') {
  redirect('/dashboard');
  }
- if (!canAccessFactoryNav(profile.role)) {
+ if (!canAccessFactoryNav(profile.role, legalEntityCode)) {
  redirect('/warehouse');
  }
  return <FactoryDashboard />;

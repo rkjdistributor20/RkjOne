@@ -35,7 +35,7 @@ import { BrandLogo } from '@/components/brand/brand-logo';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { createClient } from '@/lib/supabase/client';
 import { getVisibleNavGroups, getNavLabelForPath } from '@/lib/auth/permissions';
 import { isAreaManagerRole } from '@/lib/auth/area-manager-access';
@@ -78,13 +78,10 @@ interface AppShellProps {
 function SidebarBrand() {
  const { t } = useLanguage();
  return (
- <div className="border-b border-white/10 px-4 py-5">
+ <div className="border-b border-white/10 px-4 py-4">
  <BrandLogo size="md" variant="light" />
- <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-200/70">
+ <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-200/70">
  {t('layout.est')} {COMPANY.founded} - {COMPANY.hq}
- </p>
- <p className="mt-1 text-xs leading-relaxed text-sidebar-foreground/65">
- {COMPANY.tagline}
  </p>
  </div>);
 }
@@ -99,15 +96,12 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
  const groups = getVisibleNavGroups(profile.role, permissions, profile);
 
  return (
- <nav className="flex flex-col gap-4 px-3">
+ <nav className="flex flex-col gap-3 px-3">
  {groups.map((group) => (
  <section key={group.group} className="space-y-1">
- <div className="px-3">
+ <div className="px-3 pb-0.5">
  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-100/45">
  {navGroupKeys[group.group] ? t(navGroupKeys[group.group].label) : group.label}
- </p>
- <p className="truncate text-[11px] text-sidebar-foreground/35">
- {navGroupKeys[group.group] ? t(navGroupKeys[group.group].description) : group.description}
  </p>
  </div>
  <div className="space-y-1">
@@ -121,6 +115,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
  key={item.href}
  href={item.href}
  onClick={onNavigate}
+ aria-current={active ? 'page' : undefined}
  className={cn(
  'group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
  active
@@ -202,6 +197,7 @@ export function AppShell({ children, posDeviceContext, kioskBypassed }: AppShell
  const { profile } = useAuthStore();
  const { t } = useLanguage();
  const [changingKiosk, setChangingKiosk] = useState(false);
+ const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
  const officialDevice = posDeviceContext.mode === 'PRODUCTION' ? posDeviceContext.device : null;
  const kioskMode = Boolean(officialDevice && !kioskBypassed);
@@ -330,8 +326,14 @@ export function AppShell({ children, posDeviceContext, kioskBypassed }: AppShell
 
  return (
  <div className="flex h-dvh min-h-0 overflow-hidden bg-background">
+ <a
+ href="#main-content"
+ className="sr-only z-[100] rounded-md bg-background px-4 py-2 font-medium focus:not-sr-only focus:fixed focus:left-3 focus:top-3"
+ >
+ Langkau ke kandungan utama
+ </a>
  <AreaManagerRouteGuard />
- <aside className="hidden min-h-0 w-72 shrink-0 border-r border-white/10 bg-[linear-gradient(180deg,#111411_0%,#17130f_48%,#0f1b17_100%)] md:flex md:flex-col">
+ <aside className="hidden min-h-0 w-64 shrink-0 border-r border-white/10 bg-[linear-gradient(180deg,#111411_0%,#17130f_48%,#0f1b17_100%)] md:flex md:flex-col">
  <SidebarBrand />
  <div className="rkj-scrollbar flex-1 overflow-y-auto py-4">
  <NavLinks />
@@ -341,17 +343,19 @@ export function AppShell({ children, posDeviceContext, kioskBypassed }: AppShell
 
  <div className="flex min-h-0 min-w-0 flex-1 flex-col">
  <header className="sticky top-0 z-20 flex min-h-16 items-center gap-4 border-b border-amber-200/40 bg-background/88 px-4 shadow-sm backdrop-blur-xl md:px-6">
- <Sheet>
+ <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
  <SheetTrigger
  type="button"
- className="inline-flex items-center justify-center rounded-xl p-2 text-foreground hover:bg-muted md:hidden"
+ aria-label="Buka menu navigasi"
+ className="inline-flex items-center justify-center rounded-lg p-2 text-foreground hover:bg-muted md:hidden"
  >
  <Menu className="h-5 w-5" />
  </SheetTrigger>
- <SheetContent side="left" className="w-72 border-sidebar-border bg-[linear-gradient(180deg,#111411_0%,#17130f_48%,#0f1b17_100%)] p-0">
+ <SheetContent side="left" className="w-64 border-sidebar-border bg-[linear-gradient(180deg,#111411_0%,#17130f_48%,#0f1b17_100%)] p-0">
+ <SheetTitle className="sr-only">Menu navigasi RKJ One</SheetTitle>
  <SidebarBrand />
  <div className="flex-1 overflow-y-auto py-4">
- <NavLinks />
+ <NavLinks onNavigate={() => setMobileNavOpen(false)} />
  </div>
  <UserFooter onLogout={handleLogout} />
  </SheetContent>
@@ -362,12 +366,12 @@ export function AppShell({ children, posDeviceContext, kioskBypassed }: AppShell
  </div>
 
  <div className="min-w-0 flex-1">
- <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-amber-700">
+ <h1 className="truncate text-base font-semibold text-stone-950 sm:text-lg">
  {pageTitle}
- </p>
- <h1 className="truncate text-lg font-semibold text-stone-950 md:text-xl">
- {t('layout.greeting')}, {greeting}
  </h1>
+ <p className="hidden truncate text-xs text-muted-foreground sm:block">
+ {greeting} · {profile?.role?.replaceAll('_', ' ') ?? t('layout.staffFallback')}
+ </p>
  </div>
 
  <div className="hidden items-center gap-2 sm:flex">
@@ -384,7 +388,7 @@ export function AppShell({ children, posDeviceContext, kioskBypassed }: AppShell
 
  <ProfileAvatarReminder />
 
- <main className="rkj-scrollbar min-h-0 flex-1 overflow-y-auto bg-transparent p-4 md:p-6">{children}</main>
+ <main id="main-content" tabIndex={-1} className="rkj-scrollbar min-h-0 flex-1 overflow-y-auto bg-transparent p-4 md:p-6">{children}</main>
  </div>
  </div>);
 }

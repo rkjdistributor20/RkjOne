@@ -5,7 +5,6 @@ import {
  ChevronRight,
  TrendingUp,
  AlertTriangle,
- CheckCircle2,
  Banknote,
  Package,
  Truck,
@@ -29,6 +28,7 @@ import {
  KpiGrid,
  KpiCard,
  SectionCard,
+ SecondarySection,
  formatRM,
 } from '@/components/shared/module-ui';
 import { DashboardAlert } from '@/components/dashboard/dashboard-brand-ui';
@@ -211,32 +211,13 @@ export function OwnerGroupDashboard({
  <ModuleLayout>
  <OwnerExecutiveHero profileName={profileName} stats={stats} />
 
- <SupplyChainStrip />
-
- <RoleProactiveCockpit
- role="SUPER_ADMIN"
- workflow={workflow}
- stats={stats}
- branchCount={COMPANY.branchCount}
- />
-
- <OperationsWorkflowMap focus="overview" compact />
-
- <OwnerDelegationPanel />
-
  {statsUnavailable && (
  <DashboardAlert>
  Statistik tidak dimuatkan - semak sambungan pangkalan data atau view{' '}
  <code className="text-xs">dashboard_stats</code>.
  </DashboardAlert>)}
 
- <KpiGrid cols={4}>
- <KpiCard
- title="Jualan Hari Ini"
- value={statsUnavailable ? '-' : formatRM(stats!.sales_today ?? 0)}
- description="Semua cawangan RKJ"
- icon={TrendingUp}
- />
+ <KpiGrid cols={5}>
  <KpiCard
  title="Jualan Minggu Ini"
  value={statsUnavailable ? '-' : formatRM(stats!.sales_this_week ?? 0)}
@@ -249,16 +230,6 @@ export function OwnerGroupDashboard({
  description="Prestasi bulanan"
  icon={TrendingUp}
  />
- <KpiCard
- title="Kelulusan Tertunda"
- value={statsUnavailable ? '-' : String(stats!.pending_approvals ?? 0)}
- description="Menunggu tindakan HQ"
- icon={CheckCircle2}
- variant={stats && stats.pending_approvals > 0 ? 'warning' : 'default'}
- />
- </KpiGrid>
-
- <KpiGrid cols={3}>
  <KpiCard
  title="Stok Rendah"
  value={statsUnavailable ? '-' : String(stats!.low_stock_count ?? 0)}
@@ -278,6 +249,8 @@ export function OwnerGroupDashboard({
  variant="warning"
  />
  </KpiGrid>
+
+ <OwnerDelegationPanel />
 
  <section className="space-y-3">
  <div className="flex items-end justify-between gap-3 px-0.5">
@@ -301,6 +274,20 @@ export function OwnerGroupDashboard({
  </section>
 
  {operations ?? <OwnerGroupOperationsFallback />}
+
+ <SecondarySection
+ title="Aliran kumpulan & panduan AI"
+ description="Rujukan rentas syarikat, peta proses dan cadangan operasi."
+ >
+ <SupplyChainStrip />
+ <RoleProactiveCockpit
+ role="SUPER_ADMIN"
+ workflow={workflow}
+ stats={stats}
+ branchCount={COMPANY.branchCount}
+ />
+ <OperationsWorkflowMap focus="overview" compact />
+ </SecondarySection>
  </ModuleLayout>);
 }
 
@@ -349,14 +336,6 @@ export function OwnerGroupOperations({
  icon={Truck}
  />
  </KpiGrid>
-
- <ProjectMemoryPanel />
-
- <AiLeadershipPanel />
-
- <RkjOperatingMap />
-
- <WorkflowSopPanel workflow={workflow} />
 
  {hrData && (
  <SectionCard
@@ -454,6 +433,16 @@ export function OwnerGroupOperations({
  </div>)}
  </SectionCard>
  </div>
+
+ <SecondarySection
+ title="Perancangan, AI & SOP pengurusan"
+ description="Bahan strategi dan rujukan lanjutan untuk semakan apabila diperlukan."
+ >
+ <ProjectMemoryPanel />
+ <AiLeadershipPanel />
+ <RkjOperatingMap />
+ <WorkflowSopPanel workflow={workflow} />
+ </SecondarySection>
  </>);
 }
 

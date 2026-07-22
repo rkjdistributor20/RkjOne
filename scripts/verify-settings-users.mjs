@@ -5,7 +5,6 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { loadProjectEnv } from './lib/load-env.mjs';
-import { DEFAULT_PASSWORD } from './lib/default-password.mjs';
 
 const PRODUCTION_URL = process.env.PRODUCTION_URL ?? 'https://rkj.one';
 const env = loadProjectEnv();
@@ -28,6 +27,9 @@ function ok(label, detail) {
 }
 function fail(label, detail) {
  console.log(` ✗ ${label}${detail ? ` - ${detail}` : ''}`);
+}
+function skip(label, detail) {
+ console.log(` - ${label}${detail ? ` - ${detail}` : ''}`);
 }
 
 const PROFILE_EMBED = `
@@ -99,34 +101,22 @@ const { error: brokenErr } = await admin
  .limit(1);
 check(!!brokenErr, 'Query lama memang rosak (dijangka)', brokenErr?.message?.slice(0, 60));
 
-// 5. Login owner + API production
-const password = env.GO_LIVE_PASSWORD?.trim() || DEFAULT_PASSWORD;
-let signInResult = await anon.auth.signInWithPassword({
- email: 'matisa@rkj.com',
- password,
-});
+// 5. Login owner + API production. A verifier must never rotate production credentials.
+const uatEmail = env.OWNER_UAT_EMAIL?.trim();
+const uatPassword = env.OWNER_UAT_PASSWORD?.trim();
+let signInResult = null;
 
-if (signInResult.error) {
- let page = 1;
- let user = null;
- while (page <= 20) {
- const { data } = await admin.auth.admin.listUsers({ page, perPage: 200 });
- user = data.users.find((u) => u.email?.toLowerCase() === 'matisa@rkj.com');
- if (user || data.users.length < 200) break;
- page++;
- }
- if (user) {
- await admin.auth.admin.updateUserById(user.id, { password, email_confirm: true });
+if (!uatEmail || !uatPassword) {
+ skip('Login owner + API production', 'SKIP: set OWNER_UAT_EMAIL and OWNER_UAT_PASSWORD explicitly');
+} else {
  signInResult = await anon.auth.signInWithPassword({
- email: 'matisa@rkj.com',
- password,
+ email: uatEmail,
+ password: uatPassword,
  });
- }
+ check(!signInResult.error && signInResult.data?.session, `Login ${uatEmail}`, signInResult.error?.message);
 }
 
-check(!signInResult.error && signInResult.data?.session, 'Login matisa@rkj.com', signInResult.error?.message);
-
-if (signInResult.data?.session) {
+if (signInResult?.data?.session) {
  const session = signInResult.data.session;
  const token = session.access_token;
  const projectRef = new URL(url).hostname.split('.')[0];

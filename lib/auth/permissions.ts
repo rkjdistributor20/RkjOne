@@ -45,7 +45,7 @@ export function isAreaScopedRole(role: UserRole): boolean {
 }
 
 export function canAccessMaintenance(role: UserRole): boolean {
- return ['SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER', 'MAINTENANCE_MANAGER', 'AREA_MANAGER', 'STAFF'].includes(role);
+ return ['SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER', 'MAINTENANCE_MANAGER', 'AREA_MANAGER', 'DRIVER', 'STAFF'].includes(role);
 }
 
 export function canAccessSalesAgent(role: UserRole): boolean {
@@ -68,7 +68,18 @@ export function canAccessHr(role: UserRole): boolean {
 }
 
 export function canAccessBookings(role: UserRole): boolean {
- return ['SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER'].includes(role);
+ return [
+ 'SUPER_ADMIN',
+ 'ADMIN',
+ 'OPERATION_MANAGER',
+ 'HR',
+ 'FINANCE',
+ 'CEO_FACTORY',
+ 'MAINTENANCE_MANAGER',
+ 'AREA_MANAGER',
+ 'STAFF',
+ 'SALES_AGENT',
+ ].includes(role);
 }
 
 export function buildPermissionMap(
@@ -134,7 +145,7 @@ export function getVisibleNavItems(
  return true;
  }
  if (item.href === '/factory') {
- return canAccessFactoryNav(role);
+ return canAccessFactoryNav(role, profile?.legal_entity?.code);
  }
  if (item.href === '/warehouse') {
  return (

@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { NextResponse, type NextRequest } from 'next/server';
 import type { Database } from '@/types/database';
 import { verifyKioskBypassToken } from '@/lib/pos/kiosk-token';
+import { isDashboardRouteAllowed } from '@/lib/auth/route-access';
 
 const CHANGE_PASSWORD_PATH = '/change-password';
 const CHANGE_PASSWORD_API = '/api/auth/change-password';
@@ -13,6 +14,13 @@ const PUBLIC_API_PATHS = new Set([
  '/api/pos/qr-payments/webhook',
  '/api/sales-agent/payments/webhook',
 ]);
+
+type MiddlewareProfile = {
+ must_change_password?: boolean;
+ role?: string;
+ status?: string;
+ legal_entity?: { code?: string | null } | null;
+};
 
 export async function updateSession(request: NextRequest) {
  let supabaseResponse = NextResponse.next({ request });
@@ -63,14 +71,68 @@ export async function updateSession(request: NextRequest) {
  ? await verifyKioskBypassToken(request.cookies.get(POS_KIOSK_BYPASS_COOKIE)?.value, user.id)
  : false;
 
+ let profileRow: MiddlewareProfile | null = null;
+
+ if (user) {
+ const profileSelect = isApiRoute
+ ? 'must_change_password, role, status'
+ : 'must_change_password, role, status, legal_entity:legal_entities(code)';
+ const { data: profile, error: profileError } = await (supabase as SupabaseClient)
+ .from('profiles')
+ .select(profileSelect)
+ .eq('id', user.id)
+ .maybeSingle();
+
+ if (profileError) {
+ if (isApiRoute) {
+ return NextResponse.json({ error: 'Profil tidak dapat disahkan buat sementara waktu.' }, { status: 503 });
+ }
+ if (pathname !== '/login') {
+ const url = request.nextUrl.clone();
+ url.pathname = '/login';
+ url.searchParams.set('error', 'profile_unavailable');
+ return NextResponse.redirect(url);
+ }
+ return supabaseResponse;
+ }
+ profileRow = profile as MiddlewareProfile | null;
+ }
+
  if (!user && !isPublicRoute) {
  if (isApiRoute) {
  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
  }
+
  const url = request.nextUrl.clone();
  url.pathname = '/login';
  url.searchParams.set('redirect', pathname);
  return NextResponse.redirect(url);
+ }
+
+ if (user && !profileRow) {
+ if (isApiRoute) {
+ return NextResponse.json({ error: 'Profil pengguna tidak ditemui.' }, { status: 403 });
+ }
+ if (pathname !== '/login') {
+ const url = request.nextUrl.clone();
+ url.pathname = '/login';
+ url.searchParams.set('error', 'profile_missing');
+ return NextResponse.redirect(url);
+ }
+ return supabaseResponse;
+ }
+
+ if (user && profileRow && profileRow.status !== 'ACTIVE') {
+ if (isApiRoute) {
+ return NextResponse.json({ error: 'Akaun tidak aktif' }, { status: 403 });
+ }
+ if (pathname !== '/login') {
+ const url = request.nextUrl.clone();
+ url.pathname = '/login';
+ url.searchParams.set('error', 'account_inactive');
+ return NextResponse.redirect(url);
+ }
+ return supabaseResponse;
  }
 
  if (user && pathname === '/login') {
@@ -95,13 +157,6 @@ export async function updateSession(request: NextRequest) {
  }
 
  if (user && !isPublicRoute && !isChangePasswordRoute) {
- const { data: profile } = await (supabase as SupabaseClient).from('profiles').select('must_change_password, role').eq('id', user.id).maybeSingle();
-
- const profileRow = profile as {
- must_change_password?: boolean;
- role?: string;
- } | null;
-
  if (profileRow?.must_change_password) {
  if (isApiRoute) {
  return NextResponse.json(
@@ -110,6 +165,19 @@ export async function updateSession(request: NextRequest) {
  }
  const url = request.nextUrl.clone();
  url.pathname = CHANGE_PASSWORD_PATH;
+ return NextResponse.redirect(url);
+ }
+
+ if (
+ !isApiRoute &&
+ !isDashboardRouteAllowed(pathname, {
+ role: profileRow?.role,
+ legalEntityCode: profileRow?.legal_entity?.code,
+ })
+ ) {
+ const url = request.nextUrl.clone();
+ url.pathname = '/dashboard';
+ url.search = '';
  return NextResponse.redirect(url);
  }
 

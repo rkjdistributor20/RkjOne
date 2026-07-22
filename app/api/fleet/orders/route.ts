@@ -3,6 +3,13 @@ import { createClient } from '@/lib/supabase/server';
 import { inventoryRpc } from '@/lib/supabase/inventory-rpc';
 import { getCurrentProfile } from '@/lib/auth/session';
 
+const DELIVERY_ORDER_ROLES = new Set(['SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER']);
+
+type DeliveryOrderRpcResult = {
+ order_id: string;
+ order_number: string;
+};
+
 export async function GET(request: Request) {
  const profile = await getCurrentProfile();
 
@@ -86,10 +93,25 @@ export async function POST(request: Request) {
  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
  }
 
+ if (!DELIVERY_ORDER_ROLES.has(profile.role)) {
+ return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+ }
+
  const supabase = await createClient();
 
  try {
  const payload = await request.json();
+
+ if (
+ typeof payload.origin_location_id !== 'string' ||
+ typeof payload.final_destination_id !== 'string' ||
+ !Array.isArray(payload.legs) ||
+ payload.legs.length === 0
+ ) {
+ return NextResponse.json(
+ { error: 'Origin, destination and at least one delivery leg are required' },
+ { status: 400 });
+ }
 
  const { data, error } = await inventoryRpc(supabase, 'create_delivery_order', {
  p_final_destination_id: payload.final_destination_id,
@@ -106,12 +128,12 @@ export async function POST(request: Request) {
  return NextResponse.json({ error: error.message }, { status: 500 });
  }
 
- return NextResponse.json({
- result: {
- order_id: data,
- order_number: null,
- },
- });
+ const result = data as DeliveryOrderRpcResult | null;
+ if (!result?.order_id || !result.order_number) {
+ return NextResponse.json({ error: 'Invalid delivery order response' }, { status: 502 });
+ }
+
+ return NextResponse.json({ result }, { status: 201 });
  } catch (err) {
  return NextResponse.json(
  { error: err instanceof Error ? err.message : 'Failed to create delivery order' },

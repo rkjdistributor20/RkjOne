@@ -1,7 +1,8 @@
+import { cache } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import type { Branch, Profile, ProfileWithBranch } from '@/types/database';
 
-export async function getCurrentProfile(): Promise<ProfileWithBranch | null> {
+async function loadCurrentProfile(): Promise<ProfileWithBranch | null> {
  const supabase = await createClient();
 
  const {
@@ -43,6 +44,8 @@ export async function getCurrentProfile(): Promise<ProfileWithBranch | null> {
  return {...row, branch, legal_entity: legalEntity } as ProfileWithBranch;
 }
 
+export const getCurrentProfile = cache(loadCurrentProfile);
+
 export async function getRolePermissions(organizationId: string, role: string) {
  const supabase = await createClient();
 
@@ -54,7 +57,7 @@ export async function getRolePermissions(organizationId: string, role: string) {
 export async function requireAuth() {
  const profile = await getCurrentProfile();
 
- if (!profile) {
+ if (!profile || profile.status !== 'ACTIVE') {
  throw new Error('Unauthorized');
  }
 

@@ -32,7 +32,6 @@ import {
  syncRosterReminders,
 } from '@/lib/roster/queries';
 import { StaffSchedulePanel } from '@/components/shifts/staff-schedule-panel';
-import { BrandStatsStrip } from '@/components/brand/page-header';
 import { COMPANY } from '@/lib/brand/company';
 import {
  LOGISTIK_DELIVERY_TITLE,
@@ -49,7 +48,6 @@ import { isOwnerDashboardRole } from '@/lib/dashboard/owner-company-structure';
 import { getCompanyHrDashboard } from '@/lib/hr/company-hr';
 import {
  DashboardHero,
- BrandProductStrip,
  QuickActionGrid,
  DashboardAlert,
 } from '@/components/dashboard/dashboard-brand-ui';
@@ -62,6 +60,7 @@ import {
  KpiGrid,
  KpiCard,
  SectionCard,
+ SecondarySection,
  formatRM,
 } from '@/components/shared/module-ui';
 import { StaffPayHrPanel } from '@/components/staff/staff-pay-hr-panel';
@@ -297,8 +296,6 @@ export default async function DashboardPage() {
  showLogo
  />
 
- <BrandProductStrip compact />
-
  <RoleProactiveCockpit
  role={profile.role}
  workflow={workflow}
@@ -306,8 +303,6 @@ export default async function DashboardPage() {
  branchCount={scope.branchIds?.length ?? null}
  specialAssignmentCount={agentKhasAssignments.length}
  />
-
- <WorkflowSopPanel workflow={workflow} />
 
  {agentKhasAssignments.length > 0 && (
  <SectionCard
@@ -351,6 +346,13 @@ export default async function DashboardPage() {
  }))}
  />
  </SectionCard>
+
+ <SecondarySection
+ title="Panduan aliran kerja"
+ description="SOP lengkap untuk rujukan dan latihan apabila diperlukan."
+ >
+ <WorkflowSopPanel workflow={workflow} />
+ </SecondarySection>
  </ModuleLayout>);
  }
 
@@ -424,22 +426,6 @@ export default async function DashboardPage() {
  }
  />
 
- <BrandStatsStrip />
-
- <BrandProductStrip />
-
- <RoleProactiveCockpit
- role={profile.role}
- workflow={workflow}
- legalEntityCode={legalEntityCode}
- stats={stats}
- branchCount={scope.branchIds?.length ?? null}
- />
-
- <OperationsWorkflowMap focus="overview" compact />
-
- <WorkflowSopPanel workflow={workflow} />
-
  {statsUnavailable && (
  <DashboardAlert>
  Statistik papan pemuka tidak dapat dimuatkan. Semak sambungan pangkalan data atau view{' '}
@@ -493,6 +479,14 @@ export default async function DashboardPage() {
  />
  </KpiGrid>
 
+ <RoleProactiveCockpit
+ role={profile.role}
+ workflow={workflow}
+ legalEntityCode={legalEntityCode}
+ stats={stats}
+ branchCount={scope.branchIds?.length ?? null}
+ />
+
  <Suspense fallback={<DashboardOpsFallback />}>
  <DashboardOpsPanels
  role={profile.role}
@@ -506,6 +500,14 @@ export default async function DashboardPage() {
  <SectionCard title="Tindakan Pantas" description="Tugasan operasi harian HQ & cawangan">
  <QuickActionGrid actions={quickActions} />
  </SectionCard>
+
+ <SecondarySection
+ title="Peta operasi & SOP"
+ description="Aliran kerja terperinci untuk rujukan dan latihan."
+ >
+ <OperationsWorkflowMap focus="overview" compact />
+ <WorkflowSopPanel workflow={workflow} />
+ </SecondarySection>
  </ModuleLayout>);
 }
 

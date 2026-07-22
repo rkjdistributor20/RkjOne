@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { createServiceClient } from '@/lib/supabase/server';
 import { getCurrentProfile } from '@/lib/auth/session';
 import { assertSettingsAdmin } from '@/lib/settings/admin-auth';
+import { assertRoleCreatable } from '@/lib/settings/personnel-access';
 import { resolveLegalEntityIdForRole } from '@/lib/settings/legal-entity';
 import {
  adviseUserDashboard,
@@ -97,6 +98,19 @@ export async function PATCH(
  return NextResponse.json({ error: 'Pengguna tidak dijumpai' }, { status: 404 });
  }
 
+ if (existing.role === 'SUPER_ADMIN' && profile.role !== 'SUPER_ADMIN') {
+ return NextResponse.json(
+ { error: 'Hanya Pentadbir Utama boleh mengubah akaun Pentadbir Utama' },
+ { status: 403 });
+ }
+
+ if (body.role !== undefined) {
+ assertRoleCreatable(profile, String(body.role));
+ if (id === profile.id && body.role !== profile.role) {
+ return NextResponse.json({ error: 'Tidak boleh menukar peranan akaun sendiri' }, { status: 400 });
+ }
+ }
+
  if (body.role !== undefined) {
  updates.legal_entity_id = await resolveLegalEntityIdForRole(
  client as SupabaseClient,
@@ -161,13 +175,19 @@ export async function DELETE(
  const service = await createServiceClient();
  const { data: target } = await (service as SupabaseClient)
  .from('profiles')
- .select('id')
+ .select('id, role')
  .eq('id', id)
  .eq('organization_id', profile.organization_id)
  .maybeSingle();
 
  if (!target) {
  return NextResponse.json({ error: 'Pengguna tidak dijumpai' }, { status: 404 });
+ }
+
+ if (target.role === 'SUPER_ADMIN' && profile.role !== 'SUPER_ADMIN') {
+ return NextResponse.json(
+ { error: 'Hanya Pentadbir Utama boleh memadam akaun Pentadbir Utama' },
+ { status: 403 });
  }
 
  const { error } = await service.auth.admin.deleteUser(id);

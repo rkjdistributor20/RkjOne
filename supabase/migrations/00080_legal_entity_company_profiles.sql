@@ -25,7 +25,7 @@ SET
  tax_id = NULL,
  bank_name = 'Maybank',
  bank_account_name = 'RKJ Distributor Sdn Bhd',
- bank_account_no = '564856315018',
+ bank_account_no = NULL,
  updated_at = now()
 FROM organizations o
 WHERE le.organization_id = o.id
@@ -43,7 +43,7 @@ SET
  tax_id = NULL,
  bank_name = 'Maybank',
  bank_account_name = 'Roti Kaya Junus Manufacturing Sdn Bhd',
- bank_account_no = '564427518660',
+ bank_account_no = NULL,
  updated_at = now()
 FROM organizations o
 WHERE le.organization_id = o.id
@@ -61,7 +61,7 @@ SET
  tax_id = NULL,
  bank_name = 'CIMB Bank',
  bank_account_name = 'Roti Kaya Junus',
- bank_account_no = '8606268175',
+ bank_account_no = NULL,
  updated_at = now()
 FROM organizations o
 WHERE le.organization_id = o.id

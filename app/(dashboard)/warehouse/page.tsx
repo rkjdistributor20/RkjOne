@@ -9,7 +9,7 @@ export default async function WarehousePage() {
  redirect('/login');
  }
  if (!canAccessHqWarehouseNav(profile.role)) {
- redirect(canAccessFactoryNav(profile.role) ? '/factory' : '/dashboard');
+ redirect(canAccessFactoryNav(profile.role, profile.legal_entity?.code) ? '/factory' : '/dashboard');
  }
  return <WarehouseDashboard />;
 }

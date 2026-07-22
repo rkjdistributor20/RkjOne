@@ -1,5 +1,5 @@
 /**
- * Register/update company staff from outputs/rkj_company_staff_register.json.
+ * Register/update company staff from an explicitly supplied private JSON file.
  *
  * Default mode is dry-run. Use --apply to write to Supabase.
  *
@@ -15,7 +15,6 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
-const DEFAULT_INPUT = path.join(ROOT, 'csv_import', 'rkj_company_staff_register.json');
 const DEFAULT_PASSWORD = process.env.RKJ_INITIAL_PASSWORD?.trim();
 if (!DEFAULT_PASSWORD) throw new Error('RKJ_INITIAL_PASSWORD is required');
 
@@ -26,7 +25,10 @@ function argValue(name, fallback = null) {
 }
 
 const APPLY = process.argv.includes('--apply');
-const INPUT = argValue('--input', DEFAULT_INPUT);
+const INPUT = argValue('--input');
+if (!INPUT) {
+ throw new Error('Fail staf private diperlukan. Gunakan --input <path-ke-fail-json-private>.');
+}
 
 function loadEnvFile(filePath) {
  if (!fs.existsSync(filePath)) return {};

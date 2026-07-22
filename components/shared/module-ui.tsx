@@ -1,4 +1,4 @@
-import type { LucideIcon } from 'lucide-react';
+import { ChevronDown, type LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BRAND_COLORS } from '@/lib/brand/company';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -115,7 +115,7 @@ export function KpiGrid({ children, cols = 4 }: { children: React.ReactNode; col
  2: 'sm:grid-cols-2',
  3: 'sm:grid-cols-2 lg:grid-cols-3',
  4: 'sm:grid-cols-2 lg:grid-cols-4',
- 5: 'sm:grid-cols-2 lg:grid-cols-5',
+ 5: 'sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5',
  };
  return <div className={cn('grid gap-3', gridCols[cols])}>{children}</div>;
 }
@@ -209,6 +209,31 @@ export function PrimaryActionButton(props: ComponentProps<typeof Button>) {
  className="bg-amber-500 text-stone-950 shadow-sm hover:bg-amber-400"
  {...props}
  />);
+}
+
+/** Kandungan rujukan yang kekal tersedia tanpa memenuhi paparan utama. */
+export function SecondarySection({
+ title,
+ description,
+ children,
+ defaultOpen = false,
+}: {
+ title: string;
+ description?: string;
+ children: ReactNode;
+ defaultOpen?: boolean;
+}) {
+ return (
+ <details className="rkj-surface group overflow-hidden rounded-lg" open={defaultOpen}>
+ <summary className="rkj-panel-head flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3.5 md:px-5">
+ <div>
+ <h3 className="font-semibold text-stone-950">{title}</h3>
+ {description && <p className="text-xs text-muted-foreground">{description}</p>}
+ </div>
+ <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+ </summary>
+ <div className="space-y-4 border-t border-amber-100/80 p-4 md:p-5">{children}</div>
+ </details>);
 }
 
 /** Baris senarai rekod */

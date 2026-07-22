@@ -23,6 +23,7 @@ import {
  KpiGrid,
  KpiCard,
  SectionCard,
+ SecondarySection,
  formatRM,
 } from '@/components/shared/module-ui';
 import {
@@ -137,33 +138,7 @@ export function AreaManagerDashboard({
  Statistik kawasan tidak dapat dimuatkan. Cuba muat semula halaman.
  </DashboardAlert>)}
 
- <RoleProactiveCockpit
- role="AREA_MANAGER"
- workflow={workflow}
- legalEntityCode={AREA_MANAGER_EMPLOYER_CODE}
- stats={stats}
- branchCount={context.branchCount}
- />
-
- <OperationsWorkflowMap focus="overview" compact />
-
  <AmInsightsPanel insights={insights} summary={insightsSummary} />
-
- <ManagementGovernancePanel
- role="AREA_MANAGER"
- legalEntityCode={AREA_MANAGER_EMPLOYER_CODE}
- stats={stats}
- branchCount={context.branchCount}
- openShifts={openShifts}
- totalStaff={totalStaff}
- staffClockedIn={totalClockedIn}
- criticalStock={kioskOverview.summary.critical}
- lowStock={kioskOverview.summary.low}
- />
-
- <WorkflowSopPanel workflow={workflow} />
-
- <AmOperationsPlanner />
 
  <KpiGrid cols={4}>
  <KpiCard
@@ -220,6 +195,28 @@ export function AreaManagerDashboard({
  variant={totalStaff > 0 && totalClockedIn === 0 ? 'danger' : 'default'}
  />
  </KpiGrid>
+
+ <RoleProactiveCockpit
+ role="AREA_MANAGER"
+ workflow={workflow}
+ legalEntityCode={AREA_MANAGER_EMPLOYER_CODE}
+ stats={stats}
+ branchCount={context.branchCount}
+ />
+
+ <ManagementGovernancePanel
+ role="AREA_MANAGER"
+ legalEntityCode={AREA_MANAGER_EMPLOYER_CODE}
+ stats={stats}
+ branchCount={context.branchCount}
+ openShifts={openShifts}
+ totalStaff={totalStaff}
+ staffClockedIn={totalClockedIn}
+ criticalStock={kioskOverview.summary.critical}
+ lowStock={kioskOverview.summary.low}
+ />
+
+ <AmOperationsPlanner />
 
  <SectionCard
  title="Prestasi Cawangan"
@@ -279,6 +276,14 @@ export function AreaManagerDashboard({
  ]}
  />
  </SectionCard>
+
+ <SecondarySection
+ title="Peta operasi & SOP kawasan"
+ description="Rujukan langkah kerja lengkap untuk semakan dan latihan."
+ >
+ <OperationsWorkflowMap focus="overview" compact />
+ <WorkflowSopPanel workflow={workflow} />
+ </SecondarySection>
  </ModuleLayout>);
 }
 

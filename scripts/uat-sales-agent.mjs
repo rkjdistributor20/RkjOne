@@ -597,9 +597,7 @@ for (const agent of agents) {
  const receipt = confirmRes.body.receipt;
  if (receipt?.receipt_number) {
  ok('Resit langganan', receipt.receipt_number);
- if (receipt.issuer?.bank_account_no?.includes('564856315018')) {
- ok('Bank RKJ Distributor pada resit', 'Maybank OK');
- } else if (receipt.issuer?.bank_name) {
+ if (receipt.issuer?.bank_name) {
  ok('Bank RKJ Distributor pada resit', receipt.issuer.bank_name);
  } else {
  fail('Bank pada resit', 'tiada');

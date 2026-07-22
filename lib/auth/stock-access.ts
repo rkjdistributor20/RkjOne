@@ -85,8 +85,8 @@ export function canSubmitHqFactoryOrder(role: string): boolean {
 }
 
 /** Sidebar / route Kilang */
-export function canAccessFactoryNav(role: string): boolean {
- return canManageFactorySchedule(role);
+export function canAccessFactoryNav(role: string, legalEntityCode?: string | null): boolean {
+ return canManageFactorySchedule(role) || (role === 'STAFF' && legalEntityCode === 'RKJ_MFG');
 }
 
 /** Sidebar / route Gudang HQ - CEO Kilang guna dashboard Kilang sahaja */

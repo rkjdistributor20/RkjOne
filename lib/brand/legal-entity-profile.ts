@@ -92,7 +92,7 @@ export const STATIC_LEGAL_ENTITY_PROFILES: Record<string, LegalEntityCompanyProf
  taxId: null,
  bankName: 'Maybank',
  bankAccountName: 'RKJ Distributor Sdn Bhd',
- bankAccountNo: '564856315018',
+ bankAccountNo: null,
  },
  RKJ_MFG: {
  code: 'RKJ_MFG',
@@ -106,7 +106,7 @@ export const STATIC_LEGAL_ENTITY_PROFILES: Record<string, LegalEntityCompanyProf
  taxId: null,
  bankName: 'Maybank',
  bankAccountName: 'Roti Kaya Junus Manufacturing Sdn Bhd',
- bankAccountNo: '564427518660',
+ bankAccountNo: null,
  },
  RKJ: {
  code: 'RKJ',
@@ -120,7 +120,7 @@ export const STATIC_LEGAL_ENTITY_PROFILES: Record<string, LegalEntityCompanyProf
  taxId: null,
  bankName: 'CIMB Bank',
  bankAccountName: 'Roti Kaya Junus',
- bankAccountNo: '8606268175',
+ bankAccountNo: null,
  },
 };
 

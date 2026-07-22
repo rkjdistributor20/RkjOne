@@ -6,7 +6,6 @@ import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { DEFAULT_PASSWORD } from './lib/default-password.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
@@ -50,6 +49,10 @@ function ok(label, detail) {
 
 function fail(label, detail) {
  console.log(` ✗ ${label}${detail ? ` - ${detail}` : ''}`);
+}
+
+function skip(label, detail) {
+ console.log(` - ${label}${detail ? ` - ${detail}` : ''}`);
 }
 
 function getMonday(d = new Date()) {
@@ -101,16 +104,22 @@ if (rpcErr?.message?.includes('Roster plan not found') || rpcErr?.message?.inclu
  ok('RPC publish_weekly_roster', 'wujud');
 }
 
-const { data: safuanAuth, error: authErr } = await admin.auth.signInWithPassword({
- email: 'safuan@rkj.com',
- password: DEFAULT_PASSWORD,
-});
+const rosterUatEmail = env.ROSTER_UAT_EMAIL?.trim();
+const rosterUatPassword = env.ROSTER_UAT_PASSWORD?.trim();
+const { data: safuanAuth, error: authErr } = rosterUatEmail && rosterUatPassword
+ ? await admin.auth.signInWithPassword({
+ email: rosterUatEmail,
+ password: rosterUatPassword,
+ })
+ : { data: null, error: null };
 
-if (authErr || !safuanAuth.session) {
- fail('Login safuan@rkj.com', authErr?.message ?? 'no session - semak kata laluan UAT');
- console.log(' ke Langkau ujian terbitkan AM (perlu login sah)\n');
+if (!rosterUatEmail || !rosterUatPassword) {
+ skip('Ujian terbitkan roster sebagai AM', 'SKIP: set ROSTER_UAT_EMAIL and ROSTER_UAT_PASSWORD explicitly');
+} else if (authErr || !safuanAuth?.session) {
+ fail(`Login ${rosterUatEmail}`, authErr?.message ?? 'no session');
+ failed++;
 } else {
- ok('Login safuan@rkj.com', 'OK');
+ ok(`Login ${rosterUatEmail}`, 'OK');
 
  const amClient = createClient(url, anonKey, {
  global: { headers: { Authorization: `Bearer ${safuanAuth.session.access_token}` } },

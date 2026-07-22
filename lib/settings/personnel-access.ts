@@ -33,9 +33,22 @@ export function assertCanManagePersonnel(profile: Profile | null): Profile {
 export const AM_CREATABLE_USER_ROLES: UserRole[] = ['STAFF'];
 
 export function rolesCreatableBy(profile: Profile): UserRole[] {
- if (isSettingsAdmin(profile.role)) {
+ if (profile.role === 'SUPER_ADMIN') {
  return [
  'SUPER_ADMIN',
+ 'ADMIN',
+ 'HR',
+ 'OPERATION_MANAGER',
+ 'CEO_FACTORY',
+ 'AREA_MANAGER',
+ 'DRIVER',
+ 'STAFF',
+ 'FINANCE',
+ 'MAINTENANCE_MANAGER',
+ ];
+ }
+ if (profile.role === 'ADMIN') {
+ return [
  'ADMIN',
  'HR',
  'OPERATION_MANAGER',

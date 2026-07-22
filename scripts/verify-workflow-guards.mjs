@@ -105,10 +105,32 @@ const checks = [
   ],
  },
  {
-  file: 'lib/auth/permissions.ts',
-  patterns: [
+ file: 'lib/auth/permissions.ts',
+ patterns: [
   'canAccessBookings',
-  "['SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER']",
+  "'SUPER_ADMIN'",
+  "'ADMIN'",
+  "'OPERATION_MANAGER'",
+ ],
+},
+ {
+ file: 'lib/auth/route-access.ts',
+ patterns: [
+  "return [...SHARED_PATHS, ...entityPaths, '/hr', '/bookings'];",
+ ],
+ },
+ {
+ file: 'lib/auth/sales-agent-access.ts',
+ patterns: [
+  "'/bookings'",
+ ],
+ },
+ {
+ file: 'lib/supabase/middleware.ts',
+ patterns: [
+  'profileError',
+  "url.searchParams.set('error', 'profile_unavailable')",
+  "url.searchParams.set('error', 'profile_missing')",
  ],
  },
  {
