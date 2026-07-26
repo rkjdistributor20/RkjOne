@@ -182,7 +182,7 @@ Dalam Xcode:
 
 ## Bahan Store
 
-- Screenshots: `outputs/mobile-release/store-assets/01-secure-login.png` hingga `05-logistics-agent.png`
+- Screenshots iPhone 6.9-inch (1290 x 2796, tanpa alpha): `outputs/mobile-release/app-store-assets/iphone-6.9/01-secure-login.png` hingga `05-logistics-agent.png`
 - App icon: `ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png`
 - Privacy explanation: `docs/mobile/DATA_SAFETY.md`
 - Release checklist: `docs/mobile/RELEASE_CHECKLIST.md`

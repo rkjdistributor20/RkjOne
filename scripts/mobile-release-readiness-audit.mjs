@@ -9,6 +9,7 @@
 import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import path from 'path';
+import sharp from 'sharp';
 import { fileURLToPath } from 'url';
 import { loadProjectEnv } from './lib/load-env.mjs';
 
@@ -45,6 +46,13 @@ const REQUIRED_ASSETS = [
   'public/app-icon-512.png',
   'ios/App/App/Info.plist',
   'capacitor.config.ts',
+];
+const APP_STORE_SCREENSHOTS = [
+  'outputs/mobile-release/app-store-assets/iphone-6.9/01-secure-login.png',
+  'outputs/mobile-release/app-store-assets/iphone-6.9/02-pos-counter.png',
+  'outputs/mobile-release/app-store-assets/iphone-6.9/03-branch-operations.png',
+  'outputs/mobile-release/app-store-assets/iphone-6.9/04-hr-payroll.png',
+  'outputs/mobile-release/app-store-assets/iphone-6.9/05-logistics-agent.png',
 ];
 const POS_COUNT_CODES = [
   'ST-PLANTA',
@@ -186,6 +194,20 @@ async function main() {
   for (const asset of REQUIRED_ASSETS) {
     const ok = fileExists(asset, asset.endsWith('.png') ? 1000 : 1);
     record('Artifact', asset, ok, ok ? 'ready' : 'missing', asset.includes('ios/') ? 'warn' : 'error');
+  }
+  for (const asset of APP_STORE_SCREENSHOTS) {
+    const full = path.join(ROOT, asset);
+    let metadata = null;
+    if (fileExists(asset, 1000)) metadata = await sharp(full).metadata();
+    const ok = metadata?.width === 1290 && metadata?.height === 2796 && metadata?.hasAlpha === false;
+    record(
+      'App Store Artifact',
+      asset,
+      ok,
+      metadata
+        ? `${metadata.width}x${metadata.height}; alpha=${metadata.hasAlpha}`
+        : 'missing',
+    );
   }
 
   console.log('\n--- Store Documents ---');

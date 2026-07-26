@@ -4,13 +4,16 @@ Add-Type -AssemblyName System.Drawing
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $outDir = Join-Path $repoRoot "outputs\mobile-release\store-assets"
+$appStoreOutDir = Join-Path $repoRoot "outputs\mobile-release\app-store-assets\iphone-6.9"
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+New-Item -ItemType Directory -Force -Path $appStoreOutDir | Out-Null
 
 $logoPath = Join-Path $repoRoot "public\brand\logo-official.jpg"
 $logo = [System.Drawing.Image]::FromFile($logoPath)
 
 function New-Canvas([int] $Width, [int] $Height) {
-  $bmp = New-Object System.Drawing.Bitmap($Width, $Height)
+  # App Store Connect rejects PNG files that contain an alpha channel.
+  $bmp = New-Object System.Drawing.Bitmap($Width, $Height, [System.Drawing.Imaging.PixelFormat]::Format24bppRgb)
   $g = [System.Drawing.Graphics]::FromImage($bmp)
   $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
   $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::ClearTypeGridFit
@@ -104,9 +107,30 @@ function New-PhoneScreenshot([string] $fileName, [string] $eyebrow, [string] $ti
   }
 
   Add-RoundedRect $g 96 1646 888 112 30 (New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(17, 17, 17))) $null 0
-  Add-Text $g "Install sebagai PWA atau guna Android app rasmi" 134 1682 812 50 32 "Bold" ([System.Drawing.Color]::White) "Center"
+  Add-Text $g "Operasi staf RKJ dalam satu aplikasi selamat" 134 1682 812 50 32 "Bold" ([System.Drawing.Color]::White) "Center"
 
   Save-Png $bmp $g $fileName
+}
+
+function New-AppStoreScreenshot([string] $fileName) {
+  $sourcePath = Join-Path $script:outDir $fileName
+  $source = [System.Drawing.Image]::FromFile($sourcePath)
+  $targetWidth = 1290
+  $targetHeight = 2796
+  $contentHeight = [int][Math]::Round($source.Height * ($targetWidth / $source.Width))
+  $top = [int][Math]::Floor(($targetHeight - $contentHeight) / 2)
+  $target = New-Object System.Drawing.Bitmap($targetWidth, $targetHeight, [System.Drawing.Imaging.PixelFormat]::Format24bppRgb)
+  $graphics = [System.Drawing.Graphics]::FromImage($target)
+  $graphics.Clear([System.Drawing.Color]::FromArgb(248, 246, 239))
+  $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+  $graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+  $graphics.DrawImage($source, 0, $top, $targetWidth, $contentHeight)
+  $targetPath = Join-Path $script:appStoreOutDir $fileName
+  $target.Save($targetPath, [System.Drawing.Imaging.ImageFormat]::Png)
+  $graphics.Dispose()
+  $target.Dispose()
+  $source.Dispose()
+  Write-Host "Created $targetPath"
 }
 
 function New-FeatureGraphic() {
@@ -163,5 +187,13 @@ New-PhoneScreenshot "05-logistics-agent.png" "Logistik dan ejen" "Route driver, 
   "Ejen khas dan ejen biasa dengan tahap akses berbeza",
   "Pengesahan penghantaran lengkap untuk audit"
 )
+
+@(
+  "01-secure-login.png",
+  "02-pos-counter.png",
+  "03-branch-operations.png",
+  "04-hr-payroll.png",
+  "05-logistics-agent.png"
+) | ForEach-Object { New-AppStoreScreenshot $_ }
 
 $logo.Dispose()
