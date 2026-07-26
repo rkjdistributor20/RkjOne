@@ -12,6 +12,7 @@ export function dashboardTodayLabel(locale = 'ms-MY') {
  day: 'numeric',
  month: 'long',
  year: 'numeric',
+ timeZone: 'Asia/Kuala_Lumpur',
  });
 }
 

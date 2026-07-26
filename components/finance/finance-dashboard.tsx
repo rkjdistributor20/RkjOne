@@ -11,6 +11,7 @@ import {
  QrCode,
  CheckCircle2,
  XCircle,
+ AlertTriangle,
 } from 'lucide-react';
 import { fetchBranches } from '@/lib/pos/api';
 import {
@@ -111,6 +112,7 @@ export function FinanceDashboard() {
  const [manualQrPayments, setManualQrPayments] = useState<ManualQrPayment[]>([]);
  const [branches, setBranches] = useState<FinanceBranchOption[]>([]);
  const [loading, setLoading] = useState(true);
+ const [loadError, setLoadError] = useState<string | null>(null);
  const [activeTab, setActiveTab] = useState<FinanceTab>('collections');
  const [tabLoading, setTabLoading] = useState(false);
  const [loadedTabs, setLoadedTabs] = useState<Partial<Record<FinanceTab, boolean>>>({});
@@ -138,8 +140,8 @@ export function FinanceDashboard() {
 
  const loadCore = useCallback(async () => {
  setLoading(true);
- try {
- const [sum, col, bi, usage, req, br, pendingQr] = await Promise.all([
+ setLoadError(null);
+ const results = await Promise.allSettled([
  fetchFinanceSummary(),
  fetchCollections(),
  fetchBankIns(),
@@ -148,23 +150,33 @@ export function FinanceDashboard() {
  fetchBranches(),
  fetchManualQrPayments('PENDING', 20),
  ]);
- setSummary(sum.summary);
- setCollections(col.collections);
- setBankIns(bi.records);
- setCashUsages(usage.usages);
- setSupplyRequests(req.requests);
- setManualQrPayments(pendingQr.payments);
- setBranches(br.branches);
+ const failures = results.filter(
+ (result): result is PromiseRejectedResult => result.status === 'rejected');
+ const [sum, col, bi, usage, req, br, pendingQr] = results;
+
+ if (sum.status === 'fulfilled') setSummary(sum.value.summary);
+ if (col.status === 'fulfilled') setCollections(col.value.collections);
+ if (bi.status === 'fulfilled') setBankIns(bi.value.records);
+ if (usage.status === 'fulfilled') setCashUsages(usage.value.usages);
+ if (req.status === 'fulfilled') setSupplyRequests(req.value.requests);
+ if (pendingQr.status === 'fulfilled') setManualQrPayments(pendingQr.value.payments);
+
+ const branchList = br.status === 'fulfilled' ? br.value.branches : [];
+ if (br.status === 'fulfilled') setBranches(branchList);
  setLoadedTabs((current) => ({...current, collections: true, bankin: true }));
- if (br.branches[0]) {
- setNewCollection((c) => ({...c, branch_id: branchId || br.branches[0].id }));
- setReconForm((r) => ({...r, branch_id: branchId || br.branches[0].id }));
+ if (branchList[0]) {
+ setNewCollection((c) => ({...c, branch_id: branchId || branchList[0].id }));
+ setReconForm((r) => ({...r, branch_id: branchId || branchList[0].id }));
  }
- } catch (err) {
- toast.error(err instanceof Error ? err.message : 'Gagal memuatkan kewangan');
- } finally {
+ if (failures.length) {
+ const firstFailure = failures[0].reason;
+ setLoadError(
+ firstFailure instanceof Error
+ ? firstFailure.message
+ : 'Sebahagian data kewangan tidak dapat dimuatkan');
+ toast.error(`${failures.length} sumber data kewangan perlu dimuat semula`);
+ }
  setLoading(false);
- }
  }, [branchId]);
 
  const loadTabData = useCallback(async (tab: FinanceTab = activeTab, force = false) => {
@@ -324,6 +336,18 @@ export function FinanceDashboard() {
  {loading ? (
  <ModuleLoading />) : (
  <>
+ {loadError && (
+ <Card className="border-amber-300 bg-amber-50">
+ <CardContent className="flex flex-wrap items-center justify-between gap-3 pt-5 text-sm text-amber-950">
+ <span className="flex items-center gap-2">
+ <AlertTriangle className="h-4 w-4" />
+ Data kewangan belum lengkap: {loadError}
+ </span>
+ <Button variant="outline" onClick={() => void refreshCurrentView()}>
+ Cuba Lagi
+ </Button>
+ </CardContent>
+ </Card>)}
  <KpiGrid cols={5}>
  <KpiCard title="Menunggu" value={summary?.pending_collections ?? 0} icon={ClipboardList} />
  <KpiCard title="Dikutip Hari Ini" value={fmt(summary?.collected_today ?? 0)} icon={Banknote} />

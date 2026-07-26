@@ -76,6 +76,7 @@ export function ApprovalsDashboard() {
   const [pending, setPending] = useState<ApprovalRequest[]>([]);
   const [resolved, setResolved] = useState<ApprovalRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [rejectId, setRejectId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const { locale } = useLanguage();
@@ -86,27 +87,49 @@ export function ApprovalsDashboard() {
   const summary = summarizeApprovalGovernance(pending);
 
   const loadData = useCallback(async () => {
-    try {
-      const [p, approved, rejected] = await Promise.all([
+    setLoading(true);
+    setLoadError(null);
+    const [pendingResult, approvedResult, rejectedResult] =
+      await Promise.allSettled([
         fetchApprovals("PENDING"),
         fetchApprovals("APPROVED"),
         fetchApprovals("REJECTED"),
       ]);
-      setPending(p.approvals);
-      const history = [...approved.approvals, ...rejected.approvals]
+    if (pendingResult.status === "fulfilled") {
+      setPending(pendingResult.value.approvals);
+    } else {
+      setPending([]);
+      setLoadError(
+        pendingResult.reason instanceof Error
+          ? pendingResult.reason.message
+          : ui("Gagal memuatkan kelulusan"),
+      );
+    }
+    const approved =
+      approvedResult.status === "fulfilled"
+        ? approvedResult.value.approvals
+        : [];
+    const rejected =
+      rejectedResult.status === "fulfilled"
+        ? rejectedResult.value.approvals
+        : [];
+    setResolved(
+      [...approved, ...rejected]
         .sort(
           (a, b) =>
             new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
         )
-        .slice(0, 30);
-      setResolved(history);
-    } catch (err) {
+        .slice(0, 30),
+    );
+    if (
+      approvedResult.status === "rejected" ||
+      rejectedResult.status === "rejected"
+    ) {
       toast.error(
-        err instanceof Error ? err.message : ui("Gagal memuatkan kelulusan"),
+        ui("Sejarah kelulusan tidak dapat dimuatkan sepenuhnya."),
       );
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   }, [ui]);
 
   useEffect(() => {
@@ -147,7 +170,9 @@ export function ApprovalsDashboard() {
         )}
         icon={CheckSquare}
         badges={
-          pending.length > 0 ? (
+          loadError ? (
+            <Badge variant="destructive">{ui("Data tidak lengkap")}</Badge>
+          ) : pending.length > 0 ? (
             <Badge variant="destructive">
               {pending.length} {ui("menunggu tindakan")}
             </Badge>
@@ -161,6 +186,12 @@ export function ApprovalsDashboard() {
         <ModuleLoading rows={1} />
       ) : (
         <Tabs defaultValue="pending" className="space-y-4">
+          {loadError && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-950">
+              <span>{ui("Gagal memuatkan kelulusan")}: {loadError}</span>
+              <Button onClick={() => void loadData()}>{ui("Cuba lagi")}</Button>
+            </div>
+          )}
           <KpiGrid cols={4}>
             <KpiCard
               title={ui("Menunggu")}
@@ -205,7 +236,7 @@ export function ApprovalsDashboard() {
           </TabsList>
 
           <TabsContent value="pending" className="mt-2 space-y-3">
-            {pending.length === 0 ? (
+            {pending.length === 0 && !loadError ? (
               <EmptyState
                 icon={CheckCircle}
                 title={ui("Tiada kelulusan menunggu")}

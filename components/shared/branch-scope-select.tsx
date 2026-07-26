@@ -39,17 +39,23 @@ export function BranchScopeSelect({
 }: BranchScopeSelectProps) {
  const [branches, setBranches] = useState<ScopedBranchOption[]>([]);
  const [loading, setLoading] = useState(true);
+ const [error, setError] = useState<string | null>(null);
 
  const load = useCallback(async () => {
  setLoading(true);
+ setError(null);
  try {
  const { branches: list } = await fetchScopedBranches();
  setBranches(list);
  if (!value && list.length === 1) {
  onChange(list[0].id);
  }
- } catch {
+ } catch (loadError) {
  setBranches([]);
+ setError(
+ loadError instanceof Error
+ ? loadError.message
+ : 'Senarai cawangan tidak dapat dimuatkan');
  } finally {
  setLoading(false);
  }
@@ -120,5 +126,16 @@ export function BranchScopeSelect({
  <p className="mt-1 text-xs text-muted-foreground">
  Area Manager: {managerHint}
  </p>)}
+ {error && (
+ <div className="mt-1 flex items-center gap-2 text-xs text-red-700">
+ <span>{error}</span>
+ <button
+ type="button"
+ className="font-semibold underline underline-offset-2"
+ onClick={() => void load()}
+ >
+ Cuba lagi
+ </button>
+ </div>)}
  </div>);
 }

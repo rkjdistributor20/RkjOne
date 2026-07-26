@@ -2,6 +2,7 @@ type ClientJsonCacheOptions = {
  ttlMs?: number;
  dedupe?: boolean;
  cacheKey?: string;
+ timeoutMs?: number;
 };
 
 type CacheEntry = {
@@ -53,14 +54,35 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
  return data as T;
 }
 
-async function executeFetch<T>(url: string, init?: RequestInit): Promise<T> {
+async function executeFetch<T>(
+ url: string,
+ init?: RequestInit,
+ timeoutMs = 20_000): Promise<T> {
+ const controller = new AbortController();
+ const abortFromCaller = () => controller.abort(init?.signal?.reason);
+ if (init?.signal?.aborted) abortFromCaller();
+ else init?.signal?.addEventListener('abort', abortFromCaller, { once: true });
+ const timeout = globalThis.setTimeout(
+ () => controller.abort(new DOMException('Request timed out', 'TimeoutError')),
+ timeoutMs);
+
+ try {
  const response = await fetch(url, {
  credentials: 'same-origin',
  ...init,
  headers: buildHeaders(init),
+ signal: controller.signal,
  });
-
- return parseJsonResponse<T>(response);
+ return await parseJsonResponse<T>(response);
+ } catch (error) {
+ if (controller.signal.aborted && !init?.signal?.aborted) {
+ throw new Error('Permintaan mengambil masa terlalu lama. Sila cuba semula.');
+ }
+ throw error;
+ } finally {
+ globalThis.clearTimeout(timeout);
+ init?.signal?.removeEventListener('abort', abortFromCaller);
+ }
 }
 
 export function clearClientJsonCache(prefix?: string) {
@@ -90,7 +112,7 @@ export async function fetchJson<T>(
  const dedupe = options?.dedupe ?? true;
 
  if (method !== 'GET') {
- const data = await executeFetch<T>(url, init);
+ const data = await executeFetch<T>(url, init, options?.timeoutMs);
  clearClientJsonCache();
  return data;
  }
@@ -105,7 +127,7 @@ export async function fetchJson<T>(
  if (inflight) return inflight as Promise<T>;
  }
 
- const request = executeFetch<T>(url, init)
+ const request = executeFetch<T>(url, init, options?.timeoutMs)
  .then((data) => {
  if (canReuse) {
  responseCache.set(key, {

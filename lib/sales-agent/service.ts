@@ -1,7 +1,6 @@
 ﻿import type { SupabaseClient } from '@supabase/supabase-js';
 import { AGENT_POS_SUBSCRIPTION_RM } from '@/lib/brand/legal-entities';
 import {
- expireAgentSubscriptions,
  getEffectivePaymentMode,
  isLivePaymentGatewayConfigured,
 } from './payment-gateway';
@@ -78,20 +77,21 @@ export async function loadProductionDayOptions(
 
  const { data: days } = await service.from('factory_production_days').select('production_date, orders_locked').in('week_id', weekIds).gte('production_date', today).order('production_date').limit(14);
 
- const options: ProductionDayOption[] = [];
- for (const d of days ?? []) {
- const { data: open } = await (service as SupabaseClient).rpc('is_factory_order_window_open', {
+ return Promise.all(
+ (days ?? []).map(async (day) => {
+ const { data: open } = await (service as SupabaseClient).rpc(
+ 'is_factory_order_window_open',
+ {
  p_org_id: organizationId,
- p_production_date: d.production_date,
+ p_production_date: day.production_date,
  } as never);
- options.push({
- production_date: d.production_date as string,
- orders_locked: Boolean(d.orders_locked),
+ return {
+ production_date: day.production_date as string,
+ orders_locked: Boolean(day.orders_locked),
  window_open: Boolean(open),
  cutoff_at: null,
- });
- }
- return options;
+ };
+ }));
 }
 
 export async function loadStockCatalog(
@@ -178,8 +178,6 @@ export async function buildAgentDashboard(
  service: SupabaseClient,
  profileId: string,
  organizationId: string): Promise<AgentDashboardData> {
- await expireAgentSubscriptions(service, organizationId);
-
  const account = await getAgentAccountForProfile(service, profileId, organizationId);
 
  if (!account) {
@@ -324,17 +322,21 @@ export async function agentHasPosAccess(
  const { data: account } = await service.from('sales_agent_accounts').select('id, organization_id').eq('profile_id', profileId).maybeSingle();
  if (!account) return false;
 
- await expireAgentSubscriptions(service, account.organization_id as string);
-
  const { data: outlets } = await service.from('agent_outlets').select('id').eq('agent_account_id', account.id).eq('pos_enabled', true).eq('subscription_active', true);
+ const outletIds = (outlets ?? []).map((outlet) => String(outlet.id));
+ if (!outletIds.length) return false;
 
- for (const o of outlets ?? []) {
- const { data: active } = await (service as SupabaseClient).rpc(
- 'agent_outlet_has_active_subscription',
- { p_outlet_id: o.id } as never);
- if (active) return true;
- }
+ const today = new Date().toISOString().slice(0, 10);
+ const { data: subscriptions, error } = await service
+ .from('agent_outlet_subscriptions')
+ .select('outlet_id')
+ .in('outlet_id', outletIds)
+ .eq('status', 'ACTIVE')
+ .lte('period_start', today)
+ .gte('period_end', today)
+ .limit(1);
 
- return false;
+ if (error) throw new Error(error.message);
+ return Boolean(subscriptions?.length);
 }
 

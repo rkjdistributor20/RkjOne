@@ -152,13 +152,15 @@ export function AdminCommandCenter({
  adminName: string;
  overview: AdminOverview;
 }) {
+ const recordedPaymentTotal =
+ overview.transactions.monthCash + overview.transactions.monthQr;
  const cashSplit =
- overview.transactions.monthSales > 0
- ? Math.round((overview.transactions.monthCash / overview.transactions.monthSales) * 100)
+ recordedPaymentTotal > 0
+ ? Math.round((overview.transactions.monthCash / recordedPaymentTotal) * 100)
  : 0;
  const qrSplit =
- overview.transactions.monthSales > 0
- ? Math.round((overview.transactions.monthQr / overview.transactions.monthSales) * 100)
+ recordedPaymentTotal > 0
+ ? 100 - cashSplit
  : 0;
 
  return (

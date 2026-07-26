@@ -74,24 +74,37 @@ export function ReportsDashboard() {
  const [inventory, setInventory] = useState<InventoryReportRow[]>([]);
  const [fleet, setFleet] = useState({ pending: 0, in_transit: 0, delivered: 0, total_orders: 0 });
  const [loading, setLoading] = useState(true);
+ const [loadError, setLoadError] = useState<string | null>(null);
  const [tabLoading, setTabLoading] = useState(false);
  const [loadedTabs, setLoadedTabs] = useState<Partial<Record<ReportsTab, string>>>({});
  const rangeKey = `${range.from}:${range.to}`;
 
  const loadOverview = useCallback(async () => {
  setLoading(true);
- try {
- const [ov, tr] = await Promise.all([
+ setLoadError(null);
+ const [overviewResult, trendResult] = await Promise.allSettled([
  fetchReportOverview(range.from, range.to),
  fetchSalesTrend(range.from, range.to),
  ]);
- setOverview(ov.overview);
- setTrend(tr.trend);
- } catch (err) {
- toast.error(err instanceof Error ? err.message : 'Gagal memuatkan laporan');
- } finally {
- setLoading(false);
+ if (overviewResult.status === 'fulfilled') {
+ setOverview(overviewResult.value.overview);
+ } else {
+ setOverview(null);
+ setLoadError(
+ overviewResult.reason instanceof Error
+ ? overviewResult.reason.message
+ : 'Ringkasan laporan tidak dapat dimuatkan');
  }
+ if (trendResult.status === 'fulfilled') {
+ setTrend(trendResult.value.trend);
+ } else {
+ setTrend([]);
+ toast.error(
+ trendResult.reason instanceof Error
+ ? trendResult.reason.message
+ : 'Trend jualan tidak dapat dimuatkan');
+ }
+ setLoading(false);
  }, [range.from, range.to]);
 
  const loadTabData = useCallback(async (tab: ReportsTab = activeTab, force = false) => {
@@ -176,6 +189,15 @@ export function ReportsDashboard() {
  {loading ? (
  <ModuleLoading />) : (
  <>
+ {loadError && (
+ <Card className="border-amber-300 bg-amber-50">
+ <CardContent className="flex flex-wrap items-center justify-between gap-3 pt-5 text-sm text-amber-950">
+ <span>Data laporan belum lengkap: {loadError}</span>
+ <PrimaryActionButton className="h-8" onClick={reloadCurrentView}>
+ Cuba Lagi
+ </PrimaryActionButton>
+ </CardContent>
+ </Card>)}
  <KpiGrid>
  <KpiCard title="Jumlah Jualan" value={fmt(overview?.total_sales ?? 0)} icon={TrendingUp} />
  <KpiCard title="Transaksi" value={overview?.transaction_count ?? 0} icon={BarChart3} />
