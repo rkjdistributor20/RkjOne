@@ -72,6 +72,24 @@ function loadCredentialPasswords() {
  if (email && password) passwords.set(email, password);
  }
  }
+ const fiuuCredentialPath = path.join(
+ ROOT,
+ 'outputs',
+ 'fiuu',
+ 'fiuu-reviewer-accounts.json');
+ if (fs.existsSync(fiuuCredentialPath)) {
+ try {
+ const reviewerCredentials = JSON.parse(
+ fs.readFileSync(fiuuCredentialPath, 'utf8'));
+ for (const entry of [reviewerCredentials.pos, reviewerCredentials.agent]) {
+ const email = entry?.email?.trim().toLowerCase();
+ const password = entry?.password?.trim();
+ if (email && password) passwords.set(email, password);
+ }
+ } catch {
+ console.warn('WARN Fail kredensial FIUU tidak dapat dibaca - guna kata laluan UAT umum');
+ }
+ }
  return passwords;
 }
 
