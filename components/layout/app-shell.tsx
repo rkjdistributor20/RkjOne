@@ -27,6 +27,7 @@ import {
  ShieldCheck,
  MonitorSmartphone,
  UnlockKeyhole,
+ BookOpen,
  type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -67,6 +68,7 @@ const ICONS: Record<string, LucideIcon> = {
  Store,
  CalendarDays,
  ShieldCheck,
+ BookOpen,
 };
 
 interface AppShellProps {

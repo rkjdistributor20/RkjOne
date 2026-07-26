@@ -95,6 +95,7 @@ export const NAV_ITEMS: Array<{
  group: 'command' | 'manufacturing' | 'distributor' | 'retail' | 'governance';
 }> = [
  { href: '/dashboard', label: 'Pusat Kawalan', module: 'reports', icon: 'LayoutDashboard', group: 'command' },
+ { href: '/manual', label: 'Panduan Pengguna', module: 'reports', icon: 'BookOpen', group: 'command' },
  { href: '/admin', label: 'Admin', module: 'user_management', icon: 'ShieldCheck', group: 'command' },
  { href: '/factory', label: 'Kilang', module: 'stock_hq', icon: 'Factory', group: 'manufacturing' },
  { href: '/warehouse', label: HQ_DISTRIBUTOR_LABEL, module: 'stock_hq', icon: 'Warehouse', group: 'distributor' },
@@ -121,6 +122,7 @@ export function getVisibleNavItems(
  const items = NAV_ITEMS.filter((item) => {
  if (profile && !canAccessNavGroupForLegalEntity(item.group, profile)) return false;
  if (item.href === '/dashboard') return true;
+ if (item.href === '/manual') return true;
  if (item.href === '/admin') return isAdminRole(role);
  if (item.href === '/payroll') return false;
  if (item.href === '/settings') {

@@ -7,7 +7,7 @@ type RouteProfile = {
  legalEntityCode?: string | null;
 };
 
-const SHARED_PATHS = ['/dashboard', '/profile', '/change-password'] as const;
+const SHARED_PATHS = ['/dashboard', '/manual', '/profile', '/change-password'] as const;
 
 const ROLE_PATHS: Partial<Record<UserRole, readonly string[]>> = {
  HR: [...SHARED_PATHS, '/hr', '/reports', '/bookings'],

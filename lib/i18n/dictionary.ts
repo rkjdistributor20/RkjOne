@@ -67,6 +67,7 @@ export const dictionary = {
  'nav.governance': 'Pengurusan',
  'nav.governanceDesc': 'HR, kewangan, laporan & tetapan',
  'nav.dashboard': 'Pusat Kawalan',
+ 'nav.manual': 'Panduan Pengguna',
  'nav.factory': 'Kilang',
  'nav.warehouse': 'HQ Distributor',
  'nav.fleet': 'Logistik',
@@ -305,6 +306,7 @@ export const dictionary = {
  'nav.governance': 'Management',
  'nav.governanceDesc': 'HR, finance, reports & settings',
  'nav.dashboard': 'Control Center',
+ 'nav.manual': 'User Guide',
  'nav.factory': 'Factory',
  'nav.warehouse': 'HQ Distributor',
  'nav.fleet': 'Logistics',
@@ -486,6 +488,7 @@ export type TranslationKey = keyof typeof dictionary.ms;
 
 export const navHrefKeys: Record<string, TranslationKey> = {
  '/dashboard': 'nav.dashboard',
+ '/manual': 'nav.manual',
  '/admin': 'nav.admin',
  '/factory': 'nav.factory',
  '/warehouse': 'nav.warehouse',
