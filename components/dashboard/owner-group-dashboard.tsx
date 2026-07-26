@@ -257,8 +257,6 @@ export function OwnerGroupDashboard({
  />
  </KpiGrid>
 
- <OwnerDelegationPanel />
-
  <DashboardSectionHeading
  eyebrow="02 · Operasi langsung"
  title="Keadaan kumpulan sekarang"
@@ -295,9 +293,10 @@ export function OwnerGroupDashboard({
  </section>
 
  <SecondarySection
- title="Aliran kumpulan & panduan AI"
- description="Rujukan rentas syarikat, peta proses dan cadangan operasi."
+ title="Delegasi, aliran kumpulan & panduan AI"
+ description="Matriks pemilik tugas, rujukan rentas syarikat dan cadangan operasi lanjutan."
  >
+ <OwnerDelegationPanel />
  <SupplyChainStrip />
  <RoleProactiveCockpit
  role="SUPER_ADMIN"
