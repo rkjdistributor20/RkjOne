@@ -2,9 +2,8 @@
 
 import Link from 'next/link';
 import type { LucideIcon } from 'lucide-react';
-import { AlertTriangle, Crown, Package, ShieldCheck, Sparkles, TrendingUp, Truck } from 'lucide-react';
+import { AlertTriangle, Crown, Package, ShieldCheck, Sparkles, TrendingUp } from 'lucide-react';
 import type { DashboardStats } from '@/types/database';
-import type { FleetOverview, PosOverview } from '@/lib/dashboard/queries';
 import { COMPANY } from '@/lib/brand/company';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -52,24 +51,18 @@ function OwnerHeroMetric({
 type OwnerExecutiveHeroProps = {
  profileName: string;
  stats: DashboardStats | null;
- posOverview?: PosOverview | null;
- fleetOverview?: FleetOverview | null;
 };
 
 export function OwnerExecutiveHero({
  profileName,
  stats,
- posOverview,
- fleetOverview,
 }: OwnerExecutiveHeroProps) {
  const { locale, t } = useLanguage();
  const statsUnavailable = stats === null;
  const firstName = profileName.split(' ')[0] ?? 'Owner';
  const pendingApprovals = statsUnavailable ? 0 : stats!.pending_approvals ?? 0;
  const dateLocale = locale === 'en' ? 'en-MY' : 'ms-MY';
- const activeDeliveryCount = fleetOverview
- ? fleetOverview.in_transit + fleetOverview.pending_deliveries
- : null;
+ const criticalStock = statsUnavailable ? 0 : stats!.critical_stock_count ?? 0;
 
  return (
  <DashboardHero
@@ -112,34 +105,20 @@ export function OwnerExecutiveHero({
  tone="gold"
  />
  <OwnerHeroMetric
- label={t('owner.hero.posRunning')}
- value={
- posOverview
- ? `${posOverview.open_shifts} ${t('owner.hero.shifts')}`
- : '-'
- }
- note={
- posOverview
- ? `${posOverview.transactions_today} ${t('owner.hero.posTransactionsToday')}`
- : t('common.loading')
- }
- icon={Package}
+ label={locale === 'en' ? 'Sales This Week' : 'Jualan Minggu Ini'}
+ value={statsUnavailable ? '-' : formatRM(stats!.sales_this_week ?? 0)}
+ note={locale === 'en' ? 'Current group performance' : 'Prestasi semasa kumpulan'}
+ icon={TrendingUp}
  tone="green"
  />
  <OwnerHeroMetric
- label={t('owner.hero.logistics')}
- value={
- activeDeliveryCount !== null
- ? `${activeDeliveryCount} ${t('owner.hero.deliveryActive')}`
- : '-'
- }
- note={
- fleetOverview
- ? `${fleetOverview.pending_deliveries} ${t('owner.hero.waiting')}, ${fleetOverview.in_transit} ${t('owner.hero.inTransit')}.`
- : t('common.loading')
- }
- icon={Truck}
- tone="blue"
+ label={locale === 'en' ? 'Critical Stock' : 'Stok Kritikal'}
+ value={statsUnavailable ? '-' : String(criticalStock)}
+ note={criticalStock > 0
+ ? (locale === 'en' ? 'Immediate action required' : 'Perlu tindakan segera')
+ : (locale === 'en' ? 'No critical stock alert' : 'Tiada amaran stok kritikal')}
+ icon={Package}
+ tone={criticalStock > 0 ? 'red' : 'blue'}
  />
  <OwnerHeroMetric
  label={t('owner.hero.pendingDecision')}

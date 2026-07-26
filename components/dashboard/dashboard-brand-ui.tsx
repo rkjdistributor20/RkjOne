@@ -236,6 +236,46 @@ export function QuickActionGrid({
  </div>);
 }
 
+export function DashboardSectionHeading({
+ eyebrow,
+ title,
+ description,
+ icon: Icon,
+ action,
+}: {
+ eyebrow: string;
+ title: string;
+ description?: string;
+ icon?: LucideIcon;
+ action?: React.ReactNode;
+}) {
+ return (
+ <div className="flex flex-col gap-3 px-0.5 sm:flex-row sm:items-end sm:justify-between">
+ <div className="flex min-w-0 items-start gap-3">
+ {Icon && (
+ <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-800 shadow-sm">
+ <Icon className="h-4.5 w-4.5" />
+ </span>
+ )}
+ <div className="min-w-0">
+ <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-amber-700">
+ {eyebrow}
+ </p>
+ <h2 className="mt-0.5 text-lg font-semibold tracking-tight text-stone-950 md:text-xl">
+ {title}
+ </h2>
+ {description && (
+ <p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted-foreground">
+ {description}
+ </p>
+ )}
+ </div>
+ </div>
+ {action && <div className="shrink-0">{action}</div>}
+ </div>
+ );
+}
+
 export function DashboardAlert({
  children,
  tone = 'warning',

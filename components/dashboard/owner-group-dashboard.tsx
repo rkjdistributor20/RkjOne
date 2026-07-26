@@ -10,6 +10,9 @@ import {
  Truck,
  Users,
  ShieldCheck,
+ Activity,
+ Gauge,
+ Network,
 } from 'lucide-react';
 import type { DashboardStats } from '@/types/database';
 import type { FleetOverview, PosOverview } from '@/lib/dashboard/queries';
@@ -31,7 +34,10 @@ import {
  SecondarySection,
  formatRM,
 } from '@/components/shared/module-ui';
-import { DashboardAlert } from '@/components/dashboard/dashboard-brand-ui';
+import {
+ DashboardAlert,
+ DashboardSectionHeading,
+} from '@/components/dashboard/dashboard-brand-ui';
 import { OwnerExecutiveHero } from '@/components/dashboard/owner-executive-hero';
 import { PosOverviewPanel } from '@/components/dashboard/pos-overview-panel';
 import { WorkflowSopPanel } from '@/components/dashboard/workflow-sop-panel';
@@ -217,13 +223,14 @@ export function OwnerGroupDashboard({
  <code className="text-xs">dashboard_stats</code>.
  </DashboardAlert>)}
 
- <KpiGrid cols={5}>
- <KpiCard
- title="Jualan Minggu Ini"
- value={statsUnavailable ? '-' : formatRM(stats!.sales_this_week ?? 0)}
- description="Ringkasan kumpulan"
- icon={TrendingUp}
+ <DashboardSectionHeading
+ eyebrow="01 · Keputusan pemilik"
+ title="Perkara yang perlu perhatian hari ini"
+ description="Fokus pada prestasi bulanan, risiko stok, tunai dan tugasan yang perlu pemilik arahkan."
+ icon={Gauge}
  />
+
+ <KpiGrid cols={3}>
  <KpiCard
  title="Jualan Bulan Ini"
  value={statsUnavailable ? '-' : formatRM(stats!.sales_this_month ?? 0)}
@@ -252,6 +259,20 @@ export function OwnerGroupDashboard({
 
  <OwnerDelegationPanel />
 
+ <DashboardSectionHeading
+ eyebrow="02 · Operasi langsung"
+ title="Keadaan kumpulan sekarang"
+ description="POS, logistik, HR dan jabatan operasi dimuatkan berasingan tanpa melambatkan dashboard utama."
+ icon={Activity}
+ />
+ {operations ?? <OwnerGroupOperationsFallback />}
+
+ <DashboardSectionHeading
+ eyebrow="03 · Struktur kumpulan"
+ title="Tiga syarikat mengikut aliran kerja"
+ description="Buka terus jabatan di bawah syarikat yang bertanggungjawab."
+ icon={Network}
+ />
  <section className="space-y-3">
  <div className="flex items-end justify-between gap-3 px-0.5">
  <div>
@@ -272,8 +293,6 @@ export function OwnerGroupDashboard({
  <CompanyBlockCard key={company.code} company={company} />))}
  </div>
  </section>
-
- {operations ?? <OwnerGroupOperationsFallback />}
 
  <SecondarySection
  title="Aliran kumpulan & panduan AI"
@@ -301,15 +320,6 @@ export function OwnerGroupOperations({
 
  return (
  <>
- <ManagementGovernancePanel
- role="SUPER_ADMIN"
- stats={stats}
- branchCount={COMPANY.branchCount}
- openShifts={posOverview.open_shifts}
- pendingDeliveries={fleetOverview.pending_deliveries}
- inTransitDeliveries={fleetOverview.in_transit}
- />
-
  <KpiGrid cols={4}>
  <KpiCard
  title="Syif POS Buka"
@@ -336,6 +346,48 @@ export function OwnerGroupOperations({
  icon={Truck}
  />
  </KpiGrid>
+
+ <div className="grid gap-4 lg:grid-cols-2">
+ <PosOverviewPanel overview={posOverview} />
+
+ <SectionCard
+ title={LOGISTIK_DELIVERY_TITLE}
+ description={`${fleetOverview.pending_deliveries} menunggu - ${fleetOverview.in_transit} dalam perjalanan - RKJ Distributor`}
+ action={
+ <Link href="/fleet" className={cn(buttonVariants({ size: 'sm' }), 'shrink-0')}>
+ Buka {LOGISTIK_LABEL}
+ </Link>
+ }
+ >
+ {fleetOverview.vehicles.length === 0 ? (
+ <p className="text-sm text-muted-foreground">Tiada kenderaan didaftarkan.</p>) : (
+ <div className="flex flex-wrap gap-2">
+ {fleetOverview.vehicles.map((v) => (
+ <Badge key={v.id} variant="outline" className="gap-1 px-3 py-1.5">
+ <Truck className="h-3.5 w-3.5 text-primary" />
+ {v.vehicle_code} - {v.vehicle_type}
+ {v.latest_status && (
+ <span className="text-muted-foreground">
+ - {labelFor(FLEET_VEHICLE_STATUS_LABELS, v.latest_status, v.latest_status)}
+ </span>)}
+ </Badge>))}
+ </div>)}
+ </SectionCard>
+ </div>
+
+ <SecondarySection
+ title="Scorecard kawalan pengurusan"
+ description="Buka untuk semak pemilik tindakan, SLA dan bukti audit."
+ >
+ <ManagementGovernancePanel
+ role="SUPER_ADMIN"
+ stats={stats}
+ branchCount={COMPANY.branchCount}
+ openShifts={posOverview.open_shifts}
+ pendingDeliveries={fleetOverview.pending_deliveries}
+ inTransitDeliveries={fleetOverview.in_transit}
+ />
+ </SecondarySection>
 
  {hrData && (
  <SectionCard
@@ -405,34 +457,6 @@ export function OwnerGroupOperations({
  <DepartmentTile key={dept.id} dept={dept} />))}
  </div>
  </SectionCard>
-
- <div className="grid gap-4 lg:grid-cols-2">
- <PosOverviewPanel overview={posOverview} />
-
- <SectionCard
- title={LOGISTIK_DELIVERY_TITLE}
- description={`${fleetOverview.pending_deliveries} menunggu - ${fleetOverview.in_transit} dalam perjalanan - RKJ Distributor`}
- action={
- <Link href="/fleet" className={cn(buttonVariants({ size: 'sm' }), 'shrink-0')}>
- Buka {LOGISTIK_LABEL}
- </Link>
- }
- >
- {fleetOverview.vehicles.length === 0 ? (
- <p className="text-sm text-muted-foreground">Tiada kenderaan didaftarkan.</p>) : (
- <div className="flex flex-wrap gap-2">
- {fleetOverview.vehicles.map((v) => (
- <Badge key={v.id} variant="outline" className="gap-1 px-3 py-1.5">
- <Truck className="h-3.5 w-3.5 text-primary" />
- {v.vehicle_code} - {v.vehicle_type}
- {v.latest_status && (
- <span className="text-muted-foreground">
- - {labelFor(FLEET_VEHICLE_STATUS_LABELS, v.latest_status, v.latest_status)}
- </span>)}
- </Badge>))}
- </div>)}
- </SectionCard>
- </div>
 
  <SecondarySection
  title="Perancangan, AI & SOP pengurusan"

@@ -8,6 +8,8 @@ import {
  Store,
  TrendingUp,
  Users,
+ Gauge,
+ Zap,
 } from 'lucide-react';
 import type { DashboardStats } from '@/types/database';
 import type { KioskBranchOverviewRow, KioskOverviewSummary } from '@/lib/inventory/kiosk-overview-data';
@@ -31,6 +33,7 @@ import {
  HeroBadge,
  QuickActionGrid,
  DashboardAlert,
+ DashboardSectionHeading,
 } from '@/components/dashboard/dashboard-brand-ui';
 import { AmInsightsPanel } from '@/components/dashboard/am-insights-panel';
 import { AmBranchPerformanceTable } from '@/components/dashboard/am-branch-performance-table';
@@ -89,6 +92,32 @@ export function AreaManagerDashboard({
 
  const amEmployer = getLegalEntityByCode(AREA_MANAGER_EMPLOYER_CODE);
  const workflow = getRoleWorkflow({ role: 'AREA_MANAGER', legalEntityCode: AREA_MANAGER_EMPLOYER_CODE });
+ const quickActions = [
+ {
+ label: 'Jadual Staf Mingguan',
+ href: '/shifts?tab=roster',
+ icon: CalendarDays,
+ description: 'Sediakan minggu depan',
+ },
+ {
+ label: 'Inventori Kiosk',
+ href: '/inventory',
+ icon: Package,
+ description: 'Stok & pemindahan',
+ },
+ {
+ label: 'Kelulusan Tertunda',
+ href: '/approvals',
+ icon: CheckCircle2,
+ description: 'Tindakan pengurus',
+ },
+ {
+ label: 'Panduan & SOP',
+ href: '/manual',
+ icon: Sparkles,
+ description: 'Rujukan Pengurus Kawasan',
+ },
+ ];
 
  return (
  <ModuleLayout>
@@ -133,13 +162,35 @@ export function AreaManagerDashboard({
  }
  />
 
+ <section className="space-y-3">
+ <DashboardSectionHeading
+ eyebrow="01 · Fokus kawasan"
+ title="Mula dengan tindakan utama"
+ description="Empat laluan kerja paling penting untuk mengawal operasi cawangan hari ini."
+ icon={Zap}
+ />
+ <QuickActionGrid actions={quickActions} />
+ </section>
+
  {statsUnavailable && (
  <DashboardAlert>
  Statistik kawasan tidak dapat dimuatkan. Cuba muat semula halaman.
  </DashboardAlert>)}
 
+ <DashboardSectionHeading
+ eyebrow="02 · Keutamaan"
+ title="Isu yang perlu diberi tindakan"
+ description="Cadangan disusun mengikut tahap kritikal merentas jualan, stok, syif dan staf."
+ icon={AlertTriangle}
+ />
  <AmInsightsPanel insights={insights} summary={insightsSummary} />
 
+ <DashboardSectionHeading
+ eyebrow="03 · Prestasi kawasan"
+ title="KPI operasi semasa"
+ description="Bandingkan jualan, stok, syif dan kehadiran sebelum menyemak setiap cawangan."
+ icon={Gauge}
+ />
  <KpiGrid cols={4}>
  <KpiCard
  title="Jualan Hari Ini"
@@ -196,6 +247,25 @@ export function AreaManagerDashboard({
  />
  </KpiGrid>
 
+ <DashboardSectionHeading
+ eyebrow="04 · Prestasi cawangan"
+ title="Kenal pasti lokasi yang memerlukan bantuan"
+ description="Mulakan dengan cawangan berstatus kritikal, kemudian tetapkan pemilik dan tarikh tindakan."
+ icon={Store}
+ />
+ <SectionCard
+ title="Prestasi Cawangan"
+ description="Jualan harian, mingguan & bulanan setiap lokasi - klik cawangan untuk inventori"
+ >
+ <AmBranchPerformanceTable rows={performanceRows} />
+ </SectionCard>
+
+ <AmOperationsPlanner />
+
+ <SecondarySection
+ title="Kawalan proaktif, governance & SOP kawasan"
+ description="Scorecard, SLA, hubungan kerja dan rujukan lengkap untuk semakan lanjutan."
+ >
  <RoleProactiveCockpit
  role="AREA_MANAGER"
  workflow={workflow}
@@ -203,7 +273,6 @@ export function AreaManagerDashboard({
  stats={stats}
  branchCount={context.branchCount}
  />
-
  <ManagementGovernancePanel
  role="AREA_MANAGER"
  legalEntityCode={AREA_MANAGER_EMPLOYER_CODE}
@@ -215,72 +284,6 @@ export function AreaManagerDashboard({
  criticalStock={kioskOverview.summary.critical}
  lowStock={kioskOverview.summary.low}
  />
-
- <AmOperationsPlanner />
-
- <SectionCard
- title="Prestasi Cawangan"
- description="Jualan harian, mingguan & bulanan setiap lokasi - klik cawangan untuk inventori"
- >
- <AmBranchPerformanceTable rows={performanceRows} />
- </SectionCard>
-
- <SectionCard
- title="Tindakan Pantas"
- description="Urus kiosk, staf, dan kelulusan dalam kawasan sahaja"
- >
- <QuickActionGrid
- actions={[
- {
- label: 'Jadual Staf Mingguan',
- href: '/shifts?tab=roster',
- icon: CalendarDays,
- description: 'Sediakan minggu depan',
- },
- {
- label: 'Spring Cleaning Bulanan',
- href: '#am-operations-planner',
- icon: Sparkles,
- description: 'Jadual cawangan',
- },
- {
- label: 'Meeting Highway',
- href: '/dashboard#am-operations-planner',
- icon: CalendarDays,
- description: 'Pilih banyak cawangan',
- },
- {
- label: 'Inventori Kiosk',
- href: '/inventory',
- icon: Package,
- description: 'Stok & pemindahan',
- },
- {
- label: 'Syif & Kehadiran',
- href: '/shifts',
- icon: Store,
- description: 'Clock-in staf',
- },
- {
- label: 'Kelulusan Tertunda',
- href: '/approvals',
- icon: CheckCircle2,
- description: 'Tindakan pengurus',
- },
- {
- label: 'Laporan Jualan',
- href: '/reports',
- icon: Sparkles,
- description: 'Analisis kawasan',
- },
- ]}
- />
- </SectionCard>
-
- <SecondarySection
- title="Peta operasi & SOP kawasan"
- description="Rujukan langkah kerja lengkap untuk semakan dan latihan."
- >
  <OperationsWorkflowMap focus="overview" compact />
  <WorkflowSopPanel workflow={workflow} />
  </SecondarySection>

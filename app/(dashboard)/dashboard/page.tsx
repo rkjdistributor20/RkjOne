@@ -13,6 +13,10 @@ import {
  BarChart3,
  Clock,
  ShoppingCart,
+ ClipboardList,
+ Gauge,
+ Zap,
+ UserRound,
 } from 'lucide-react';
 import { getCurrentProfile } from '@/lib/auth/session';
 import { resolveScopedBranches } from '@/lib/auth/branch-scope';
@@ -50,6 +54,7 @@ import {
  DashboardHero,
  QuickActionGrid,
  DashboardAlert,
+ DashboardSectionHeading,
 } from '@/components/dashboard/dashboard-brand-ui';
 import { labelFor, FLEET_VEHICLE_STATUS_LABELS } from '@/lib/ui/labels';
 import { buttonVariants } from '@/components/ui/button';
@@ -72,6 +77,8 @@ import { OperationsWorkflowMap } from '@/components/dashboard/operations-workflo
 import { ManagementGovernancePanel } from '@/components/dashboard/management-governance-panel';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { UserRole } from '@/types/enums';
+import type { RoleWorkflow } from '@/lib/dashboard/role-workflows';
+import { isDashboardRouteAllowed } from '@/lib/auth/route-access';
 
 function operationQuickActions(legalEntityCode?: string | null) {
  if (legalEntityCode === 'RKJ_MFG') {
@@ -96,6 +103,71 @@ function operationQuickActions(legalEntityCode?: string | null) {
  { label: 'Syif Staf', href: '/shifts', icon: Clock, description: 'Jadual & kehadiran' },
  { label: 'Maintenance', href: '/maintenance', icon: CheckCircle2, description: 'Isu cawangan' },
  ];
+}
+
+const DASHBOARD_ACTION_ICONS = {
+ '/admin': UserRound,
+ '/approvals': CheckCircle2,
+ '/bookings': Clock,
+ '/factory': Factory,
+ '/finance': Banknote,
+ '/fleet': Truck,
+ '/hr': UserRound,
+ '/inventory': Package,
+ '/maintenance': AlertTriangle,
+ '/manual': ClipboardList,
+ '/pos': Monitor,
+ '/reports': BarChart3,
+ '/sales-agent': ShoppingCart,
+ '/settings': UserRound,
+ '/shifts': Clock,
+ '/warehouse': Package,
+} as const;
+
+function dashboardPath(href: string) {
+ return href.split(/[?#]/, 1)[0] || '/dashboard';
+}
+
+function workflowQuickActions({
+ workflow,
+ role,
+ legalEntityCode,
+}: {
+ workflow: RoleWorkflow;
+ role: UserRole;
+ legalEntityCode?: string | null;
+}) {
+ if (role === 'OPERATION_MANAGER') {
+ return operationQuickActions(legalEntityCode);
+ }
+
+ const seen = new Set<string>();
+ const actions = workflow.steps.flatMap((step) => {
+ const path = dashboardPath(step.href);
+ if (
+ path === '/dashboard' ||
+ seen.has(path) ||
+ !isDashboardRouteAllowed(path, { role, legalEntityCode })
+ ) return [];
+ seen.add(path);
+ return [{
+ label: step.title,
+ href: step.href,
+ icon: DASHBOARD_ACTION_ICONS[path as keyof typeof DASHBOARD_ACTION_ICONS] ?? ClipboardList,
+ description: step.module,
+ }];
+ });
+
+ if (!seen.has('/manual')) {
+ actions.push({
+ label: 'Panduan & SOP',
+ href: '/manual',
+ icon: ClipboardList,
+ description: 'Rujukan kerja peranan anda',
+ });
+ }
+
+ return actions.slice(0, 4);
 }
 
 function FleetOverviewSection({ fleetOverview }: { fleetOverview: Awaited<ReturnType<typeof getFleetOverview>> }) {
@@ -128,15 +200,14 @@ function FleetOverviewSection({ fleetOverview }: { fleetOverview: Awaited<Return
 function DashboardOpsFallback() {
  return (
  <>
- <Skeleton className="h-32 rounded-lg" />
  <div className="grid gap-4 lg:grid-cols-2">
- <SectionCard title="Memuatkan POS" description="Data operasi sedang disediakan.">
+ <SectionCard title="Memuatkan status operasi" description="Data langsung mengikut peranan sedang disediakan.">
  <div className="space-y-3">
  <Skeleton className="h-8 w-44" />
  <Skeleton className="h-32 w-full" />
  </div>
  </SectionCard>
- <SectionCard title="Memuatkan Logistik" description="Status penghantaran sedang disemak.">
+ <SectionCard title="Memuatkan kawalan" description="Pengecualian dan bukti kerja sedang disemak.">
  <div className="flex flex-wrap gap-2">
  {Array.from({ length: 8 }).map((_, index) => (
  <Skeleton key={index} className="h-8 w-28 rounded-full" />))}
@@ -159,28 +230,45 @@ async function DashboardOpsPanels({
  branchIds: string[] | null;
  stats: Awaited<ReturnType<typeof getDashboardStats>>;
 }) {
+ const showPos = role === 'ADMIN' ||
+ role === 'FINANCE' ||
+ (role === 'OPERATION_MANAGER' && legalEntityCode === 'RKJ');
+ const showFleet = role === 'ADMIN' ||
+ role === 'DRIVER' ||
+ (role === 'OPERATION_MANAGER' && legalEntityCode === 'RKJ_DIST');
  const [posOverview, fleetOverview] = await Promise.all([
- getPosOverview(orgId, branchIds),
- getFleetOverview(orgId),
+ showPos ? getPosOverview(orgId, branchIds) : Promise.resolve(null),
+ showFleet ? getFleetOverview(orgId) : Promise.resolve(null),
  ]);
 
  return (
  <>
+ {(posOverview || fleetOverview) && (
+ <div className={cn('grid gap-4', posOverview && fleetOverview && 'lg:grid-cols-2')}>
+ {posOverview && (
+ <PosOverviewPanel
+ overview={posOverview}
+ actionHref={role === 'FINANCE' ? '/finance' : '/pos'}
+ actionLabel={role === 'FINANCE' ? 'Buka Kewangan' : 'Buka POS'}
+ />)}
+ {fleetOverview && <FleetOverviewSection fleetOverview={fleetOverview} />}
+ </div>)}
+
  {(role === 'ADMIN' || role === 'OPERATION_MANAGER' || role === 'FINANCE') && (
+ <SecondarySection
+ title="Kawalan pengurusan"
+ description="Scorecard, pemilik tindakan dan bukti audit untuk semakan apabila diperlukan."
+ >
  <ManagementGovernancePanel
  role={role}
  legalEntityCode={legalEntityCode}
  stats={stats}
  branchCount={branchIds?.length ?? COMPANY.branchCount}
- openShifts={posOverview.open_shifts}
- pendingDeliveries={fleetOverview.pending_deliveries}
- inTransitDeliveries={fleetOverview.in_transit}
- />)}
-
- <div className="grid gap-4 lg:grid-cols-2">
- <PosOverviewPanel overview={posOverview} />
- <FleetOverviewSection fleetOverview={fleetOverview} />
- </div>
+ openShifts={posOverview?.open_shifts}
+ pendingDeliveries={fleetOverview?.pending_deliveries}
+ inTransitDeliveries={fleetOverview?.in_transit}
+ />
+ </SecondarySection>)}
  </>);
 }
 
@@ -285,6 +373,28 @@ export default async function DashboardPage() {
  agent_account?: { company_name: string } | null;
  legal_entity?: { code: string; legal_name: string; name: string } | null;
  }>;
+ const safeStaffQuickActions = quickActions
+ .filter((action: { href: string }) => isDashboardRouteAllowed(
+ dashboardPath(action.href),
+ { role: profile.role, legalEntityCode }))
+ .map((action: { label: string; href: string; description: string }) => ({
+ label: action.label,
+ href: action.href,
+ icon: action.href.startsWith('/pos')
+ ? ShoppingCart
+ : DASHBOARD_ACTION_ICONS[
+ dashboardPath(action.href) as keyof typeof DASHBOARD_ACTION_ICONS
+ ] ?? Clock,
+ description: action.description,
+ }));
+ if (!safeStaffQuickActions.some((action) => action.href === '/manual')) {
+ safeStaffQuickActions.push({
+ label: 'Panduan & SOP',
+ href: '/manual',
+ icon: ClipboardList,
+ description: 'Rujukan tugas staf',
+ });
+ }
 
  return (
  <ModuleLayout>
@@ -296,13 +406,15 @@ export default async function DashboardPage() {
  showLogo
  />
 
- <RoleProactiveCockpit
- role={profile.role}
- workflow={workflow}
- legalEntityCode={legalEntityCode}
- branchCount={scope.branchIds?.length ?? null}
- specialAssignmentCount={agentKhasAssignments.length}
+ <section className="space-y-3">
+ <DashboardSectionHeading
+ eyebrow="01 · Mula di sini"
+ title="Tugasan utama anda"
+ description="Pilih tindakan yang perlu diselesaikan sekarang; pautan hanya mengikut akses akaun anda."
+ icon={Zap}
  />
+ <QuickActionGrid actions={safeStaffQuickActions.slice(0, 4)} />
+ </section>
 
  {agentKhasAssignments.length > 0 && (
  <SectionCard
@@ -327,8 +439,6 @@ export default async function DashboardPage() {
  </div>
  </SectionCard>)}
 
- <StaffPayHrPanel compact />
-
  <SectionCard
  title="Jadual Syif Saya"
  description="Minggu semasa - diterbitkan oleh pengurus cawangan"
@@ -336,21 +446,19 @@ export default async function DashboardPage() {
  <StaffSchedulePanel />
  </SectionCard>
 
- <SectionCard title="Pautan Pantas" description="Modul dashboard anda">
- <QuickActionGrid
- actions={quickActions.map((a: { label: string; href: string; description: string }) => ({
- label: a.label,
- href: a.href,
- icon: a.href === '/pos' ? ShoppingCart : Clock,
- description: a.description,
- }))}
- />
- </SectionCard>
+ <StaffPayHrPanel compact />
 
  <SecondarySection
- title="Panduan aliran kerja"
- description="SOP lengkap untuk rujukan dan latihan apabila diperlukan."
+ title="Kawalan proaktif & panduan aliran kerja"
+ description="Signal, ritma kerja dan SOP lengkap untuk semakan apabila diperlukan."
  >
+ <RoleProactiveCockpit
+ role={profile.role}
+ workflow={workflow}
+ legalEntityCode={legalEntityCode}
+ branchCount={scope.branchIds?.length ?? null}
+ specialAssignmentCount={agentKhasAssignments.length}
+ />
  <WorkflowSopPanel workflow={workflow} />
  </SecondarySection>
  </ModuleLayout>);
@@ -377,34 +485,16 @@ export default async function DashboardPage() {
 
  const statsUnavailable = stats === null;
  const workflow = getRoleWorkflow({ role: profile.role, legalEntityCode });
- const quickActions = profile.role === 'OPERATION_MANAGER'
- ? operationQuickActions(legalEntityCode)
- : [
- {
- label: 'Buka Syif POS',
- href: '/pos',
- icon: Monitor,
- description: 'Kaunter jualan',
- },
- {
- label: 'Inventori',
- href: '/inventory',
- icon: Package,
- description: 'Stok kiosk & HQ',
- },
- {
- label: 'Laporan',
- href: '/reports',
- icon: BarChart3,
- description: 'Jualan & prestasi',
- },
- {
- label: 'Kelulusan',
- href: '/approvals',
- icon: CheckCircle2,
- description: 'Menunggu tindakan',
- },
- ];
+ const quickActions = workflowQuickActions({
+ workflow,
+ role: profile.role,
+ legalEntityCode,
+ });
+ const showManagementKpis = ['ADMIN', 'OPERATION_MANAGER', 'FINANCE'].includes(profile.role);
+ const showLiveOperations = profile.role === 'ADMIN' ||
+ profile.role === 'FINANCE' ||
+ profile.role === 'DRIVER' ||
+ profile.role === 'OPERATION_MANAGER';
 
  return (
  <ModuleLayout>
@@ -426,11 +516,30 @@ export default async function DashboardPage() {
  }
  />
 
+ <section className="space-y-3">
+ <DashboardSectionHeading
+ eyebrow="01 · Fokus kerja"
+ title="Mula dengan tindakan utama"
+ description="Pautan disusun mengikut peranan dan syarikat aktif supaya kerja penting tidak tenggelam."
+ icon={Zap}
+ />
+ <QuickActionGrid actions={quickActions} />
+ </section>
+
  {statsUnavailable && (
  <DashboardAlert>
  Statistik papan pemuka tidak dapat dimuatkan. Semak sambungan pangkalan data atau view{' '}
  <code className="text-xs">dashboard_stats</code>.
  </DashboardAlert>)}
+
+ {showManagementKpis && (
+ <>
+ <DashboardSectionHeading
+ eyebrow="02 · Kesihatan operasi"
+ title="Ringkasan prestasi dan pengecualian"
+ description="Utamakan nilai merah atau kuning sebelum membuka analisis terperinci."
+ icon={Gauge}
+ />
 
  <KpiGrid cols={4}>
  <KpiCard
@@ -478,15 +587,16 @@ export default async function DashboardPage() {
  icon={CheckCircle2}
  />
  </KpiGrid>
+ </>)}
 
- <RoleProactiveCockpit
- role={profile.role}
- workflow={workflow}
- legalEntityCode={legalEntityCode}
- stats={stats}
- branchCount={scope.branchIds?.length ?? null}
+ {showLiveOperations && (
+ <>
+ <DashboardSectionHeading
+ eyebrow={showManagementKpis ? '03 · Operasi langsung' : '02 · Operasi langsung'}
+ title="Status operasi semasa"
+ description="Paparan ini hanya memuatkan data operasi yang berkaitan dengan peranan dan syarikat anda."
+ icon={Monitor}
  />
-
  <Suspense fallback={<DashboardOpsFallback />}>
  <DashboardOpsPanels
  role={profile.role}
@@ -496,15 +606,19 @@ export default async function DashboardPage() {
  stats={stats}
  />
  </Suspense>
-
- <SectionCard title="Tindakan Pantas" description="Tugasan operasi harian HQ & cawangan">
- <QuickActionGrid actions={quickActions} />
- </SectionCard>
+ </>)}
 
  <SecondarySection
- title="Peta operasi & SOP"
- description="Aliran kerja terperinci untuk rujukan dan latihan."
+ title="Kawalan proaktif, peta operasi & SOP"
+ description="Analisis lanjutan, hubungan kerja, SLA dan panduan terperinci."
  >
+ <RoleProactiveCockpit
+ role={profile.role}
+ workflow={workflow}
+ legalEntityCode={legalEntityCode}
+ stats={stats}
+ branchCount={scope.branchIds?.length ?? null}
+ />
  <OperationsWorkflowMap focus="overview" compact />
  <WorkflowSopPanel workflow={workflow} />
  </SecondarySection>

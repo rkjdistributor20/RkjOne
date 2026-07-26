@@ -18,7 +18,15 @@ function formatTime(iso: string) {
  });
 }
 
-export function PosOverviewPanel({ overview }: { overview: PosOverview }) {
+export function PosOverviewPanel({
+ overview,
+ actionHref = '/pos',
+ actionLabel = 'Buka POS',
+}: {
+ overview: PosOverview;
+ actionHref?: string;
+ actionLabel?: string;
+}) {
  const hasActivity =
  overview.transactions_today > 0 || overview.open_shifts > 0;
 
@@ -32,8 +40,8 @@ export function PosOverviewPanel({ overview }: { overview: PosOverview }) {
  }
  description="Jualan langsung dari kaunter tunai - disegerakkan ke papan pemuka"
  action={
- <Link href="/pos" className={cn(buttonVariants({ size: 'sm' }), 'shrink-0')}>
- Buka POS
+ <Link href={actionHref} className={cn(buttonVariants({ size: 'sm' }), 'shrink-0')}>
+ {actionLabel}
  </Link>
  }
  >
@@ -119,11 +127,12 @@ export function PosOverviewPanel({ overview }: { overview: PosOverview }) {
  </div>) : (
  !hasActivity && (
  <p className="rounded-lg border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
- Tiada jualan hari ini. Buka syif di{' '}
- <Link href="/pos" className="font-medium text-primary underline-offset-2 hover:underline">
- Kaunter POS
+ Tiada jualan hari ini.{' '}
+ {actionHref === '/pos' ? <>Buka syif di{' '}</> : <>Semak rekonsiliasi di{' '}</>}
+ <Link href={actionHref} className="font-medium text-primary underline-offset-2 hover:underline">
+ {actionHref === '/pos' ? 'Kaunter POS' : actionLabel}
  </Link>{' '}
- untuk mula merekod transaksi.
+ {actionHref === '/pos' ? 'untuk mula merekod transaksi.' : 'untuk tindakan lanjut.'}
  </p>))}
  </div>
  </SectionCard>);
