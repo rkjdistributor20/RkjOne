@@ -11,6 +11,7 @@ const POS_DEVICE_COOKIE = 'rkj_pos_device';
 const POS_KIOSK_BYPASS_COOKIE = 'rkj_pos_kiosk_bypass';
 const PUBLIC_API_PATHS = new Set([
  '/api/health',
+ '/api/auth/login',
  '/api/pos/qr-payments/webhook',
  '/api/sales-agent/payments/webhook',
 ]);

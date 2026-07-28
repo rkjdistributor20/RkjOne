@@ -1,6 +1,8 @@
 package com.rkjone.staff;
 
 import android.os.Bundle;
+import android.webkit.CookieManager;
+import android.webkit.WebSettings;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
@@ -8,6 +10,13 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(RkjDevicePolicyPlugin.class);
         super.onCreate(savedInstanceState);
+
+        CookieManager cookieManager = CookieManager.getInstance();
+        cookieManager.setAcceptCookie(true);
+        cookieManager.flush();
+
+        WebSettings webSettings = bridge.getWebView().getSettings();
+        webSettings.setDomStorageEnabled(true);
     }
 
     @Override

@@ -19,7 +19,6 @@ import { BrandLogo } from "@/components/brand/brand-logo";
 import { StaffSchedulePanel } from "@/components/shifts/staff-schedule-panel";
 import { LanguageSwitcher } from "@/components/i18n/language-switcher";
 import { useLanguage } from "@/components/i18n/language-provider";
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,26 +48,35 @@ export function LoginForm() {
     setLoading(true);
     setError(null);
 
-    const supabase = createClient();
-    const { error: authError } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password: password.trim(),
-    });
+    const loginResponse = await fetch("/api/auth/login", {
+      method: "POST",
+      credentials: "include",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: email.trim(),
+        password,
+      }),
+    }).catch(() => null);
 
-    if (authError) {
-      setError(mapAuthError(authError.message));
+    const loginResult = loginResponse
+      ? await loginResponse.json().catch(() => ({}))
+      : {};
+
+    if (!loginResponse?.ok) {
+      const message =
+        typeof loginResult.error === "string"
+          ? loginResult.error
+          : "Sambungan gagal. Semak internet dan cuba semula.";
+      setError(mapAuthError(message));
       setLoading(false);
       return;
     }
 
-    const { data: authData } = await supabase.auth.getUser();
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", authData.user?.id ?? "")
-      .maybeSingle();
-
-    const deviceResponse = await fetch('/api/pos/device', { cache: 'no-store' });
+    const deviceResponse = await fetch("/api/pos/device", {
+      credentials: "include",
+      cache: "no-store",
+    });
     if (deviceResponse.ok) {
       const deviceContext = await deviceResponse.json();
       if (deviceContext.mode === 'PRODUCTION') {
@@ -77,7 +85,7 @@ export function LoginForm() {
       }
     }
 
-    if ((profile as { role?: string } | null)?.role === "STAFF") {
+    if (loginResult.role === "STAFF") {
       setIsStaffLogin(true);
       setShowSchedule(true);
       setLoading(false);

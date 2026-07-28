@@ -34,10 +34,10 @@ try {
       .\gradlew.bat :app:assembleDebug --no-daemon
       if ($LASTEXITCODE -ne 0) { throw "Gradle debug build gagal dengan exit code $LASTEXITCODE." }
       $sourceArtifact = Join-Path $localBuildRoot "apk\debug\app-debug.apk"
-      $targetArtifact = Join-Path $artifactDirectory "rkj-one-staff-1.1-debug.apk"
+      $targetArtifact = Join-Path $artifactDirectory "rkj-one-staff-1.4-debug.apk"
       New-Item -ItemType Directory -Force -Path $artifactDirectory | Out-Null
       Copy-Item -LiteralPath $sourceArtifact -Destination $targetArtifact -Force
-      Write-Host "APK debug siap: artifacts/android/rkj-one-staff-1.1-debug.apk"
+      Write-Host "APK debug siap: artifacts/android/rkj-one-staff-1.4-debug.apk"
     } else {
       if (-not (Test-Path "keystore.properties")) {
         throw "android/keystore.properties tidak dijumpai. Release AAB perlukan signing key."
@@ -46,10 +46,10 @@ try {
       .\gradlew.bat :app:bundleRelease --no-daemon
       if ($LASTEXITCODE -ne 0) { throw "Gradle release build gagal dengan exit code $LASTEXITCODE." }
       $sourceArtifact = Join-Path $localBuildRoot "bundle\release\app-release.aab"
-      $targetArtifact = Join-Path $artifactDirectory "rkj-one-staff-1.1-release.aab"
+      $targetArtifact = Join-Path $artifactDirectory "rkj-one-staff-1.4-release.aab"
       New-Item -ItemType Directory -Force -Path $artifactDirectory | Out-Null
       Copy-Item -LiteralPath $sourceArtifact -Destination $targetArtifact -Force
-      Write-Host "AAB release siap: artifacts/android/rkj-one-staff-1.1-release.aab"
+      Write-Host "AAB release siap: artifacts/android/rkj-one-staff-1.4-release.aab"
     }
   } finally {
     Pop-Location
