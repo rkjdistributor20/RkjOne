@@ -3,13 +3,29 @@ import { createClient } from '@/lib/supabase/server';
 import { inventoryRpc } from '@/lib/supabase/inventory-rpc';
 import { getCurrentProfile } from '@/lib/auth/session';
 import { resolveScopedBranches } from '@/lib/auth/branch-scope';
+import { isDatabaseEnumValue } from '@/lib/validation/database-enum';
+import type { Enums } from '@/types/database';
+
+const COLLECTION_STATUSES = [
+ 'PENDING',
+ 'COLLECTED',
+ 'BANKED',
+ 'VERIFIED',
+] as const satisfies readonly Enums<'collection_status'>[];
 
 export async function GET(request: Request) {
  const profile = await getCurrentProfile();
  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
  const url = new URL(request.url);
- const status = url.searchParams.get('status');
+ const requestedStatus = url.searchParams.get('status');
+ let status: Enums<'collection_status'> | null = null;
+ if (requestedStatus) {
+  if (!isDatabaseEnumValue(requestedStatus, COLLECTION_STATUSES)) {
+   return NextResponse.json({ error: 'Invalid collection status' }, { status: 400 });
+  }
+  status = requestedStatus;
+ }
  const requestedLimit = Number(url.searchParams.get('limit') ?? 50);
  const limit = Number.isFinite(requestedLimit)
  ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 100)

@@ -1,6 +1,6 @@
 import { cache } from 'react';
 import { createClient } from '@/lib/supabase/server';
-import type { Branch, Profile, ProfileWithBranch } from '@/types/database';
+import type { Branch, Enums, Profile, ProfileWithBranch } from '@/types/database';
 
 async function loadCurrentProfile(): Promise<ProfileWithBranch | null> {
  const supabase = await createClient();
@@ -46,7 +46,7 @@ async function loadCurrentProfile(): Promise<ProfileWithBranch | null> {
 
 export const getCurrentProfile = cache(loadCurrentProfile);
 
-export async function getRolePermissions(organizationId: string, role: string) {
+export async function getRolePermissions(organizationId: string, role: Enums<'user_role'>) {
  const supabase = await createClient();
 
  const { data } = await supabase.from('role_permissions').select('module, permission').eq('organization_id', organizationId).eq('role', role);

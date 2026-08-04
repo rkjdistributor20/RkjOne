@@ -13,7 +13,7 @@ export async function GET(request: Request) {
  const orderId = new URL(request.url).searchParams.get('order_id');
  const supabase = await createClient();
 
- let query = supabase.from('hq_delivery_route_plans' as 'products').select(
+ let query = supabase.from('hq_delivery_route_plans').select(
  `
  id, route_name, region_code, production_date, status, route_pattern,
  handoff_completed_at, depends_on_plan_id, instruction_code, instruction_part,

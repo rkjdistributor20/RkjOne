@@ -36,7 +36,7 @@ ON CONFLICT (organization_id, code) DO UPDATE SET manager_name = EXCLUDED.manage
 -- ============================================================
 
 INSERT INTO branches (organization_id, region_id, branch_code, branch_name, area, manager_name, status)
-SELECT o.id, r.id, v.branch_code, v.branch_name, v.area, v.manager, 'ACTIVE'::entity_status
+SELECT o.id, r.id, v.branch_code, v.branch_name, r.name, v.manager, 'ACTIVE'::entity_status
 FROM organizations o
 JOIN regions r ON r.organization_id = o.id
 JOIN (VALUES

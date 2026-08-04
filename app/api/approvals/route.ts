@@ -1,12 +1,23 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getCurrentProfile } from '@/lib/auth/session';
+import { isDatabaseEnumValue } from '@/lib/validation/database-enum';
+import type { Enums } from '@/types/database';
+
+const APPROVAL_STATUSES = [
+ 'PENDING',
+ 'APPROVED',
+ 'REJECTED',
+] as const satisfies readonly Enums<'approval_status'>[];
 
 export async function GET(request: Request) {
  const profile = await getCurrentProfile();
  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
  const status = new URL(request.url).searchParams.get('status') ?? 'PENDING';
+ if (!isDatabaseEnumValue(status, APPROVAL_STATUSES)) {
+  return NextResponse.json({ error: 'Invalid approval status' }, { status: 400 });
+ }
  const supabase = await createClient();
 
  let query = supabase.from('approval_requests').select(`

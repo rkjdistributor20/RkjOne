@@ -381,7 +381,6 @@ $$;
 
 -- Old overloads predate the AI-route contract and lack complete tenant checks.
 REVOKE EXECUTE ON FUNCTION public.create_delivery_order(UUID, UUID, JSONB, UUID, UUID, DATE, TEXT) FROM authenticated;
-REVOKE EXECUTE ON FUNCTION public.create_delivery_order(UUID, JSONB, TEXT, UUID, UUID, UUID, DATE) FROM authenticated;
 
 REVOKE ALL ON FUNCTION public.clock_in_staff(UUID, UUID) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.clock_out_staff(UUID) FROM PUBLIC, anon;

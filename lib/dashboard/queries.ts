@@ -118,7 +118,7 @@ export async function getDashboardStats(
  return null;
  }
 
- return data;
+  return data ? normalizeDashboardSnapshot(data, orgId) : null;
  }
 
  if (branchIds.length === 0) {
