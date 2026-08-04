@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { ShieldCheck } from 'lucide-react';
 import { BRAND_COLORS } from '@/lib/brand/company';
 import { BrandLogo } from '@/components/brand/brand-logo';
@@ -16,6 +17,7 @@ import {
 } from '@/components/ui/card';
 
 export function ChangePasswordForm() {
+ const router = useRouter();
  const [currentPassword, setCurrentPassword] = useState('');
  const [newPassword, setNewPassword] = useState('');
  const [confirmPassword, setConfirmPassword] = useState('');
@@ -48,7 +50,8 @@ export function ChangePasswordForm() {
  return;
  }
 
- window.location.href = '/dashboard';
+ router.replace('/dashboard');
+ router.refresh();
  } catch {
  setError('Ralat rangkaian. Sila cuba lagi.');
  setLoading(false);

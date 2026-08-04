@@ -15,6 +15,26 @@ Authentication:
 - Browser page requests without a session redirect to `/login`.
 - Public webhook routes are limited to signed gateway callbacks and rate-limited route handlers.
 
+## POS Fiuu DuitNow QR API
+
+The POS creates a sale only after a signed Fiuu Offline Payment API notification is verified. The default remains manual mode until merchant channel activation and sandbox UAT are complete.
+
+### POST `/api/pos/qr-payments`
+
+Creates a pending Fiuu DuitNow QR payment for an authenticated, authorized POS shift member on an official branch device. Product prices, quantities, discount and payment split are recalculated on the server. The returned QR image URL is an authenticated RKJ One proxy; the provider image URL and credentials are not returned to the browser.
+
+### GET `/api/pos/qr-payments/[paymentId]`
+
+Returns branch-scoped payment status. A receipt is returned only after the payment is atomically fulfilled. Pending records are marked expired when their validity window has elapsed.
+
+### GET `/api/pos/qr-payments/[paymentId]/image`
+
+Returns the provider QR image through an authenticated, branch-scoped, no-store image proxy. Only HTTPS Fiuu hosts and image responses within the configured size limit are accepted.
+
+### POST `/api/pos/qr-payments/webhook`
+
+Public provider callback endpoint. Fiuu callbacks require a valid HMAC-SHA256 signature and must match the stored application, reference, provider transaction ID, amount, MYR currency and DuitNow channel `24`. Fulfilment, stock deduction, receipt creation and payment completion occur in one database transaction. Invalid callbacks do not create a sale.
+
 Response convention:
 
 ```json

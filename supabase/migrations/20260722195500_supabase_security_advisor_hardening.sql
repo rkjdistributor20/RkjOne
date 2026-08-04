@@ -368,7 +368,8 @@ ALTER FUNCTION public.can_set_roti_production_date_on_kiosk_transfer() SET searc
 ALTER FUNCTION public.check_low_stock(uuid) SET search_path TO public, pg_temp;
 ALTER FUNCTION public.consume_stock_batches_fifo(uuid, uuid, numeric) SET search_path TO public, pg_temp;
 ALTER FUNCTION public.consume_stock_batches_targeted(uuid, uuid, numeric, date, text) SET search_path TO public, pg_temp;
-ALTER FUNCTION public.create_delivery_order(uuid, jsonb, text, uuid, uuid, uuid, date) SET search_path TO public, pg_temp;
+ALTER FUNCTION public.create_delivery_order(uuid, uuid, jsonb, uuid, uuid, date, text) SET search_path TO public, pg_temp;
+ALTER FUNCTION public.create_delivery_order(uuid, uuid, jsonb, uuid, uuid, date, text, text) SET search_path TO public, pg_temp;
 ALTER FUNCTION public.default_driver_for_region(uuid, region_code) SET search_path TO public, pg_temp;
 ALTER FUNCTION public.default_driver_id_for_branch(uuid, uuid) SET search_path TO public, pg_temp;
 ALTER FUNCTION public.driver_route_role(text) SET search_path TO public, pg_temp;

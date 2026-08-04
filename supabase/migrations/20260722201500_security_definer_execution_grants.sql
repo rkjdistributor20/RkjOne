@@ -32,7 +32,5 @@ REVOKE EXECUTE ON FUNCTION public._pos_apply_receipt_stock(uuid, uuid)
 FROM authenticated;
 REVOKE EXECUTE ON FUNCTION public.handle_new_user()
 FROM authenticated;
-REVOKE EXECUTE ON FUNCTION public.rls_auto_enable()
-FROM authenticated;
 REVOKE EXECUTE ON FUNCTION public.validate_booking_references()
 FROM authenticated;

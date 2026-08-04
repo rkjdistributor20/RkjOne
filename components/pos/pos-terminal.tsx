@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { History, BarChart3, LayoutDashboard, Trash2, ClipboardCheck, ShieldAlert, Eye, TimerReset, GraduationCap, KeyRound, TabletSmartphone, CheckCircle2, CircleAlert, ShieldCheck } from 'lucide-react';
 import {
@@ -106,6 +107,7 @@ function DeviceReadinessPanel({ status }: { status: PosDeviceManagementStatus | 
 }
 
 export function PosTerminal() {
+ const router = useRouter();
  const { t } = useLanguage();
  const profile = useAuthStore((s) => s.profile);
  const authBranch = useAuthStore((s) => s.branch);
@@ -328,7 +330,8 @@ export function PosTerminal() {
    const management = await enableOfficialPosKiosk();
    await syncPosDeviceManagement(management);
    toast.success('Tablet berjaya didaftarkan sebagai POS rasmi.');
-   window.location.href = '/pos';
+   router.replace('/pos');
+   router.refresh();
   } catch (error) {
    toast.error(error instanceof Error ? error.message : 'Pendaftaran tablet gagal');
   } finally {
@@ -356,7 +359,8 @@ export function PosTerminal() {
    const response = await fetch('/api/pos/device', { method: 'DELETE' });
    if (!response.ok) throw new Error('Pendaftaran lama tidak dapat dibuang.');
    toast.success('Pendaftaran lama dibuang. Tablet kini berada dalam Mod Latihan.');
-   window.location.href = '/dashboard';
+   router.replace('/dashboard');
+   router.refresh();
   } catch (error) {
    toast.error(error instanceof Error ? error.message : 'Pendaftaran lama tidak dapat dibuang');
   }

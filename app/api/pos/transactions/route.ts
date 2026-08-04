@@ -128,9 +128,9 @@ export async function POST(request: Request) {
  p_cash_amount: body.cash_amount,
  p_qr_amount: body.qr_amount,
  p_discount: body.discount ?? 0,
- p_offline_id: body.offline_id ?? null,
- p_receipt_email: body.receipt_email ?? null,
- p_receipt_phone: body.receipt_phone ?? null,
+ ...(body.offline_id === undefined ? {} : { p_offline_id: body.offline_id }),
+ ...(body.receipt_email === undefined ? {} : { p_receipt_email: body.receipt_email }),
+ ...(body.receipt_phone === undefined ? {} : { p_receipt_phone: body.receipt_phone }),
  });
 
  if (error) {

@@ -8,9 +8,14 @@ import type {
  FleetControlCenterResponse,
  FleetGpsVehicleStatus,
 } from '@/lib/fleet/types';
+import type { Enums } from '@/types/database';
 
 const MANAGEMENT_ROLES = new Set(['SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER', 'AREA_MANAGER']);
-const ACTIVE_DELIVERY_STATUSES = ['DRAFT', 'PENDING', 'IN_TRANSIT'];
+const ACTIVE_DELIVERY_STATUSES = [
+ 'DRAFT',
+ 'PENDING',
+ 'IN_TRANSIT',
+] as const satisfies readonly Enums<'transfer_status'>[];
 
 type StoredAlertRow = Omit<FleetControlAlert, 'plate_number'> & {
  vehicle?: { plate_number: string | null } | null;

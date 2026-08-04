@@ -18,7 +18,7 @@ export async function GET(request: Request) {
  }
 
  const supabase = await createClient();
- const { data: weekRow, error: weekErr } = await supabase.from('factory_production_weeks' as 'products').select('id, week_start, status, notes, published_at').eq('organization_id', profile.organization_id).eq('week_start', weekStart).maybeSingle();
+ const { data: weekRow, error: weekErr } = await supabase.from('factory_production_weeks').select('id, week_start, status, notes, published_at').eq('organization_id', profile.organization_id).eq('week_start', weekStart).maybeSingle();
 
  if (weekErr) {
  return NextResponse.json({ error: weekErr.message }, { status: 500 });
@@ -36,7 +36,7 @@ export async function GET(request: Request) {
  return NextResponse.json({ week: null });
  }
 
- const { data: days, error: daysErr } = await supabase.from('factory_production_days' as 'products').select('production_date').eq('week_id', week.id).order('production_date');
+ const { data: days, error: daysErr } = await supabase.from('factory_production_days').select('production_date').eq('week_id', week.id).order('production_date');
 
  if (daysErr) {
  return NextResponse.json({ error: daysErr.message }, { status: 500 });
@@ -44,7 +44,7 @@ export async function GET(request: Request) {
 
  return NextResponse.json({
  week: {...week,
- days: ((days ?? []) as Array<{ production_date: string }>).map(
+  days: (days ?? []).map(
  (d) => d.production_date),
  },
  });

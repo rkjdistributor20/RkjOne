@@ -41,15 +41,21 @@ function row(status, area, finding, nextStep) {
 }
 
 const packageJson = await readText(path.join(root, 'package.json'));
+let packageData = {};
+try {
+ packageData = JSON.parse(packageJson);
+} catch {
+ packageData = {};
+}
 const nextConfig = await readText(path.join(root, 'next.config.ts'));
 const gitignore = await readText(path.join(root, '.gitignore'));
 const migrations = await listFiles(path.join(root, 'supabase', 'migrations'), '.sql');
 
 const checks = [
  row(
- pass(packageJson.includes('"next": "16.2.9"') && packageJson.includes('"react": "19.2.4"')),
+ pass(Boolean(packageData.dependencies?.next) && Boolean(packageData.dependencies?.react)),
  'Framework',
- 'Next.js dan React berada pada versi production semasa projek.',
+ `Next.js ${packageData.dependencies?.next ?? 'tidak ditemui'} dan React ${packageData.dependencies?.react ?? 'tidak ditemui'} direkod daripada package.json.`,
  'Semak update keselamatan sebelum deploy besar.'),
  row(
  ['Content-Security-Policy', 'Strict-Transport-Security', 'X-Frame-Options', 'Permissions-Policy']

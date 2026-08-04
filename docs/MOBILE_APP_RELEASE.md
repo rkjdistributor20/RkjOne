@@ -10,7 +10,7 @@ Dokumen ini merekod status PWA, Android shell dan laluan penerbitan Play Store/A
 - Android shell sudah dibuat dengan Capacitor menggunakan package id `com.rkjone.staff`.
 - Android app memuatkan production URL `https://rkj.one`.
 - Halaman privacy policy tersedia di `https://rkj.one/privacy`.
-- Online payment QR belum diaktifkan sebagai live payment; POS masih boleh guna pengesahan manual seperti diminta.
+- Fiuu DuitNow QR dinamik disediakan dalam kod tetapi kekal dalam mod manual sehingga channel merchant, sandbox callback dan pilot satu cawangan diluluskan. Android shell memuatkan `https://rkj.one`, jadi perubahan web tidak memerlukan AAB baharu selagi kod native, permission dan konfigurasi Capacitor tidak berubah.
 - Android debug APK sudah berjaya dibina di `android/app/build/outputs/apk/debug/app-debug.apk`.
 - Android release AAB sudah berjaya dibina dan ditandatangani di `android/app/build/outputs/bundle/release/app-release.aab`.
 - iOS project scaffold sudah dibuat di `ios/` untuk sambungan build di Mac/Xcode.

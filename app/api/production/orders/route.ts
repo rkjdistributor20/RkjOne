@@ -18,7 +18,7 @@ export async function GET(request: Request) {
  : 20;
  const supabase = await createClient();
 
- let query = supabase.from('hq_factory_orders' as 'products').select(
+ let query = supabase.from('hq_factory_orders').select(
  `
  id, order_number, production_date, status, order_phase, notes, created_at, acknowledged_at, routes_planned_at, created_by,
  hq_factory_order_items(

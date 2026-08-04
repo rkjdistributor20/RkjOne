@@ -46,6 +46,22 @@ Sales Agent payment variables:
 
 Do not set `ALLOW_UNSIGNED_PAYMENT_WEBHOOKS=true` in staging or production.
 
+POS Fiuu DuitNow QR variables:
+
+| Variable | Required | Scope |
+|----------|----------|-------|
+| `POS_QR_PAYMENT_MODE` | Yes | Server; use `manual` until Fiuu UAT passes, then `fiuu` |
+| `POS_FIUU_ENVIRONMENT` | When Fiuu enabled | Server; `sandbox` or `production` |
+| `POS_FIUU_APPLICATIONS_JSON` | Preferred when Fiuu enabled | Server secret; Application Code/Secret Key mapping by branch code |
+| `POS_FIUU_APPLICATION_CODE` | Optional pilot fallback | Server secret |
+| `POS_FIUU_SECRET_KEY` | Optional pilot fallback | Server secret |
+| `POS_FIUU_STORE_ID` | Optional pilot fallback | Server |
+| `POS_FIUU_CHANNEL_ID` | Yes when Fiuu enabled | Server; must remain `24` for DuitNow QR Offline |
+| `POS_FIUU_QR_VALIDITY_SECONDS` | Optional | Server; 60-999 seconds, default 600 |
+| `POS_FIUU_PRECREATE_URL` | Optional | Server; official endpoint override only |
+
+Never expose Fiuu Application Secret Keys as `NEXT_PUBLIC_*`. Configure the signed payment notification URL as `/api/pos/qr-payments/webhook`. Follow `docs/FIUU_POS_SETUP.md` before changing `POS_QR_PAYMENT_MODE` to `fiuu`.
+
 ## Local Setup
 
 ```powershell

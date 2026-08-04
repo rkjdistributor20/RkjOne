@@ -3,8 +3,20 @@ import { createClient } from '@/lib/supabase/server';
 import { getCurrentProfile } from '@/lib/auth/session';
 import { resolveScopedBranches, applyBranchIdsFilter } from '@/lib/auth/branch-scope';
 import { jsonWithPrivateCache } from '@/lib/http/cache';
+import { isDatabaseEnumValue } from '@/lib/validation/database-enum';
+import type { Enums } from '@/types/database';
 
-const ORG_LOCATION_TYPES = ['FACTORY', 'HQ_WAREHOUSE', 'FLEET_VEHICLE'] as const;
+const LOCATION_TYPES = [
+ 'FACTORY',
+ 'HQ_WAREHOUSE',
+ 'FLEET_VEHICLE',
+ 'BRANCH_KIOSK',
+] as const satisfies readonly Enums<'location_type'>[];
+const ORG_LOCATION_TYPES = [
+ 'FACTORY',
+ 'HQ_WAREHOUSE',
+ 'FLEET_VEHICLE',
+] as const satisfies readonly Enums<'location_type'>[];
 
 /** Peranan ini hanya lihat kiosk dalam kawasan - bukan Kilang / Gudang HQ / Logistik */
 const KIOSK_ONLY_ROLES = new Set(['AREA_MANAGER', 'STAFF']);
@@ -14,7 +26,14 @@ export async function GET(request: Request) {
  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
  const { searchParams } = new URL(request.url);
- const type = searchParams.get('type');
+ const requestedType = searchParams.get('type');
+ let type: Enums<'location_type'> | null = null;
+ if (requestedType) {
+  if (!isDatabaseEnumValue(requestedType, LOCATION_TYPES)) {
+   return NextResponse.json({ error: 'Invalid location type' }, { status: 400 });
+  }
+  type = requestedType;
+ }
  const requestedBranchId = searchParams.get('branch_id');
 
  const supabase = await createClient();

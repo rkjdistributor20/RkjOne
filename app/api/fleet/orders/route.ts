@@ -2,8 +2,18 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { inventoryRpc } from '@/lib/supabase/inventory-rpc';
 import { getCurrentProfile } from '@/lib/auth/session';
+import { isDatabaseEnumValue } from '@/lib/validation/database-enum';
+import type { Enums } from '@/types/database';
 
 const DELIVERY_ORDER_ROLES = new Set(['SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER']);
+const DELIVERY_ORDER_STATUSES = [
+ 'DRAFT',
+ 'PENDING',
+ 'IN_TRANSIT',
+ 'DELIVERED',
+ 'CANCELLED',
+ 'REJECTED',
+] as const satisfies readonly Enums<'transfer_status'>[];
 
 type DeliveryOrderRpcResult = {
  order_id: string;
@@ -19,7 +29,14 @@ export async function GET(request: Request) {
 
  const { searchParams } = new URL(request.url);
  const mine = searchParams.get('mine') === 'true';
- const status = searchParams.get('status');
+ const requestedStatus = searchParams.get('status');
+ let status: Enums<'transfer_status'> | null = null;
+ if (requestedStatus) {
+  if (!isDatabaseEnumValue(requestedStatus, DELIVERY_ORDER_STATUSES)) {
+   return NextResponse.json({ error: 'Invalid delivery status' }, { status: 400 });
+  }
+  status = requestedStatus;
+ }
  const requestedLimit = Number(searchParams.get('limit') ?? 20);
  const limit = Number.isFinite(requestedLimit)
  ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 50)

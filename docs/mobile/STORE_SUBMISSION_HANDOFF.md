@@ -12,9 +12,10 @@ Dokumen ini ialah rujukan terakhir untuk submit RKJ One Staff ke Google Play Con
 - Terms of use: `https://rkj.one/terms`
 - App name: `RKJ One Staff`
 - Package / bundle identifier: `com.rkjone.staff`
-- Version name: `1.0`
-- Version code: `1`
+- Version name: `1.4`
+- Version code: `5`
 - App access: restricted internal staff login
+- Google Play Production: available, rollout `100%` (verified 2026-08-05)
 
 ## Legal Entity
 
@@ -33,11 +34,13 @@ Account owner email: rkjdistributor20@gmail.com
 
 ## Google Play Console
 
-Fail untuk upload:
+Artefak release semasa yang telah diterbitkan:
 
 ```text
-outputs/mobile-release/builds/rkj-one-staff-v1.0-release.aab
+RKJ One Staff 1.4 (version code 5)
 ```
+
+Jangan upload semula AAB dengan version code yang sama. Bina AAB baharu hanya untuk perubahan native dan naikkan version code terlebih dahulu.
 
 Store listing:
 
