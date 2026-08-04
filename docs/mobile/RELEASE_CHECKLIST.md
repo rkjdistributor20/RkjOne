@@ -1,5 +1,7 @@
 # RKJ One Staff - Final Release Checklist
 
+Last verified: 2026-08-05
+
 ## Sudah Siap
 
 - PWA manifest.
@@ -19,19 +21,17 @@
 - D-U-N-S rasmi RKJ Distributor telah diterima: `47-331-2040` / digit-only `473312040`.
 - iOS export-compliance flag ditetapkan untuk standard HTTPS/TLS sahaja.
 - App Store review notes, privacy answers dan Custom App flow sudah disediakan.
+- Google Play Production version `1.4` (version code `5`) tersedia di Google Play dengan rollout `100%`.
+- Android shell semasa menggunakan package `com.rkjone.staff` dan memuatkan `https://rkj.one`.
 
 ## Perlu Dibuat Dalam Akaun Store
 
 Google Play Console:
 
-- Selesaikan developer account Organization menggunakan D-U-N-S `473312040`.
-- Buat app baru `RKJ One Staff`.
-- Upload `android/app/build/outputs/bundle/release/app-release.aab`.
-- Isi Store Listing menggunakan `docs/mobile/PLAY_STORE_SUBMISSION.md`.
-- Upload screenshots dari `outputs/mobile-release/store-assets`.
-- Isi Data Safety menggunakan `docs/mobile/DATA_SAFETY.md`.
-- Masukkan test login reviewer.
-- Release ke Internal testing dahulu.
+- Pantau Android vitals, crash dan ANR untuk release Production `1.4` (code `5`).
+- Pastikan test login reviewer kekal aktif dan terhad kepada BR011.
+- Hanya bina AAB baharu jika native code, permission, package metadata, signing, target SDK atau konfigurasi Capacitor berubah.
+- Perubahan Fiuu semasa ialah server-side; ia tidak memerlukan AAB baharu.
 
 Apple:
 
@@ -50,6 +50,8 @@ Android release:
 npm run build
 npm run mobile:android:release
 ```
+
+Release AAB memerlukan JDK 21, Android SDK dan `android/keystore.properties` pada mesin signing. Fail signing tidak boleh dicommit.
 
 Android debug:
 

@@ -7,6 +7,8 @@ Last updated: 2026-08-05
 - Merchant: Roti Kaya Junus (`rotikayajunus` in the merchant portal).
 - Product: Fiuu Offline Payment API, Pre-Create Transaction QR.
 - Channel: DuitNow QR Offline, channel ID `24`, currency `MYR`.
+- Merchant portal status verified on 2026-08-05: `DuitNow QR Offline` is already `Activated` at `0.80%` for this merchant account.
+- The Fiuu Booster application has been submitted and is pending provider review.
 - RKJ One uses dynamic transaction QR, not a static merchant QR.
 - The application remains in `manual` mode until the provider channel and sandbox callback are approved and tested.
 
@@ -14,13 +16,15 @@ Merchant portal credentials shown on the portal home page must not be assumed to
 
 ## Required provider setup
 
-1. Subscribe to DuitNow QR Offline in the Fiuu merchant portal after the owner accepts the displayed commercial terms.
+1. Wait for Fiuu to complete the submitted Booster/OPA application review.
 2. Confirm whether Fiuu issues one OPA application per branch/store or one application for the company.
 3. Obtain sandbox Application Code and Secret Key without placing them in Git, chat, screenshots or mobile code.
-4. Configure the staging notification URL:
+4. Configure the staging notification URL after Fiuu issues the OPA credentials:
    `https://<vercel-preview-host>/api/pos/qr-payments/webhook`
 5. Complete a signed sandbox transaction and verify the provider callback payload against the current Fiuu OPA specification.
 6. Pilot one branch and one official POS device before enabling more branches.
+
+Do not submit another DuitNow QR Offline channel request while the existing channel remains activated.
 
 ## Server environment
 

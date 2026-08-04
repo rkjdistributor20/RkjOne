@@ -1,13 +1,14 @@
 # RKJ One Staff - Play Store Submission Pack
 
-Status teknikal Android sudah siap untuk dihantar ke Google Play Console.
+Status teknikal Android semasa sudah diterbitkan di Google Play Production.
 
 ## Fail Utama
 
-- App bundle: `android/app/build/outputs/bundle/release/app-release.aab`
+- Current production release: `RKJ One Staff 1.4`
 - Package name: `com.rkjone.staff`
-- Version code: `2`
-- Version name: `1.1`
+- Version code: `5`
+- Version name: `1.4`
+- Rollout: `100%` (verified 2026-08-05)
 - Privacy policy: `https://rkj.one/privacy`
 - Support: `https://rkj.one/support`
 - Account deletion: `https://rkj.one/delete-account`
