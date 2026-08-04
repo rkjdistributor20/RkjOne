@@ -1,9 +1,15 @@
 'use client';
 
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
+import Image from 'next/image';
 import { toast } from 'sonner';
-import { Banknote, QrCode, Split, Delete, CheckCircle2 } from 'lucide-react';
-import { createSale } from '@/lib/pos/api';
+import { Banknote, QrCode, Split, Delete, CheckCircle2, Clock3, LoaderCircle, RefreshCw } from 'lucide-react';
+import {
+ createPosQrPayment,
+ createSale,
+ fetchPosQrPayment,
+ PosQrPaymentError,
+} from '@/lib/pos/api';
 import {
  enqueueOfflineSale,
  getOfflineQueue,
@@ -43,6 +49,14 @@ function buildQuickAmounts(total: number): number[] {
 }
 
 const NUMPAD = ['7', '8', '9', '4', '5', '6', '1', '2', '3', 'C', '.', '0'] as const;
+
+type ActiveQrPayment = {
+ id: string;
+ imageUrl: string;
+ amountRm: number;
+ expiresAt: string;
+ environment: 'sandbox' | 'production';
+};
 
 function parseMoney(value: string) {
  const parsed = Number(value);
@@ -97,6 +111,9 @@ export function PaymentDialog({
  const [cashTenderedOverride, setCashTenderedOverride] = useState<string | null>(null);
  const [qrAmountOverride, setQrAmountOverride] = useState<string | null>(null);
  const [loading, setLoading] = useState(false);
+ const [qrPayment, setQrPayment] = useState<ActiveQrPayment | null>(null);
+ const [qrStatus, setQrStatus] = useState<'PENDING' | 'PAID' | 'FAILED' | 'EXPIRED'>('PENDING');
+ const [qrSecondsRemaining, setQrSecondsRemaining] = useState(0);
 
  const quickAmounts = useMemo(() => buildQuickAmounts(total), [total]);
  const defaultAmount = total > 0 ? total.toFixed(2) : '';
@@ -136,12 +153,64 @@ export function PaymentDialog({
  setMethod('CASH');
  setCashTenderedOverride(null);
  setQrAmountOverride(null);
+ setQrPayment(null);
+ setQrStatus('PENDING');
+ setQrSecondsRemaining(0);
  }, []);
 
  const handleDialogOpenChange = useCallback((nextOpen: boolean) => {
+ if (!nextOpen && qrPayment && qrStatus === 'PENDING') {
+  toast.info('Tunggu keputusan QR atau tamat tempoh sebelum menutup bayaran.');
+  return;
+ }
  if (!nextOpen) resetPaymentForm();
  onOpenChange(nextOpen);
- }, [onOpenChange, resetPaymentForm]);
+ }, [onOpenChange, qrPayment, qrStatus, resetPaymentForm]);
+
+ useEffect(() => {
+  if (!qrPayment || qrStatus !== 'PENDING') return;
+  let active = true;
+  let polling = false;
+
+  const refreshCountdown = () => {
+   const remaining = Math.max(0, Math.ceil((new Date(qrPayment.expiresAt).getTime() - Date.now()) / 1000));
+   if (active) setQrSecondsRemaining(remaining);
+  };
+  const poll = async () => {
+   if (polling) return;
+   polling = true;
+   try {
+    const response = await fetchPosQrPayment(qrPayment.id);
+    if (!active) return;
+    if (response.payment.status === 'PAID' && response.result) {
+     setQrStatus('PAID');
+     toast.success('Bayaran DuitNow QR disahkan oleh Fiuu.');
+     clearCart();
+     resetPaymentForm();
+     onOpenChange(false);
+     onSuccess(response.result);
+     return;
+    }
+    if (response.payment.status === 'FAILED' || response.payment.status === 'EXPIRED') {
+     setQrStatus(response.payment.status);
+    }
+   } catch {
+    // A temporary polling failure must not convert a payment to failed.
+   } finally {
+    polling = false;
+   }
+  };
+
+  refreshCountdown();
+  void poll();
+  const countdownTimer = window.setInterval(refreshCountdown, 1000);
+  const pollTimer = window.setInterval(() => void poll(), 2000);
+  return () => {
+   active = false;
+   window.clearInterval(countdownTimer);
+   window.clearInterval(pollTimer);
+  };
+ }, [clearCart, onOpenChange, onSuccess, qrPayment, qrStatus, resetPaymentForm]);
 
  const appendNumpad = useCallback((key: string) => {
  setCashTenderedOverride((prevOverride) => {
@@ -257,12 +326,30 @@ export function PaymentDialog({
  return;
  }
 
- const { result } = await createSale(payload);
- if (method === 'QR' || (method === 'MIXED' && payload.qr_amount > 0)) {
- toast.success('Jualan direkod. QR perlu pengesahan manual kewangan.');
- } else {
- toast.success('Bayaran berjaya - stok ditolak');
+ const usesQr = method === 'QR' || (method === 'MIXED' && payload.qr_amount > 0);
+ if (usesQr) {
+  try {
+   const { payment } = await createPosQrPayment(payload);
+   setQrPayment({
+    id: payment.id,
+    imageUrl: payment.qr_image_url,
+    amountRm: payment.amount_rm,
+    expiresAt: payment.expires_at,
+    environment: payment.environment,
+   });
+   setQrStatus('PENDING');
+   toast.info('Imbas DuitNow QR dan tunggu pengesahan Fiuu.');
+   return;
+  } catch (error) {
+   if (!(error instanceof PosQrPaymentError) || error.mode !== 'MANUAL_QR_ONLY') {
+    throw error;
+   }
+  }
  }
+
+ const { result } = await createSale(payload);
+ if (usesQr) toast.success('Jualan direkod. QR perlu pengesahan manual kewangan.');
+ else toast.success('Bayaran berjaya - stok ditolak');
  clearCart();
  handleDialogOpenChange(false);
  onSuccess(result);
@@ -293,7 +380,68 @@ export function PaymentDialog({
  </div>
 
  <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
- <div className="grid grid-cols-3 gap-2">
+  {qrPayment ? (
+  <div className="space-y-4" aria-live="polite">
+   <div className="rounded-2xl border-2 border-emerald-200 bg-emerald-50/60 p-4 text-center">
+    <div className="flex items-center justify-between gap-3 text-left">
+     <div>
+      <p className="font-bold text-emerald-950">DuitNow QR melalui Fiuu</p>
+      <p className="text-xs text-muted-foreground">Imbas menggunakan aplikasi bank atau e-dompet yang menyokong DuitNow.</p>
+     </div>
+     <span className={cn(
+      'rounded-full px-2.5 py-1 text-xs font-semibold',
+      qrStatus === 'PENDING' ? 'bg-amber-100 text-amber-900' :
+      qrStatus === 'PAID' ? 'bg-emerald-100 text-emerald-900' : 'bg-red-100 text-red-900')}
+     >
+      {qrStatus === 'PENDING' ? 'Menunggu' : qrStatus === 'PAID' ? 'Dibayar' : qrStatus === 'EXPIRED' ? 'Tamat tempoh' : 'Gagal'}
+     </span>
+    </div>
+
+    {qrStatus === 'PENDING' ? (
+     <>
+      <div className="mx-auto mt-4 w-full max-w-[18rem] overflow-hidden rounded-2xl border bg-white p-3 shadow-sm">
+       <Image
+        src={qrPayment.imageUrl}
+        alt={`Kod DuitNow QR untuk bayaran ${formatRM(qrPayment.amountRm)}`}
+        width={360}
+        height={360}
+        className="h-auto w-full object-contain"
+        unoptimized
+       />
+      </div>
+      <p className="mt-3 text-3xl font-bold tabular-nums text-emerald-950">{formatRM(qrPayment.amountRm)}</p>
+      <div className="mt-2 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+       <Clock3 className="h-4 w-4" aria-hidden="true" />
+       <span>
+        Tamat dalam <strong className="tabular-nums text-foreground">
+         {String(Math.floor(qrSecondsRemaining / 60)).padStart(2, '0')}:{String(qrSecondsRemaining % 60).padStart(2, '0')}
+        </strong>
+       </span>
+      </div>
+      <div className="mt-3 flex items-center justify-center gap-2 text-sm font-medium text-amber-800" role="status">
+       <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
+       Menunggu pengesahan selamat daripada Fiuu
+      </div>
+      {qrPayment.environment === 'sandbox' && (
+       <p className="mt-3 rounded-lg bg-sky-100 px-3 py-2 text-xs font-semibold text-sky-900">
+        Mod ujian - tiada wang sebenar dipindahkan
+       </p>
+      )}
+     </>
+    ) : (
+     <div className="mt-5 rounded-xl border bg-white p-5">
+      <QrCode className="mx-auto h-10 w-10 text-muted-foreground" aria-hidden="true" />
+      <p className="mt-3 font-semibold text-foreground">
+       {qrStatus === 'EXPIRED' ? 'Kod QR telah tamat tempoh.' : 'Bayaran tidak dapat disahkan.'}
+      </p>
+      <p className="mt-1 text-sm text-muted-foreground">Jana kod baharu. Jangan serahkan resit atau stok sebelum status Dibayar.</p>
+     </div>
+    )}
+   </div>
+  </div>
+  ) : (
+  <>
+  <div className="grid grid-cols-3 gap-2">
  <MethodButton
  active={method === 'CASH'}
  onClick={() => {
@@ -310,7 +458,7 @@ export function PaymentDialog({
  setQrAmountOverride(null);
  }}
  icon={QrCode}
- label="QR Manual"
+  label="DuitNow QR"
  />
  <MethodButton
  active={method === 'MIXED'}
@@ -393,17 +541,17 @@ export function PaymentDialog({
  </Button>
  </div>)}
 
- {method === 'QR' && (
- <div className="rounded-2xl border-2 border-amber-200 bg-amber-50/70 p-4">
+  {method === 'QR' && (
+  <div className="rounded-2xl border-2 border-amber-200 bg-amber-50/70 p-4">
  <div className="flex items-start justify-between gap-3">
  <div>
- <p className="text-base font-bold text-amber-950">QR manual dahulu</p>
- <p className="text-xs text-muted-foreground">
- Pembayaran online belum diaktifkan. Staf hanya rekod QR selepas semak bukti bayaran pelanggan.
+  <p className="text-base font-bold text-amber-950">DuitNow QR</p>
+  <p className="text-xs text-muted-foreground">
+  Sistem akan menjana QR Fiuu apabila saluran diaktifkan. Jika belum tersedia, proses manual sedia ada kekal digunakan.
  </p>
  </div>
  <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">
- Manual
+  Selamat
  </span>
  </div>
  <div className="mt-4 rounded-2xl border bg-white p-4 text-center shadow-sm">
@@ -412,7 +560,7 @@ export function PaymentDialog({
  </div>
  <p className="mt-3 text-2xl font-bold tabular-nums text-amber-950">{formatRM(qrNum)}</p>
  <p className="text-xs text-muted-foreground">
- Rekod ini akan masuk senarai pengesahan manual di dashboard Kewangan.
+  Jualan Fiuu hanya disahkan selepas callback bertandatangan dan jumlah bayaran sepadan.
  </p>
  </div>
  </div>)}
@@ -475,15 +623,43 @@ export function PaymentDialog({
  {paymentError}
  </div>)}
 
- {canPay && !loading && (
+  {canPay && !loading && (
  <div className="flex items-center justify-center gap-1.5 text-xs text-emerald-700">
  <CheckCircle2 className="h-4 w-4" />
- Bayaran mencukupi - sedia sahkan
- </div>)}
- </div>
+  Bayaran mencukupi - sedia sahkan
+  </div>)}
+  </>
+  )}
+  </div>
 
- <div className="flex gap-2 border-t bg-muted/20 p-4">
- <Button
+  <div className="flex gap-2 border-t bg-muted/20 p-4">
+  {qrPayment ? (
+   qrStatus === 'PENDING' ? (
+    <Button className="h-12 w-full gap-2 rounded-xl" disabled aria-live="polite">
+     <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" />
+     Menunggu bayaran Fiuu
+    </Button>
+   ) : (
+    <>
+     <Button variant="outline" className="h-12 flex-1" onClick={() => handleDialogOpenChange(false)}>
+      Tutup
+     </Button>
+     <Button
+      className="h-12 flex-[2] gap-2 rounded-xl bg-amber-500 font-bold hover:bg-amber-600"
+      onClick={() => {
+       setQrPayment(null);
+       setQrStatus('PENDING');
+       setQrSecondsRemaining(0);
+      }}
+     >
+      <RefreshCw className="h-5 w-5" aria-hidden="true" />
+      Jana QR baharu
+     </Button>
+    </>
+   )
+  ) : (
+  <>
+  <Button
  variant="outline"
  className="h-12 flex-1"
  onClick={() => handleDialogOpenChange(false)}
@@ -498,8 +674,10 @@ export function PaymentDialog({
  >
  {method === 'QR' ? <QrCode className="h-5 w-5" /> : <Banknote className="h-5 w-5" />}
   {loading ? 'Memproses...' : trainingMode ? 'Sahkan Simulasi' : 'Sahkan Bayaran'}
- </Button>
- </div>
+  </Button>
+  </>
+  )}
+  </div>
  </DialogContent>
  </Dialog>);
 }

@@ -1,4 +1,4 @@
-import type { PermissionLevel, UserRole } from './enums';
+import type { PermissionLevel, UserRole } from './enums'
 
 export type Json =
   | string
@@ -9,11 +9,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.15"
-  }
   public: {
     Tables: {
       agent_account_events: {
@@ -6781,6 +6776,7 @@ export type Database = {
           checkout_url: string | null
           created_at: string
           created_by: string | null
+          expires_at: string | null
           failed_at: string | null
           gateway_ref: string | null
           id: string
@@ -6799,6 +6795,7 @@ export type Database = {
           checkout_url?: string | null
           created_at?: string
           created_by?: string | null
+          expires_at?: string | null
           failed_at?: string | null
           gateway_ref?: string | null
           id?: string
@@ -6817,6 +6814,7 @@ export type Database = {
           checkout_url?: string | null
           created_at?: string
           created_by?: string | null
+          expires_at?: string | null
           failed_at?: string | null
           gateway_ref?: string | null
           id?: string
@@ -10849,6 +10847,16 @@ export type Database = {
         Returns: Json
       }
       finalize_hq_factory_order: { Args: { p_order_id: string }; Returns: Json }
+      fulfill_pos_fiuu_payment: {
+        Args: {
+          p_amount: number
+          p_channel_id: string
+          p_currency: string
+          p_gateway_ref: string
+          p_payment_id: string
+        }
+        Returns: Json
+      }
       generate_daily_financial_report: {
         Args: { p_branch_id?: string; p_report_date: string }
         Returns: Json
@@ -11023,6 +11031,22 @@ export type Database = {
       }
       process_pos_sale: {
         Args: {
+          p_branch_id: string
+          p_cash_amount: number
+          p_discount?: number
+          p_items: Json
+          p_offline_id?: string
+          p_payment_method: Database["public"]["Enums"]["payment_method"]
+          p_qr_amount: number
+          p_receipt_email?: string
+          p_receipt_phone?: string
+          p_shift_id: string
+        }
+        Returns: Json
+      }
+      process_pos_sale_internal: {
+        Args: {
+          p_actor_id: string
           p_branch_id: string
           p_cash_amount: number
           p_discount?: number

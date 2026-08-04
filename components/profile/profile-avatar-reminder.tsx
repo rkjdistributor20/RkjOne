@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { ArrowRight, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { avatarReminderSeed, pickAvatarReminderMessage } from '@/lib/profile/avatar-reminder';
@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 /** Banner + toast AI - sentiasa ingatkan jika tiada gambar muka (tanpa halang akses). */
 export function ProfileAvatarReminder() {
  const pathname = usePathname();
+ const router = useRouter();
  const profile = useAuthStore((s) => s.profile);
  const lastToastPath = useRef<string | null>(null);
 
@@ -36,11 +37,11 @@ export function ProfileAvatarReminder() {
  action: {
  label: 'Muat naik',
  onClick: () => {
- window.location.href = '/profile';
+ router.push('/profile');
  },
  },
  });
- }, [needsAvatar, onProfilePage, pathname, message, profile?.id]);
+ }, [needsAvatar, onProfilePage, pathname, message, profile?.id, router]);
 
  if (!needsAvatar || onProfilePage) return null;
 

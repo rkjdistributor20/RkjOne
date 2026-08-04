@@ -254,12 +254,41 @@ export async function submitPosRejectStock(
 
 
 export async function createPosQrPayment(payload: CreateSalePayload) {
- return fetchJson<{
- payment: { id: string; status: string; amount_rm: number; checkout_url: string; gateway_ref: string };
- }>('/api/pos/qr-payments', {
- method: 'POST',
- body: JSON.stringify(payload),
+ const response = await fetch('/api/pos/qr-payments', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(payload),
  });
+ const data = await response.json();
+ if (!response.ok) {
+  throw new PosQrPaymentError(
+   data.error ?? 'QR payment request failed',
+   response.status,
+   typeof data.mode === 'string' ? data.mode : null,
+  );
+ }
+ return data as {
+  payment: {
+   id: string;
+   status: 'PENDING';
+   amount_rm: number;
+   qr_image_url: string;
+   gateway_ref: string;
+   expires_at: string;
+   environment: 'sandbox' | 'production';
+  };
+ };
+}
+
+export class PosQrPaymentError extends Error {
+ constructor(
+  message: string,
+  readonly status: number,
+  readonly mode: string | null,
+ ) {
+  super(message);
+  this.name = 'PosQrPaymentError';
+ }
 }
 
 export async function fetchPosQrPayment(paymentId: string) {
@@ -268,10 +297,10 @@ export async function fetchPosQrPayment(paymentId: string) {
  id: string;
  status: 'PENDING' | 'PAID' | 'FAILED' | 'EXPIRED' | 'CANCELLED';
  amount_rm: number;
- checkout_url: string | null;
  transaction_id: string | null;
- sale_payload: CreateSalePayload;
+ expires_at: string | null;
  };
+ result: SaleResult | null;
  }>('/api/pos/qr-payments/' + encodeURIComponent(paymentId));
 }
 

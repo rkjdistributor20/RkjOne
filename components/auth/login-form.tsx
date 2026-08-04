@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowRight,
   CalendarDays,
@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/card";
 
 export function LoginForm() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = safeRedirectPath(searchParams.get("redirect"));
   const { t } = useLanguage();
@@ -80,7 +81,8 @@ export function LoginForm() {
     if (deviceResponse.ok) {
       const deviceContext = await deviceResponse.json();
       if (deviceContext.mode === 'PRODUCTION') {
-        window.location.href = '/pos';
+        router.replace('/pos');
+        router.refresh();
         return;
       }
     }
@@ -92,11 +94,13 @@ export function LoginForm() {
       return;
     }
 
-    window.location.href = redirect;
+    router.replace(redirect);
+    router.refresh();
   }
 
   function continueToApp() {
-    window.location.href = isStaffLogin ? "/dashboard" : redirect;
+    router.replace(isStaffLogin ? "/dashboard" : redirect);
+    router.refresh();
   }
 
   return (
