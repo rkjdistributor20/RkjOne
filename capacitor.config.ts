@@ -17,10 +17,11 @@ const config: CapacitorConfig = {
  splashFullScreen: true,
  splashImmersive: true,
  },
- StatusBar: {
- backgroundColor: '#111111',
+ SystemBars: {
+ insetsHandling: 'css',
  style: 'DARK',
- overlaysWebView: false,
+ hidden: false,
+ animation: 'NONE',
  },
  },
  android: {
