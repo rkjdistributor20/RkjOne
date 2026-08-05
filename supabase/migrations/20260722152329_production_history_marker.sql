@@ -1,0 +1,4 @@
+-- Production history marker only.
+-- The original Production migration is superseded by the replay-safe
+-- 20260722221500_consolidate_overlapping_rls_policies.sql migration.
+-- Intentionally no-op: the canonical migration is the clean-replay source.

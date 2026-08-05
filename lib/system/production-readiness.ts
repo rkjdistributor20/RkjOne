@@ -22,10 +22,17 @@ export type ProductionReadinessSnapshot = {
 
 type ReadinessInput = {
  hasSupabaseEnv: boolean;
- hasPaymentEnv: boolean;
+ hasFiuuCredentials: boolean;
+ hasFiuuSchema: boolean;
+ fiuuLiveUatPassed: boolean;
+ posQrPaymentMode: 'manual' | 'fiuu';
  branches: number | null;
  legalEntities: number | null;
  activeProfiles: number | null;
+ activeAdmins: number | null;
+ activeProfilesMissingLegalEntity: number | null;
+ activeProfilesWithoutAuthUser: number | null;
+ activeProfilesNeverSignedIn: number | null;
  migrationRows: number | null;
 };
 
@@ -52,6 +59,14 @@ export function buildProductionReadiness(input: ReadinessInput): ProductionReadi
  const hasBranches = (input.branches ?? 0) >= 36;
  const hasProfiles = (input.activeProfiles ?? 0) > 0;
  const hasMigrations = (input.migrationRows ?? 0) > 0;
+ const hasActiveAdmin = (input.activeAdmins ?? 0) > 0;
+ const hasCompleteScope = input.activeProfilesMissingLegalEntity === 0;
+ const hasCompleteAuth = input.activeProfilesWithoutAuthUser === 0;
+ const hasCompletedFirstLogin = input.activeProfilesNeverSignedIn === 0;
+ const fiuuReady = input.posQrPaymentMode === 'fiuu'
+  && input.hasFiuuCredentials
+  && input.hasFiuuSchema
+  && input.fiuuLiveUatPassed;
 
  const areas: ProductionReadinessArea[] = [
  area(
@@ -59,19 +74,35 @@ export function buildProductionReadiness(input: ReadinessInput): ProductionReadi
  'UAT role sebenar',
  'Pentadbir Utama',
  'P0',
- input.hasSupabaseEnv && hasProfiles ? 'READY' : 'BLOCKED',
+ !input.hasSupabaseEnv || !hasProfiles
+  ? 'BLOCKED'
+  : hasCompleteAuth && hasCompletedFirstLogin
+   ? 'READY'
+   : 'NEEDS_ACTION',
  'Login dan dashboard perlu diuji untuk owner, AM, OM, HR, Finance, staf POS, driver, kilang dan ejen.',
  'Jalankan UAT ikut peranan sebelum buka real operation.',
- ['npm run verify:login', 'npm run uat:am', 'npm run uat:sales-agent']),
+ [
+  'npm run verify:login',
+  `${input.activeProfilesNeverSignedIn ?? 'Semak CLI'} profil aktif belum pernah log masuk`,
+  `${input.activeProfilesWithoutAuthUser ?? 'Semak CLI'} profil aktif tanpa auth user`,
+ ]),
  area(
  'access-scope',
  'Akses ikut syarikat',
  'Admin / HR',
  'P0',
- hasThreeEntities && hasProfiles ? 'READY' : 'NEEDS_ACTION',
+ !hasThreeEntities || !hasProfiles
+  ? 'BLOCKED'
+  : hasActiveAdmin && hasCompleteScope
+   ? 'READY'
+   : 'NEEDS_ACTION',
  'Data perlu kekal berasingan antara RKJ Manufacturing, RKJ Distributor dan Roti Kaya Junus.',
  'Semak role, legal entity dan branch scope selepas daftar staf baharu.',
- [`${input.legalEntities ?? 0} legal entity`, `${input.activeProfiles ?? 0} profil aktif`]),
+ [
+  `${input.legalEntities ?? 0} legal entity`,
+  `${input.activeAdmins ?? 'Semak CLI'} ADMIN aktif`,
+  `${input.activeProfilesMissingLegalEntity ?? 'Semak CLI'} profil aktif tanpa legal entity`,
+ ]),
  area(
  'audit-trail',
  'Audit perubahan sensitif',
@@ -104,10 +135,14 @@ export function buildProductionReadiness(input: ReadinessInput): ProductionReadi
  'Payment gateway live',
  'Finance / Owner',
  'P1',
- input.hasPaymentEnv ? 'READY' : 'NEEDS_ACTION',
+ fiuuReady ? 'READY' : 'NEEDS_ACTION',
  'Online payment jangan dipaksa live sehingga merchant approved dan webhook disahkan.',
  'Kekalkan QR manual dahulu. Aktifkan online payment hanya selepas transaksi sandbox/live berjaya masuk laporan.',
- ['Billplz/Fiuu/iPay88/Razer env', 'Webhook paid status']),
+ [
+  `Mod QR POS: ${input.posQrPaymentMode}`,
+  `Kredensial OPA: ${input.hasFiuuCredentials ? 'dikesan' : 'belum lengkap'}`,
+  `Skema Fiuu: ${input.hasFiuuSchema ? 'tersedia' : 'belum tersedia'}`,
+ ]),
  area(
  'payroll-governance',
  'Payroll tiga syarikat',

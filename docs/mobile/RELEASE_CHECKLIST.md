@@ -23,6 +23,7 @@ Last verified: 2026-08-05
 - App Store review notes, privacy answers dan Custom App flow sudah disediakan.
 - Google Play Production version `1.4` (version code `5`) tersedia di Google Play dengan rollout `100%`.
 - Android shell semasa menggunakan package `com.rkjone.staff` dan memuatkan `https://rkj.one`.
+- Google Play audit menemui tiga cadangan pada `1.4`: edge-to-edge, API StatusBar deprecated dan R8. Release candidate `1.5` (code `6`) membaiki ketiga-tiganya dan mesti melalui internal testing sebelum Production.
 
 ## Perlu Dibuat Dalam Akaun Store
 
@@ -32,6 +33,7 @@ Google Play Console:
 - Pastikan test login reviewer kekal aktif dan terhad kepada BR011.
 - Hanya bina AAB baharu jika native code, permission, package metadata, signing, target SDK atau konfigurasi Capacitor berubah.
 - Perubahan Fiuu semasa ialah server-side; ia tidak memerlukan AAB baharu.
+- Uji release candidate `1.5` pada sekurang-kurangnya satu Android 14 dan satu Android 15/16: splash, status/navigation bar, login persistence, keyboard, rotation, offline fallback dan kiosk mode.
 
 Apple:
 

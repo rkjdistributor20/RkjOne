@@ -1,0 +1,5 @@
+-- Production history marker only.
+-- The original Production migration is superseded by the hardened
+-- 20260722214500_secure_factory_fleet_rpc_boundaries.sql migration.
+-- Intentionally no-op: the canonical migration restricts private helpers to
+-- service_role and exposes only the reviewed public wrappers.

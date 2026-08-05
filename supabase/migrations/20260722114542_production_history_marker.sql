@@ -1,0 +1,4 @@
+-- Production history marker only.
+-- The original Production migration is superseded by the replay-safe
+-- 20260722195500_supabase_security_advisor_hardening.sql migration.
+-- Intentionally no-op: do not restore the earlier invalid RPC signature.
