@@ -2,6 +2,8 @@
 
 Status teknikal Android semasa sudah diterbitkan di Google Play Production.
 
+Release `1.5` (version code `6`) sedang disediakan untuk internal testing. Ia menggantikan plugin StatusBar lama dengan SystemBars rasmi Capacitor 8, mengaktifkan edge-to-edge secara eksplisit dan mengaktifkan R8/resource shrinking. Jangan promosikan ke Production sebelum ujian peranti sebenar lulus.
+
 ## Fail Utama
 
 - Current production release: `RKJ One Staff 1.4`
@@ -9,6 +11,7 @@ Status teknikal Android semasa sudah diterbitkan di Google Play Production.
 - Version code: `5`
 - Version name: `1.4`
 - Rollout: `100%` (verified 2026-08-05)
+- Next candidate: `1.5` (version code `6`), internal testing dahulu
 - Privacy policy: `https://rkj.one/privacy`
 - Support: `https://rkj.one/support`
 - Account deletion: `https://rkj.one/delete-account`
