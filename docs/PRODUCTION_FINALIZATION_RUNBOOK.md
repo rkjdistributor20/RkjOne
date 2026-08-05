@@ -15,11 +15,11 @@ Never reuse Production keys in Preview, local development or staging. Never link
 
 ## Verified state
 
-- The 149-migration baseline replayed successfully in isolated local Supabase after four migration-history corrections; the repository now contains 151 migrations including the later Fiuu and legal-entity work.
+- The 149-migration baseline replayed successfully in isolated local Supabase after four migration-history corrections. Before reconciliation markers, the integrated repository contained 152 migrations including the later Fiuu and legal-entity work; the 11 Production history markers bring the canonical history to 163 files.
 - Staging includes the Fiuu schema migrations and `20260805170000_backfill_profile_legal_entity_from_staff.sql`.
 - Staging migration history matches the repository through `20260805170000`; a linked `db push --dry-run` reports that staging is up to date.
 - The staging legal-entity audit reports zero active non-admin profiles without a legal entity and one active ADMIN.
-- Production migration history is not currently reconcilable with the repository. The 2026-08-05 read-only audit found 11 remote-only versions (`20260722114542` through `20260722154920`) that are absent locally, while later repository migrations are absent remotely. The CLI correctly refused the Production dry-run. Do not run `migration repair`, `db pull`, or `db push` until the missing migration sources have been recovered and independently reviewed.
+- The 2026-08-05 read-only Production audit found 11 historical versions (`20260722114542` through `20260722154920`) that were originally absent from the repository. `supabase migration fetch` recovered their SQL to an external audit directory. Each version maps to a later replay-safe repository migration, and the differences were reviewed. The repository now uses explicit no-op history markers for the Production-only version IDs; the broken historical SQL is not replayed. The later canonical migrations remain responsible for applying the corrected behavior.
 - Production daily physical backups are available. The latest backup observed was `04 Aug 2026 14:54:14 UTC`.
 - Point-in-time recovery was not enabled when checked. Database backups do not include Storage objects.
 - Production has 107 active profiles. The audit found zero active ADMIN accounts, 68 profiles that had never signed in, two Operation Manager profiles missing a legal entity and one Distributor staff profile with no verified branch assignment.
@@ -34,7 +34,7 @@ All items below are mandatory:
 2. Owner/HR confirms branch and region assignments that cannot be derived from an existing staff record.
 3. Role UAT passes for SUPER_ADMIN, ADMIN, OM, AM, Finance, HR, POS staff, driver, factory and sales agent.
 4. A current Production recovery point is available immediately before migration, with a named person authorized to restore it.
-5. Production and repository migration histories match exactly, the 11 remote-only versions have reviewed source files, and a migration dry-run lists only explicitly approved pending migrations.
+5. The 11 history markers replay successfully locally and are recorded in staging, then Production and repository migration histories match exactly and a dry-run lists only explicitly approved canonical migrations.
 6. Staging Preview passes login, access isolation, POS, inventory, finance, fleet, HR and negative security smoke tests.
 7. Fiuu remains `manual` unless OPA credentials, signed callback, idempotency, receipt, stock movement, shift summary and settlement all reconcile.
 8. The exact Vercel deployment and Supabase project references are recorded before release.
@@ -49,7 +49,7 @@ After the migration histories reconcile and all GO gates are met, deploy to Prod
 2. `20260804235500_fiuu_pos_dynamic_qr.sql`
 3. `20260805170000_backfill_profile_legal_entity_from_staff.sql`
 
-Before execution, run a linked migration list and dry-run against the independently verified Production reference. Stop if any additional migration appears. Never use `migration repair` merely to make the version lists look equal; recover and review the actual SQL first.
+Before execution, run a linked migration list and dry-run against the independently verified Production reference. Stop if any additional migration appears. Never use `migration repair` merely to make the version lists look equal. The historical Production SQL was recovered and reviewed outside the repository; only the no-op version markers belong in clean replay because the later canonical migrations contain the required corrections.
 
 ## Rollback strategy
 

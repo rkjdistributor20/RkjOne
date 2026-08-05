@@ -1,0 +1,4 @@
+-- Production history marker only.
+-- The original Production migration is superseded by the replay-safe
+-- 20260722203500_restore_internal_function_grants.sql migration.
+-- Intentionally no-op: the canonical migration fixes the SQL delimiter.

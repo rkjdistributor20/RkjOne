@@ -1,0 +1,4 @@
+-- Production history marker only.
+-- The original Production migration is superseded by the replay-safe
+-- 20260722201500_security_definer_execution_grants.sql migration.
+-- Intentionally no-op: do not restore the revoke for the nonexistent helper.
