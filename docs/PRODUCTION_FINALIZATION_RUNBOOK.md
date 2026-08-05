@@ -15,15 +15,16 @@ Never reuse Production keys in Preview, local development or staging. Never link
 
 ## Verified state
 
-- The 149-migration baseline replayed successfully in isolated local Supabase after four migration-history corrections.
+- The 149-migration baseline replayed successfully in isolated local Supabase after four migration-history corrections; the repository now contains 151 migrations including the later Fiuu and legal-entity work.
 - Staging includes the Fiuu schema migrations and `20260805170000_backfill_profile_legal_entity_from_staff.sql`.
+- Staging migration history matches the repository through `20260805170000`; a linked `db push --dry-run` reports that staging is up to date.
 - The staging legal-entity audit reports zero active non-admin profiles without a legal entity and one active ADMIN.
-- Production has not received the two Fiuu migrations or the legal-entity backfill migration.
+- Production migration history is not currently reconcilable with the repository. The 2026-08-05 read-only audit found 11 remote-only versions (`20260722114542` through `20260722154920`) that are absent locally, while later repository migrations are absent remotely. The CLI correctly refused the Production dry-run. Do not run `migration repair`, `db pull`, or `db push` until the missing migration sources have been recovered and independently reviewed.
 - Production daily physical backups are available. The latest backup observed was `04 Aug 2026 14:54:14 UTC`.
 - Point-in-time recovery was not enabled when checked. Database backups do not include Storage objects.
 - Production has 107 active profiles. The audit found zero active ADMIN accounts, 68 profiles that had never signed in, two Operation Manager profiles missing a legal entity and one Distributor staff profile with no verified branch assignment.
 - Fiuu DuitNow QR Offline is activated at the merchant. OPA credentials, signed callback UAT and settlement reconciliation remain unconfirmed.
-- Google Play currently serves RKJ One Staff `1.4` (version code `5`) at full rollout. Server-only payment work does not require a new Android bundle.
+- Google Play Production currently serves RKJ One Staff `1.4` (version code `5`) at full rollout. Internal testing `1.5` (version code `6`) is active and available to the configured testers; Production promotion remains gated by physical-device acceptance.
 
 ## Production GO gates
 
@@ -33,22 +34,22 @@ All items below are mandatory:
 2. Owner/HR confirms branch and region assignments that cannot be derived from an existing staff record.
 3. Role UAT passes for SUPER_ADMIN, ADMIN, OM, AM, Finance, HR, POS staff, driver, factory and sales agent.
 4. A current Production recovery point is available immediately before migration, with a named person authorized to restore it.
-5. A migration dry-run lists only the three expected pending migrations.
+5. Production and repository migration histories match exactly, the 11 remote-only versions have reviewed source files, and a migration dry-run lists only explicitly approved pending migrations.
 6. Staging Preview passes login, access isolation, POS, inventory, finance, fleet, HR and negative security smoke tests.
 7. Fiuu remains `manual` unless OPA credentials, signed callback, idempotency, receipt, stock movement, shift summary and settlement all reconcile.
 8. The exact Vercel deployment and Supabase project references are recorded before release.
 
 Any missing item is a NO-GO for Production migration or staff-wide rollout.
 
-## Approved migration order
+## Intended migration order — suspended pending history reconciliation
 
-After the GO gates are met, deploy to Production in filename order during a maintenance window:
+After the migration histories reconcile and all GO gates are met, deploy to Production in filename order during a maintenance window:
 
 1. `20260804144500_explicit_data_api_table_grants.sql`
 2. `20260804235500_fiuu_pos_dynamic_qr.sql`
 3. `20260805170000_backfill_profile_legal_entity_from_staff.sql`
 
-Before execution, run a linked migration list and dry-run against the independently verified Production reference. Stop if any additional migration appears.
+Before execution, run a linked migration list and dry-run against the independently verified Production reference. Stop if any additional migration appears. Never use `migration repair` merely to make the version lists look equal; recover and review the actual SQL first.
 
 ## Rollback strategy
 
