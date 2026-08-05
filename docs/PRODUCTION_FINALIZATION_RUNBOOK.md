@@ -20,6 +20,8 @@ Never reuse Production keys in Preview, local development or staging. Never link
 - Staging migration history matches the repository through `20260805170000`; a linked `db push --dry-run` reports that staging is up to date.
 - The staging legal-entity audit reports zero active non-admin profiles without a legal entity and one active ADMIN.
 - The 2026-08-05 read-only Production audit found 11 historical versions (`20260722114542` through `20260722154920`) that were originally absent from the repository. `supabase migration fetch` recovered their SQL to an external audit directory. Each version maps to a later replay-safe repository migration, and the differences were reviewed. The repository now uses explicit no-op history markers for the Production-only version IDs; the broken historical SQL is not replayed. The later canonical migrations remain responsible for applying the corrected behavior.
+- All 163 canonical migration files replay successfully from an empty local database. The 11 no-op history markers have also been recorded in staging, and staging now reports no pending migration.
+- After reconciliation, the Production dry-run succeeds and lists exactly 14 pending canonical migrations: the 11 replay-safe security/index/RLS migrations followed by the explicit Data API grants, Fiuu POS QR schema and legal-entity backfill migrations.
 - Production daily physical backups are available. The latest backup observed was `04 Aug 2026 14:54:14 UTC`.
 - Point-in-time recovery was not enabled when checked. Database backups do not include Storage objects.
 - Production has 107 active profiles. The audit found zero active ADMIN accounts, 68 profiles that had never signed in, two Operation Manager profiles missing a legal entity and one Distributor staff profile with no verified branch assignment.
@@ -34,7 +36,7 @@ All items below are mandatory:
 2. Owner/HR confirms branch and region assignments that cannot be derived from an existing staff record.
 3. Role UAT passes for SUPER_ADMIN, ADMIN, OM, AM, Finance, HR, POS staff, driver, factory and sales agent.
 4. A current Production recovery point is available immediately before migration, with a named person authorized to restore it.
-5. The 11 history markers replay successfully locally and are recorded in staging, then Production and repository migration histories match exactly and a dry-run lists only explicitly approved canonical migrations.
+5. Production dry-run still lists exactly the 14 reviewed canonical migrations recorded below, with no additional version or ordering difference.
 6. Staging Preview passes login, access isolation, POS, inventory, finance, fleet, HR and negative security smoke tests.
 7. Fiuu remains `manual` unless OPA credentials, signed callback, idempotency, receipt, stock movement, shift summary and settlement all reconcile.
 8. The exact Vercel deployment and Supabase project references are recorded before release.
@@ -43,11 +45,22 @@ Any missing item is a NO-GO for Production migration or staff-wide rollout.
 
 ## Intended migration order — suspended pending history reconciliation
 
-After the migration histories reconcile and all GO gates are met, deploy to Production in filename order during a maintenance window:
+After all GO gates are met, deploy the 14 dry-run-verified migrations to Production in filename order during a maintenance window:
 
-1. `20260804144500_explicit_data_api_table_grants.sql`
-2. `20260804235500_fiuu_pos_dynamic_qr.sql`
-3. `20260805170000_backfill_profile_legal_entity_from_staff.sql`
+1. `20260722195500_supabase_security_advisor_hardening.sql`
+2. `20260722201500_security_definer_execution_grants.sql`
+3. `20260722203500_restore_internal_function_grants.sql`
+4. `20260722204500_core_foreign_key_indexes.sql`
+5. `20260722210000_optimize_rls_auth_initplan.sql`
+6. `20260722213000_secure_operational_rpc_boundaries.sql`
+7. `20260722214500_secure_factory_fleet_rpc_boundaries.sql`
+8. `20260722220000_complete_foreign_key_indexes.sql`
+9. `20260722221500_consolidate_overlapping_rls_policies.sql`
+10. `20260722223000_finish_rls_policy_consolidation.sql`
+11. `20260722224500_block_profile_privilege_escalation.sql`
+12. `20260804144500_explicit_data_api_table_grants.sql`
+13. `20260804235500_fiuu_pos_dynamic_qr.sql`
+14. `20260805170000_backfill_profile_legal_entity_from_staff.sql`
 
 Before execution, run a linked migration list and dry-run against the independently verified Production reference. Stop if any additional migration appears. Never use `migration repair` merely to make the version lists look equal. The historical Production SQL was recovered and reviewed outside the repository; only the no-op version markers belong in clean replay because the later canonical migrations contain the required corrections.
 
