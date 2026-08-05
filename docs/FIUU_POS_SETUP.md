@@ -8,7 +8,9 @@ Last updated: 2026-08-05
 - Product: Fiuu Offline Payment API, Pre-Create Transaction QR.
 - Channel: DuitNow QR Offline, channel ID `24`, currency `MYR`.
 - Merchant portal status verified on 2026-08-05: `DuitNow QR Offline` is already `Activated` at `0.80%` for this merchant account.
-- The Fiuu Booster application has been submitted and is pending provider review.
+- Other merchant channels shown in the portal are also activated, and extended payment verification is enabled.
+- The generic merchant Return URL, Notification URL and Callback URL are currently empty.
+- Fiuu Booster/OPA application status and OPA credentials are **To be confirmed** because the Booster session was not authenticated during verification.
 - RKJ One uses dynamic transaction QR, not a static merchant QR.
 - The application remains in `manual` mode until the provider channel and sandbox callback are approved and tested.
 
@@ -16,7 +18,7 @@ Merchant portal credentials shown on the portal home page must not be assumed to
 
 ## Required provider setup
 
-1. Wait for Fiuu to complete the submitted Booster/OPA application review.
+1. Confirm the Fiuu Booster/OPA application status in an authenticated Booster session or directly with Fiuu.
 2. Confirm whether Fiuu issues one OPA application per branch/store or one application for the company.
 3. Obtain sandbox Application Code and Secret Key without placing them in Git, chat, screenshots or mobile code.
 4. Configure the staging notification URL after Fiuu issues the OPA credentials:
@@ -25,6 +27,8 @@ Merchant portal credentials shown on the portal home page must not be assumed to
 6. Pilot one branch and one official POS device before enabling more branches.
 
 Do not submit another DuitNow QR Offline channel request while the existing channel remains activated.
+
+The merchant portal password was exposed during an earlier support session. The account owner must rotate it before production activation and must not share the replacement password in chat, screenshots or repository files.
 
 ## Server environment
 
