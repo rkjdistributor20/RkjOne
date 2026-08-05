@@ -6,6 +6,14 @@ Version code: `6`
 
 Package: `com.rkjone.staff`
 
+## Rollout status
+
+- Published to Google Play **Internal testing** on 2026-08-05.
+- Play Console status: `Available to internal testers`.
+- Release artifact: `6 (1.5)`, target SDK `36`, minimum API `24+`.
+- ReTrace mapping file is attached to the release.
+- Production remains on `1.4` (version code `5`) until the mandatory acceptance checks below pass.
+
 ## Changes
 
 - Uses the Capacitor 8 built-in SystemBars implementation instead of the deprecated standalone StatusBar plugin.
