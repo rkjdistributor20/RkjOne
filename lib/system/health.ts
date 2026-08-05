@@ -57,6 +57,10 @@ export type SystemHealthSnapshot = {
     branches: number | null;
     legal_entities: number | null;
     active_profiles: number | null;
+    active_admins: number | null;
+    active_profiles_missing_legal_entity: number | null;
+    active_profiles_without_auth_user: number | null;
+    active_profiles_never_signed_in: number | null;
     migrations: number | null;
   };
   sections: SystemHealthSection[];
@@ -110,6 +114,73 @@ function envReady(names: string[]) {
   return names.some((name) => Boolean(process.env[name]));
 }
 
+async function loadAccessReadiness(supabase: DbClient) {
+  const unavailable = {
+    activeAdmins: null,
+    activeProfilesMissingLegalEntity: null,
+    activeProfilesWithoutAuthUser: null,
+    activeProfilesNeverSignedIn: null,
+  };
+  const pageSize = 1000;
+  const profiles: Array<{
+    id: string;
+    role: Database["public"]["Enums"]["user_role"];
+    legal_entity_id: string | null;
+  }> = [];
+  for (let page = 0; ; page += 1) {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id, role, legal_entity_id")
+      .eq("status", "ACTIVE")
+      .range(page * pageSize, (page + 1) * pageSize - 1);
+    if (error || !data) return unavailable;
+    profiles.push(...data);
+    if (data.length < pageSize) break;
+  }
+
+  const activeAdmins = profiles.filter((item) => item.role === "ADMIN").length;
+  const activeProfilesMissingLegalEntity = profiles.filter(
+    (item) =>
+      item.role !== "SUPER_ADMIN" &&
+      item.role !== "ADMIN" &&
+      item.legal_entity_id === null,
+  ).length;
+
+  const authUsers = new Map<string, string | undefined>();
+  for (let page = 1; ; page += 1) {
+    const { data, error } = await supabase.auth.admin.listUsers({
+      page,
+      perPage: pageSize,
+    });
+    if (error || !data) {
+      return {
+        ...unavailable,
+        activeAdmins,
+        activeProfilesMissingLegalEntity,
+      };
+    }
+    data.users.forEach((user) => authUsers.set(user.id, user.last_sign_in_at));
+    if (data.users.length < pageSize) break;
+  }
+  return {
+    activeAdmins,
+    activeProfilesMissingLegalEntity,
+    activeProfilesWithoutAuthUser: profiles.filter(
+      (item) => !authUsers.has(item.id),
+    ).length,
+    activeProfilesNeverSignedIn: profiles.filter(
+      (item) => authUsers.has(item.id) && !authUsers.get(item.id),
+    ).length,
+  };
+}
+
+async function hasFiuuDatabaseSchema(supabase: DbClient) {
+  const { error } = await supabase
+    .from("pos_online_payments")
+    .select("expires_at", { count: "exact", head: true });
+  return !error;
+}
+
 function launchItem(
   key: string,
   title: string,
@@ -134,10 +205,16 @@ function launchItem(
 
 function buildLaunchControl(input: {
   hasSupabaseEnv: boolean;
-  hasPaymentEnv: boolean;
+  hasFiuuCredentials: boolean;
+  hasFiuuSchema: boolean;
+  posQrPaymentMode: "manual" | "fiuu";
   branches: number | null;
   legalEntities: number | null;
   activeProfiles: number | null;
+  activeAdmins: number | null;
+  activeProfilesMissingLegalEntity: number | null;
+  activeProfilesWithoutAuthUser: number | null;
+  activeProfilesNeverSignedIn: number | null;
   migrationRows: number | null;
 }): LaunchControlSnapshot {
   const hasCoreData =
@@ -145,6 +222,13 @@ function buildLaunchControl(input: {
     (input.legalEntities ?? 0) >= 3 &&
     (input.activeProfiles ?? 0) > 0;
   const hasMigrations = (input.migrationRows ?? 0) > 0;
+  const hasCompleteAccess = (input.activeAdmins ?? 0) > 0 &&
+    input.activeProfilesMissingLegalEntity === 0 &&
+    input.activeProfilesWithoutAuthUser === 0;
+  const hasCompletedFirstLogin = input.activeProfilesNeverSignedIn === 0;
+  const hasFiuuRuntime = input.posQrPaymentMode === "fiuu" &&
+    input.hasFiuuCredentials &&
+    input.hasFiuuSchema;
   const items: LaunchControlItem[] = [
     launchItem(
       "browser-uat",
@@ -171,13 +255,13 @@ function buildLaunchControl(input: {
       "Payment gateway live",
       "Finance / Owner",
       "P0",
-      input.hasPaymentEnv ? "ACTION" : "WAITING",
-      input.hasPaymentEnv
+      hasFiuuRuntime ? "ACTION" : "WAITING",
+      hasFiuuRuntime
         ? "Konfigurasi payment ditemui, tetapi transaksi live masih perlu diuji dengan callback/webhook dan settlement company account."
-        : "Payment online belum dibuka untuk operasi real sehingga merchant approved dan key rasmi dimasukkan.",
-      input.hasPaymentEnv
+        : "Payment Fiuu belum dibuka untuk operasi real sehingga skema, mod dan kredensial OPA lengkap.",
+      hasFiuuRuntime
         ? "Buat transaksi kecil, semak webhook, resit, laporan collection dan bank settlement."
-        : "Tunggu approval merchant Billplz/Fiuu/iPay88, kemudian masukkan merchant key di Vercel.",
+        : "Kekalkan QR manual; lengkapkan migrasi dan kredensial OPA melalui environment server-only.",
       ["Merchant approval", "Webhook", "Settlement"],
     ),
     launchItem(
@@ -195,7 +279,7 @@ function buildLaunchControl(input: {
       "Kunci akses production",
       "Admin Teknikal",
       "P0",
-      input.hasSupabaseEnv ? "ACTION" : "WAITING",
+      input.hasSupabaseEnv && hasCompleteAccess ? "ACTION" : "WAITING",
       "Sistem testing owner tidak disekat, tetapi sebelum go-live perlu pastikan signup awam OFF, RLS aktif dan role sensitif diuji.",
       "Semak Supabase Auth, RLS policy, service role usage dan audit log sebelum buka kepada staf real.",
       ["Supabase Auth", "RLS", "Audit log"],
@@ -205,7 +289,9 @@ function buildLaunchControl(input: {
       "Go-live 36 cawangan",
       "Owner / OM / AM",
       "P1",
-      hasCoreData ? "ACTION" : "WAITING",
+      hasCoreData && hasCompleteAccess && hasCompletedFirstLogin
+        ? "ACTION"
+        : "WAITING",
       "Data cawangan, staf, role dan profile syarikat perlu disahkan sebelum sistem digunakan di semua kiosk.",
       "Mulakan dari pilot 1 cawangan, kemudian tambah batch kawasan selepas SOP POS dan stock count stabil.",
       ["36 cawangan", "AM area", "Training"],
@@ -235,36 +321,64 @@ export async function buildSystemHealthSnapshot(
   profile: ProfileWithBranch,
 ): Promise<SystemHealthSnapshot> {
   const now = new Date().toISOString();
-  const branches = await countTable(supabase, "branches");
-  const legalEntities = await countTable(supabase, "legal_entities");
-  const activeProfiles = await countTable(supabase, "profiles", {
-    column: "status",
-    value: "ACTIVE",
-  });
-  const migrationRows = await countTable(supabase, "schema_migrations");
+  const [branches, legalEntities, activeProfiles, accessReadiness, hasFiuuSchema] =
+    await Promise.all([
+      countTable(supabase, "branches"),
+      countTable(supabase, "legal_entities"),
+      countTable(supabase, "profiles", {
+        column: "status",
+        value: "ACTIVE",
+      }),
+      loadAccessReadiness(supabase),
+      hasFiuuDatabaseSchema(supabase),
+    ]);
+  // Migration history is not exposed through the public Data API.
+  // Keep it unknown here and verify it through the CLI or dashboard.
+  const migrationRows = null;
   const hasSupabaseEnv =
     envReady(["NEXT_PUBLIC_SUPABASE_URL"]) &&
     envReady(["SUPABASE_SERVICE_ROLE_KEY"]);
-  const hasPaymentEnv = envReady([
-    "BILLPLZ_API_KEY",
-    "FIUU_MERCHANT_ID",
-    "RAZER_MERCHANT_ID",
-    "IPAY88_MERCHANT_CODE",
-  ]);
+  const hasFiuuCredentials = Boolean(process.env.POS_FIUU_APPLICATIONS_JSON) ||
+    (Boolean(process.env.POS_FIUU_APPLICATION_CODE) &&
+      Boolean(process.env.POS_FIUU_SECRET_KEY));
+  const posQrPaymentMode = process.env.POS_QR_PAYMENT_MODE
+    ?.trim()
+    .toLowerCase() === "fiuu"
+    ? "fiuu"
+    : "manual";
   const productionReadiness = buildProductionReadiness({
     hasSupabaseEnv,
-    hasPaymentEnv,
+    hasFiuuCredentials,
+    hasFiuuSchema,
+    fiuuLiveUatPassed: false,
+    posQrPaymentMode,
     branches,
     legalEntities,
     activeProfiles,
+    activeAdmins: accessReadiness.activeAdmins,
+    activeProfilesMissingLegalEntity:
+      accessReadiness.activeProfilesMissingLegalEntity,
+    activeProfilesWithoutAuthUser:
+      accessReadiness.activeProfilesWithoutAuthUser,
+    activeProfilesNeverSignedIn:
+      accessReadiness.activeProfilesNeverSignedIn,
     migrationRows,
   });
   const launchControl = buildLaunchControl({
     hasSupabaseEnv,
-    hasPaymentEnv,
+    hasFiuuCredentials,
+    hasFiuuSchema,
+    posQrPaymentMode,
     branches,
     legalEntities: legalEntities,
     activeProfiles,
+    activeAdmins: accessReadiness.activeAdmins,
+    activeProfilesMissingLegalEntity:
+      accessReadiness.activeProfilesMissingLegalEntity,
+    activeProfilesWithoutAuthUser:
+      accessReadiness.activeProfilesWithoutAuthUser,
+    activeProfilesNeverSignedIn:
+      accessReadiness.activeProfilesNeverSignedIn,
     migrationRows,
   });
 
@@ -331,6 +445,39 @@ export async function buildSystemHealthSnapshot(
             : "Tidak dapat kira cawangan.",
           "Owner boleh semak profile cawangan, dokumen, POS, staf dan stok dari dashboard cawangan.",
         ),
+        check(
+          "active-admin",
+          "Pentadbir operasi aktif",
+          (accessReadiness.activeAdmins ?? 0) > 0 ? "PASS" : "WARN",
+          accessReadiness.activeAdmins !== null
+            ? `${accessReadiness.activeAdmins} akaun ADMIN aktif direkod.`
+            : "Tidak dapat mengesahkan akaun ADMIN aktif.",
+          "Aktifkan atau lantik ADMIN hanya selepas pemilik mengesahkan individu dan skop tugas.",
+        ),
+        check(
+          "profile-legal-entity-scope",
+          "Skop syarikat profil aktif",
+          accessReadiness.activeProfilesMissingLegalEntity === 0
+            ? "PASS"
+            : "WARN",
+          accessReadiness.activeProfilesMissingLegalEntity !== null
+            ? `${accessReadiness.activeProfilesMissingLegalEntity} profil aktif bukan pentadbir belum mempunyai legal entity.`
+            : "Tidak dapat mengesahkan skop legal entity profil aktif.",
+          "Selaraskan legal entity daripada rekod staf yang sah; jangan meneka cawangan atau wilayah.",
+        ),
+        check(
+          "first-login-readiness",
+          "Kesiapan log masuk pertama",
+          accessReadiness.activeProfilesNeverSignedIn === 0 &&
+          accessReadiness.activeProfilesWithoutAuthUser === 0
+            ? "PASS"
+            : "WARN",
+          accessReadiness.activeProfilesNeverSignedIn !== null &&
+          accessReadiness.activeProfilesWithoutAuthUser !== null
+            ? `${accessReadiness.activeProfilesNeverSignedIn} profil aktif belum pernah log masuk; ${accessReadiness.activeProfilesWithoutAuthUser} tiada auth user.`
+            : "Tidak dapat mengesahkan sejarah log masuk semua profil aktif.",
+          "Jalankan onboarding dan UAT role sebenar secara batch sebelum rollout semua cawangan.",
+        ),
       ],
     },
     {
@@ -393,12 +540,10 @@ export async function buildSystemHealthSnapshot(
         ),
         check(
           "payment-env",
-          "Payment gateway belum dipaksa live",
-          hasPaymentEnv ? "PASS" : "WARN",
-          hasPaymentEnv
-            ? "Sekurang-kurangnya satu konfigurasi payment gateway ditemui."
-            : "Payment gateway live belum lengkap dalam environment.",
-          "Kekalkan QR/manual payment untuk testing sehingga merchant approved dan webhook diuji.",
+          "Kesiapan Fiuu live",
+          "WARN",
+          `Mod QR POS ${posQrPaymentMode}; kredensial OPA ${hasFiuuCredentials ? "dikesan" : "belum lengkap"}; skema Fiuu ${hasFiuuSchema ? "tersedia" : "belum tersedia"}; UAT transaksi live belum direkodkan.`,
+          "Kekalkan QR manual sehingga migrasi, kredensial OPA, webhook dan transaksi pilot disahkan.",
         ),
       ],
     },
@@ -423,6 +568,13 @@ export async function buildSystemHealthSnapshot(
       branches,
       legal_entities: legalEntities,
       active_profiles: activeProfiles,
+      active_admins: accessReadiness.activeAdmins,
+      active_profiles_missing_legal_entity:
+        accessReadiness.activeProfilesMissingLegalEntity,
+      active_profiles_without_auth_user:
+        accessReadiness.activeProfilesWithoutAuthUser,
+      active_profiles_never_signed_in:
+        accessReadiness.activeProfilesNeverSignedIn,
       migrations: migrationRows,
     },
     sections,

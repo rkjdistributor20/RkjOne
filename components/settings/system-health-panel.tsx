@@ -426,7 +426,7 @@ export function SystemHealthPanel() {
         />
         <KpiCard
           title={ui("Migrasi DB")}
-          value={snapshot.counters.migrations}
+          value={snapshot.counters.migrations ?? ui("Semak CLI")}
           description={ui(
             `${snapshot.counters.branches ?? 0} cawangan, ${snapshot.counters.active_profiles ?? 0} profil aktif`,
           )}

@@ -110,10 +110,12 @@ Status key: `Todo`, `In Progress`, `Review`, `Blocked`, `Done`.
 | M7.3 | Done | DevOps/Owner | Backup and rollback SOP. | `docs/BACKUP_ROLLBACK_SOP.md` defines Vercel rollback, database recovery rules, and payment incident handling. |
 | M7.4 | Done | QA AI | Production smoke command. | `npm run smoke:production` checks public login, booking/HR/Sales Agent auth boundaries, protected payment routes, webhook signature rejection, and API health. |
 | M7.5 | Done | Documentation AI | Release note baseline. | `docs/RELEASE_NOTES_M6.md` records production deployment, verification, and known follow-up. |
-| M7.6 | Blocked | Finance/DevOps | Live provider payment UAT. | DuitNow QR Offline is activated at 0.80%; Fiuu Booster/OPA application is submitted and pending provider review. Sandbox credentials and signed callback UAT are still required. |
-| M7.7 | Review | Owner/QA | Real user role UAT. | Pending real account testing for Owner/Admin/Finance/Staff/Area Manager/Operation Manager/Sales Agent. |
+| M7.6 | Blocked | Finance/DevOps | Live provider payment UAT. | Fiuu channels, including DuitNow QR Offline at 0.80%, are activated and extended payment verification is enabled. OPA application status/credentials, callback URLs, Production schema deployment, signed UAT and settlement reconciliation remain unconfirmed. Keep POS QR in manual mode. |
+| M7.7 | Blocked | Owner/QA | Real user role UAT. | Production audit on 2026-08-05 found 0 active ADMIN, 68 of 107 active profiles never signed in, 2 Operation Manager profiles missing legal-entity scope, and 1 Distributor staff profile with no verified branch assignment. Legal entity can be backfilled from linked staff records; role identity, branch/region assignments and first-login UAT require owner confirmation. |
 | M7.8 | Review | HR/QA AI | HRMIS 3-company UAT. | Code now blocks AM leave approval until OM cover is recorded; `docs/UAT_HRMIS_3_COMPANY.md` covers legal employer separation, staff self-service, leave, AM emergency POS, OM fallback and negative access tests. |
 | M7.9 | Done | Mobile/Owner | Google Play production shell. | RKJ One Staff `1.4` (version code `5`) is available on Google Play at 100% rollout; server-side Fiuu work does not require a new AAB. |
+| M7.10 | Review | DevOps/Database | Production migration gate. | Staging has replayed and validated the legal-entity backfill plus the Fiuu schema migrations. Production remains at the earlier migration baseline and must not be updated until a current recovery point, reviewed dry-run, rollback authority and maintenance window are confirmed. |
+| M7.11 | Review | Security/Frontend | Evidence-backed readiness dashboard. | System Health now reports active ADMIN, missing legal-entity scope, missing Auth users, first-login readiness and Fiuu schema/credential/mode gates without exposing personal data or secret values. |
 
 ## Milestone 8 - Speed & Lightweight Workflow
 
