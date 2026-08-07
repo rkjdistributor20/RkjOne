@@ -60,6 +60,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { useLanguage } from '@/components/i18n/language-provider';
 import { POS_OFFICIAL_TABLETS } from '@/lib/pos/official-tablets';
+import { createClient } from '@/lib/supabase/client';
 
 function envMinutes(value: string | undefined, fallback: number) {
  const parsed = Number(value);
@@ -329,8 +330,11 @@ export function PosTerminal() {
    setEnrollmentCode('');
    const management = await enableOfficialPosKiosk();
    await syncPosDeviceManagement(management);
-   toast.success('Tablet berjaya didaftarkan sebagai POS rasmi.');
-   router.replace('/pos');
+   const supabase = createClient();
+   const { error: signOutError } = await supabase.auth.signOut({ scope: 'local' });
+   if (signOutError) throw signOutError;
+   useAuthStore.getState().reset();
+   router.replace('/login?redirect=%2Fpos&device_enrolled=1');
    router.refresh();
   } catch (error) {
    toast.error(error instanceof Error ? error.message : 'Pendaftaran tablet gagal');
