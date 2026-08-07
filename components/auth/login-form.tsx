@@ -34,6 +34,7 @@ export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = safeRedirectPath(searchParams.get("redirect"));
+  const deviceEnrolled = searchParams.get("device_enrolled") === "1";
   const { t } = useLanguage();
 
   const [email, setEmail] = useState("");
@@ -166,6 +167,14 @@ export function LoginForm() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-5 px-7 py-7">
+                {deviceEnrolled ? (
+                  <div
+                    className="rounded-[8px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900"
+                    role="status"
+                  >
+                    Tablet POS rasmi berjaya didaftarkan. Sesi pendaftar telah dikunci dan staf bertugas perlu log masuk menggunakan akaun sendiri.
+                  </div>
+                ) : null}
                 {showSchedule ? (
                   <div className="space-y-4">
                     <div className="rounded-[8px] border border-[#e5dfd5] bg-[#fffbf3] p-4">

@@ -26,6 +26,7 @@ import {
  CalendarDays,
  ShieldCheck,
  MonitorSmartphone,
+ LockKeyhole,
  UnlockKeyhole,
  BookOpen,
  type LucideIcon,
@@ -313,7 +314,7 @@ export function AppShell({ children, posDeviceContext, kioskBypassed }: AppShell
  <UnlockKeyhole className="h-4 w-4" /> Mod Pengurusan
  </Button>)}
  <Button variant="ghost" size="sm" className="gap-2 text-white/75 hover:bg-white/10 hover:text-white" onClick={handleLogout}>
- <LogOut className="h-4 w-4" /> <span className="hidden md:inline">{t('layout.logout')}</span>
+ <LockKeyhole className="h-4 w-4" /> <span className="hidden md:inline">Kunci POS</span>
  </Button>
  </header>
  {canOpenManagement && (
