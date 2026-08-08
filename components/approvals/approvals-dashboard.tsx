@@ -7,6 +7,7 @@ import {
   CheckSquare,
   Clock,
   FileCheck2,
+  RefreshCw,
   ShieldAlert,
   TimerReset,
   XCircle,
@@ -76,6 +77,7 @@ export function ApprovalsDashboard() {
   const [pending, setPending] = useState<ApprovalRequest[]>([]);
   const [resolved, setResolved] = useState<ApprovalRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [rejectId, setRejectId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
@@ -86,8 +88,9 @@ export function ApprovalsDashboard() {
   );
   const summary = summarizeApprovalGovernance(pending);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (showInitialLoading = false) => {
+    if (showInitialLoading) setLoading(true);
+    else setRefreshing(true);
     setLoadError(null);
     const [pendingResult, approvedResult, rejectedResult] =
       await Promise.allSettled([
@@ -130,20 +133,33 @@ export function ApprovalsDashboard() {
       );
     }
     setLoading(false);
+    setRefreshing(false);
   }, [ui]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      void loadData();
+      void loadData(true);
     }, 0);
     return () => window.clearTimeout(timer);
+  }, [loadData]);
+
+  useEffect(() => {
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void loadData();
+    };
+    const interval = window.setInterval(refreshWhenVisible, 30_000);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
   }, [loadData]);
 
   async function handleApprove(id: string) {
     try {
       await approveRequest(id);
       toast.success(ui("Diluluskan"));
-      loadData();
+      await loadData();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : ui("Gagal meluluskan"));
     }
@@ -155,7 +171,7 @@ export function ApprovalsDashboard() {
       toast.success(ui("Ditolak"));
       setRejectId(null);
       setRejectReason("");
-      loadData();
+      await loadData();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : ui("Gagal menolak"));
     }
@@ -169,6 +185,20 @@ export function ApprovalsDashboard() {
           "Semak permintaan mengikut SLA, bukti wajib dan pemilik tugas supaya operasi tidak tersekat.",
         )}
         icon={CheckSquare}
+        actions={
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void loadData()}
+            disabled={loading || refreshing}
+          >
+            <RefreshCw
+              className={cn("mr-2 h-4 w-4", refreshing && "animate-spin")}
+              aria-hidden="true"
+            />
+            {ui("Segar Semula")}
+          </Button>
+        }
         badges={
           loadError ? (
             <Badge variant="destructive">{ui("Data tidak lengkap")}</Badge>

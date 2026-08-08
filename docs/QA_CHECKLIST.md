@@ -51,6 +51,8 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [ ] Buttons use clear action labels/icons.
 - [ ] Mutations show success/error feedback.
 - [ ] Client API calls handle auth redirects and JSON errors.
+- [x] Approval Center bypasses stale browser data and refreshes pending requests created or resolved on another device.
+- [x] POS shift approval activates only the matching pending member within the same organization and branch.
 
 ## HRMIS 3-Company Review
 
