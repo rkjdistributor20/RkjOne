@@ -171,6 +171,7 @@ export async function updateSession(request: NextRequest) {
 
  if (
  !isApiRoute &&
+ !(hasOfficialPosCredential && !kioskBypassed && pathname === '/pos') &&
  !isDashboardRouteAllowed(pathname, {
  role: profileRow?.role,
  legalEntityCode: profileRow?.legal_entity?.code,
