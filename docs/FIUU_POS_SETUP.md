@@ -1,6 +1,6 @@
 # RKJ One Fiuu DuitNow QR POS Setup
 
-Last updated: 2026-08-05
+Last updated: 2026-08-08
 
 ## Verified design
 
@@ -10,7 +10,9 @@ Last updated: 2026-08-05
 - Merchant portal status verified on 2026-08-05: `DuitNow QR Offline` is already `Activated` at `0.80%` for this merchant account.
 - Other merchant channels shown in the portal are also activated, and extended payment verification is enabled.
 - The generic merchant Return URL, Notification URL and Callback URL are currently empty.
-- Fiuu Booster/OPA application status and OPA credentials are **To be confirmed** because the Booster session was not authenticated during verification.
+- Application ID `121582` (Roti Kaya Junus) and Application ID `121583` (RKJ Distributor Sdn. Bhd.) are approved as separate merchant accounts.
+- The dedicated sandbox account for Roti Kaya Junus is accessible. Its Merchant ID, Verify Key and Secret Key are available in the sandbox portal. Values remain secret and are not recorded in the repository.
+- Fiuu has not yet confirmed in writing that the sandbox Merchant ID is the OPA `applicationCode`, the exact pre-create/callback signature contract, or the approved Store/Terminal ID model. These items remain **To be confirmed** under Fiuu Ticket `2924959`.
 - RKJ One uses dynamic transaction QR, not a static merchant QR.
 - The application remains in `manual` mode until the provider channel and sandbox callback are approved and tested.
 
@@ -28,7 +30,9 @@ Merchant portal credentials shown on the portal home page must not be assumed to
 
 Do not submit another DuitNow QR Offline channel request while the existing channel remains activated.
 
-The merchant portal password was exposed during an earlier support session. The account owner must rotate it before production activation and must not share the replacement password in chat, screenshots or repository files.
+The merchant and sandbox credentials were exposed during earlier support correspondence. The Roti Kaya Junus sandbox password was reset on 2026-08-08. Production portal credentials must also be rotated before activation, and replacement credentials must never be placed in chat, screenshots or repository files.
+
+On 2026-08-08, a detailed technical request was sent to Fiuu under Ticket `2924959` asking for the official OPA endpoints, identifier mapping, request/notification signature rules, callback acknowledgement and retries, branch/store arrangement, Extended VCode requirement and refund/reversal procedure. Keep Production in manual mode until Fiuu answers and signed sandbox UAT passes.
 
 ## Server environment
 
@@ -66,6 +70,8 @@ Do not commit the real JSON. Keep `POS_QR_PAYMENT_MODE=manual` until UAT passes.
 4. Reconcile Fiuu settlement, RKJ One payment, POS receipt, shift summary and inventory movement.
 5. For rollback, set `POS_QR_PAYMENT_MODE=manual`. Do not delete payment rows, gateway references or receipts.
 6. Production activation requires owner confirmation at the moment the Fiuu subscription, production credentials and Production environment change are submitted.
+
+Staging migration status on 2026-08-08: all `169` repository migrations are applied and the linked schema lint reports no error. Vercel Preview contains a branch-scoped sensitive `POS_FIUU_APPLICATIONS_JSON` mapping for pilot branch `BR001` only. No Fiuu credential was added to Production.
 
 ## Play Store
 
