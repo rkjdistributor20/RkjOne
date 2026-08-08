@@ -64,6 +64,30 @@ describe('Fiuu configuration safety', () => {
    environment: 'sandbox',
   });
   expect(config?.terminalId).toBe('RKJDEVICE01');
-  expect(config?.precreateUrl).toContain('sandbox-payment.fiuu.com');
+ expect(config?.precreateUrl).toContain('sandbox-payment.fiuu.com');
+ });
+
+ it('rejects an override outside the approved Fiuu environment host', () => {
+  process.env.POS_QR_PAYMENT_MODE = 'fiuu';
+  process.env.POS_FIUU_ENVIRONMENT = 'production';
+  process.env.POS_FIUU_APPLICATION_CODE = 'APP001';
+  process.env.POS_FIUU_SECRET_KEY = 'secret-001';
+  process.env.POS_FIUU_PRECREATE_URL = 'https://example.com/precreate';
+
+  expect(() => getFiuuOpaConfig('BR001', 'POS001')).toThrow(
+   'Endpoint Fiuu production tidak berada pada hos yang diluluskan',
+  );
+ });
+
+ it('rejects a sandbox endpoint when production mode is selected', () => {
+  process.env.POS_QR_PAYMENT_MODE = 'fiuu';
+  process.env.POS_FIUU_ENVIRONMENT = 'production';
+  process.env.POS_FIUU_APPLICATION_CODE = 'APP001';
+  process.env.POS_FIUU_SECRET_KEY = 'secret-001';
+  process.env.POS_FIUU_PRECREATE_URL = 'https://sandbox-payment.fiuu.com/RMS/API/MOLOPA/precreate.php';
+
+  expect(() => getFiuuOpaConfig('BR001', 'POS001')).toThrow(
+   'Endpoint Fiuu production tidak berada pada hos yang diluluskan',
+  );
  });
 });

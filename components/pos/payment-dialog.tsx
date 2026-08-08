@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useCallback, useEffect } from 'react';
+import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { toast } from 'sonner';
 import { Banknote, QrCode, Split, Delete, CheckCircle2, Clock3, LoaderCircle, RefreshCw } from 'lucide-react';
@@ -15,6 +15,7 @@ import {
  getOfflineQueue,
 } from '@/lib/pos/offline-queue';
 import { formatRM, generateOfflineId } from '@/lib/pos/utils';
+import { createPosPaymentIdempotencyKey } from '@/lib/pos/payment-idempotency';
 import { useAuthStore } from '@/stores/auth-store';
 import { usePosStore } from '@/stores/pos-store';
 import type { PaymentMethod, SaleResult } from '@/lib/pos/types';
@@ -114,6 +115,7 @@ export function PaymentDialog({
  const [qrPayment, setQrPayment] = useState<ActiveQrPayment | null>(null);
  const [qrStatus, setQrStatus] = useState<'PENDING' | 'PAID' | 'FAILED' | 'EXPIRED'>('PENDING');
  const [qrSecondsRemaining, setQrSecondsRemaining] = useState(0);
+ const qrAttemptKeyRef = useRef<string | null>(null);
 
  const quickAmounts = useMemo(() => buildQuickAmounts(total), [total]);
  const defaultAmount = total > 0 ? total.toFixed(2) : '';
@@ -156,6 +158,7 @@ export function PaymentDialog({
  setQrPayment(null);
  setQrStatus('PENDING');
  setQrSecondsRemaining(0);
+ qrAttemptKeyRef.current = null;
  }, []);
 
  const handleDialogOpenChange = useCallback((nextOpen: boolean) => {
@@ -329,7 +332,22 @@ export function PaymentDialog({
  const usesQr = method === 'QR' || (method === 'MIXED' && payload.qr_amount > 0);
  if (usesQr) {
   try {
-   const { payment } = await createPosQrPayment(payload);
+   const idempotencyKey = qrAttemptKeyRef.current ?? createPosPaymentIdempotencyKey();
+   qrAttemptKeyRef.current = idempotencyKey;
+   const { payment } = await createPosQrPayment(payload, idempotencyKey);
+   if (payment.status === 'PAID') {
+    const existing = await fetchPosQrPayment(payment.id);
+    if (!existing.result) throw new Error('Resit bayaran Fiuu belum tersedia. Cuba semula.');
+    toast.success('Bayaran DuitNow QR telah disahkan oleh Fiuu.');
+    clearCart();
+    resetPaymentForm();
+    onOpenChange(false);
+    onSuccess(existing.result);
+    return;
+   }
+   if (!payment.qr_image_url || !payment.expires_at) {
+    throw new Error('Kod QR Fiuu masih dijana. Cuba semula sebentar lagi.');
+   }
    setQrPayment({
     id: payment.id,
     imageUrl: payment.qr_image_url,
@@ -341,6 +359,9 @@ export function PaymentDialog({
    toast.info('Imbas DuitNow QR dan tunggu pengesahan Fiuu.');
    return;
   } catch (error) {
+   if (error instanceof PosQrPaymentError && error.mode !== 'FIUU_ATTEMPT_INITIALIZING') {
+    qrAttemptKeyRef.current = null;
+   }
    if (!(error instanceof PosQrPaymentError) || error.mode !== 'MANUAL_QR_ONLY') {
     throw error;
    }
@@ -650,6 +671,7 @@ export function PaymentDialog({
        setQrPayment(null);
        setQrStatus('PENDING');
        setQrSecondsRemaining(0);
+       qrAttemptKeyRef.current = null;
       }}
      >
       <RefreshCw className="h-5 w-5" aria-hidden="true" />

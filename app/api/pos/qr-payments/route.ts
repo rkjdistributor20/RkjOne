@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { getCurrentProfile } from '@/lib/auth/session';
 import { enforceRateLimit } from '@/lib/security/rate-limit';
 import {
@@ -11,8 +12,27 @@ import {
 import { assertOfficialPosDevice } from '@/lib/pos/device-auth';
 import { inventoryRpc } from '@/lib/supabase/inventory-rpc';
 import { createFiuuDynamicQr, getFiuuOpaConfig, getPosQrPaymentMode } from '@/lib/pos/fiuu';
+import {
+ isSamePosPaymentIntent,
+ isValidPosPaymentIdempotencyKey,
+ type PosPaymentIntentIdentity,
+} from '@/lib/pos/payment-idempotency';
 import type { CreateSalePayload } from '@/lib/pos/types';
 import type { Json } from '@/types/database';
+
+type ExistingPayment = {
+ id: string;
+ amount_rm: number;
+ branch_id: string;
+ shift_id: string;
+ created_by: string | null;
+ provider: string;
+ status: string;
+ sale_payload: Json;
+ gateway_ref: string | null;
+ checkout_url: string | null;
+ expires_at: string | null;
+};
 
 function isSalePayload(value: unknown): value is CreateSalePayload {
  if (!value || typeof value !== 'object') return false;
@@ -28,6 +48,74 @@ function isSalePayload(value: unknown): value is CreateSalePayload {
 
 function errorMessage(error: unknown) {
  return error instanceof Error ? error.message : 'Fiuu tidak dapat menjana QR';
+}
+
+function existingPaymentResponse(
+ payment: ExistingPayment,
+ expected: PosPaymentIntentIdentity,
+ environment: 'sandbox' | 'production',
+) {
+ const matches = payment.provider === 'fiuu' && isSamePosPaymentIntent({
+  branchId: payment.branch_id,
+  shiftId: payment.shift_id,
+  createdBy: payment.created_by ?? '',
+  amountRm: Number(payment.amount_rm),
+  salePayload: payment.sale_payload,
+ }, expected);
+ if (!matches) {
+  return NextResponse.json(
+   {
+    error: 'Kunci percubaan QR telah digunakan untuk bayaran yang berbeza.',
+    mode: 'IDEMPOTENCY_KEY_REUSED',
+   },
+   { status: 409 });
+ }
+
+ if (payment.status === 'PAID') {
+  return NextResponse.json({
+   payment: {
+    id: payment.id,
+    status: 'PAID',
+    amount_rm: Number(payment.amount_rm),
+    qr_image_url: null,
+    gateway_ref: payment.gateway_ref,
+    expires_at: payment.expires_at,
+    environment,
+    reused: true,
+   },
+  });
+ }
+
+ const expiresAt = payment.expires_at ? new Date(payment.expires_at).getTime() : null;
+ if (payment.status !== 'PENDING' || (expiresAt !== null && expiresAt <= Date.now())) {
+  return NextResponse.json(
+   {
+    error: 'Percubaan QR ini telah tamat. Jana percubaan baharu.',
+    mode: 'FIUU_ATTEMPT_TERMINAL',
+   },
+   { status: 409 });
+ }
+ if (!payment.checkout_url || !payment.gateway_ref || !payment.expires_at) {
+  return NextResponse.json(
+   {
+    error: 'Kod QR Fiuu masih dijana. Cuba semula sebentar lagi.',
+    mode: 'FIUU_ATTEMPT_INITIALIZING',
+   },
+   { status: 409 });
+ }
+
+ return NextResponse.json({
+  payment: {
+   id: payment.id,
+   status: 'PENDING',
+   amount_rm: Number(payment.amount_rm),
+   qr_image_url: `/api/pos/qr-payments/${encodeURIComponent(payment.id)}/image`,
+   gateway_ref: payment.gateway_ref,
+   expires_at: payment.expires_at,
+   environment,
+   reused: true,
+  },
+ });
 }
 
 export async function POST(request: Request) {
@@ -55,6 +143,10 @@ export async function POST(request: Request) {
   return NextResponse.json({ error: 'Payload jualan QR tidak sah' }, { status: 400 });
  }
  const body = rawBody;
+ const idempotencyKey = Reflect.get(rawBody, 'idempotency_key');
+ if (!isValidPosPaymentIdempotencyKey(idempotencyKey)) {
+  return NextResponse.json({ error: 'Kunci percubaan QR tidak sah' }, { status: 400 });
+ }
  if (!Number.isFinite(body.qr_amount) || body.qr_amount <= 0
   || !Number.isFinite(body.cash_amount) || body.cash_amount < 0) {
   return NextResponse.json({ error: 'Amaun bayaran QR tidak sah' }, { status: 400 });
@@ -164,7 +256,29 @@ export async function POST(request: Request) {
   fiuu_device_code: device.deviceCode,
  } satisfies Json;
  const expiresAt = new Date(Date.now() + config.validitySeconds * 1000).toISOString();
- const { data: payment, error: insertError } = await supabase
+ const admin = createAdminClient();
+ const expectedIntent: PosPaymentIntentIdentity = {
+  branchId: body.branchId,
+  shiftId: body.shiftId,
+  createdBy: profile.id,
+  amountRm: qrAmount,
+  salePayload,
+ };
+ const existingSelect = 'id, amount_rm, branch_id, shift_id, created_by, provider, status, sale_payload, gateway_ref, checkout_url, expires_at';
+ const { data: existingPayment, error: existingError } = await admin
+  .from('pos_online_payments')
+  .select(existingSelect)
+  .eq('organization_id', profile.organization_id)
+  .eq('idempotency_key', idempotencyKey)
+  .maybeSingle();
+ if (existingError) {
+  return NextResponse.json({ error: 'Percubaan QR tidak dapat disahkan' }, { status: 400 });
+ }
+ if (existingPayment) {
+  return existingPaymentResponse(existingPayment, expectedIntent, config.environment);
+ }
+
+ const { data: payment, error: insertError } = await admin
   .from('pos_online_payments')
   .insert({
    organization_id: profile.organization_id,
@@ -176,10 +290,22 @@ export async function POST(request: Request) {
    sale_payload: salePayload,
    created_by: profile.id,
    expires_at: expiresAt,
+   idempotency_key: idempotencyKey,
   })
   .select('id')
-  .single();
+ .single();
  if (insertError || !payment) {
+  if (insertError?.code === '23505') {
+   const { data: racedPayment } = await admin
+    .from('pos_online_payments')
+    .select(existingSelect)
+    .eq('organization_id', profile.organization_id)
+    .eq('idempotency_key', idempotencyKey)
+    .maybeSingle();
+   if (racedPayment) {
+    return existingPaymentResponse(racedPayment, expectedIntent, config.environment);
+   }
+  }
   return NextResponse.json({ error: insertError?.message ?? 'Rekod QR gagal dicipta' }, { status: 400 });
  }
 
@@ -190,7 +316,7 @@ export async function POST(request: Request) {
    amountRm: qrAmount,
    description: `RKJ POS ${device.branchCode ?? 'Branch'}`,
   });
-  const { error: updateError } = await supabase
+  const { error: updateError } = await admin
    .from('pos_online_payments')
    .update({
     gateway_ref: qr.gatewayReference,
@@ -211,10 +337,11 @@ export async function POST(request: Request) {
     gateway_ref: qr.gatewayReference,
     expires_at: qr.expiresAt,
     environment: config.environment,
+    reused: false,
    },
   });
  } catch (error) {
-  await supabase
+  await admin
    .from('pos_online_payments')
    .update({ status: 'FAILED', failed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
    .eq('id', payment.id)

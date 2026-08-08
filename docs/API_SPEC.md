@@ -23,6 +23,8 @@ The POS creates a sale only after a signed Fiuu Offline Payment API notification
 
 Creates a pending Fiuu DuitNow QR payment for an authenticated, authorized POS shift member on an official branch device. Product prices, quantities, discount and payment split are recalculated on the server. The returned QR image URL is an authenticated RKJ One proxy; the provider image URL and credentials are not returned to the browser.
 
+The request must include an opaque `idempotency_key` of 16-64 letters, numbers, underscores or hyphens. Retrying the same organization, branch, shift, creator, amount and sale payload returns the existing intent. Reusing the key for different intent data returns `409` and never creates another payment.
+
 ### GET `/api/pos/qr-payments/[paymentId]`
 
 Returns branch-scoped payment status. A receipt is returned only after the payment is atomically fulfilled. Pending records are marked expired when their validity window has elapsed.

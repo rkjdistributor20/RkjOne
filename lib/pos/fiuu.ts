@@ -104,12 +104,18 @@ function parseValiditySeconds(): number {
   return value;
 }
 
-function validatePrecreateUrl(value: string): string {
+function validatePrecreateUrl(value: string, environment: FiuuEnvironment): string {
   const url = new URL(value);
   const localDevelopment = process.env.NODE_ENV !== 'production'
     && (url.hostname === 'localhost' || url.hostname === '127.0.0.1');
   if (url.protocol !== 'https:' && !localDevelopment) {
     throw new Error('Endpoint Fiuu mesti menggunakan HTTPS');
+  }
+  const approvedHostname = environment === 'production'
+    ? new URL(FIUU_PRODUCTION_PRECREATE_URL).hostname
+    : new URL(FIUU_SANDBOX_PRECREATE_URL).hostname;
+  if (!localDevelopment && url.hostname !== approvedHostname) {
+    throw new Error(`Endpoint Fiuu ${environment} tidak berada pada hos yang diluluskan`);
   }
   return url.toString();
 }
@@ -159,7 +165,10 @@ export function getFiuuOpaConfig(branchCode: string, deviceCode: string): FiuuOp
     ),
     channelId: FIUU_DUITNOW_QR_CHANNEL_ID,
     environment,
-    precreateUrl: validatePrecreateUrl(process.env.POS_FIUU_PRECREATE_URL?.trim() || defaultUrl),
+    precreateUrl: validatePrecreateUrl(
+      process.env.POS_FIUU_PRECREATE_URL?.trim() || defaultUrl,
+      environment,
+    ),
     validitySeconds: parseValiditySeconds(),
   };
 }

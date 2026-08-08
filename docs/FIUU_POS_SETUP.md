@@ -44,7 +44,7 @@ Use Vercel server-only environment variables. `POS_FIUU_APPLICATIONS_JSON` is pr
 }
 ```
 
-Do not commit the real JSON. Keep `POS_QR_PAYMENT_MODE=manual` until UAT passes. Staging must use `POS_FIUU_ENVIRONMENT=sandbox`; Production must use `production` only after written approval and pilot sign-off.
+Do not commit the real JSON. Keep `POS_QR_PAYMENT_MODE=manual` until UAT passes. Staging must use `POS_FIUU_ENVIRONMENT=sandbox`; Production must use `production` only after written approval and pilot sign-off. A `POS_FIUU_PRECREATE_URL` override must use the approved host for the selected environment; localhost is accepted only during non-production development.
 
 ## UAT acceptance
 
@@ -53,6 +53,7 @@ Do not commit the real JSON. Keep `POS_QR_PAYMENT_MODE=manual` until UAT passes.
 - Invalid signature, amount, currency, channel, application or provider transaction ID is rejected.
 - A valid callback creates exactly one sale, one receipt and the expected stock movements.
 - A duplicated valid callback returns the existing receipt and creates no duplicate transaction.
+- Retrying one QR creation attempt with the same idempotency key returns the same payment; changing its branch, shift, creator, amount or sale payload is rejected.
 - Cross-branch users cannot view the payment or QR image.
 - No sale is completed when Fiuu generation or callback fulfilment fails.
 - Cash, mixed payment, discount, change, shift totals and Malaysia business date reconcile.

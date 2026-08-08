@@ -307,6 +307,29 @@ export async function PATCH(request: Request) {
  { status: posAccessErrorStatus(err) });
  }
 
+ const { data: pendingPayment, error: pendingPaymentError } = await supabase
+ .from('pos_online_payments')
+ .select('id')
+ .eq('organization_id', shift.organization_id)
+ .eq('branch_id', shift.branch_id)
+ .eq('shift_id', shift_id)
+ .eq('status', 'PENDING')
+ .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+ .limit(1)
+ .maybeSingle();
+
+ if (pendingPaymentError) {
+ return NextResponse.json({ error: pendingPaymentError.message }, { status: 400 });
+ }
+ if (pendingPayment) {
+ return NextResponse.json(
+ {
+ error:
+ 'Syif tidak boleh ditutup sementara bayaran QR masih menunggu pengesahan. Sahkan, batalkan atau tunggu bayaran tamat tempoh dahulu.',
+ },
+ { status: 409 });
+ }
+
  const { data: closeCheck, error: closeCheckError } = await db
  .from('pos_shift_stock_check_logs')
  .select('id')
