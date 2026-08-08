@@ -13,6 +13,7 @@ Last updated: 2026-08-08
 - Application ID `121582` (Roti Kaya Junus) and Application ID `121583` (RKJ Distributor Sdn. Bhd.) are approved as separate merchant accounts.
 - The dedicated sandbox account for Roti Kaya Junus is accessible. Its Merchant ID, Verify Key and Secret Key are available in the sandbox portal. Values remain secret and are not recorded in the repository.
 - Fiuu has not yet confirmed in writing that the sandbox Merchant ID is the OPA `applicationCode`, the exact pre-create/callback signature contract, or the approved Store/Terminal ID model. These items remain **To be confirmed** under Fiuu Ticket `2924959`.
+- The public Fiuu Offline Payment API v2.1.18 specification confirms the configured sandbox and Production pre-create URLs, `applicationCode` as a provider-issued OPA identifier, `storeId` and `terminalId` as merchant identifiers, `channelId=24` for DuitNow QR, form-encoded POST requests and HMAC-SHA256 support. It does not establish that the sandbox Merchant ID is an OPA `applicationCode` for this account.
 - RKJ One uses dynamic transaction QR, not a static merchant QR.
 - The application remains in `manual` mode until the provider channel and sandbox callback are approved and tested.
 
@@ -33,6 +34,8 @@ Do not submit another DuitNow QR Offline channel request while the existing chan
 The merchant and sandbox credentials were exposed during earlier support correspondence. The Roti Kaya Junus sandbox password was reset on 2026-08-08. Production portal credentials must also be rotated before activation, and replacement credentials must never be placed in chat, screenshots or repository files.
 
 On 2026-08-08, a detailed technical request was sent to Fiuu under Ticket `2924959` asking for the official OPA endpoints, identifier mapping, request/notification signature rules, callback acknowledgement and retries, branch/store arrangement, Extended VCode requirement and refund/reversal procedure. Keep Production in manual mode until Fiuu answers and signed sandbox UAT passes.
+
+On 2026-08-08, the branch-scoped Vercel Preview completed official-device enrolment, STAFF login, open-shift membership and opening-stock SOP for synthetic branch `BR001`. A controlled RM2.50 sandbox pre-create request reached Fiuu but returned HTTP `404`. The Fiuu specification defines `404` as Application Code or transaction not found. RKJ One returned a safe gateway failure, created no sale, deducted no stock and left Production unchanged. This is evidence that a provider-issued OPA Application Code or OPA enablement is still required; the Merchant ID must not be substituted or guessed.
 
 ## Server environment
 
