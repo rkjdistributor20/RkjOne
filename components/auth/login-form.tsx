@@ -82,8 +82,10 @@ export function LoginForm() {
     if (deviceResponse.ok) {
       const deviceContext = await deviceResponse.json();
       if (deviceContext.mode === 'PRODUCTION') {
-        router.replace('/pos');
-        router.refresh();
+        // Force a document navigation so the newly issued auth cookies are
+        // available to the protected POS server layout immediately after the
+        // registrar session was locked and a staff member signs in.
+        window.location.replace(new URL('/pos', window.location.origin));
         return;
       }
     }
