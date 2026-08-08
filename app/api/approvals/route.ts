@@ -10,6 +10,9 @@ const APPROVAL_STATUSES = [
  'REJECTED',
 ] as const satisfies readonly Enums<'approval_status'>[];
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET(request: Request) {
  const profile = await getCurrentProfile();
  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
