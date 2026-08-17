@@ -21,6 +21,7 @@ interface ReceiptDialogProps {
 export function ReceiptDialog({ open, onOpenChange, receipt, branchName }: ReceiptDialogProps) {
  const [printerStatus, setPrinterStatus] = useState<ReceiptPrinterStatus | null>(null);
  const [printing, setPrinting] = useState(false);
+ const [printerSetupRequest, setPrinterSetupRequest] = useState(0);
 
  if (!receipt) return null;
 
@@ -34,6 +35,11 @@ export function ReceiptDialog({ open, onOpenChange, receipt, branchName }: Recei
 
  async function handlePrint() {
   if (!directPrinterReady) {
+   if (printerStatus?.nativeAndroid) {
+    setPrinterSetupRequest((current) => current + 1);
+    toast.error('Pilih printer dan jalankan Cetak ujian dahulu.');
+    return;
+   }
    window.print();
    return;
   }
@@ -43,6 +49,7 @@ export function ReceiptDialog({ open, onOpenChange, receipt, branchName }: Recei
    const result = await printReceiptDirect(receipt!, branchName);
    toast.success(`Resit dihantar ke ${result.printerName}.`);
   } catch (error) {
+   setPrinterSetupRequest((current) => current + 1);
    toast.error(error instanceof Error ? error.message : 'Cetakan Bluetooth gagal. Gunakan Cetak sistem.');
   } finally {
    setPrinting(false);
@@ -106,14 +113,14 @@ export function ReceiptDialog({ open, onOpenChange, receipt, branchName }: Recei
      <p className="pt-2 text-center text-xs">Terima kasih!</p>
     </div>
 
-    <ReceiptPrinterSettings onStatusChange={setPrinterStatus} />
+    <ReceiptPrinterSettings expandRequest={printerSetupRequest} onStatusChange={setPrinterStatus} />
     <p className="sr-only" aria-live="assertive">{printing ? 'Resit sedang dihantar ke printer.' : ''}</p>
 
     <DialogFooter className="grid grid-cols-2 gap-2 sm:grid-cols-2">
      <Button variant="outline" onClick={() => void handleShare()}><Share2 className="mr-2 h-4 w-4" /> Kongsi</Button>
      <Button className="bg-amber-500 hover:bg-amber-600" onClick={() => void handlePrint()} disabled={printing}>
       {printing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}
-      {directPrinterReady ? 'Cetak terus' : 'Cetak sistem'}
+      {directPrinterReady ? 'Cetak terus' : printerStatus?.nativeAndroid ? 'Sedia printer' : 'Cetak sistem'}
      </Button>
     </DialogFooter>
    </DialogContent>

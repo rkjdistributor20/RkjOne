@@ -13,7 +13,7 @@ The photographed branch unit is labelled:
 
 The manufacturer, Bluetooth service specification, pairing PIN, iOS MFi status and official SDK are **To be confirmed**. RKJ One therefore uses the common Bluetooth Serial Port Profile and ESC/POS text commands on Android only. Every physical printer batch must pass the test-page check before branch rollout.
 
-## Staff Setup (Android App 1.6)
+## Staff Setup (Android App 1.6.2)
 
 1. Switch on the printer and confirm paper is loaded with the thermal side facing the print head.
 2. On the official POS tablet, open a completed receipt and select **Tetapan printer**.
@@ -23,6 +23,7 @@ The manufacturer, Bluetooth service specification, pairing PIN, iOS MFi status a
 6. Return to RKJ One, select **Muat semula**, then select the paired printer.
 7. Select **Cetak ujian**. Confirm all lines are readable, the width fits 58 mm paper and no text is missing.
 8. The selected printer is kept locally on that tablet. Future receipts use **Cetak terus**.
+9. If the receipt button says **Sedia printer**, open the displayed setup, reselect the printer and complete **Cetak ujian** before serving the next customer.
 
 If direct printing fails, staff must keep the sale result on screen and use **Cetak sistem** or **Kongsi**. Reprinting does not create another sale and must never be used to confirm payment.
 
@@ -39,6 +40,7 @@ If direct printing fails, staff must keep the sale result on screen and use **Ce
 - Only Android-bonded devices can be selected.
 - The selected Bluetooth address is stored in private app preferences on the tablet and is not sent to RKJ servers.
 - Each print creates a short RFCOMM connection and closes it after the job.
+- Each connection mode has an eight-second timeout. After a secure connection failure, the app makes one compatibility attempt using the same Android-bonded, explicitly selected printer.
 - Receipt output is ASCII, 32 columns and uses ESC/POS initialization without a cutter command.
 - No customer data, payment credentials, Bluetooth PIN or printer address is logged.
 

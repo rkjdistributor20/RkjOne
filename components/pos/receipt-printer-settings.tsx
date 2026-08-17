@@ -17,10 +17,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 
 interface ReceiptPrinterSettingsProps {
  initiallyExpanded?: boolean;
+ expandRequest?: number;
  onStatusChange?: (status: ReceiptPrinterStatus) => void;
 }
 
-export function ReceiptPrinterSettings({ initiallyExpanded = false, onStatusChange }: ReceiptPrinterSettingsProps) {
+export function ReceiptPrinterSettings({ initiallyExpanded = false, expandRequest = 0, onStatusChange }: ReceiptPrinterSettingsProps) {
  const [status, setStatus] = useState<ReceiptPrinterStatus | null>(null);
  const [loading, setLoading] = useState(true);
  const [printing, setPrinting] = useState(false);
@@ -49,6 +50,10 @@ export function ReceiptPrinterSettings({ initiallyExpanded = false, onStatusChan
  useEffect(() => {
   void refresh();
  }, [refresh]);
+
+ useEffect(() => {
+  if (expandRequest > 0) setExpanded(true);
+ }, [expandRequest]);
 
  async function choosePrinter(address: string) {
   setLoading(true);

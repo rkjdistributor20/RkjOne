@@ -2,6 +2,8 @@
 
 ## 2026-08-17
 
+- Prepared Android 1.6.2 (`versionCode 9`) so an unconfigured native printer no longer falls through silently to the Android system print path; the receipt action now opens the printer setup with a clear instruction.
+- Added an eight-second Bluetooth RFCOMM connection timeout per attempt and a bonded-device insecure RFCOMM fallback for compatible generic `POS-5890U-L` units, while retaining explicit selection and safe failure handling.
 - Prepared Android 1.6.1 (`versionCode 8`) after Play Console reported `CalledFromWrongThreadException` in the 1.5 kiosk enforcement path; native kiosk window and lock-task operations are now marshalled onto the Android UI thread.
 - Added Android 1.6 direct Bluetooth receipt printing for the photographed `POS-5890U-L` 58 mm branch printer, including one-time pairing, saved per-tablet selection, test printing, accessible status/errors and system-print fallback.
 - Standardized POS receipt output to a 32-column, 58 mm ESC/POS layout and documented the physical branch acceptance gate; direct iOS Bluetooth remains To be confirmed pending verified vendor compatibility.

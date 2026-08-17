@@ -1,12 +1,12 @@
-# RKJ One Staff 1.6.1 - Bluetooth Receipt Printer Release
+# RKJ One Staff 1.6.2 - Bluetooth Receipt Printer Release
 
 Status: **Physical UAT required before Play upload**
 
 ## Version
 
 - Package: `com.rkjone.staff`
-- Version name: `1.6.1`
-- Version code: `8`
+- Version name: `1.6.2`
+- Version code: `9`
 - Target SDK: `36`
 
 ## Release Scope
@@ -16,6 +16,8 @@ Status: **Physical UAT required before Play upload**
 - Saved per-tablet printer selection.
 - 32-column ESC/POS customer receipt.
 - System print and share fallback remain available.
+- On Android, an unconfigured printer now opens the setup guidance instead of silently invoking system print.
+- Bluetooth connection attempts are time-limited and retry through the compatible bonded-device RFCOMM mode before showing a safe error.
 - Android kiosk enforcement is dispatched on the UI thread to prevent the `CalledFromWrongThreadException` observed in Production 1.5.
 - No payment, sale, stock, authentication, RBAC or database behavior is changed.
 
@@ -25,7 +27,7 @@ Complete `docs/POS_BLUETOOTH_PRINTER.md` on one official branch tablet and physi
 
 ## Internal Testing Release Notes
 
-> Cetakan resit Bluetooth 58 mm kini lebih mudah. Pasangkan printer sekali daripada POS, pilih printer untuk tablet dan gunakan Cetak terus selepas jualan. Turut disertakan cetakan ujian, paparan status sambungan dan pilihan Cetak sistem jika Bluetooth tidak tersedia.
+> Cetakan resit Bluetooth 58 mm diperkemas. Butang cetak kini membuka panduan persediaan jika printer belum dipilih, dan sambungan printer mempunyai had masa serta cubaan keserasian tambahan. Pasangkan, pilih dan uji printer sekali sebelum menggunakan Cetak terus.
 
 ## Build
 
@@ -37,7 +39,7 @@ The release command requires the existing protected `android/keystore.properties
 
 ## Rollout
 
-1. Upload version code 8 to Internal testing only.
+1. Upload version code 9 to Internal testing only.
 2. Add the pilot branch tester account.
 3. Install through the Play Internal Testing link.
 4. Complete the physical-printer checklist.

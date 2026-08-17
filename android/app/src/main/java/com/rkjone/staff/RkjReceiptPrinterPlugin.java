@@ -31,6 +31,9 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 @CapacitorPlugin(
     name = "RkjReceiptPrinter",
@@ -44,8 +47,10 @@ public class RkjReceiptPrinterPlugin extends Plugin {
     private static final String SELECTED_NAME = "selected_name";
     private static final UUID SERIAL_PORT_PROFILE = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
     private static final int MAX_PRINT_CHARACTERS = 16000;
+    private static final long CONNECTION_TIMEOUT_SECONDS = 8;
 
     private final ExecutorService printExecutor = Executors.newSingleThreadExecutor();
+    private final ScheduledExecutorService connectionTimeoutExecutor = Executors.newSingleThreadScheduledExecutor();
 
     @PluginMethod
     public void getStatus(PluginCall call) {
@@ -131,8 +136,7 @@ public class RkjReceiptPrinterPlugin extends Plugin {
     private void printText(PluginCall call, BluetoothDevice device, String text) {
         BluetoothSocket socket = null;
         try {
-            socket = device.createRfcommSocketToServiceRecord(SERIAL_PORT_PROFILE);
-            socket.connect();
+            socket = connectPrinter(device);
             OutputStream output = socket.getOutputStream();
             output.write(new byte[] { 0x1B, 0x40 });
             output.write(text.getBytes(StandardCharsets.US_ASCII));
@@ -155,6 +159,46 @@ public class RkjReceiptPrinterPlugin extends Plugin {
                     // The print attempt already has a definitive result.
                 }
             }
+        }
+    }
+
+    private BluetoothSocket connectPrinter(BluetoothDevice device) throws IOException {
+        IOException secureFailure;
+        try {
+            return connectSocketWithTimeout(device.createRfcommSocketToServiceRecord(SERIAL_PORT_PROFILE));
+        } catch (IOException error) {
+            secureFailure = error;
+        }
+
+        try {
+            return connectSocketWithTimeout(device.createInsecureRfcommSocketToServiceRecord(SERIAL_PORT_PROFILE));
+        } catch (IOException error) {
+            error.addSuppressed(secureFailure);
+            throw error;
+        }
+    }
+
+    private BluetoothSocket connectSocketWithTimeout(BluetoothSocket socket) throws IOException {
+        ScheduledFuture<?> timeout = connectionTimeoutExecutor.schedule(() -> {
+            try {
+                socket.close();
+            } catch (IOException ignored) {
+                // Closing the socket is the timeout signal for the blocking connect call.
+            }
+        }, CONNECTION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+
+        try {
+            socket.connect();
+            return socket;
+        } catch (IOException error) {
+            try {
+                socket.close();
+            } catch (IOException ignored) {
+                // Preserve the original connection failure.
+            }
+            throw error;
+        } finally {
+            timeout.cancel(false);
         }
     }
 
@@ -244,6 +288,7 @@ public class RkjReceiptPrinterPlugin extends Plugin {
     @Override
     protected void handleOnDestroy() {
         printExecutor.shutdownNow();
+        connectionTimeoutExecutor.shutdownNow();
         super.handleOnDestroy();
     }
 }
