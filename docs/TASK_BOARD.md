@@ -119,6 +119,7 @@ Status key: `Todo`, `In Progress`, `Review`, `Blocked`, `Done`.
 | M7.12 | Review | Mobile/Owner/QA | Android `1.5` internal acceptance. | Internal testing release `6 (1.5)` is active with its ReTrace mapping file. Verify upgrade from Production `1.4`, session persistence, Android 14-16 system bars, offline fallback, kiosk restrictions, and Play crash/ANR results before Production promotion. |
 | M7.13 | Done | Backend/Database/QA | Stabilize POS shift staff approval. | Approved POS shift requests now activate the matching staff membership, authenticated staff can create only their own correctly scoped request, missing open-shift requests are backfilled, and Production verification found zero pending members after approval. |
 | M7.14 | Done | Frontend/QA | Keep Approval Center current across devices. | Approval reads bypass browser caching, the route is force-dynamic, visible tabs refresh every 30 seconds and on tab return, and an accessible manual refresh action remains available. |
+| M7.15 | Review | Mobile/POS/QA | Android 58 mm Bluetooth receipt printing. | Android 1.6 supports one-time pairing, saved printer selection, direct/test printing and system fallback for the photographed POS-5890U-L; one pilot-branch physical test remains required before Play rollout. |
 
 ## Milestone 8 - Speed & Lightweight Workflow
 

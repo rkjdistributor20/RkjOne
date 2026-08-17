@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { History, BarChart3, LayoutDashboard, Trash2, ClipboardCheck, ShieldAlert, Eye, TimerReset, GraduationCap, KeyRound, TabletSmartphone, CheckCircle2, CircleAlert, ShieldCheck } from 'lucide-react';
+import { History, BarChart3, LayoutDashboard, Trash2, ClipboardCheck, ShieldAlert, Eye, TimerReset, GraduationCap, KeyRound, TabletSmartphone, CheckCircle2, CircleAlert, ShieldCheck, Printer } from 'lucide-react';
 import {
  fetchProducts,
  fetchShift,
@@ -38,6 +38,7 @@ import { ProductGrid } from '@/components/pos/product-grid';
 import { CartPanel } from '@/components/pos/cart-panel';
 import { PaymentDialog } from '@/components/pos/payment-dialog';
 import { ReceiptDialog } from '@/components/pos/receipt-dialog';
+import { ReceiptPrinterSettingsDialog } from '@/components/pos/receipt-printer-settings';
 import { TransactionHistory } from '@/components/pos/transaction-history';
 import { DailySummaryPanel } from '@/components/pos/daily-summary-panel';
 import { BranchSelector } from '@/components/pos/branch-selector';
@@ -139,6 +140,7 @@ export function PosTerminal() {
  const [closeShiftOpen, setCloseShiftOpen] = useState(false);
  const [paymentOpen, setPaymentOpen] = useState(false);
  const [receiptOpen, setReceiptOpen] = useState(false);
+ const [printerSettingsOpen, setPrinterSettingsOpen] = useState(false);
  const [activeTab, setActiveTab] = useState('sale');
  const [expirySummary, setExpirySummary] = useState<RotiExpirySummary | null>(null);
  const [rejectPrefill, setRejectPrefill] = useState<ExpiredRejectPrefill[] | undefined>();
@@ -695,6 +697,9 @@ export function PosTerminal() {
  <Badge variant="secondary" className="px-3 py-1.5 text-sm tabular-nums">
  {t('module.pos.todaySales')}: {formatRM(Number(dailySummary.total_sales))}
  </Badge>)}
+ <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => setPrinterSettingsOpen(true)}>
+  <Printer className="h-4 w-4" /> Printer
+ </Button>
  {!productionDevice && <Link
  href="/dashboard"
  className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'gap-1.5')}
@@ -1026,5 +1031,6 @@ export function PosTerminal() {
  receipt={lastReceipt}
  branchName={branchName ?? branchLabel}
  />
+ <ReceiptPrinterSettingsDialog open={printerSettingsOpen} onOpenChange={setPrinterSettingsOpen} />
  </div>);
 }

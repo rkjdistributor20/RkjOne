@@ -132,6 +132,7 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [x] Latest Vercel production deployment is Ready.
 - [x] Production smoke tests passed 12/12 for `/login`, booking redirect/API auth, HR OM coverage auth, Sales Agent catalog/price-group auth, payment API auth, bad-signature webhook rejection, and `/api/health`.
 - [ ] Run signed live-provider callback UAT with the selected payment provider before opening live customer payment volume.
+- [ ] Run the `docs/POS_BLUETOOTH_PRINTER.md` acceptance test on a physical POS-5890U-L before promoting Android 1.6.
 
 ## Booking API QA Notes
 

@@ -10,6 +10,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(RkjDevicePolicyPlugin.class);
+        registerPlugin(RkjReceiptPrinterPlugin.class);
         super.onCreate(savedInstanceState);
         WindowCompat.enableEdgeToEdge(getWindow());
 
