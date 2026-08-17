@@ -1,12 +1,12 @@
-# RKJ One Staff 1.6 - Bluetooth Receipt Printer Release
+# RKJ One Staff 1.6.1 - Bluetooth Receipt Printer Release
 
 Status: **Physical UAT required before Play upload**
 
 ## Version
 
 - Package: `com.rkjone.staff`
-- Version name: `1.6`
-- Version code: `7`
+- Version name: `1.6.1`
+- Version code: `8`
 - Target SDK: `36`
 
 ## Release Scope
@@ -16,6 +16,7 @@ Status: **Physical UAT required before Play upload**
 - Saved per-tablet printer selection.
 - 32-column ESC/POS customer receipt.
 - System print and share fallback remain available.
+- Android kiosk enforcement is dispatched on the UI thread to prevent the `CalledFromWrongThreadException` observed in Production 1.5.
 - No payment, sale, stock, authentication, RBAC or database behavior is changed.
 
 ## Required Gate
@@ -36,7 +37,7 @@ The release command requires the existing protected `android/keystore.properties
 
 ## Rollout
 
-1. Upload version code 7 to Internal testing only.
+1. Upload version code 8 to Internal testing only.
 2. Add the pilot branch tester account.
 3. Install through the Play Internal Testing link.
 4. Complete the physical-printer checklist.

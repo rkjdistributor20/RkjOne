@@ -40,6 +40,15 @@ public class RkjDevicePolicyPlugin extends Plugin {
     public static void enforceKiosk(Activity activity) {
         if (activity == null || !isKioskEnabled(activity)) return;
 
+        activity.runOnUiThread(() -> enforceKioskOnUiThread(activity));
+    }
+
+    private static void enforceKioskOnUiThread(Activity activity) {
+        if (activity.isFinishing()
+            || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1 && activity.isDestroyed())) {
+            return;
+        }
+
         activity.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         activity.getWindow().getDecorView().setSystemUiVisibility(
             View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY

@@ -2,6 +2,7 @@
 
 ## 2026-08-17
 
+- Prepared Android 1.6.1 (`versionCode 8`) after Play Console reported `CalledFromWrongThreadException` in the 1.5 kiosk enforcement path; native kiosk window and lock-task operations are now marshalled onto the Android UI thread.
 - Added Android 1.6 direct Bluetooth receipt printing for the photographed `POS-5890U-L` 58 mm branch printer, including one-time pairing, saved per-tablet selection, test printing, accessible status/errors and system-print fallback.
 - Standardized POS receipt output to a 32-column, 58 mm ESC/POS layout and documented the physical branch acceptance gate; direct iOS Bluetooth remains To be confirmed pending verified vendor compatibility.
 - Revalidated the Fiuu POS Preview configuration, payment-security tests, TypeScript and lint checks without changing Production.
