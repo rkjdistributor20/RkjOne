@@ -44,25 +44,14 @@ public class RkjDevicePolicyPlugin extends Plugin {
         activity.runOnUiThread(() -> enforceKioskOnUiThread(activity));
     }
 
-    public static void runWithKioskSuspended(Activity activity, Runnable action) {
+    public static void runWithSystemDialogGuard(Activity activity, Runnable action) {
         if (activity == null) {
             action.run();
             return;
         }
 
         systemDialogActive = true;
-        activity.runOnUiThread(() -> {
-            try {
-                ActivityManager activityManager = (ActivityManager) activity.getSystemService(Context.ACTIVITY_SERVICE);
-                if (activityManager != null
-                    && activityManager.getLockTaskModeState() != ActivityManager.LOCK_TASK_MODE_NONE) {
-                    activity.stopLockTask();
-                }
-            } catch (RuntimeException ignored) {
-                // Permission UI must remain usable even when an OEM restricts lock-task changes.
-            }
-            action.run();
-        });
+        activity.runOnUiThread(action);
     }
 
     public static void resumeKioskAfterSystemDialog(Activity activity) {

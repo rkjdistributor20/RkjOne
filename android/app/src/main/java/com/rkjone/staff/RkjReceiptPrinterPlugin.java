@@ -14,13 +14,10 @@ import android.provider.Settings;
 
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
-import com.getcapacitor.PermissionState;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
-import com.getcapacitor.annotation.Permission;
-import com.getcapacitor.annotation.PermissionCallback;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -38,13 +35,9 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
-@CapacitorPlugin(
-    name = "RkjReceiptPrinter",
-    permissions = {
-        @Permission(alias = "bluetooth", strings = { Manifest.permission.BLUETOOTH_CONNECT })
-    }
-)
+@CapacitorPlugin(name = "RkjReceiptPrinter")
 public class RkjReceiptPrinterPlugin extends Plugin {
+    public static final int BLUETOOTH_PERMISSION_REQUEST_CODE = 5890;
     private static final String PREFERENCES = "rkj_receipt_printer";
     private static final String SELECTED_ADDRESS = "selected_address";
     private static final String SELECTED_NAME = "selected_name";
@@ -58,6 +51,7 @@ public class RkjReceiptPrinterPlugin extends Plugin {
 
     private final ExecutorService printExecutor = Executors.newSingleThreadExecutor();
     private final ScheduledExecutorService connectionTimeoutExecutor = Executors.newSingleThreadScheduledExecutor();
+    private PluginCall pendingBluetoothPermissionCall;
 
     @PluginMethod
     public void getStatus(PluginCall call) {
@@ -71,25 +65,39 @@ public class RkjReceiptPrinterPlugin extends Plugin {
             return;
         }
 
+        synchronized (this) {
+            if (pendingBluetoothPermissionCall != null) {
+                call.reject("Permintaan kebenaran Bluetooth sedang diproses.", "BLUETOOTH_PERMISSION_IN_PROGRESS");
+                return;
+            }
+            pendingBluetoothPermissionCall = call;
+        }
+
         try {
-            RkjDevicePolicyPlugin.runWithKioskSuspended(getActivity(), () -> requestBluetoothPermissionOnUiThread(call));
+            RkjDevicePolicyPlugin.runWithSystemDialogGuard(getActivity(), this::requestBluetoothPermissionOnUiThread);
         } catch (RuntimeException | LinkageError error) {
-            rejectPermissionRequest(call, error);
+            rejectPendingPermissionRequest(error);
         }
     }
 
-    private void requestBluetoothPermissionOnUiThread(PluginCall call) {
+    private void requestBluetoothPermissionOnUiThread() {
         try {
-            requestPermissionForAlias("bluetooth", call, "bluetoothPermissionCallback");
+            androidx.core.app.ActivityCompat.requestPermissions(
+                getActivity(),
+                new String[] { Manifest.permission.BLUETOOTH_CONNECT },
+                BLUETOOTH_PERMISSION_REQUEST_CODE
+            );
         } catch (SecurityException error) {
-            rejectPermissionRequest(call, error);
+            rejectPendingPermissionRequest(error);
         } catch (RuntimeException | LinkageError error) {
-            rejectPermissionRequest(call, error);
+            rejectPendingPermissionRequest(error);
         }
     }
 
-    private void rejectPermissionRequest(PluginCall call, Throwable error) {
+    private void rejectPendingPermissionRequest(Throwable error) {
         RkjDevicePolicyPlugin.resumeKioskAfterSystemDialog(getActivity());
+        PluginCall call = takePendingBluetoothPermissionCall();
+        if (call == null) return;
         if (error instanceof SecurityException) {
             call.reject("Kebenaran Bluetooth disekat oleh tetapan peranti.", "BLUETOOTH_PERMISSION_DENIED");
             return;
@@ -97,9 +105,9 @@ public class RkjReceiptPrinterPlugin extends Plugin {
         call.reject("Dialog kebenaran Bluetooth tidak dapat dibuka. Benarkan Nearby devices melalui Tetapan Aplikasi.", "BLUETOOTH_PERMISSION_FAILED");
     }
 
-    @PermissionCallback
-    public void bluetoothPermissionCallback(PluginCall call) {
+    public void onBluetoothPermissionResult(String[] permissions, int[] grantResults) {
         RkjDevicePolicyPlugin.resumeKioskAfterSystemDialog(getActivity());
+        PluginCall call = takePendingBluetoothPermissionCall();
         if (call == null) return;
         try {
             if (!hasBluetoothPermission()) {
@@ -112,6 +120,12 @@ public class RkjReceiptPrinterPlugin extends Plugin {
         } catch (RuntimeException | LinkageError error) {
             call.reject("Status printer belum dapat dibaca. Buka semula tetapan printer.", "BLUETOOTH_STATUS_FAILED");
         }
+    }
+
+    private synchronized PluginCall takePendingBluetoothPermissionCall() {
+        PluginCall call = pendingBluetoothPermissionCall;
+        pendingBluetoothPermissionCall = null;
+        return call;
     }
 
     private void resolveStatusSafely(PluginCall call) {
@@ -416,8 +430,7 @@ public class RkjReceiptPrinterPlugin extends Plugin {
 
     private boolean hasBluetoothPermission() {
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.S
-            || (getPermissionState("bluetooth") == PermissionState.GRANTED
-                && getContext().checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED);
+            || getContext().checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED;
     }
 
     private BluetoothDevice findBondedDevice(BluetoothAdapter adapter, String address) {
@@ -462,6 +475,10 @@ public class RkjReceiptPrinterPlugin extends Plugin {
 
     @Override
     protected void handleOnDestroy() {
+        PluginCall pendingCall = takePendingBluetoothPermissionCall();
+        if (pendingCall != null) {
+            pendingCall.reject("Aplikasi ditutup sebelum kebenaran Bluetooth selesai.", "BLUETOOTH_PERMISSION_INTERRUPTED");
+        }
         printExecutor.shutdownNow();
         connectionTimeoutExecutor.shutdownNow();
         super.handleOnDestroy();
