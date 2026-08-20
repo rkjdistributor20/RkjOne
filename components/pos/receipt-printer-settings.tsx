@@ -11,6 +11,7 @@ import {
  requestReceiptPrinterPermission,
  selectReceiptPrinter,
  setReceiptPrinterAutoPrint,
+ supportsDirectAndroidPrinting,
  type ReceiptPrinterStatus,
 } from '@/lib/pos/receipt-printer-client';
 import { Button } from '@/components/ui/button';
@@ -50,6 +51,13 @@ export function ReceiptPrinterSettings({ initiallyExpanded = false, expandReques
  }, [updateStatus]);
 
  useEffect(() => {
+  // Some Android WebViews terminate the activity when Bluetooth status is
+  // queried before the Nearby devices permission flow has been initiated.
+  // Keep the settings dialog usable and let the user start that flow explicitly.
+  if (supportsDirectAndroidPrinting()) {
+   setLoading(false);
+   return;
+  }
   void refresh();
  }, [refresh]);
 
@@ -140,7 +148,14 @@ export function ReceiptPrinterSettings({ initiallyExpanded = false, expandReques
    {expanded && (
     <div className="mt-3 space-y-3 border-t pt-3">
      {!status ? (
-      <p className="text-xs text-muted-foreground">Memeriksa sokongan printer pada peranti ini...</p>
+      <div className="space-y-2">
+       <p className="text-xs text-muted-foreground">
+        Mulakan sambungan untuk membenarkan RKJ One membaca printer Bluetooth yang telah dipasangkan.
+       </p>
+       <Button type="button" className="w-full" onClick={() => void refresh(true)} disabled={loading}>
+        <Bluetooth className="mr-2 h-4 w-4" /> Benarkan & semak Bluetooth
+       </Button>
+      </div>
      ) : !status.nativeAndroid ? (
       <p className="text-xs text-muted-foreground">Sambungan terus disediakan dalam aplikasi RKJ One Android 1.6. Pada web atau iOS, gunakan Cetak sistem.</p>
      ) : (
