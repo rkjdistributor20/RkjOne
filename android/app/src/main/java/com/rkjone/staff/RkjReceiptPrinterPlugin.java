@@ -66,21 +66,40 @@ public class RkjReceiptPrinterPlugin extends Plugin {
 
     @PluginMethod
     public void requestBluetoothPermission(PluginCall call) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || hasBluetoothPermission()) {
+            resolveStatusSafely(call);
+            return;
+        }
+
         try {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || hasBluetoothPermission()) {
-                resolveStatusSafely(call);
-                return;
-            }
-            requestPermissionForAlias("bluetooth", call, "bluetoothPermissionCallback");
-        } catch (SecurityException error) {
-            call.reject("Kebenaran Bluetooth tidak dapat diminta pada peranti ini.", "BLUETOOTH_PERMISSION_DENIED");
+            RkjDevicePolicyPlugin.runWithKioskSuspended(getActivity(), () -> requestBluetoothPermissionOnUiThread(call));
         } catch (RuntimeException | LinkageError error) {
-            call.reject("Tetapan Bluetooth Android tidak dapat dibuka. Tutup aplikasi dan cuba semula.", "BLUETOOTH_PERMISSION_FAILED");
+            rejectPermissionRequest(call, error);
         }
     }
 
+    private void requestBluetoothPermissionOnUiThread(PluginCall call) {
+        try {
+            requestPermissionForAlias("bluetooth", call, "bluetoothPermissionCallback");
+        } catch (SecurityException error) {
+            rejectPermissionRequest(call, error);
+        } catch (RuntimeException | LinkageError error) {
+            rejectPermissionRequest(call, error);
+        }
+    }
+
+    private void rejectPermissionRequest(PluginCall call, Throwable error) {
+        RkjDevicePolicyPlugin.resumeKioskAfterSystemDialog(getActivity());
+        if (error instanceof SecurityException) {
+            call.reject("Kebenaran Bluetooth disekat oleh tetapan peranti.", "BLUETOOTH_PERMISSION_DENIED");
+            return;
+        }
+        call.reject("Dialog kebenaran Bluetooth tidak dapat dibuka. Benarkan Nearby devices melalui Tetapan Aplikasi.", "BLUETOOTH_PERMISSION_FAILED");
+    }
+
     @PermissionCallback
-    private void bluetoothPermissionCallback(PluginCall call) {
+    public void bluetoothPermissionCallback(PluginCall call) {
+        RkjDevicePolicyPlugin.resumeKioskAfterSystemDialog(getActivity());
         if (call == null) return;
         try {
             if (!hasBluetoothPermission()) {

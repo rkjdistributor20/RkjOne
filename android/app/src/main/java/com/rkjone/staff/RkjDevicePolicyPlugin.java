@@ -20,6 +20,7 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 public class RkjDevicePolicyPlugin extends Plugin {
     private static final String PREFS = "rkj_device_policy";
     private static final String KIOSK_ENABLED = "kiosk_enabled";
+    private static volatile boolean systemDialogActive = false;
 
     @PluginMethod
     public void getStatus(PluginCall call) {
@@ -38,9 +39,35 @@ public class RkjDevicePolicyPlugin extends Plugin {
     }
 
     public static void enforceKiosk(Activity activity) {
-        if (activity == null || !isKioskEnabled(activity)) return;
+        if (activity == null || systemDialogActive || !isKioskEnabled(activity)) return;
 
         activity.runOnUiThread(() -> enforceKioskOnUiThread(activity));
+    }
+
+    public static void runWithKioskSuspended(Activity activity, Runnable action) {
+        if (activity == null) {
+            action.run();
+            return;
+        }
+
+        systemDialogActive = true;
+        activity.runOnUiThread(() -> {
+            try {
+                ActivityManager activityManager = (ActivityManager) activity.getSystemService(Context.ACTIVITY_SERVICE);
+                if (activityManager != null
+                    && activityManager.getLockTaskModeState() != ActivityManager.LOCK_TASK_MODE_NONE) {
+                    activity.stopLockTask();
+                }
+            } catch (RuntimeException ignored) {
+                // Permission UI must remain usable even when an OEM restricts lock-task changes.
+            }
+            action.run();
+        });
+    }
+
+    public static void resumeKioskAfterSystemDialog(Activity activity) {
+        systemDialogActive = false;
+        enforceKiosk(activity);
     }
 
     private static void enforceKioskOnUiThread(Activity activity) {
@@ -63,7 +90,7 @@ public class RkjDevicePolicyPlugin extends Plugin {
         if (dpm != null && dpm.isLockTaskPermitted(activity.getPackageName())) {
             try {
                 activity.startLockTask();
-            } catch (IllegalStateException ignored) {
+            } catch (RuntimeException ignored) {
                 // Android will retry when the activity resumes.
             }
         }
