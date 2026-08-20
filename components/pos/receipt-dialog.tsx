@@ -48,41 +48,61 @@ export function ReceiptDialog({ open, onOpenChange, receipt, branchName }: Recei
  }, [receiptKey]);
 
  useEffect(() => {
-  if (!open || !receipt || !receiptKey || !directPrinterReady || !printerStatus?.cashDrawerEnabled) return;
-  if (!receipt.cash_amount || receipt.cash_amount <= 0) return;
-  if (drawerAttemptedKeyRef.current === receiptKey) return;
+  if (!open || !receipt || !receiptKey || !directPrinterReady) return;
 
-  drawerAttemptedKeyRef.current = receiptKey;
-  void openReceiptCashDrawer({ automatic: true, receiptKey })
-   .then((result) => {
-    if (!result.skipped) toast.success('Cash drawer dibuka untuk bayaran tunai.');
-   })
-   .catch((error) => {
-    toast.error(error instanceof Error
-     ? `Cash drawer gagal dibuka: ${error.message}`
-     : 'Cash drawer gagal dibuka. Transaksi dan resit kekal selamat.');
-   });
- }, [directPrinterReady, open, printerStatus?.cashDrawerEnabled, receipt, receiptKey]);
+  const shouldAutoPrint = Boolean(
+   printerStatus?.autoPrintEnabled
+   && autoAttemptedKeyRef.current !== receiptKey,
+  );
+  const shouldOpenDrawer = Boolean(
+   printerStatus?.cashDrawerEnabled
+   && receipt.cash_amount
+   && receipt.cash_amount > 0
+   && drawerAttemptedKeyRef.current !== receiptKey,
+  );
+  if (!shouldAutoPrint && !shouldOpenDrawer) return;
 
- useEffect(() => {
-  if (!open || !receipt || !receiptKey || !directPrinterReady || !printerStatus?.autoPrintEnabled) return;
-  if (autoAttemptedKeyRef.current === receiptKey) return;
+  if (shouldAutoPrint) {
+   autoAttemptedKeyRef.current = receiptKey;
+   setAutoPrintState('printing');
+  }
+  if (shouldOpenDrawer) drawerAttemptedKeyRef.current = receiptKey;
 
-  autoAttemptedKeyRef.current = receiptKey;
-  setAutoPrintState('printing');
-  void printReceiptDirect(receipt, branchName, { automatic: true })
-   .then((result) => {
-    setAutoPrintState('printed');
-    if (!result.skipped) toast.success(`Resit dicetak automatik melalui ${result.printerName}.`);
-   })
-   .catch((error) => {
-    setAutoPrintState('failed');
-    setPrinterSetupRequest((current) => current + 1);
-    toast.error(error instanceof Error
-     ? `Auto-cetak gagal: ${error.message}`
-     : 'Auto-cetak gagal. Transaksi selamat; tekan Cetak terus untuk cuba semula.');
-   });
- }, [branchName, directPrinterReady, open, printerStatus?.autoPrintEnabled, receipt, receiptKey]);
+  void (async () => {
+   if (shouldAutoPrint) {
+    try {
+     const result = await printReceiptDirect(receipt, branchName, { automatic: true });
+     setAutoPrintState('printed');
+     if (!result.skipped) toast.success(`Resit dicetak automatik melalui ${result.printerName}.`);
+    } catch (error) {
+     setAutoPrintState('failed');
+     setPrinterSetupRequest((current) => current + 1);
+     toast.error(error instanceof Error
+      ? `Auto-cetak gagal: ${error.message}`
+      : 'Auto-cetak gagal. Transaksi selamat; tekan Cetak terus untuk cuba semula.');
+    }
+   }
+
+   if (shouldOpenDrawer) {
+    try {
+     const result = await openReceiptCashDrawer({ automatic: true, receiptKey });
+     if (!result.skipped) toast.success('Cash drawer dibuka untuk bayaran tunai.');
+    } catch (error) {
+     toast.error(error instanceof Error
+      ? `Cash drawer gagal dibuka: ${error.message}`
+      : 'Cash drawer gagal dibuka. Transaksi dan resit kekal selamat.');
+    }
+   }
+  })();
+ }, [
+  branchName,
+  directPrinterReady,
+  open,
+  printerStatus?.autoPrintEnabled,
+  printerStatus?.cashDrawerEnabled,
+  receipt,
+  receiptKey,
+ ]);
 
  if (!receipt) return null;
 

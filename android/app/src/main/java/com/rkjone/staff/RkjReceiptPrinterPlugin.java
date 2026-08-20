@@ -10,6 +10,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
+import android.os.SystemClock;
 import android.provider.Settings;
 
 import com.getcapacitor.JSArray;
@@ -375,6 +376,10 @@ public class RkjReceiptPrinterPlugin extends Plugin {
             output.write(text.getBytes(StandardCharsets.US_ASCII));
             output.write(new byte[] { 0x0A, 0x0A, 0x0A });
             output.flush();
+            // Low-cost RFCOMM thermal printers may acknowledge the socket write
+            // before their input buffer has consumed the complete receipt. Keep
+            // the connection alive briefly so closing it cannot discard the tail.
+            SystemClock.sleep(750);
 
             SharedPreferences.Editor editor = getPreferences().edit();
             if (testPage) editor.putString(VERIFIED_ADDRESS, device.getAddress());
