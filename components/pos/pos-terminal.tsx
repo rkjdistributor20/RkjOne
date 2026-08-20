@@ -698,7 +698,7 @@ export function PosTerminal() {
  {t('module.pos.todaySales')}: {formatRM(Number(dailySummary.total_sales))}
  </Badge>)}
  <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => setPrinterSettingsOpen(true)}>
-  <Printer className="h-4 w-4" /> Printer
+  <Printer className="h-4 w-4" /> Tetapan printer
  </Button>
  {!productionDevice && <Link
  href="/dashboard"

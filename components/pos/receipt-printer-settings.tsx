@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useId, useState } from 'react';
-import { Bluetooth, CheckCircle2, RefreshCw, Settings2 } from 'lucide-react';
+import { Bluetooth, CheckCircle2, PrinterCheck, RefreshCw, Settings2, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import {
  clearReceiptPrinter,
@@ -10,6 +10,7 @@ import {
  readReceiptPrinterStatus,
  requestReceiptPrinterPermission,
  selectReceiptPrinter,
+ setReceiptPrinterAutoPrint,
  type ReceiptPrinterStatus,
 } from '@/lib/pos/receipt-printer-client';
 import { Button } from '@/components/ui/button';
@@ -25,6 +26,7 @@ export function ReceiptPrinterSettings({ initiallyExpanded = false, expandReques
  const [status, setStatus] = useState<ReceiptPrinterStatus | null>(null);
  const [loading, setLoading] = useState(true);
  const [printing, setPrinting] = useState(false);
+ const [savingAutoPrint, setSavingAutoPrint] = useState(false);
  const [expanded, setExpanded] = useState(initiallyExpanded);
  const headingId = useId();
 
@@ -71,11 +73,28 @@ export function ReceiptPrinterSettings({ initiallyExpanded = false, expandReques
   setPrinting(true);
   try {
    const result = await printReceiptTestPage();
+   await refresh();
    toast.success(`Cetakan ujian dihantar ke ${result.printerName}.`);
   } catch (error) {
    toast.error(error instanceof Error ? error.message : 'Cetakan ujian gagal.');
   } finally {
    setPrinting(false);
+  }
+ }
+
+ async function toggleAutoPrint() {
+  if (!status) return;
+  setSavingAutoPrint(true);
+  try {
+   const next = await setReceiptPrinterAutoPrint(!status.autoPrintEnabled);
+   updateStatus(next);
+   toast.success(next.autoPrintEnabled
+    ? 'Auto-cetak diaktifkan untuk tablet ini.'
+    : 'Auto-cetak dimatikan untuk tablet ini.');
+  } catch (error) {
+   toast.error(error instanceof Error ? error.message : 'Tetapan auto-cetak gagal disimpan.');
+  } finally {
+   setSavingAutoPrint(false);
   }
  }
 
@@ -92,7 +111,7 @@ export function ReceiptPrinterSettings({ initiallyExpanded = false, expandReques
   status?.selectedPrinter
   && status.pairedPrinters.some((printer) => printer.address === status.selectedPrinter?.address),
  );
- const ready = Boolean(status?.nativeAndroid && status.permissionGranted && status.bluetoothEnabled && selectedIsPaired);
+ const ready = Boolean(status?.nativeAndroid && status.permissionGranted && status.bluetoothEnabled && selectedIsPaired && status.testPrintPassed);
 
  return (
   <section className="rounded-xl border bg-muted/30 p-3" aria-labelledby={headingId}>
@@ -105,7 +124,7 @@ export function ReceiptPrinterSettings({ initiallyExpanded = false, expandReques
       {loading
        ? 'Memeriksa printer...'
        : ready
-        ? `Sedia: ${status?.selectedPrinter?.name}`
+        ? `Sedia: ${status?.selectedPrinter?.name}${status?.autoPrintEnabled ? ' · Auto-cetak aktif' : ''}`
         : status?.nativeAndroid
          ? 'Belum disambungkan pada tablet ini.'
          : 'Cetakan sistem tersedia untuk web dan iOS.'}
@@ -162,8 +181,35 @@ export function ReceiptPrinterSettings({ initiallyExpanded = false, expandReques
 
        {selectedIsPaired && (
         <div className="grid grid-cols-2 gap-2">
-         <Button type="button" variant="outline" size="sm" onClick={() => void testPrint()} disabled={printing}>Cetak ujian</Button>
+         <Button type="button" variant="outline" size="sm" onClick={() => void testPrint()} disabled={printing}>
+          <PrinterCheck className="mr-2 h-4 w-4" /> {printing ? 'Mencetak...' : status.testPrintPassed ? 'Uji semula' : 'Cetak ujian'}
+         </Button>
          <Button type="button" variant="ghost" size="sm" onClick={() => void forgetPrinter()} disabled={loading}>Lupakan printer</Button>
+        </div>
+       )}
+       {selectedIsPaired && (
+        <div className={`rounded-lg border p-3 ${status.autoPrintEnabled ? 'border-emerald-300 bg-emerald-50' : 'bg-background'}`}>
+         <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+           <p className="flex items-center gap-2 text-sm font-semibold"><Zap className="h-4 w-4" aria-hidden="true" /> Auto-cetak selepas bayaran</p>
+           <p className="mt-1 text-xs text-muted-foreground">
+            {status.testPrintPassed
+             ? 'Resit akan dicetak sekali sahaja selepas transaksi berjaya. Transaksi tidak terjejas jika printer gagal.'
+             : 'Cetak halaman ujian dahulu untuk mengesahkan printer ini.'}
+           </p>
+          </div>
+          <Button
+           type="button"
+           size="sm"
+           variant={status.autoPrintEnabled ? 'default' : 'outline'}
+           role="switch"
+           aria-checked={status.autoPrintEnabled}
+           onClick={() => void toggleAutoPrint()}
+           disabled={!status.testPrintPassed || savingAutoPrint}
+          >
+           {status.autoPrintEnabled ? 'Aktif' : 'Tidak aktif'}
+          </Button>
+         </div>
         </div>
        )}
        <p className="text-[11px] leading-relaxed text-muted-foreground">PIN pasangan bergantung pada unit pembekal. Rujuk pelekat/manual unit; RKJ One tidak meneka atau menyimpan PIN.</p>
@@ -185,7 +231,7 @@ export function ReceiptPrinterSettingsDialog({ open, onOpenChange }: ReceiptPrin
   <Dialog open={open} onOpenChange={onOpenChange}>
    <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-md">
     <DialogHeader><DialogTitle>Persediaan printer resit</DialogTitle></DialogHeader>
-    <p className="text-sm text-muted-foreground">Pasangkan dan uji printer sebelum kaunter mula menerima pelanggan.</p>
+    <p className="text-sm text-muted-foreground">Pasangkan, pilih dan uji printer sekali. Selepas ujian berjaya, aktifkan auto-cetak untuk tablet ini.</p>
     <ReceiptPrinterSettings initiallyExpanded />
    </DialogContent>
   </Dialog>

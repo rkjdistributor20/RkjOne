@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Printer, Share2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatRM } from '@/lib/pos/utils';
@@ -22,16 +22,51 @@ export function ReceiptDialog({ open, onOpenChange, receipt, branchName }: Recei
  const [printerStatus, setPrinterStatus] = useState<ReceiptPrinterStatus | null>(null);
  const [printing, setPrinting] = useState(false);
  const [printerSetupRequest, setPrinterSetupRequest] = useState(0);
+ const [autoPrintState, setAutoPrintState] = useState<'idle' | 'printing' | 'printed' | 'failed'>('idle');
+ const autoAttemptedKeyRef = useRef<string | null>(null);
 
- if (!receipt) return null;
+ const receiptKey = useMemo(
+  () => receipt ? `${receipt.transaction_number}:${receipt.receipt_number}` : null,
+  [receipt],
+ );
 
+ const selectedIsPaired = Boolean(
+  printerStatus?.selectedPrinter
+  && printerStatus.pairedPrinters.some((printer) => printer.address === printerStatus.selectedPrinter?.address),
+ );
  const directPrinterReady = Boolean(
   printerStatus?.nativeAndroid
   && printerStatus.permissionGranted
   && printerStatus.bluetoothEnabled
-  && printerStatus.selectedPrinter
-  && printerStatus.pairedPrinters.some((printer) => printer.address === printerStatus.selectedPrinter?.address),
+  && selectedIsPaired
+  && printerStatus.testPrintPassed,
  );
+
+ useEffect(() => {
+  setAutoPrintState('idle');
+ }, [receiptKey]);
+
+ useEffect(() => {
+  if (!open || !receipt || !receiptKey || !directPrinterReady || !printerStatus?.autoPrintEnabled) return;
+  if (autoAttemptedKeyRef.current === receiptKey) return;
+
+  autoAttemptedKeyRef.current = receiptKey;
+  setAutoPrintState('printing');
+  void printReceiptDirect(receipt, branchName, { automatic: true })
+   .then((result) => {
+    setAutoPrintState('printed');
+    if (!result.skipped) toast.success(`Resit dicetak automatik melalui ${result.printerName}.`);
+   })
+   .catch((error) => {
+    setAutoPrintState('failed');
+    setPrinterSetupRequest((current) => current + 1);
+    toast.error(error instanceof Error
+     ? `Auto-cetak gagal: ${error.message}`
+     : 'Auto-cetak gagal. Transaksi selamat; tekan Cetak terus untuk cuba semula.');
+   });
+ }, [branchName, directPrinterReady, open, printerStatus?.autoPrintEnabled, receipt, receiptKey]);
+
+ if (!receipt) return null;
 
  async function handlePrint() {
   if (!directPrinterReady) {
@@ -114,7 +149,18 @@ export function ReceiptDialog({ open, onOpenChange, receipt, branchName }: Recei
     </div>
 
     <ReceiptPrinterSettings expandRequest={printerSetupRequest} onStatusChange={setPrinterStatus} />
-    <p className="sr-only" aria-live="assertive">{printing ? 'Resit sedang dihantar ke printer.' : ''}</p>
+    {printerStatus?.autoPrintEnabled && (
+     <p className={`rounded-lg px-3 py-2 text-xs ${autoPrintState === 'failed' ? 'bg-red-50 text-red-900' : 'bg-emerald-50 text-emerald-900'}`} aria-live="polite">
+      {autoPrintState === 'printing'
+       ? 'Auto-cetak: menghantar resit ke printer...'
+       : autoPrintState === 'printed'
+        ? 'Auto-cetak selesai. Gunakan Cetak terus jika pelanggan perlukan salinan.'
+        : autoPrintState === 'failed'
+         ? 'Auto-cetak gagal, tetapi transaksi selamat. Semak printer atau tekan Cetak terus.'
+         : 'Auto-cetak aktif dan akan bermula selepas printer disahkan.'}
+     </p>
+    )}
+    <p className="sr-only" aria-live="assertive">{printing || autoPrintState === 'printing' ? 'Resit sedang dihantar ke printer.' : ''}</p>
 
     <DialogFooter className="grid grid-cols-2 gap-2 sm:grid-cols-2">
      <Button variant="outline" onClick={() => void handleShare()}><Share2 className="mr-2 h-4 w-4" /> Kongsi</Button>

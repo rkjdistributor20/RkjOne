@@ -1,12 +1,12 @@
-# RKJ One Staff 1.6.2 - Bluetooth Receipt Printer Release
+# RKJ One Staff 1.6.3 - Bluetooth Receipt Printer Release
 
-Status: **Physical UAT required before Play upload**
+Status: **Ready for Internal Testing; physical UAT required before Production promotion**
 
 ## Version
 
 - Package: `com.rkjone.staff`
-- Version name: `1.6.2`
-- Version code: `9`
+- Version name: `1.6.3`
+- Version code: `10`
 - Target SDK: `36`
 
 ## Release Scope
@@ -14,20 +14,23 @@ Status: **Physical UAT required before Play upload**
 - Direct Android Bluetooth receipt printing for paired 58 mm `POS-5890U-L` units.
 - Printer setup and test page available from the POS header before the first customer.
 - Saved per-tablet printer selection.
+- Verified test-page state and an explicit per-tablet auto-print setting.
+- Exactly-once automatic print attempt after a confirmed receipt, with manual reprint retained.
 - 32-column ESC/POS customer receipt.
 - System print and share fallback remain available.
 - On Android, an unconfigured printer now opens the setup guidance instead of silently invoking system print.
 - Bluetooth connection attempts are time-limited and retry through the compatible bonded-device RFCOMM mode before showing a safe error.
+- Generic printer compatibility adds a final RFCOMM channel 1 attempt for the photographed POS-5890U-L class after both standard SPP modes fail.
 - Android kiosk enforcement is dispatched on the UI thread to prevent the `CalledFromWrongThreadException` observed in Production 1.5.
 - No payment, sale, stock, authentication, RBAC or database behavior is changed.
 
 ## Required Gate
 
-Complete `docs/POS_BLUETOOTH_PRINTER.md` on one official branch tablet and physical printer. Do not upload or promote the AAB if pairing, test printing, long item names, totals, retry after power loss or app restart persistence fail.
+Upload to Internal Testing so the exact Play-delivered build can be tested. Complete `docs/POS_BLUETOOTH_PRINTER.md` on one official branch tablet and physical printer. Do not promote to Production if pairing, test printing, long item names, totals, auto-print, duplicate protection, retry after power loss or app restart persistence fail.
 
 ## Internal Testing Release Notes
 
-> Cetakan resit Bluetooth 58 mm diperkemas. Butang cetak kini membuka panduan persediaan jika printer belum dipilih, dan sambungan printer mempunyai had masa serta cubaan keserasian tambahan. Pasangkan, pilih dan uji printer sekali sebelum menggunakan Cetak terus.
+> Tetapan printer Bluetooth 58 mm kini menyokong ujian wajib dan auto-cetak selepas bayaran berjaya. Sambungan POS-5890U-L diperkemas dengan mod keserasian tambahan, auto-cetak dilindungi daripada cetakan berganda, dan Cetak terus kekal tersedia untuk salinan pelanggan.
 
 ## Build
 
@@ -39,7 +42,7 @@ The release command requires the existing protected `android/keystore.properties
 
 ## Rollout
 
-1. Upload version code 9 to Internal testing only.
+1. Upload version code 10 to Internal testing only.
 2. Add the pilot branch tester account.
 3. Install through the Play Internal Testing link.
 4. Complete the physical-printer checklist.

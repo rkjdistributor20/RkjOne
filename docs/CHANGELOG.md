@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-20
+
+- Prepared Android 1.6.3 (`versionCode 10`) with per-tablet verified printer setup and optional auto-print after a confirmed POS payment.
+- Added a final bonded-device RFCOMM channel 1 compatibility attempt for generic POS-5890U-L-class printers after standard secure and insecure SPP attempts fail.
+- Added native duplicate protection so the same confirmed receipt is not auto-printed twice, while intentional manual reprint remains available.
+- Kept printer failures isolated from payment, sale, receipt and stock records; physical Internal Testing on the photographed printer remains required before Production promotion.
+
 ## 2026-08-17
 
 - Prepared Android 1.6.2 (`versionCode 9`) so an unconfigured native printer no longer falls through silently to the Android system print path; the receipt action now opens the printer setup with a clear instruction.
