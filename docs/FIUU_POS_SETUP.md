@@ -1,6 +1,6 @@
 # RKJ One Fiuu DuitNow QR POS Setup
 
-Last updated: 2026-08-17
+Last updated: 2026-08-21
 
 ## Verified design
 
@@ -10,7 +10,9 @@ Last updated: 2026-08-17
 - Merchant portal status verified on 2026-08-05: `DuitNow QR Offline` is already `Activated` at `0.80%` for this merchant account.
 - Other merchant channels shown in the portal are also activated, and extended payment verification is enabled.
 - The generic merchant Return URL, Notification URL and Callback URL are currently empty.
-- Application ID `121582` (Roti Kaya Junus) and Application ID `121583` (RKJ Distributor Sdn. Bhd.) are approved as separate merchant accounts.
+- Application ID `121582` is the Roti Kaya Junus POS merchant application. Its registered merchant email is `isaeee94@gmail.com`.
+- Application ID `121583` is the RKJ Distributor Agent Payment merchant application. Its registered merchant email is `rkjdistributor20@gmail.com`.
+- Applications `121582` and `121583` are separate merchant accounts and their credentials, callbacks, transactions and settlement evidence must never be mixed.
 - The dedicated sandbox account for Roti Kaya Junus is accessible. Its Merchant ID, Verify Key and Secret Key are available in the sandbox portal. Values remain secret and are not recorded in the repository.
 - Fiuu has not yet confirmed in writing that the sandbox Merchant ID is the OPA `applicationCode`, the exact pre-create/callback signature contract, or the approved Store/Terminal ID model. These items remain **To be confirmed** under Fiuu Ticket `2924959`.
 - The public Fiuu Offline Payment API v2.1.18 specification confirms the configured sandbox and Production pre-create URLs, `applicationCode` as a provider-issued OPA identifier, `storeId` and `terminalId` as merchant identifiers, `channelId=24` for DuitNow QR, form-encoded POST requests and HMAC-SHA256 support. It does not establish that the sandbox Merchant ID is an OPA `applicationCode` for this account.
@@ -38,6 +40,8 @@ On 2026-08-08, a detailed technical request was sent to Fiuu under Ticket `29249
 On 2026-08-08, the branch-scoped Vercel Preview completed official-device enrolment, STAFF login, open-shift membership and opening-stock SOP for synthetic branch `BR001`. A controlled RM2.50 sandbox pre-create request reached Fiuu but returned HTTP `404`. The Fiuu specification defines `404` as Application Code or transaction not found. RKJ One returned a safe gateway failure, created no sale, deducted no stock and left Production unchanged. This is evidence that a provider-issued OPA Application Code or OPA enablement is still required; the Merchant ID must not be substituted or guessed.
 
 On 2026-08-17, both monitored merchant email accounts were checked and no provider response had been received after the 2026-08-08 technical request. A further escalation was sent under Ticket `2924959`, requesting confirmation of OPA enablement, the provider-issued Application Code, Store/Terminal ID arrangement, callback registration and channel/signature settings. Preview remains configured for sandbox validation only; Production remains in manual mode.
+
+On 2026-08-21, the authenticated Production merchant portal was re-verified as `ROTI KAYA JUNUS`, portal user `ROTIKAYAJUNUS`, Merchant ID `rotikayajunus`. Verify Key and Secret Key values were not read or copied. A second controlled RM2.50 staging pre-create attempt again returned HTTP `404`; RKJ One created no sale, receipt or stock movement. Database checks confirmed authenticated users retain read-only access to online-payment rows, service-role-only fulfilment remains enforced, and the organization-scoped idempotency constraint is present. An escalation was then sent from the registered POS merchant email `isaeee94@gmail.com` to Fiuu Support and Merchant Operations for Application `121582`, requesting OPA enablement, the provider-issued sandbox Application Code, Store/Terminal mapping, signed callback contract and settlement/refund procedure. Production remains in `manual` mode pending a successful signed callback and Finance reconciliation.
 
 ## Server environment
 
