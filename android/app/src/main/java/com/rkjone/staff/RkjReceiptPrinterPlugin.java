@@ -8,6 +8,7 @@ import android.bluetooth.BluetoothSocket;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.os.Build;
 import android.provider.Settings;
 
@@ -60,25 +61,49 @@ public class RkjReceiptPrinterPlugin extends Plugin {
 
     @PluginMethod
     public void getStatus(PluginCall call) {
-        call.resolve(buildStatus());
+        resolveStatusSafely(call);
     }
 
     @PluginMethod
     public void requestBluetoothPermission(PluginCall call) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || hasBluetoothPermission()) {
-            call.resolve(buildStatus());
-            return;
+        try {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || hasBluetoothPermission()) {
+                resolveStatusSafely(call);
+                return;
+            }
+            requestPermissionForAlias("bluetooth", call, "bluetoothPermissionCallback");
+        } catch (SecurityException error) {
+            call.reject("Kebenaran Bluetooth tidak dapat diminta pada peranti ini.", "BLUETOOTH_PERMISSION_DENIED");
+        } catch (RuntimeException | LinkageError error) {
+            call.reject("Tetapan Bluetooth Android tidak dapat dibuka. Tutup aplikasi dan cuba semula.", "BLUETOOTH_PERMISSION_FAILED");
         }
-        requestPermissionForAlias("bluetooth", call, "bluetoothPermissionCallback");
     }
 
     @PermissionCallback
     private void bluetoothPermissionCallback(PluginCall call) {
-        if (!hasBluetoothPermission()) {
-            call.reject("Kebenaran Bluetooth diperlukan untuk mencetak resit.", "BLUETOOTH_PERMISSION_DENIED");
+        if (call == null) return;
+        try {
+            if (!hasBluetoothPermission()) {
+                call.reject("Kebenaran Bluetooth diperlukan untuk mencetak resit.", "BLUETOOTH_PERMISSION_DENIED");
+                return;
+            }
+            resolveStatusSafely(call);
+        } catch (SecurityException error) {
+            call.reject("Kebenaran Bluetooth belum tersedia. Buka semula tetapan printer.", "BLUETOOTH_PERMISSION_DENIED");
+        } catch (RuntimeException | LinkageError error) {
+            call.reject("Status printer belum dapat dibaca. Buka semula tetapan printer.", "BLUETOOTH_STATUS_FAILED");
+        }
+    }
+
+    private void resolveStatusSafely(PluginCall call) {
+        try {
+            call.resolve(buildStatus());
+        } catch (SecurityException error) {
+            call.reject("Kebenaran Bluetooth diperlukan untuk membaca printer berpasangan.", "BLUETOOTH_PERMISSION_DENIED");
+        } catch (RuntimeException | LinkageError error) {
+            call.reject("Status Bluetooth tidak dapat dibaca pada peranti ini.", "BLUETOOTH_STATUS_FAILED");
             return;
         }
-        call.resolve(buildStatus());
     }
 
     @PluginMethod
@@ -127,7 +152,7 @@ public class RkjReceiptPrinterPlugin extends Plugin {
             SharedPreferences preferences = getPreferences();
             String selectedAddress = preferences.getString(SELECTED_ADDRESS, "");
             String verifiedAddress = preferences.getString(VERIFIED_ADDRESS, "");
-            if (selectedAddress.isBlank() || !selectedAddress.equalsIgnoreCase(verifiedAddress)) {
+            if (isBlank(selectedAddress) || !selectedAddress.equalsIgnoreCase(verifiedAddress)) {
                 call.reject("Jalankan Cetak ujian dengan jayanya sebelum mengaktifkan auto-cetak.", "PRINTER_TEST_REQUIRED");
                 return;
             }
@@ -154,7 +179,7 @@ public class RkjReceiptPrinterPlugin extends Plugin {
         if (!ensureBluetoothReady(call)) return;
 
         String text = call.getString("text", "");
-        if (text.isBlank()) {
+        if (isBlank(text)) {
             call.reject("Kandungan resit kosong.", "EMPTY_RECEIPT");
             return;
         }
@@ -173,7 +198,7 @@ public class RkjReceiptPrinterPlugin extends Plugin {
                 call.reject("Auto-cetak belum diaktifkan dalam tetapan printer.", "AUTO_PRINT_DISABLED");
                 return;
             }
-            if (receiptKey.isBlank() || receiptKey.length() > MAX_RECEIPT_KEY_CHARACTERS) {
+            if (isBlank(receiptKey) || receiptKey.length() > MAX_RECEIPT_KEY_CHARACTERS) {
                 call.reject("Rujukan resit auto-cetak tidak sah.", "INVALID_RECEIPT_KEY");
                 return;
             }
@@ -324,17 +349,21 @@ public class RkjReceiptPrinterPlugin extends Plugin {
         String selectedAddress = preferences.getString(SELECTED_ADDRESS, "");
         String selectedName = preferences.getString(SELECTED_NAME, "");
         String verifiedAddress = preferences.getString(VERIFIED_ADDRESS, "");
-        boolean testPrintPassed = !selectedAddress.isBlank() && selectedAddress.equalsIgnoreCase(verifiedAddress);
+        boolean testPrintPassed = !isBlank(selectedAddress) && selectedAddress.equalsIgnoreCase(verifiedAddress);
         status.put("testPrintPassed", testPrintPassed);
         status.put("autoPrintEnabled", testPrintPassed && preferences.getBoolean(AUTO_PRINT_ENABLED, false));
-        if (!selectedAddress.isBlank()) {
+        if (!isBlank(selectedAddress)) {
             JSObject selected = new JSObject();
             selected.put("address", selectedAddress);
-            selected.put("name", selectedName.isBlank() ? "Printer Bluetooth" : selectedName);
+            selected.put("name", isBlank(selectedName) ? "Printer Bluetooth" : selectedName);
             status.put("selectedPrinter", selected);
         }
 
         if (!available || !enabled || !permissionGranted) return status;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+            && getContext().checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            return status;
+        }
 
         List<BluetoothDevice> devices = new ArrayList<>(adapter.getBondedDevices());
         devices.sort(Comparator.comparing(this::safeDeviceName, String.CASE_INSENSITIVE_ORDER));
@@ -367,11 +396,17 @@ public class RkjReceiptPrinterPlugin extends Plugin {
     }
 
     private boolean hasBluetoothPermission() {
-        return Build.VERSION.SDK_INT < Build.VERSION_CODES.S || getPermissionState("bluetooth") == PermissionState.GRANTED;
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.S
+            || (getPermissionState("bluetooth") == PermissionState.GRANTED
+                && getContext().checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED);
     }
 
     private BluetoothDevice findBondedDevice(BluetoothAdapter adapter, String address) {
-        if (adapter == null || address == null || address.isBlank()) return null;
+        if (adapter == null || isBlank(address)) return null;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+            && getContext().checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            return null;
+        }
         Set<BluetoothDevice> bondedDevices = adapter.getBondedDevices();
         for (BluetoothDevice device : bondedDevices) {
             if (address.equalsIgnoreCase(device.getAddress())) return device;
@@ -380,8 +415,21 @@ public class RkjReceiptPrinterPlugin extends Plugin {
     }
 
     private String safeDeviceName(BluetoothDevice device) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+            && getContext().checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            return "Printer Bluetooth";
+        }
         String name = device.getName();
-        return name == null || name.isBlank() ? "Printer Bluetooth" : name;
+        return isBlank(name) ? "Printer Bluetooth" : name;
+    }
+
+    /**
+     * Android's java.lang.String.isBlank() is unavailable before API 33 unless
+     * core-library desugaring is enabled. RKJ One supports API 24+, so keep the
+     * printer bridge on APIs that exist across the complete supported range.
+     */
+    private static boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
     }
 
     private SharedPreferences getPreferences() {
