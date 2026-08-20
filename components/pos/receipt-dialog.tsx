@@ -5,7 +5,7 @@ import { Loader2, Printer, Share2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatRM } from '@/lib/pos/utils';
 import type { SaleResult } from '@/lib/pos/types';
-import { printReceiptDirect, type ReceiptPrinterStatus } from '@/lib/pos/receipt-printer-client';
+import { openReceiptCashDrawer, printReceiptDirect, type ReceiptPrinterStatus } from '@/lib/pos/receipt-printer-client';
 import { ReceiptPrinterSettings } from '@/components/pos/receipt-printer-settings';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -24,6 +24,7 @@ export function ReceiptDialog({ open, onOpenChange, receipt, branchName }: Recei
  const [printerSetupRequest, setPrinterSetupRequest] = useState(0);
  const [autoPrintState, setAutoPrintState] = useState<'idle' | 'printing' | 'printed' | 'failed'>('idle');
  const autoAttemptedKeyRef = useRef<string | null>(null);
+ const drawerAttemptedKeyRef = useRef<string | null>(null);
 
  const receiptKey = useMemo(
   () => receipt ? `${receipt.transaction_number}:${receipt.receipt_number}` : null,
@@ -45,6 +46,23 @@ export function ReceiptDialog({ open, onOpenChange, receipt, branchName }: Recei
  useEffect(() => {
   setAutoPrintState('idle');
  }, [receiptKey]);
+
+ useEffect(() => {
+  if (!open || !receipt || !receiptKey || !directPrinterReady || !printerStatus?.cashDrawerEnabled) return;
+  if (!receipt.cash_amount || receipt.cash_amount <= 0) return;
+  if (drawerAttemptedKeyRef.current === receiptKey) return;
+
+  drawerAttemptedKeyRef.current = receiptKey;
+  void openReceiptCashDrawer({ automatic: true, receiptKey })
+   .then((result) => {
+    if (!result.skipped) toast.success('Cash drawer dibuka untuk bayaran tunai.');
+   })
+   .catch((error) => {
+    toast.error(error instanceof Error
+     ? `Cash drawer gagal dibuka: ${error.message}`
+     : 'Cash drawer gagal dibuka. Transaksi dan resit kekal selamat.');
+   });
+ }, [directPrinterReady, open, printerStatus?.cashDrawerEnabled, receipt, receiptKey]);
 
  useEffect(() => {
   if (!open || !receipt || !receiptKey || !directPrinterReady || !printerStatus?.autoPrintEnabled) return;

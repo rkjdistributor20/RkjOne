@@ -17,6 +17,9 @@ export interface ReceiptPrinterStatus {
  permissionGranted: boolean;
  testPrintPassed: boolean;
  autoPrintEnabled: boolean;
+ cashDrawerEnabled: boolean;
+ cashDrawerTestPassed: boolean;
+ cashDrawerPin: 0 | 1;
  selectedPrinter?: PairedReceiptPrinter;
  pairedPrinters: PairedReceiptPrinter[];
 }
@@ -27,6 +30,13 @@ type ReceiptPrinterPlugin = {
  selectPrinter(options: { address: string }): Promise<ReceiptPrinterStatus>;
  clearPrinter(): Promise<ReceiptPrinterStatus>;
  setAutoPrintEnabled(options: { enabled: boolean }): Promise<ReceiptPrinterStatus>;
+ setCashDrawerEnabled(options: { enabled: boolean }): Promise<ReceiptPrinterStatus>;
+ setCashDrawerPin(options: { pin: 0 | 1 }): Promise<ReceiptPrinterStatus>;
+ openCashDrawer(options: {
+  test?: boolean;
+  automatic?: boolean;
+  receiptKey?: string;
+ }): Promise<{ opened: boolean; skipped: boolean; printerName: string; drawerPin: number }>;
  openBluetoothSettings(): Promise<void>;
  print(options: {
   text: string;
@@ -47,6 +57,9 @@ function browserStatus(): ReceiptPrinterStatus {
   permissionGranted: false,
   testPrintPassed: false,
   autoPrintEnabled: false,
+  cashDrawerEnabled: false,
+  cashDrawerTestPassed: false,
+  cashDrawerPin: 0,
   pairedPrinters: [],
  };
 }
@@ -78,6 +91,24 @@ export async function clearReceiptPrinter() {
 export async function setReceiptPrinterAutoPrint(enabled: boolean) {
  if (!supportsDirectAndroidPrinting()) return browserStatus();
  return NativeReceiptPrinter.setAutoPrintEnabled({ enabled });
+}
+
+export async function setReceiptCashDrawerEnabled(enabled: boolean) {
+ if (!supportsDirectAndroidPrinting()) return browserStatus();
+ return NativeReceiptPrinter.setCashDrawerEnabled({ enabled });
+}
+
+export async function setReceiptCashDrawerPin(pin: 0 | 1) {
+ if (!supportsDirectAndroidPrinting()) return browserStatus();
+ return NativeReceiptPrinter.setCashDrawerPin({ pin });
+}
+
+export async function openReceiptCashDrawer(options?: {
+ test?: boolean;
+ automatic?: boolean;
+ receiptKey?: string;
+}) {
+ return NativeReceiptPrinter.openCashDrawer(options ?? {});
 }
 
 export async function openAndroidBluetoothSettings() {

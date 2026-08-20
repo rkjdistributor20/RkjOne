@@ -186,12 +186,18 @@ export function PaymentDialog({
     const response = await fetchPosQrPayment(qrPayment.id);
     if (!active) return;
     if (response.payment.status === 'PAID' && response.result) {
+     const paidReceipt: SaleResult = {
+      ...response.result,
+      payment_method: method,
+      cash_amount: method === 'QR' ? 0 : cashNum,
+      qr_amount: method === 'CASH' ? 0 : qrNum,
+     };
      setQrStatus('PAID');
      toast.success('Bayaran DuitNow QR disahkan oleh Fiuu.');
      clearCart();
      resetPaymentForm();
      onOpenChange(false);
-     onSuccess(response.result);
+     onSuccess(paidReceipt);
      return;
     }
     if (response.payment.status === 'FAILED' || response.payment.status === 'EXPIRED') {
@@ -213,7 +219,7 @@ export function PaymentDialog({
    window.clearInterval(countdownTimer);
    window.clearInterval(pollTimer);
   };
- }, [clearCart, onOpenChange, onSuccess, qrPayment, qrStatus, resetPaymentForm]);
+ }, [cashNum, clearCart, method, onOpenChange, onSuccess, qrNum, qrPayment, qrStatus, resetPaymentForm]);
 
  const appendNumpad = useCallback((key: string) => {
  setCashTenderedOverride((prevOverride) => {
@@ -263,6 +269,9 @@ export function PaymentDialog({
     discount: 0,
     total,
     change_amount: changeAmount,
+    payment_method: method,
+    cash_amount: 0,
+    qr_amount: 0,
     items: cart.map((item) => ({
      name: item.name,
      sku: item.sku,
@@ -313,6 +322,9 @@ export function PaymentDialog({
  discount: 0,
  total,
  change_amount: changeAmount,
+ payment_method: method,
+ cash_amount: payload.cash_amount,
+ qr_amount: payload.qr_amount,
  items: cart.map((c) => ({
  name: c.name,
  sku: c.sku,
@@ -342,7 +354,12 @@ export function PaymentDialog({
     clearCart();
     resetPaymentForm();
     onOpenChange(false);
-    onSuccess(existing.result);
+    onSuccess({
+     ...existing.result,
+     payment_method: method,
+     cash_amount: payload.cash_amount,
+     qr_amount: payload.qr_amount,
+    });
     return;
    }
    if (!payment.qr_image_url || !payment.expires_at) {
@@ -373,7 +390,12 @@ export function PaymentDialog({
  else toast.success('Bayaran berjaya - stok ditolak');
  clearCart();
  handleDialogOpenChange(false);
- onSuccess(result);
+ onSuccess({
+  ...result,
+  payment_method: method,
+  cash_amount: payload.cash_amount,
+  qr_amount: payload.qr_amount,
+ });
  } catch (err) {
  const msg = err instanceof Error ? err.message : 'Bayaran gagal';
  toast.error(msg.includes('Stok') ? msg : `Bayaran gagal: ${msg}`);

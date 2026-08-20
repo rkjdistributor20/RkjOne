@@ -44,6 +44,11 @@ public class RkjReceiptPrinterPlugin extends Plugin {
     private static final String VERIFIED_ADDRESS = "verified_address";
     private static final String AUTO_PRINT_ENABLED = "auto_print_enabled";
     private static final String LAST_AUTO_PRINTED_RECEIPT = "last_auto_printed_receipt";
+    private static final String CASH_DRAWER_ENABLED = "cash_drawer_enabled";
+    private static final String CASH_DRAWER_PIN = "cash_drawer_pin";
+    private static final String VERIFIED_DRAWER_ADDRESS = "verified_drawer_address";
+    private static final String VERIFIED_DRAWER_PIN = "verified_drawer_pin";
+    private static final String LAST_OPENED_DRAWER_RECEIPT = "last_opened_drawer_receipt";
     private static final UUID SERIAL_PORT_PROFILE = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
     private static final int MAX_PRINT_CHARACTERS = 16000;
     private static final int MAX_RECEIPT_KEY_CHARACTERS = 160;
@@ -159,7 +164,11 @@ public class RkjReceiptPrinterPlugin extends Plugin {
         if (!selected.getAddress().equalsIgnoreCase(previousAddress)) {
             editor.remove(VERIFIED_ADDRESS)
                 .putBoolean(AUTO_PRINT_ENABLED, false)
-                .remove(LAST_AUTO_PRINTED_RECEIPT);
+                .remove(LAST_AUTO_PRINTED_RECEIPT)
+                .putBoolean(CASH_DRAWER_ENABLED, false)
+                .remove(VERIFIED_DRAWER_ADDRESS)
+                .remove(VERIFIED_DRAWER_PIN)
+                .remove(LAST_OPENED_DRAWER_RECEIPT);
         }
         editor.apply();
         call.resolve(buildStatus());
@@ -173,6 +182,11 @@ public class RkjReceiptPrinterPlugin extends Plugin {
             .remove(VERIFIED_ADDRESS)
             .remove(AUTO_PRINT_ENABLED)
             .remove(LAST_AUTO_PRINTED_RECEIPT)
+            .remove(CASH_DRAWER_ENABLED)
+            .remove(CASH_DRAWER_PIN)
+            .remove(VERIFIED_DRAWER_ADDRESS)
+            .remove(VERIFIED_DRAWER_PIN)
+            .remove(LAST_OPENED_DRAWER_RECEIPT)
             .apply();
         call.resolve(buildStatus());
     }
@@ -197,6 +211,88 @@ public class RkjReceiptPrinterPlugin extends Plugin {
 
         getPreferences().edit().putBoolean(AUTO_PRINT_ENABLED, enabled).apply();
         call.resolve(buildStatus());
+    }
+
+    @PluginMethod
+    public void setCashDrawerPin(PluginCall call) {
+        Integer pin = call.getInt("pin");
+        if (pin == null || (pin != 0 && pin != 1)) {
+            call.reject("Saluran cash drawer tidak sah.", "INVALID_CASH_DRAWER_PIN");
+            return;
+        }
+
+        SharedPreferences preferences = getPreferences();
+        if (preferences.getInt(CASH_DRAWER_PIN, 0) != pin) {
+            preferences.edit()
+                .putInt(CASH_DRAWER_PIN, pin)
+                .putBoolean(CASH_DRAWER_ENABLED, false)
+                .remove(VERIFIED_DRAWER_ADDRESS)
+                .remove(VERIFIED_DRAWER_PIN)
+                .remove(LAST_OPENED_DRAWER_RECEIPT)
+                .apply();
+        }
+        call.resolve(buildStatus());
+    }
+
+    @PluginMethod
+    public void setCashDrawerEnabled(PluginCall call) {
+        boolean enabled = Boolean.TRUE.equals(call.getBoolean("enabled", false));
+        if (enabled) {
+            if (!ensureBluetoothReady(call)) return;
+            SharedPreferences preferences = getPreferences();
+            String selectedAddress = preferences.getString(SELECTED_ADDRESS, "");
+            String verifiedAddress = preferences.getString(VERIFIED_DRAWER_ADDRESS, "");
+            int drawerPin = preferences.getInt(CASH_DRAWER_PIN, 0);
+            int verifiedPin = preferences.getInt(VERIFIED_DRAWER_PIN, -1);
+            if (isBlank(selectedAddress)
+                || !selectedAddress.equalsIgnoreCase(verifiedAddress)
+                || drawerPin != verifiedPin) {
+                call.reject("Jalankan Uji buka laci sebelum mengaktifkan auto-buka.", "CASH_DRAWER_TEST_REQUIRED");
+                return;
+            }
+        }
+
+        getPreferences().edit().putBoolean(CASH_DRAWER_ENABLED, enabled).apply();
+        call.resolve(buildStatus());
+    }
+
+    @PluginMethod
+    public void openCashDrawer(PluginCall call) {
+        if (!ensureBluetoothReady(call)) return;
+
+        boolean test = Boolean.TRUE.equals(call.getBoolean("test", false));
+        boolean automatic = Boolean.TRUE.equals(call.getBoolean("automatic", false));
+        String receiptKey = call.getString("receiptKey", "").trim();
+        SharedPreferences preferences = getPreferences();
+        String selectedAddress = preferences.getString(SELECTED_ADDRESS, "");
+        String verifiedPrinterAddress = preferences.getString(VERIFIED_ADDRESS, "");
+        int drawerPin = preferences.getInt(CASH_DRAWER_PIN, 0);
+
+        if (isBlank(selectedAddress) || !selectedAddress.equalsIgnoreCase(verifiedPrinterAddress)) {
+            call.reject("Cetak ujian dahulu sebelum menggunakan cash drawer.", "PRINTER_TEST_REQUIRED");
+            return;
+        }
+        if (automatic) {
+            if (!preferences.getBoolean(CASH_DRAWER_ENABLED, false)) {
+                call.reject("Auto-buka cash drawer belum diaktifkan.", "CASH_DRAWER_DISABLED");
+                return;
+            }
+            if (isBlank(receiptKey) || receiptKey.length() > MAX_RECEIPT_KEY_CHARACTERS) {
+                call.reject("Rujukan transaksi untuk cash drawer tidak sah.", "INVALID_RECEIPT_KEY");
+                return;
+            }
+            if (receiptKey.equals(preferences.getString(LAST_OPENED_DRAWER_RECEIPT, ""))) {
+                resolveDrawerResult(call, false, true, preferences.getString(SELECTED_NAME, "Printer Bluetooth"), drawerPin);
+                return;
+            }
+        }
+
+        BluetoothDevice device = findBondedDevice(getBluetoothAdapter(), selectedAddress);
+        if (device == null) {
+            call.reject("Pilih semula printer yang telah dipasangkan.", "PRINTER_NOT_SELECTED");
+            return;
+        }
+        printExecutor.execute(() -> sendCashDrawerPulse(call, device, drawerPin, test, automatic, receiptKey));
     }
 
     @PluginMethod
@@ -385,6 +481,15 @@ public class RkjReceiptPrinterPlugin extends Plugin {
         boolean testPrintPassed = !isBlank(selectedAddress) && selectedAddress.equalsIgnoreCase(verifiedAddress);
         status.put("testPrintPassed", testPrintPassed);
         status.put("autoPrintEnabled", testPrintPassed && preferences.getBoolean(AUTO_PRINT_ENABLED, false));
+        int drawerPin = preferences.getInt(CASH_DRAWER_PIN, 0);
+        String verifiedDrawerAddress = preferences.getString(VERIFIED_DRAWER_ADDRESS, "");
+        int verifiedDrawerPin = preferences.getInt(VERIFIED_DRAWER_PIN, -1);
+        boolean cashDrawerTestPassed = testPrintPassed
+            && selectedAddress.equalsIgnoreCase(verifiedDrawerAddress)
+            && drawerPin == verifiedDrawerPin;
+        status.put("cashDrawerPin", drawerPin);
+        status.put("cashDrawerTestPassed", cashDrawerTestPassed);
+        status.put("cashDrawerEnabled", cashDrawerTestPassed && preferences.getBoolean(CASH_DRAWER_ENABLED, false));
         if (!isBlank(selectedAddress)) {
             JSObject selected = new JSObject();
             selected.put("address", selectedAddress);
@@ -431,6 +536,58 @@ public class RkjReceiptPrinterPlugin extends Plugin {
     private boolean hasBluetoothPermission() {
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.S
             || getContext().checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void sendCashDrawerPulse(
+        PluginCall call,
+        BluetoothDevice device,
+        int drawerPin,
+        boolean test,
+        boolean automatic,
+        String receiptKey
+    ) {
+        BluetoothSocket socket = null;
+        try {
+            if (automatic && receiptKey.equals(getPreferences().getString(LAST_OPENED_DRAWER_RECEIPT, ""))) {
+                resolveDrawerResult(call, false, true, safeDeviceName(device), drawerPin);
+                return;
+            }
+            socket = connectPrinter(device);
+            OutputStream output = socket.getOutputStream();
+            output.write(new byte[] { 0x1B, 0x40 });
+            output.write(new byte[] { 0x1B, 0x70, (byte) drawerPin, 0x19, (byte) 0xFA });
+            output.flush();
+
+            SharedPreferences.Editor editor = getPreferences().edit();
+            if (test) {
+                editor.putString(VERIFIED_DRAWER_ADDRESS, device.getAddress())
+                    .putInt(VERIFIED_DRAWER_PIN, drawerPin);
+            }
+            if (automatic) editor.putString(LAST_OPENED_DRAWER_RECEIPT, receiptKey);
+            editor.apply();
+            resolveDrawerResult(call, true, false, safeDeviceName(device), drawerPin);
+        } catch (SecurityException error) {
+            call.reject("Kebenaran Bluetooth tidak tersedia.", "BLUETOOTH_PERMISSION_DENIED");
+        } catch (IOException error) {
+            call.reject("Cash drawer tidak dapat dihubungi melalui printer. Semak kabel DK/RJ11 dan kuasa printer.", "CASH_DRAWER_CONNECTION_FAILED");
+        } finally {
+            if (socket != null) {
+                try {
+                    socket.close();
+                } catch (IOException ignored) {
+                    // The drawer attempt already has a definitive result.
+                }
+            }
+        }
+    }
+
+    private void resolveDrawerResult(PluginCall call, boolean opened, boolean skipped, String printerName, int drawerPin) {
+        JSObject result = new JSObject();
+        result.put("opened", opened);
+        result.put("skipped", skipped);
+        result.put("printerName", printerName);
+        result.put("drawerPin", drawerPin);
+        call.resolve(result);
     }
 
     private BluetoothDevice findBondedDevice(BluetoothAdapter adapter, String address) {

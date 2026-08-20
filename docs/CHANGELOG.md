@@ -2,6 +2,13 @@
 
 ## 2026-08-20
 
+- Prepared Android 1.6.7 (`versionCode 14`) with per-tablet ESC/POS cash-drawer setup for the Bluetooth receipt printer.
+- Added two drawer-kick signal options, a physical test action, and an explicit auto-open setting that only runs after a confirmed transaction containing cash.
+- Added duplicate protection so reopening or re-rendering the same receipt cannot reopen the cash drawer; QR-only sales and training sales never trigger it.
+- Kept drawer failures isolated from payment, sale, receipt, stock and receipt printing. A compatible DK/RJ11 printer port and physical drawer cable remain required.
+
+## 2026-08-20
+
 - Prepared Android 1.6.3 (`versionCode 10`) with per-tablet verified printer setup and optional auto-print after a confirmed POS payment.
 - Added a final bonded-device RFCOMM channel 1 compatibility attempt for generic POS-5890U-L-class printers after standard secure and insecure SPP attempts fail.
 - Added native duplicate protection so the same confirmed receipt is not auto-printed twice, while intentional manual reprint remains available.

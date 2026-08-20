@@ -1,16 +1,19 @@
 'use client';
 
 import { useCallback, useEffect, useId, useState } from 'react';
-import { Bluetooth, CheckCircle2, PrinterCheck, RefreshCw, Settings2, Zap } from 'lucide-react';
+import { Banknote, Bluetooth, CheckCircle2, PrinterCheck, RefreshCw, Settings2, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import {
  clearReceiptPrinter,
  openAndroidBluetoothSettings,
+ openReceiptCashDrawer,
  printReceiptTestPage,
  readReceiptPrinterStatus,
  requestReceiptPrinterPermission,
  selectReceiptPrinter,
  setReceiptPrinterAutoPrint,
+ setReceiptCashDrawerEnabled,
+ setReceiptCashDrawerPin,
  type ReceiptPrinterStatus,
 } from '@/lib/pos/receipt-printer-client';
 import { Button } from '@/components/ui/button';
@@ -27,6 +30,8 @@ export function ReceiptPrinterSettings({ initiallyExpanded = false, expandReques
  const [loading, setLoading] = useState(true);
  const [printing, setPrinting] = useState(false);
  const [savingAutoPrint, setSavingAutoPrint] = useState(false);
+ const [openingDrawer, setOpeningDrawer] = useState(false);
+ const [savingDrawer, setSavingDrawer] = useState(false);
  const [expanded, setExpanded] = useState(initiallyExpanded);
  const headingId = useId();
 
@@ -95,6 +100,47 @@ export function ReceiptPrinterSettings({ initiallyExpanded = false, expandReques
    toast.error(error instanceof Error ? error.message : 'Tetapan auto-cetak gagal disimpan.');
   } finally {
    setSavingAutoPrint(false);
+  }
+ }
+
+ async function chooseDrawerPin(pin: 0 | 1) {
+  setSavingDrawer(true);
+  try {
+   updateStatus(await setReceiptCashDrawerPin(pin));
+   toast.info('Saluran cash drawer ditukar. Jalankan Uji buka laci semula.');
+  } catch (error) {
+   toast.error(error instanceof Error ? error.message : 'Saluran cash drawer gagal disimpan.');
+  } finally {
+   setSavingDrawer(false);
+  }
+ }
+
+ async function testCashDrawer() {
+  setOpeningDrawer(true);
+  try {
+   const result = await openReceiptCashDrawer({ test: true });
+   await refresh();
+   toast.success(`Isyarat buka laci dihantar melalui ${result.printerName}. Pastikan laci terbuka secara fizikal.`);
+  } catch (error) {
+   toast.error(error instanceof Error ? error.message : 'Cash drawer tidak dapat dibuka.');
+  } finally {
+   setOpeningDrawer(false);
+  }
+ }
+
+ async function toggleCashDrawer() {
+  if (!status) return;
+  setSavingDrawer(true);
+  try {
+   const next = await setReceiptCashDrawerEnabled(!status.cashDrawerEnabled);
+   updateStatus(next);
+   toast.success(next.cashDrawerEnabled
+    ? 'Auto-buka cash drawer diaktifkan untuk bayaran tunai.'
+    : 'Auto-buka cash drawer dimatikan.');
+  } catch (error) {
+   toast.error(error instanceof Error ? error.message : 'Tetapan cash drawer gagal disimpan.');
+  } finally {
+   setSavingDrawer(false);
   }
  }
 
@@ -210,6 +256,35 @@ export function ReceiptPrinterSettings({ initiallyExpanded = false, expandReques
            {status.autoPrintEnabled ? 'Aktif' : 'Tidak aktif'}
           </Button>
          </div>
+        </div>
+       )}
+       {selectedIsPaired && status.testPrintPassed && (
+        <div className={`rounded-lg border p-3 ${status.cashDrawerEnabled ? 'border-amber-300 bg-amber-50' : 'bg-background'}`}>
+         <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+           <p className="flex items-center gap-2 text-sm font-semibold"><Banknote className="h-4 w-4" aria-hidden="true" /> Cash drawer</p>
+           <p className="mt-1 text-xs text-muted-foreground">Sambungkan kabel laci ke port DK/RJ11 printer. Laci hanya dibuka automatik untuk transaksi yang menerima tunai.</p>
+          </div>
+          <Button
+           type="button"
+           size="sm"
+           variant={status.cashDrawerEnabled ? 'default' : 'outline'}
+           role="switch"
+           aria-checked={status.cashDrawerEnabled}
+           onClick={() => void toggleCashDrawer()}
+           disabled={!status.cashDrawerTestPassed || savingDrawer}
+          >
+           {status.cashDrawerEnabled ? 'Aktif' : 'Tidak aktif'}
+          </Button>
+         </div>
+         <div className="mt-3 grid grid-cols-2 gap-2" aria-label="Saluran isyarat cash drawer">
+          <Button type="button" size="sm" variant={status.cashDrawerPin === 0 ? 'default' : 'outline'} onClick={() => void chooseDrawerPin(0)} disabled={savingDrawer}>Isyarat 1</Button>
+          <Button type="button" size="sm" variant={status.cashDrawerPin === 1 ? 'default' : 'outline'} onClick={() => void chooseDrawerPin(1)} disabled={savingDrawer}>Isyarat 2</Button>
+         </div>
+         <Button type="button" variant="outline" size="sm" className="mt-2 w-full" onClick={() => void testCashDrawer()} disabled={openingDrawer || savingDrawer}>
+          <Banknote className="mr-2 h-4 w-4" /> {openingDrawer ? 'Menghantar isyarat...' : status.cashDrawerTestPassed ? 'Uji buka semula' : 'Uji buka laci'}
+         </Button>
+         <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">Jika Isyarat 1 tidak membuka laci, pilih Isyarat 2 dan uji semula. Kunci laci mesti pada kedudukan elektronik, bukan berkunci.</p>
         </div>
        )}
        <p className="text-[11px] leading-relaxed text-muted-foreground">PIN pasangan bergantung pada unit pembekal. Rujuk pelekat/manual unit; RKJ One tidak meneka atau menyimpan PIN.</p>

@@ -25,6 +25,9 @@ The manufacturer, Bluetooth service specification, pairing PIN, iOS MFi status a
 8. After the test page succeeds, enable **Auto-cetak selepas bayaran**.
 9. The selected printer, verified-test state and auto-print choice are kept privately on that tablet. Each confirmed sale is printed automatically once; **Cetak terus** remains available for a customer copy.
 10. If the receipt button says **Sedia printer**, open the displayed setup, reselect the printer and complete **Cetak ujian** before serving the next customer.
+11. For a printer-driven cash drawer, connect the drawer cable to the printer port labelled **DK**, **Drawer** or **RJ11/RJ12**. Do not connect it to the tablet.
+12. In **Tetapan printer**, select **Isyarat 1** and press **Uji buka laci**. If the physical drawer does not open, select **Isyarat 2** and test again.
+13. Only after the physical test succeeds, activate **Cash drawer**. RKJ One then opens it once for a confirmed CASH or MIXED transaction with a positive cash amount; QR-only and training transactions never open it.
 
 If direct printing fails, staff must keep the sale result on screen and use **Cetak sistem** or **Kongsi**. Reprinting does not create another sale and must never be used to confirm payment.
 
@@ -46,6 +49,8 @@ If direct printing fails, staff must keep the sale result on screen and use **Ce
 - A successful automatic receipt key is stored privately on the tablet to prevent the same confirmed transaction from being auto-printed twice. Manual reprint remains available.
 - Printer failure never changes payment, sale, stock or receipt records.
 - Receipt output is ASCII, 32 columns and uses ESC/POS initialization without a cutter command.
+- Cash-drawer control uses the standard ESC/POS `ESC p` pulse through the selected Bluetooth printer. The setting and successful test are stored only on that tablet.
+- Software cannot open a drawer that is locked manually, has no powered solenoid, or is not connected to a compatible printer DK/RJ11/RJ12 port.
 - No customer data, payment credentials, Bluetooth PIN or printer address is logged.
 
 ## Branch Acceptance Test
