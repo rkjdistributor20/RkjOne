@@ -183,6 +183,7 @@ export async function POST(request: Request) {
  purpose,
  payerEmail: profile.email ?? '',
  payerName: profile.full_name ?? account.company_name,
+ payerPhone: account.contact_phone ?? '',
  returnUrl,
  cancelUrl,
  });

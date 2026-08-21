@@ -56,6 +56,11 @@ Use Preview/staging credentials only with `SALES_AGENT_FIUU_ENVIRONMENT=sandbox`
 The provider Notification and Callback URL is
 `/api/sales-agent/payments/fiuu/webhook`; the browser Return URL is
 `/api/sales-agent/payments/fiuu/return` and never finalizes a payment.
+For a protected Vercel Preview, set the server-only
+`SALES_AGENT_FIUU_CALLBACK_URL` and `SALES_AGENT_FIUU_RETURN_URL` to the exact
+staging endpoints with the Vercel automation-bypass query parameter. The code
+accepts only HTTPS `*.vercel.app` endpoints in sandbox and `rkj.one` in
+production; do not reuse a Preview bypass value in Production.
 
 POS Fiuu DuitNow QR variables:
 

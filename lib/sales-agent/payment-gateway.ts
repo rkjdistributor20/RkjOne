@@ -16,6 +16,7 @@ export type InitiatePaymentInput = {
  purpose: 'STOCK_ORDER' | 'POS_SUBSCRIPTION';
  payerEmail: string;
  payerName: string;
+ payerPhone?: string;
  returnUrl: string;
  cancelUrl?: string;
 };

@@ -56,6 +56,7 @@ export async function GET(
  purpose: payment.purpose as 'STOCK_ORDER' | 'POS_SUBSCRIPTION',
  payerEmail: profile.email ?? account.contact_email ?? '',
  payerName: profile.full_name ?? account.company_name,
+ payerPhone: account.contact_phone ?? '',
  returnUrl: `${appUrl}/sales-agent/payment-return?payment=${payment.id}`,
  cancelUrl: `${appUrl}/sales-agent/payment-return?payment=${payment.id}`,
  });
@@ -70,4 +71,3 @@ export async function GET(
  },
  });
 }
-

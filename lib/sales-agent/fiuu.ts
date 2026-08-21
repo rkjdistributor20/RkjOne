@@ -9,6 +9,8 @@ export type FiuuAgentConfig = {
  verifyKey: string;
  secretKey: string;
  paymentUrl: string;
+ callbackUrl?: string;
+ returnUrl?: string;
 };
 
 export type FiuuCallback = {
@@ -35,6 +37,38 @@ function secureEqual(left: string, right: string): boolean {
 
 function normalizedBaseUrl(value: string): string {
  return value.replace(/\/+$/, '');
+}
+
+function validatedStagingEndpoint(
+ value: string | undefined,
+ environment: FiuuEnvironment,
+ expectedPath: string,
+ allowedQueryKeys: readonly string[],
+): string | undefined {
+ const configured = value?.trim();
+ if (!configured) return undefined;
+
+ const parsed = new URL(configured);
+ const host = parsed.hostname.toLowerCase();
+ const hostAllowed = environment === 'production'
+ ? host === 'rkj.one' || host === 'www.rkj.one'
+ : host.endsWith('.vercel.app');
+ if (
+ parsed.protocol !== 'https:' ||
+ !hostAllowed ||
+ parsed.username ||
+ parsed.password ||
+ parsed.hash ||
+ parsed.pathname !== expectedPath
+ ) {
+ throw new Error('URL callback/return Fiuu tidak dibenarkan untuk environment ini');
+ }
+ for (const key of parsed.searchParams.keys()) {
+ if (!allowedQueryKeys.includes(key)) {
+ throw new Error('Parameter URL callback/return Fiuu tidak dibenarkan');
+ }
+ }
+ return parsed.toString();
 }
 
 export function getFiuuAgentConfig(): FiuuAgentConfig | null {
@@ -64,6 +98,18 @@ export function getFiuuAgentConfig(): FiuuAgentConfig | null {
  verifyKey,
  secretKey,
  paymentUrl: `${paymentBase}/${encodeURIComponent(merchantId)}`,
+ callbackUrl: validatedStagingEndpoint(
+ process.env.SALES_AGENT_FIUU_CALLBACK_URL,
+ environment,
+ '/api/sales-agent/payments/fiuu/webhook',
+ ['x-vercel-protection-bypass'],
+ ),
+ returnUrl: validatedStagingEndpoint(
+ process.env.SALES_AGENT_FIUU_RETURN_URL,
+ environment,
+ '/api/sales-agent/payments/fiuu/return',
+ ['x-vercel-protection-bypass', 'x-vercel-set-bypass-cookie'],
+ ),
  };
 }
 
@@ -139,8 +185,11 @@ export function buildFiuuHostedPaymentForm(
  const amount = input.amountRm.toFixed(2);
  const currency = 'MYR';
  const orderId = buildFiuuOrderId(input.paymentId);
- const callbackUrl = `${input.appUrl}/api/sales-agent/payments/fiuu/webhook`;
- const returnUrl = `${input.appUrl}/api/sales-agent/payments/fiuu/return`;
+ const callbackUrl = input.config.callbackUrl ??
+ `${input.appUrl}/api/sales-agent/payments/fiuu/webhook`;
+ const returnUrl = input.config.returnUrl ??
+ `${input.appUrl}/api/sales-agent/payments/fiuu/return`;
+ const mobile = (input.payerPhone ?? '').replace(/[^+\d]/g, '').slice(0, 30);
  const description = input.purpose === 'POS_SUBSCRIPTION'
  ? 'Langganan POS RKJ Distributor'
  : 'Order stok ejen RKJ Distributor';
@@ -153,7 +202,7 @@ export function buildFiuuHostedPaymentForm(
  orderid: orderId,
  bill_name: input.payerName.slice(0, 100),
  bill_email: input.payerEmail.slice(0, 100),
- bill_mobile: '',
+ bill_mobile: mobile,
  bill_desc: description.slice(0, 200),
  country: 'MY',
  currency,

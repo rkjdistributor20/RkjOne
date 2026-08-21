@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-21 - Fiuu Agent Preview callback hardening
+
+- Added environment-specific, allowlisted Fiuu Agent callback and Return URLs
+  so protected Preview deployments can receive provider callbacks without
+  weakening Production deployment protection.
+- Added the verified agent contact phone to the Hosted Payment Page request.
+
 - Added a staging-first Fiuu Hosted Payment Page adapter for RKJ Distributor Agent Payment, with a dedicated signed callback/return boundary, merchant/amount/MYR verification, single-PENDING idempotency, host allowlisting and separate server-only credentials from the Roti Kaya Junus POS merchant. Production remains disabled pending signed provider UAT and Finance reconciliation.
 
 ## 2026-08-17

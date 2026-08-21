@@ -50,6 +50,44 @@ describe('Fiuu Agent Payment', () => {
  expect(() => getFiuuAgentConfig()).toThrow('tidak dibenarkan');
  });
 
+ it('uses only an allowlisted Preview callback and includes the payer phone', () => {
+ process.env.SALES_AGENT_FIUU_MERCHANT_ID = 'SB_rkjdistributors';
+ process.env.SALES_AGENT_FIUU_VERIFY_KEY = 'verify-key';
+ process.env.SALES_AGENT_FIUU_SECRET_KEY = 'secret-key';
+ process.env.SALES_AGENT_FIUU_ENVIRONMENT = 'sandbox';
+ process.env.SALES_AGENT_FIUU_CALLBACK_URL =
+ 'https://rkj-agent-uat.vercel.app/api/sales-agent/payments/fiuu/webhook?x-vercel-protection-bypass=bypass';
+ process.env.SALES_AGENT_FIUU_RETURN_URL =
+ 'https://rkj-agent-uat.vercel.app/api/sales-agent/payments/fiuu/return?x-vercel-protection-bypass=bypass&x-vercel-set-bypass-cookie=true';
+
+ const config = getFiuuAgentConfig()!;
+ const form = buildFiuuHostedPaymentForm({
+ appUrl: 'https://wrong-preview.vercel.app',
+ config,
+ paymentId: '123e4567-e89b-12d3-a456-426614174000',
+ amountRm: 1,
+ method: 'FPX',
+ purpose: 'POS_SUBSCRIPTION',
+ payerEmail: 'agent@example.test',
+ payerName: 'Ejen UAT',
+ payerPhone: '+60 12-345 6789',
+ returnUrl: 'https://wrong-preview.vercel.app/payment-return',
+ });
+
+ expect(form.fields.callbackurl).toBe(config.callbackUrl);
+ expect(form.fields.returnurl).toBe(config.returnUrl);
+ expect(form.fields.bill_mobile).toBe('+60123456789');
+ });
+
+ it('rejects a callback URL outside the RKJ production and Preview hosts', () => {
+ process.env.SALES_AGENT_FIUU_MERCHANT_ID = 'SB_rkjdistributors';
+ process.env.SALES_AGENT_FIUU_VERIFY_KEY = 'verify-key';
+ process.env.SALES_AGENT_FIUU_SECRET_KEY = 'secret-key';
+ process.env.SALES_AGENT_FIUU_CALLBACK_URL =
+ 'https://attacker.example/api/sales-agent/payments/fiuu/webhook';
+ expect(() => getFiuuAgentConfig()).toThrow('tidak dibenarkan');
+ });
+
  it('verifies the signed callback and rejects tampering', () => {
  const config = {
  environment: 'sandbox' as const,
