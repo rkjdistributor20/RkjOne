@@ -231,6 +231,12 @@ HR/Admin approval remains on `/api/hr/self-service/requests/[id]`; approving AM 
 
 ## Sales Agent Payment API
 
+Fiuu Agent Payment uses a dedicated Hosted Payment Page integration. Its merchant,
+Verify Key, Secret Key and Application Code must belong to RKJ Distributor and
+must never be reused from the Roti Kaya Junus POS merchant. The Return endpoint
+only redirects the browser to status polling; only a verified server callback can
+fulfil an order or subscription.
+
 Status: M5 implemented for Sales Agent payments. Supports simulate, Billplz, iPay88 and optional Stripe Checkout.
 
 Access note: Sales Agent portal routes check `canAccessSalesAgent()` before service-role reads/writes. Admin-only price group mutations remain limited to `SUPER_ADMIN`, `ADMIN`, and `OPERATION_MANAGER`; refund remains limited to `SUPER_ADMIN`, `ADMIN`, and `FINANCE`.

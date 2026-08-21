@@ -14,6 +14,8 @@ const PUBLIC_API_PATHS = new Set([
  '/api/auth/login',
  '/api/pos/qr-payments/webhook',
  '/api/sales-agent/payments/webhook',
+ '/api/sales-agent/payments/fiuu/webhook',
+ '/api/sales-agent/payments/fiuu/return',
 ]);
 
 type MiddlewareProfile = {

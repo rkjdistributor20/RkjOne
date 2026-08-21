@@ -1,5 +1,7 @@
 # Changelog
 
+- Added a staging-first Fiuu Hosted Payment Page adapter for RKJ Distributor Agent Payment, with a dedicated signed callback/return boundary, merchant/amount/MYR verification, single-PENDING idempotency, host allowlisting and separate server-only credentials from the Roti Kaya Junus POS merchant. Production remains disabled pending signed provider UAT and Finance reconciliation.
+
 ## 2026-08-17
 
 - Revalidated the Fiuu POS Preview configuration, payment-security tests, TypeScript and lint checks without changing Production.
