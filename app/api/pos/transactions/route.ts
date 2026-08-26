@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { callRpc } from '@/lib/supabase/rpc';
 import { inventoryRpc } from '@/lib/supabase/inventory-rpc';
 import { getCurrentProfile } from '@/lib/auth/session';
@@ -143,7 +143,8 @@ export async function POST(request: Request) {
  let manualPaymentReviewError: string | null = null;
 
  if (qrAmount > 0) {
- const { data: review, error: reviewError } = await (supabase as SupabaseClient)
+ const admin = createAdminClient();
+ const { data: review, error: reviewError } = await admin
  .from('pos_online_payments')
  .insert({
  organization_id: profile.organization_id,

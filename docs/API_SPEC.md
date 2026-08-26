@@ -13,7 +13,7 @@ Authentication:
 - Most `/api/*` routes are protected by global middleware and route-level `getCurrentProfile()`.
 - Anonymous protected API requests return JSON `401`.
 - Browser page requests without a session redirect to `/login`.
-- Public webhook routes are limited to signed gateway callbacks and rate-limited route handlers.
+- Public webhook routes use route-specific signature, payload-size and abuse controls. A provider callback is not trusted until its signature and stored payment identity have been verified.
 
 ## POS Fiuu DuitNow QR API
 
@@ -23,9 +23,11 @@ The POS creates a sale only after a signed Fiuu Offline Payment API notification
 
 Creates a pending Fiuu DuitNow QR payment for an authenticated, authorized POS shift member on an official branch device. Product prices, quantities, discount and payment split are recalculated on the server. The returned QR image URL is an authenticated RKJ One proxy; the provider image URL and credentials are not returned to the browser.
 
+The request must include an opaque `idempotency_key` of 16-64 letters, numbers, underscores or hyphens. Retrying the same organization, branch, shift, creator, amount and sale payload returns the existing intent. Reusing the key for different intent data returns `409` and never creates another payment.
+
 ### GET `/api/pos/qr-payments/[paymentId]`
 
-Returns branch-scoped payment status. A receipt is returned only after the payment is atomically fulfilled. Pending records are marked expired when their validity window has elapsed.
+Returns branch-scoped payment status. A receipt is returned only after the payment is atomically fulfilled. Polling never mutates a pending database row. After the displayed QR expires, the response remains pending during the bounded late-callback reconciliation window and becomes expired only when that window has ended.
 
 ### GET `/api/pos/qr-payments/[paymentId]/image`
 
@@ -33,7 +35,7 @@ Returns the provider QR image through an authenticated, branch-scoped, no-store 
 
 ### POST `/api/pos/qr-payments/webhook`
 
-Public provider callback endpoint. Fiuu callbacks require a valid HMAC-SHA256 signature and must match the stored application, reference, provider transaction ID, amount, MYR currency and DuitNow channel `24`. Fulfilment, stock deduction, receipt creation and payment completion occur in one database transaction. Invalid callbacks do not create a sale.
+Public provider callback endpoint. Request bodies are capped at 64 KiB. Fiuu callbacks require a valid HMAC-SHA256 signature and must match the stored application, reference, provider transaction ID, amount, MYR currency and DuitNow channel `24`. Fulfilment, stock deduction, receipt creation and payment completion occur in one database transaction. Invalid callbacks do not create a sale. Callback credentials remain available for already-issued intents when new QR creation is rolled back to manual mode.
 
 Response convention:
 
@@ -228,6 +230,12 @@ Body:
 HR/Admin approval remains on `/api/hr/self-service/requests/[id]`; approving AM leave returns `400` until `covered_by` and `covered_at` are recorded.
 
 ## Sales Agent Payment API
+
+Fiuu Agent Payment uses a dedicated Hosted Payment Page integration. Its merchant,
+Verify Key, Secret Key and Application Code must belong to RKJ Distributor and
+must never be reused from the Roti Kaya Junus POS merchant. The Return endpoint
+only redirects the browser to status polling; only a verified server callback can
+fulfil an order or subscription.
 
 Status: M5 implemented for Sales Agent payments. Supports simulate, Billplz, iPay88 and optional Stripe Checkout.
 

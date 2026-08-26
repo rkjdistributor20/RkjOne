@@ -43,8 +43,24 @@ Sales Agent payment variables:
 | `SALES_AGENT_PAYMENT_PROVIDER` | Yes | Server |
 | `SALES_AGENT_PAYMENT_WEBHOOK_SECRET` | Yes for staging/production webhooks | Server only |
 | `ALLOW_UNSIGNED_PAYMENT_WEBHOOKS` | Local dev only | Server only |
+| `SALES_AGENT_FIUU_ENVIRONMENT` | When Fiuu Agent Payment enabled | Server; `sandbox` or `production` |
+| `SALES_AGENT_FIUU_MERCHANT_ID` | When Fiuu Agent Payment enabled | Server only |
+| `SALES_AGENT_FIUU_VERIFY_KEY` | When Fiuu Agent Payment enabled | Server secret |
+| `SALES_AGENT_FIUU_SECRET_KEY` | When Fiuu Agent Payment enabled | Server secret |
+| `SALES_AGENT_FIUU_PAYMENT_URL` | Optional | Server; official environment-matching Fiuu host only |
 
 Do not set `ALLOW_UNSIGNED_PAYMENT_WEBHOOKS=true` in staging or production.
+
+Fiuu Agent Payment is a separate merchant integration from POS Fiuu DuitNow QR.
+Use Preview/staging credentials only with `SALES_AGENT_FIUU_ENVIRONMENT=sandbox`.
+The provider Notification and Callback URL is
+`/api/sales-agent/payments/fiuu/webhook`; the browser Return URL is
+`/api/sales-agent/payments/fiuu/return` and never finalizes a payment.
+For a protected Vercel Preview, set the server-only
+`SALES_AGENT_FIUU_CALLBACK_URL` and `SALES_AGENT_FIUU_RETURN_URL` to the exact
+staging endpoints with the Vercel automation-bypass query parameter. The code
+accepts only HTTPS `*.vercel.app` endpoints in sandbox and `rkj.one` in
+production; do not reuse a Preview bypass value in Production.
 
 POS Fiuu DuitNow QR variables:
 

@@ -5,6 +5,7 @@ import {
  assertCanAccessPosBranch,
  posAccessErrorStatus,
 } from '@/lib/pos/access';
+import { isFiuuReconciliationExpired } from '@/lib/pos/fiuu';
 
 export async function GET(
  _request: Request,
@@ -29,20 +30,11 @@ export async function GET(
    { status: posAccessErrorStatus(err) });
  }
 
- let payment = data;
- if (payment.status === 'PENDING'
-  && payment.expires_at
-  && new Date(payment.expires_at).getTime() <= Date.now()) {
-  const now = new Date().toISOString();
-  const { data: expired } = await service
-   .from('pos_online_payments')
-   .update({ status: 'EXPIRED', failed_at: now, updated_at: now })
-   .eq('id', payment.id)
-   .eq('status', 'PENDING')
-   .select('id, branch_id, shift_id, amount_rm, status, gateway_ref, paid_at, transaction_id, expires_at')
-   .maybeSingle();
-  payment = expired ?? payment;
- }
+ const payment = data.status === 'PENDING'
+  && data.expires_at
+  && isFiuuReconciliationExpired(data.expires_at)
+  ? { ...data, status: 'EXPIRED' }
+  : data;
 
  let result = null;
  if (payment.status === 'PAID' && payment.transaction_id) {

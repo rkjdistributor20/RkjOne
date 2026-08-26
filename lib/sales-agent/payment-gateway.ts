@@ -4,9 +4,10 @@ import type { OnlinePaymentMethod } from './types';
 import { getIPay88Config } from './ipay88';
 import { createBillplzBill, getBillplzConfig } from './billplz';
 import { createStripeCheckoutSession, getStripeClient } from './stripe';
+import { buildFiuuOrderId, getFiuuAgentConfig } from './fiuu';
 
 export type PaymentGatewayMode = 'simulate' | 'live';
-export type PaymentGatewayProvider = 'simulate' | 'billplz' | 'ipay88' | 'stripe' | 'custom';
+export type PaymentGatewayProvider = 'simulate' | 'billplz' | 'ipay88' | 'stripe' | 'fiuu' | 'custom';
 
 export type InitiatePaymentInput = {
  paymentId: string;
@@ -15,6 +16,7 @@ export type InitiatePaymentInput = {
  purpose: 'STOCK_ORDER' | 'POS_SUBSCRIPTION';
  payerEmail: string;
  payerName: string;
+ payerPhone?: string;
  returnUrl: string;
  cancelUrl?: string;
 };
@@ -36,6 +38,7 @@ export function isLivePaymentGatewayConfigured(): boolean {
  const provider = getPaymentProvider();
  if (provider === 'billplz') return Boolean(getBillplzConfig());
  if (provider === 'stripe') return Boolean(getStripeClient());
+ if (provider === 'fiuu') return Boolean(getFiuuAgentConfig());
  return Boolean(
  process.env.SALES_AGENT_PAYMENT_API_KEY?.trim() &&
  process.env.SALES_AGENT_PAYMENT_MERCHANT_ID?.trim());
@@ -103,6 +106,19 @@ export async function initiateAgentPayment(
  payment_id: input.paymentId,
  checkout_url: session.url,
  gateway_session_id: session.id,
+ };
+ }
+
+ if (provider === 'fiuu') {
+ const config = getFiuuAgentConfig();
+ if (!config) throw new Error('Fiuu Agent Payment belum dikonfigurasi');
+ const orderId = buildFiuuOrderId(input.paymentId);
+ return {
+ mode: 'live',
+ provider: 'fiuu',
+ payment_id: input.paymentId,
+ checkout_url: `${appUrl}/sales-agent/checkout/fiuu?payment=${input.paymentId}`,
+ gateway_session_id: orderId,
  };
  }
 

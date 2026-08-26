@@ -22,12 +22,33 @@ const POS_SHIFT_STAFF_APPROVER_ROLES = new Set<UserRole>([
  'AREA_MANAGER',
 ]);
 
+const POS_TRANSACTION_VOID_ROLES = new Set<UserRole>([
+ 'SUPER_ADMIN',
+ 'ADMIN',
+ 'OPERATION_MANAGER',
+ 'AREA_MANAGER',
+]);
+
+const POS_TRANSACTION_REFUND_ROLES = new Set<UserRole>([
+ 'SUPER_ADMIN',
+ 'ADMIN',
+ 'FINANCE',
+]);
+
 export function canViewFullPosHistory(role?: string | null): boolean {
  return FULL_POS_HISTORY_ROLES.includes(role as UserRole);
 }
 
 export function canApprovePosShiftStaff(role?: string | null): boolean {
  return POS_SHIFT_STAFF_APPROVER_ROLES.has(role as UserRole);
+}
+
+export function canVoidPosTransaction(role?: string | null): boolean {
+ return POS_TRANSACTION_VOID_ROLES.has(role as UserRole);
+}
+
+export function canRefundPosTransaction(role?: string | null): boolean {
+ return POS_TRANSACTION_REFUND_ROLES.has(role as UserRole);
 }
 
 export class PosAccessError extends Error {

@@ -180,7 +180,7 @@ export function SalesAgentDashboard() {
  });
 
  if (checkout.mode === 'live' && checkout.checkout_url) {
- toast.message('Menghubung ke iPay88 - pengesahan bank diperlukan.');
+ toast.message('Menghubung ke gateway pembayaran - pengesahan bank diperlukan.');
  window.location.href = checkout.checkout_url;
  return;
  }
