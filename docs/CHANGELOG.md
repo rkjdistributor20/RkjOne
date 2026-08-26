@@ -8,6 +8,7 @@
 - Changed the owner readiness dashboard to fail closed for role UAT, audit trail, backup/restore, POS pilot and monitoring; row counts or configured environment variables no longer masquerade as operational evidence.
 - Built the signed Android 1.6.9 release bundle locally and corrected the stale Capacitor instrumentation package; Play-delivered device acceptance remains required before promotion.
 - Replayed all 172 migrations locally and verified active same-tenant access, cross-tenant denial, inactive-user denial and absence of authenticated POS update privilege.
+- Applied the new boundary migration to the independently verified Singapore staging project and confirmed a clean post-deployment dry-run; Production was not linked or changed.
 
 ## 2026-08-26 - Fiuu POS dynamic-QR safety hardening
 
