@@ -13,7 +13,7 @@ Authentication:
 - Most `/api/*` routes are protected by global middleware and route-level `getCurrentProfile()`.
 - Anonymous protected API requests return JSON `401`.
 - Browser page requests without a session redirect to `/login`.
-- Public webhook routes are limited to signed gateway callbacks and rate-limited route handlers.
+- Public webhook routes use route-specific signature, payload-size and abuse controls. A provider callback is not trusted until its signature and stored payment identity have been verified.
 
 ## POS Fiuu DuitNow QR API
 
@@ -27,7 +27,7 @@ The request must include an opaque `idempotency_key` of 16-64 letters, numbers, 
 
 ### GET `/api/pos/qr-payments/[paymentId]`
 
-Returns branch-scoped payment status. A receipt is returned only after the payment is atomically fulfilled. Pending records are marked expired when their validity window has elapsed.
+Returns branch-scoped payment status. A receipt is returned only after the payment is atomically fulfilled. Polling never mutates a pending database row. After the displayed QR expires, the response remains pending during the bounded late-callback reconciliation window and becomes expired only when that window has ended.
 
 ### GET `/api/pos/qr-payments/[paymentId]/image`
 
@@ -35,7 +35,7 @@ Returns the provider QR image through an authenticated, branch-scoped, no-store 
 
 ### POST `/api/pos/qr-payments/webhook`
 
-Public provider callback endpoint. Fiuu callbacks require a valid HMAC-SHA256 signature and must match the stored application, reference, provider transaction ID, amount, MYR currency and DuitNow channel `24`. Fulfilment, stock deduction, receipt creation and payment completion occur in one database transaction. Invalid callbacks do not create a sale.
+Public provider callback endpoint. Request bodies are capped at 64 KiB. Fiuu callbacks require a valid HMAC-SHA256 signature and must match the stored application, reference, provider transaction ID, amount, MYR currency and DuitNow channel `24`. Fulfilment, stock deduction, receipt creation and payment completion occur in one database transaction. Invalid callbacks do not create a sale. Callback credentials remain available for already-issued intents when new QR creation is rolled back to manual mode.
 
 Response convention:
 

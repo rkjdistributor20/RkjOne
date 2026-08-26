@@ -11,7 +11,13 @@ import {
 } from '@/lib/pos/access';
 import { assertOfficialPosDevice } from '@/lib/pos/device-auth';
 import { inventoryRpc } from '@/lib/supabase/inventory-rpc';
-import { createFiuuDynamicQr, getFiuuOpaConfig, getPosQrPaymentMode } from '@/lib/pos/fiuu';
+import {
+ createFiuuDynamicQr,
+ FIUU_CALLBACK_GRACE_MS,
+ getFiuuOpaConfig,
+ getPosQrPaymentMode,
+ isFiuuReconciliationExpired,
+} from '@/lib/pos/fiuu';
 import {
  isSamePosPaymentIntent,
  isValidPosPaymentIdempotencyKey,
@@ -54,6 +60,7 @@ function existingPaymentResponse(
  payment: ExistingPayment,
  expected: PosPaymentIntentIdentity,
  environment: 'sandbox' | 'production',
+ conflictMode: 'IDEMPOTENCY_KEY_REUSED' | 'FIUU_ACTIVE_ATTEMPT_EXISTS' = 'IDEMPOTENCY_KEY_REUSED',
 ) {
  const matches = payment.provider === 'fiuu' && isSamePosPaymentIntent({
   branchId: payment.branch_id,
@@ -65,8 +72,10 @@ function existingPaymentResponse(
  if (!matches) {
   return NextResponse.json(
    {
-    error: 'Kunci percubaan QR telah digunakan untuk bayaran yang berbeza.',
-    mode: 'IDEMPOTENCY_KEY_REUSED',
+    error: conflictMode === 'FIUU_ACTIVE_ATTEMPT_EXISTS'
+     ? 'Selesaikan percubaan QR aktif sebelum memulakan jualan QR yang lain.'
+     : 'Kunci percubaan QR telah digunakan untuk bayaran yang berbeza.',
+    mode: conflictMode,
    },
    { status: 409 });
  }
@@ -86,8 +95,8 @@ function existingPaymentResponse(
   });
  }
 
- const expiresAt = payment.expires_at ? new Date(payment.expires_at).getTime() : null;
- if (payment.status !== 'PENDING' || (expiresAt !== null && expiresAt <= Date.now())) {
+ if (payment.status !== 'PENDING'
+  || (payment.expires_at && isFiuuReconciliationExpired(payment.expires_at))) {
   return NextResponse.json(
    {
     error: 'Percubaan QR ini telah tamat. Jana percubaan baharu.',
@@ -195,6 +204,24 @@ export async function POST(request: Request) {
   return NextResponse.json({ error: 'Kuantiti produk tidak sah' }, { status: 400 });
  }
 
+ const { data: kioskLocation, error: locationError } = await supabase
+  .from('inventory_locations')
+  .select('id')
+  .eq('organization_id', profile.organization_id)
+  .eq('branch_id', body.branchId)
+  .eq('location_type', 'BRANCH_KIOSK')
+  .maybeSingle();
+ if (locationError || !kioskLocation) {
+  return NextResponse.json({ error: 'Lokasi stok kiosk belum disediakan untuk cawangan ini' }, { status: 400 });
+ }
+ const { error: stockError } = await supabase.rpc('validate_pos_sale_stock', {
+  p_location_id: kioskLocation.id,
+  p_items: normalizedItems,
+ });
+ if (stockError) {
+  return NextResponse.json({ error: stockError.message }, { status: 409 });
+ }
+
  const productIds = [...new Set(normalizedItems.map((item) => item.product_id))];
  const { data: products, error: productError } = await supabase
   .from('products')
@@ -265,6 +292,24 @@ export async function POST(request: Request) {
   salePayload,
  };
  const existingSelect = 'id, amount_rm, branch_id, shift_id, created_by, provider, status, sale_payload, gateway_ref, checkout_url, expires_at';
+
+ // A provider success cannot be accepted after this bounded grace. Expire only
+ // those stale rows before checking the server-side one-active-intent guard.
+ const reconciliationCutoff = new Date(Date.now() - FIUU_CALLBACK_GRACE_MS).toISOString();
+ const { error: expireError } = await admin
+  .from('pos_online_payments')
+  .update({ status: 'EXPIRED', failed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+  .eq('organization_id', profile.organization_id)
+  .eq('branch_id', body.branchId)
+  .eq('shift_id', body.shiftId)
+  .eq('created_by', profile.id)
+  .eq('provider', 'fiuu')
+  .eq('status', 'PENDING')
+  .lte('expires_at', reconciliationCutoff);
+ if (expireError) {
+  return NextResponse.json({ error: 'Status percubaan QR terdahulu tidak dapat disahkan' }, { status: 400 });
+ }
+
  const { data: existingPayment, error: existingError } = await admin
   .from('pos_online_payments')
   .select(existingSelect)
@@ -276,6 +321,28 @@ export async function POST(request: Request) {
  }
  if (existingPayment) {
   return existingPaymentResponse(existingPayment, expectedIntent, config.environment);
+ }
+
+ const { data: activePayment, error: activeError } = await admin
+  .from('pos_online_payments')
+  .select(existingSelect)
+  .eq('organization_id', profile.organization_id)
+  .eq('branch_id', body.branchId)
+  .eq('shift_id', body.shiftId)
+  .eq('created_by', profile.id)
+  .eq('provider', 'fiuu')
+  .eq('status', 'PENDING')
+  .maybeSingle();
+ if (activeError) {
+  return NextResponse.json({ error: 'Percubaan QR aktif tidak dapat disahkan' }, { status: 400 });
+ }
+ if (activePayment) {
+  return existingPaymentResponse(
+   activePayment,
+   expectedIntent,
+   config.environment,
+   'FIUU_ACTIVE_ATTEMPT_EXISTS',
+  );
  }
 
  const { data: payment, error: insertError } = await admin
@@ -304,6 +371,24 @@ export async function POST(request: Request) {
     .maybeSingle();
    if (racedPayment) {
     return existingPaymentResponse(racedPayment, expectedIntent, config.environment);
+   }
+   const { data: racedActivePayment } = await admin
+    .from('pos_online_payments')
+    .select(existingSelect)
+    .eq('organization_id', profile.organization_id)
+    .eq('branch_id', body.branchId)
+    .eq('shift_id', body.shiftId)
+    .eq('created_by', profile.id)
+    .eq('provider', 'fiuu')
+    .eq('status', 'PENDING')
+    .maybeSingle();
+   if (racedActivePayment) {
+    return existingPaymentResponse(
+     racedActivePayment,
+     expectedIntent,
+     config.environment,
+     'FIUU_ACTIVE_ATTEMPT_EXISTS',
+    );
    }
   }
   return NextResponse.json({ error: insertError?.message ?? 'Rekod QR gagal dicipta' }, { status: 400 });

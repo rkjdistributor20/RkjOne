@@ -1,6 +1,6 @@
 # RKJ One Fiuu DuitNow QR POS Setup
 
-Last updated: 2026-08-21
+Last updated: 2026-08-26
 
 ## Verified design
 
@@ -19,6 +19,11 @@ Last updated: 2026-08-21
 - The public Fiuu Offline Payment API v2.1.18 specification confirms the configured sandbox and Production pre-create URLs, `applicationCode` as a provider-issued OPA identifier, `storeId` and `terminalId` as merchant identifiers, `channelId=24` for DuitNow QR, form-encoded POST requests and HMAC-SHA256 support. It does not establish that the sandbox Merchant ID is an OPA `applicationCode` for this account.
 - RKJ One uses dynamic transaction QR, not a static merchant QR.
 - The application remains in `manual` mode until the provider channel and sandbox callback are approved and tested.
+- The POS client now preserves an unresolved dynamic-QR intent across a page reload for the same branch and shift. It does not offer a second QR while the original intent can still receive a signed late callback.
+- A database uniqueness guard also permits only one pending Fiuu intent per organization, branch, shift and cashier, covering concurrent tabs or requests beyond the client-side recovery guard.
+- Status polling does not mutate the payment row. After the visible QR expires, RKJ One keeps reconciling during the database-enforced 20-minute callback grace period; only after that period can the attempt become safely retryable.
+- Production QR creation requires an explicit branch entry with provider-issued Application Code, Secret Key and Store ID. Global credentials or an invented Store ID cannot activate a Production branch.
+- Callback verification remains available after creation mode is rolled back to `manual`, allowing an already-issued QR to complete safely.
 
 Merchant portal credentials shown on the portal home page must not be assumed to be OPA Application Code/Secret Key. Obtain the OPA credentials and notification setup from Fiuu for the intended store/branch arrangement.
 
@@ -75,6 +80,8 @@ Do not commit the real JSON. Keep `POS_QR_PAYMENT_MODE=manual` until UAT passes.
 - Cross-branch users cannot view the payment or QR image.
 - No sale is completed when Fiuu generation or callback fulfilment fails.
 - Cash, mixed payment, discount, change, shift totals and Malaysia business date reconcile.
+- Reloading or reopening the payment dialog restores the same unresolved payment and does not create a second payable QR.
+- A signed callback received during the bounded expiry grace creates at most one sale; after the grace ends, a new attempt can be created without accepting the old intent.
 
 ## Rollout and rollback
 
@@ -86,6 +93,8 @@ Do not commit the real JSON. Keep `POS_QR_PAYMENT_MODE=manual` until UAT passes.
 6. Production activation requires owner confirmation at the moment the Fiuu subscription, production credentials and Production environment change are submitted.
 
 Staging migration status on 2026-08-08: all `169` repository migrations are applied and the linked schema lint reports no error. Vercel Preview contains a branch-scoped sensitive `POS_FIUU_APPLICATIONS_JSON` mapping for pilot branch `BR001` only. No Fiuu credential was added to Production.
+
+Local validation on 2026-08-26: all `171` repository migrations, including the new callback/concurrency hardening, are applied to the isolated local Supabase database. The new index and security-definer function state were verified. Schema lint completed with unrelated pre-existing warnings only. Repository tests (`31/31`), TypeScript, ESLint and the Next.js Production build pass locally. The new migration has not been applied to staging or Production. Provider-issued OPA credentials, the approved branch Store/Terminal mapping, signed sandbox callback UAT and Finance settlement reconciliation remain mandatory before enabling Production.
 
 ## Play Store
 

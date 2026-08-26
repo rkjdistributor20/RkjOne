@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-08-26 - Fiuu POS dynamic-QR safety hardening
+
+- Preserved unresolved branch-and-shift QR attempts across reloads and blocked duplicate QR creation throughout late-callback reconciliation, including a server/database guard against concurrent tabs.
+- Added visible polling, image, expiry, cancellation and receipt-recovery states to the POS payment dialog.
+- Kept delayed callback verification operational after a rollback to manual creation mode, while requiring explicit Store-mapped branch credentials for Production creation.
+- Limited callback request bodies, validated callback payment identifiers before lookup and removed shared-IP throttling that could reject legitimate Fiuu callbacks before signature verification.
+- Added a migration to serialize Malaysia-business-day POS numbering, verify the stored Fiuu gateway reference and enforce a bounded late-callback/shift-close grace period.
+- Local validation passed: all 171 migrations, 31 tests, TypeScript, ESLint and the Next.js Production build. The new migration and provider UAT remain unapplied to staging and Production.
+
 ## 2026-08-21 - Fiuu Agent Preview callback hardening
 
 - Added environment-specific, allowlisted Fiuu Agent callback and Return URLs
