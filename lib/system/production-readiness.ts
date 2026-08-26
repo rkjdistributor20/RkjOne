@@ -22,6 +22,11 @@ export type ProductionReadinessSnapshot = {
 
 type ReadinessInput = {
  hasSupabaseEnv: boolean;
+ roleUatPassed: boolean;
+ auditTrailVerified: boolean;
+ backupRestoreConfirmed: boolean;
+ posPilotPassed: boolean;
+ monitoringVerified: boolean;
  hasFiuuCredentials: boolean;
  hasFiuuSchema: boolean;
  fiuuLiveUatPassed: boolean;
@@ -76,7 +81,7 @@ export function buildProductionReadiness(input: ReadinessInput): ProductionReadi
  'P0',
  !input.hasSupabaseEnv || !hasProfiles
   ? 'BLOCKED'
-  : hasCompleteAuth && hasCompletedFirstLogin
+ : hasCompleteAuth && hasCompletedFirstLogin && input.roleUatPassed
    ? 'READY'
    : 'NEEDS_ACTION',
  'Login dan dashboard perlu diuji untuk owner, AM, OM, HR, Finance, staf POS, driver, kilang dan ejen.',
@@ -108,7 +113,7 @@ export function buildProductionReadiness(input: ReadinessInput): ProductionReadi
  'Audit perubahan sensitif',
  'Admin / Owner',
  'P0',
- hasMigrations ? 'READY' : 'NEEDS_ACTION',
+ hasMigrations && input.auditTrailVerified ? 'READY' : 'NEEDS_ACTION',
  'Perubahan stok, staf, akses, gaji, dokumen dan delete/archive perlu ada rekod audit.',
  'Pastikan setiap dialog sensitif meminta sebab dan simpan actor/time.',
  [`${input.migrationRows ?? 0} migration database`]),
@@ -117,7 +122,7 @@ export function buildProductionReadiness(input: ReadinessInput): ProductionReadi
  'Backup dan pemulihan',
  'Admin Teknikal',
  'P0',
- hasMigrations ? 'READY' : 'NEEDS_ACTION',
+ input.backupRestoreConfirmed ? 'READY' : 'NEEDS_ACTION',
  'Sebelum deploy besar, migration bundle dan checkpoint mesti dikemaskini.',
  'Run npm run bundle:migrations, update CHECKPOINT.json dan RESUME.md.',
  ['npm run bundle:migrations', 'CHECKPOINT.json', 'RESUME.md']),
@@ -126,7 +131,7 @@ export function buildProductionReadiness(input: ReadinessInput): ProductionReadi
  'POS, offline dan manual payment',
  'OM / AM',
  'P0',
- hasBranches ? 'READY' : 'NEEDS_ACTION',
+ hasBranches && input.posPilotPassed ? 'READY' : 'NEEDS_ACTION',
  'POS perlu boleh terus jualan selepas SOP stok disahkan, dengan manual QR/tunai semasa payment gateway belum live.',
  'Uji BR011 dan 2 cawangan lain: buka syif, kira stok, jual, refund, tutup syif.',
  [`${input.branches ?? 0} cawangan`]),
@@ -166,7 +171,7 @@ export function buildProductionReadiness(input: ReadinessInput): ProductionReadi
  'Monitoring dan alert',
  'Admin / Owner',
  'P1',
- input.hasSupabaseEnv ? 'READY' : 'NEEDS_ACTION',
+ input.hasSupabaseEnv && input.monitoringVerified ? 'READY' : 'NEEDS_ACTION',
  'Owner perlu nampak status health, stok kritikal, payment tertunggak dan isu cawangan tanpa buka semua modul.',
  'Semak Tetapan > Kesihatan Sistem dan Dashboard Owner setiap hari semasa pilot.',
  ['/api/health', '/api/system/health']),

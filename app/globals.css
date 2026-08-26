@@ -196,6 +196,9 @@
 }
 
 @media print {
+  @page {
+    margin: 0;
+  }
   body * {
     visibility: hidden;
   }
@@ -207,6 +210,10 @@
     position: absolute;
     left: 0;
     top: 0;
-    width: 80mm;
+    box-sizing: border-box;
+    width: 58mm;
+    padding: 2mm;
+    color: #000;
+    background: #fff;
   }
 }

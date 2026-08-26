@@ -1,4 +1,4 @@
-package com.getcapacitor.myapp;
+package com.rkjone.staff;
 
 import static org.junit.Assert.*;
 

@@ -146,6 +146,9 @@ export interface SaleResult {
  discount: number;
  total: number;
  change_amount: number;
+ payment_method?: PaymentMethod;
+ cash_amount?: number;
+ qr_amount?: number;
  items: Array<{
  name: string;
  sku: string;

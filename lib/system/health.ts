@@ -348,6 +348,13 @@ export async function buildSystemHealthSnapshot(
     : "manual";
   const productionReadiness = buildProductionReadiness({
     hasSupabaseEnv,
+    // These operational gates require fresh external evidence. Never infer
+    // completion merely from environment variables or database row counts.
+    roleUatPassed: false,
+    auditTrailVerified: false,
+    backupRestoreConfirmed: false,
+    posPilotPassed: false,
+    monitoringVerified: false,
     hasFiuuCredentials,
     hasFiuuSchema,
     fiuuLiveUatPassed: false,

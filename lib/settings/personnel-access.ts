@@ -67,13 +67,20 @@ export async function assertBranchInPersonnelScope(
  supabase: SupabaseClient,
  profile: Profile,
  branchId: string | null | undefined): Promise<string | null> {
- if (isOrgWidePersonnelRole(profile.role)) {
- return branchId ?? null;
+ if (!branchId) {
+  if (isOrgWidePersonnelRole(profile.role)) return null;
+  throw new Error('Pengurus Kawasan mesti pilih cawangan kiosk');
  }
 
- if (!branchId) {
- throw new Error('Pengurus Kawasan mesti pilih cawangan kiosk');
- }
+ const { data: branch } = await supabase
+  .from('branches')
+  .select('id')
+  .eq('id', branchId)
+  .eq('organization_id', profile.organization_id)
+  .maybeSingle();
+ if (!branch) throw new Error('Cawangan tidak dijumpai dalam organisasi anda');
+
+ if (isOrgWidePersonnelRole(profile.role)) return branchId;
 
  const scope = await resolveScopedBranches(supabase, profile);
  if (!scope.branchIds?.includes(branchId)) {
@@ -92,11 +99,11 @@ export async function assertStaffTargetInScope(
  supabase: SupabaseClient,
  profile: Profile,
  staffId: string): Promise<void> {
- if (isOrgWidePersonnelRole(profile.role)) return;
-
  const { data: row } = await supabase.from('staff').select('id, branch_id').eq('id', staffId).eq('organization_id', profile.organization_id).maybeSingle();
 
- if (!row?.branch_id) throw new Error('Staf tidak dijumpai');
+ if (!row) throw new Error('Staf tidak dijumpai');
+ if (isOrgWidePersonnelRole(profile.role)) return;
+ if (!row.branch_id) throw new Error('Staf tidak mempunyai cawangan yang sah');
  await assertBranchInPersonnelScope(supabase, profile, row.branch_id);
 }
 
@@ -104,11 +111,10 @@ export async function assertUserTargetInScope(
  supabase: SupabaseClient,
  profile: Profile,
  userId: string): Promise<void> {
- if (isOrgWidePersonnelRole(profile.role)) return;
-
  const { data: row } = await supabase.from('profiles').select('id, role, branch_id, region_id').eq('id', userId).eq('organization_id', profile.organization_id).maybeSingle();
 
  if (!row) throw new Error('Pengguna tidak dijumpai');
+ if (isOrgWidePersonnelRole(profile.role)) return;
  if (row.role !== 'STAFF') {
  throw new Error('Pengurus Kawasan hanya boleh urus pengguna Staf kiosk');
  }

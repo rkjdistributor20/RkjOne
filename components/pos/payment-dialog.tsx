@@ -334,8 +334,11 @@ export function PaymentDialog({
   const poll = async () => {
    if (polling) return;
    polling = true;
-   await reconcileQrPayment(qrPayment);
-   polling = false;
+   try {
+    if (active) await reconcileQrPayment(qrPayment);
+   } finally {
+    polling = false;
+   }
   };
 
   refreshCountdown();
@@ -397,6 +400,9 @@ export function PaymentDialog({
     discount: 0,
     total,
     change_amount: changeAmount,
+    payment_method: method,
+    cash_amount: 0,
+    qr_amount: 0,
     items: cart.map((item) => ({
      name: item.name,
      sku: item.sku,
@@ -447,6 +453,9 @@ export function PaymentDialog({
  discount: 0,
  total,
  change_amount: changeAmount,
+ payment_method: method,
+ cash_amount: payload.cash_amount,
+ qr_amount: payload.qr_amount,
  items: cart.map((c) => ({
  name: c.name,
  sku: c.sku,
@@ -489,7 +498,12 @@ export function PaymentDialog({
     clearCart();
     resetPaymentForm();
     onOpenChange(false);
-    onSuccess(existing.result);
+    onSuccess({
+     ...existing.result,
+     payment_method: method,
+     cash_amount: payload.cash_amount,
+     qr_amount: payload.qr_amount,
+    });
     return;
    }
    if (!payment.qr_image_url || !payment.expires_at) {
@@ -536,7 +550,12 @@ export function PaymentDialog({
  else toast.success('Bayaran berjaya - stok ditolak');
  clearCart();
  handleDialogOpenChange(false);
- onSuccess(result);
+ onSuccess({
+  ...result,
+  payment_method: method,
+  cash_amount: payload.cash_amount,
+  qr_amount: payload.qr_amount,
+ });
  } catch (err) {
  const msg = err instanceof Error ? err.message : 'Bayaran gagal';
  toast.error(msg.includes('Stok') ? msg : `Bayaran gagal: ${msg}`);

@@ -16,14 +16,14 @@ async function loadCurrentProfile(): Promise<ProfileWithBranch | null> {
  *,
  branch:branches(id, branch_code, branch_name, area, region_id, status),
  legal_entity:legal_entities(id, code, name, legal_name, scope, status, sort_order)
- `).eq('id', user.id).maybeSingle();
+ `).eq('id', user.id).eq('status', 'ACTIVE').maybeSingle();
 
  if (profile && !error) {
  return profile as ProfileWithBranch;
  }
 
  // Fallback if embed fails (e.g. RLS) - load profile + branch separately
- const { data: base } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
+ const { data: base } = await supabase.from('profiles').select('*').eq('id', user.id).eq('status', 'ACTIVE').maybeSingle();
 
  if (!base) return null;
 

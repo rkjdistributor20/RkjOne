@@ -3,6 +3,11 @@ import { buildProductionReadiness } from './production-readiness';
 
 const BASE_INPUT = {
  hasSupabaseEnv: true,
+ roleUatPassed: false,
+ auditTrailVerified: false,
+ backupRestoreConfirmed: false,
+ posPilotPassed: false,
+ monitoringVerified: false,
  hasFiuuCredentials: false,
  hasFiuuSchema: false,
  fiuuLiveUatPassed: false,
@@ -37,6 +42,11 @@ describe('production readiness evidence', () => {
  it('marks the evidence-backed areas ready after their explicit gates pass', () => {
   const snapshot = buildProductionReadiness({
    ...BASE_INPUT,
+   roleUatPassed: true,
+   auditTrailVerified: true,
+   backupRestoreConfirmed: true,
+   posPilotPassed: true,
+   monitoringVerified: true,
    hasFiuuCredentials: true,
    hasFiuuSchema: true,
    fiuuLiveUatPassed: true,
@@ -51,5 +61,7 @@ describe('production readiness evidence', () => {
   expect(statusFor(snapshot, 'access-scope')).toBe('READY');
   expect(statusFor(snapshot, 'payment-gateway')).toBe('READY');
   expect(statusFor(snapshot, 'backup-restore')).toBe('READY');
+  expect(statusFor(snapshot, 'pos-offline')).toBe('READY');
+  expect(statusFor(snapshot, 'monitoring-alerts')).toBe('READY');
  });
 });

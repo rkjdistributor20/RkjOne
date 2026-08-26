@@ -1,6 +1,6 @@
 # RKJ One Production Finalization Runbook
 
-Last verified: 2026-08-08 (Asia/Kuala_Lumpur)
+Last verified: 2026-08-26 (Asia/Kuala_Lumpur)
 
 This runbook records the remaining gates before RKJ One is handed to staff. It contains no passwords, tokens or API keys.
 
@@ -20,13 +20,13 @@ Never reuse Production keys in Preview, local development or staging. Never link
 - Staging migration history matches the repository through `20260808135000`; a linked `db push --dry-run` reports that staging is up to date.
 - The staging legal-entity audit reports zero active non-admin profiles without a legal entity and one active ADMIN.
 - The 2026-08-05 read-only Production audit found 11 historical versions (`20260722114542` through `20260722154920`) that were originally absent from the repository. `supabase migration fetch` recovered their SQL to an external audit directory. Each version maps to a later replay-safe repository migration, and the differences were reviewed. The repository now uses explicit no-op history markers for the Production-only version IDs; the broken historical SQL is not replayed. The later canonical migrations remain responsible for applying the corrected behavior.
-- All 169 canonical migration files replay successfully from an empty local database. The 11 no-op history markers have also been recorded in staging. On 2026-08-08 the two POS shift approval migrations and four Fiuu payment hardening migrations were applied to staging; a linked dry-run then reported no pending migration and linked schema lint returned no error.
+- All 172 migration files currently in the integration branch replay successfully from an empty local database. This includes the active-profile, tenant-boundary and completed-POS immutability hardening migration `20260826234500_harden_active_tenant_pos_boundaries.sql`. That newest migration has only been verified locally; staging and Production application remain separate approval gates.
 - The 2026-08-05 Production dry-run listed 14 pending canonical migrations. That result is now a historical checkpoint; Production must be audited again because six newer staging migrations were added afterward.
-- Production daily physical backups are available. The latest backup observed was `04 Aug 2026 14:54:14 UTC`.
-- Point-in-time recovery was not enabled when checked. Database backups do not include Storage objects.
+- Production daily physical backups were observed previously. The last recorded observation (`04 Aug 2026 14:54:14 UTC`) is historical and is not acceptable evidence for a new rollout.
+- Point-in-time recovery was not enabled at the previous check. Current backup, restore authority and recovery-point availability must be re-confirmed in the Supabase dashboard. Database backups do not include Storage objects.
 - Production has 107 active profiles. The audit found zero active ADMIN accounts, 68 profiles that had never signed in, two Operation Manager profiles missing a legal entity and one Distributor staff profile with no verified branch assignment.
-- Fiuu DuitNow QR Offline is activated at the merchant. Both merchant applications are approved and the Roti Kaya Junus sandbox portal exposes Merchant ID, Verify Key and Secret Key. The precise OPA identifier/signature/callback contract, signed callback UAT and settlement reconciliation remain unconfirmed; a technical confirmation request was sent under Fiuu Ticket `2924959` on 2026-08-08.
-- Google Play Production currently serves RKJ One Staff `1.4` (version code `5`) at full rollout. Internal testing `1.5` (version code `6`) is active and available to the configured testers; Production promotion remains gated by physical-device acceptance.
+- Fiuu merchant approval does not by itself prove the application-facing OPA contract. Provider-issued Application Code, Store/Terminal mapping, signed callback UAT and settlement reconciliation remain mandatory before dynamic QR mode is enabled.
+- Android `1.6.9` (version code `16`) compiles locally and includes direct Bluetooth receipt printing plus cash-drawer handling. Its current Google Play track and exact uploaded bundle remain **To be confirmed** in Play Console; promotion remains gated by a Play-delivered physical-device acceptance test.
 
 ## Production GO gates
 

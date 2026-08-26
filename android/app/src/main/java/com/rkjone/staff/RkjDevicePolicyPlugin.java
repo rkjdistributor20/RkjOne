@@ -20,6 +20,7 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 public class RkjDevicePolicyPlugin extends Plugin {
     private static final String PREFS = "rkj_device_policy";
     private static final String KIOSK_ENABLED = "kiosk_enabled";
+    private static volatile boolean systemDialogActive = false;
 
     @PluginMethod
     public void getStatus(PluginCall call) {
@@ -38,7 +39,31 @@ public class RkjDevicePolicyPlugin extends Plugin {
     }
 
     public static void enforceKiosk(Activity activity) {
-        if (activity == null || !isKioskEnabled(activity)) return;
+        if (activity == null || systemDialogActive || !isKioskEnabled(activity)) return;
+
+        activity.runOnUiThread(() -> enforceKioskOnUiThread(activity));
+    }
+
+    public static void runWithSystemDialogGuard(Activity activity, Runnable action) {
+        if (activity == null) {
+            action.run();
+            return;
+        }
+
+        systemDialogActive = true;
+        activity.runOnUiThread(action);
+    }
+
+    public static void resumeKioskAfterSystemDialog(Activity activity) {
+        systemDialogActive = false;
+        enforceKiosk(activity);
+    }
+
+    private static void enforceKioskOnUiThread(Activity activity) {
+        if (activity.isFinishing()
+            || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1 && activity.isDestroyed())) {
+            return;
+        }
 
         activity.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         activity.getWindow().getDecorView().setSystemUiVisibility(
@@ -54,7 +79,7 @@ public class RkjDevicePolicyPlugin extends Plugin {
         if (dpm != null && dpm.isLockTaskPermitted(activity.getPackageName())) {
             try {
                 activity.startLockTask();
-            } catch (IllegalStateException ignored) {
+            } catch (RuntimeException ignored) {
                 // Android will retry when the activity resumes.
             }
         }

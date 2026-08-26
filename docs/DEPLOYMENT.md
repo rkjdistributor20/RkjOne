@@ -11,7 +11,7 @@ Production URL: https://rkj.one
 | Environment | App | Database |
 |-------------|-----|----------|
 | Local | `http://localhost:3000` | Linked Supabase project or local Supabase if configured. |
-| Preview | Vercel preview deployment | Usually production/staging Supabase depending on env vars. |
+| Preview | Vercel preview deployment | Staging Supabase only. Production credentials are prohibited. |
 | Production | `https://rkj.one` | Production Supabase project. |
 
 ## Required Environment Variables
@@ -165,14 +165,16 @@ Expected result:
 
 ## Post-Deploy Checklist
 
-- [x] Supabase migrations applied.
-- [x] Vercel production deployment Ready.
-- [x] Production alias points to latest expected deployment.
-- [x] Error logs checked.
-- [x] Changed API/page smoke-tested.
-- [x] Performance budget checked for changed dashboard/API route.
-- [x] Task board updated.
-- [x] QA checklist updated for known issues.
+Complete these for each new deployment; historical completion does not carry forward:
+
+- [ ] Target Supabase project identity and recovery evidence recorded.
+- [ ] Approved migrations applied to the intended environment.
+- [ ] Vercel deployment is Ready and points to the intended environment.
+- [ ] Production alias is unchanged during Preview/pilot validation.
+- [ ] Error logs checked without exposing secrets or personal data.
+- [ ] Changed API/page smoke-tested by role and branch scope.
+- [ ] Payment, inventory and finance reconciliation completed where affected.
+- [ ] Task board and QA evidence updated.
 
 ## M6 Release Gate
 

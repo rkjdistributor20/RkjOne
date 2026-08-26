@@ -10,6 +10,14 @@ $portableJdk = Join-Path $env:LOCALAPPDATA "Programs\TemurinPortable\jdk-21"
 $androidSdk = Join-Path $env:LOCALAPPDATA "Android\Sdk"
 $localBuildRoot = Join-Path $env:LOCALAPPDATA "RKJOne\gradle-builds\app\outputs"
 $artifactDirectory = Join-Path $repoRoot "artifacts\android"
+$appGradle = Get-Content (Join-Path $repoRoot "android\app\build.gradle") -Raw
+$versionMatch = [regex]::Match($appGradle, 'versionName\s+"([^"]+)"')
+
+if (-not $versionMatch.Success) {
+  throw "versionName Android tidak dapat dibaca daripada android/app/build.gradle."
+}
+
+$releaseVersion = $versionMatch.Groups[1].Value
 
 if (-not (Test-Path (Join-Path $portableJdk "bin\java.exe"))) {
   throw "JDK 21 tidak dijumpai di $portableJdk. Pasang JDK 21 sebelum build Android."
@@ -34,10 +42,10 @@ try {
       .\gradlew.bat :app:assembleDebug --no-daemon
       if ($LASTEXITCODE -ne 0) { throw "Gradle debug build gagal dengan exit code $LASTEXITCODE." }
       $sourceArtifact = Join-Path $localBuildRoot "apk\debug\app-debug.apk"
-      $targetArtifact = Join-Path $artifactDirectory "rkj-one-staff-1.5-debug.apk"
+      $targetArtifact = Join-Path $artifactDirectory "rkj-one-staff-$releaseVersion-debug.apk"
       New-Item -ItemType Directory -Force -Path $artifactDirectory | Out-Null
       Copy-Item -LiteralPath $sourceArtifact -Destination $targetArtifact -Force
-      Write-Host "APK debug siap: artifacts/android/rkj-one-staff-1.5-debug.apk"
+      Write-Host "APK debug siap: artifacts/android/rkj-one-staff-$releaseVersion-debug.apk"
     } else {
       if (-not (Test-Path "keystore.properties")) {
         throw "android/keystore.properties tidak dijumpai. Release AAB perlukan signing key."
@@ -46,10 +54,10 @@ try {
       .\gradlew.bat :app:bundleRelease --no-daemon
       if ($LASTEXITCODE -ne 0) { throw "Gradle release build gagal dengan exit code $LASTEXITCODE." }
       $sourceArtifact = Join-Path $localBuildRoot "bundle\release\app-release.aab"
-      $targetArtifact = Join-Path $artifactDirectory "rkj-one-staff-1.5-release.aab"
+      $targetArtifact = Join-Path $artifactDirectory "rkj-one-staff-$releaseVersion-release.aab"
       New-Item -ItemType Directory -Force -Path $artifactDirectory | Out-Null
       Copy-Item -LiteralPath $sourceArtifact -Destination $targetArtifact -Force
-      Write-Host "AAB release siap: artifacts/android/rkj-one-staff-1.5-release.aab"
+      Write-Host "AAB release siap: artifacts/android/rkj-one-staff-$releaseVersion-release.aab"
     }
   } finally {
     Pop-Location

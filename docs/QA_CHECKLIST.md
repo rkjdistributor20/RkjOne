@@ -90,6 +90,10 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [ ] Every active real-user profile has an Auth user and completes role-based first-login UAT.
 - [ ] Fiuu remains in manual mode until OPA credentials, callback signature, idempotency and settlement reconciliation pass in staging and pilot.
 - [ ] Fiuu POS reload, duplicate-create, QR expiry, late callback, callback replay and shift-close grace cases pass against the staging OPA application.
+- [ ] Inactive profiles are denied by application session loading and all RLS identity helpers before their Auth token naturally expires.
+- [ ] An HQ user cannot use a branch UUID belonging to another organization through Data API or any SECURITY DEFINER RPC.
+- [ ] Authenticated branch users can read scoped POS financial rows but cannot directly insert, update or delete transaction, item, payment or receipt rows.
+- [ ] Android 1.6.9 is installed from the exact Internal Testing bundle and passes printer, auto-print and drawer tests for CASH and MIXED, while QR-only never opens the drawer.
 - [ ] Vercel production deployment is Ready.
 - [ ] Production alias points to expected deployment.
 - [ ] Vercel error logs checked for the last hour.
@@ -133,6 +137,7 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [x] Latest Vercel production deployment is Ready.
 - [x] Production smoke tests passed 12/12 for `/login`, booking redirect/API auth, HR OM coverage auth, Sales Agent catalog/price-group auth, payment API auth, bad-signature webhook rejection, and `/api/health`.
 - [ ] Run signed live-provider callback UAT with the selected payment provider before opening live customer payment volume.
+- [ ] Run the `docs/POS_BLUETOOTH_PRINTER.md` acceptance test on a physical POS-5890U-L before promoting Android 1.6.
 
 ## Booking API QA Notes
 
