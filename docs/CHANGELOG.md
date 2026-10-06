@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-06 - 36 Fiuu static DuitNow QR in RKJ One POS
+
+- Added the verified branch-specific Fiuu DuitNow QR assets for `BR001` through `BR036` to the RKJ One deployment.
+- Added an authenticated, branch-scoped POS QR configuration endpoint so a cashier only receives the QR assigned to the selected branch.
+- Replaced the generic manual QR placeholder with the correct branch QR, branch identity, recipient check and explicit staff confirmation before a manual QR sale can be completed.
+- Preserved the hardened dynamic Fiuu OPA flow: when dynamic mode is enabled, RKJ One continues to generate amount-specific QR and waits for the signed provider callback; otherwise the registered static branch QR is used safely.
+- Regenerated all 36 QR images from the Fiuu EMV payloads and verified all 36 decoded payloads exactly against the source manifest.
+
 ## 2026-08-26 - Consolidated release and tenant boundary hardening
 
 - Consolidated the current Fiuu reconciliation line with Android 1.6.9 Bluetooth receipt and cash-drawer behavior on a fresh branch based on the latest remote master.
