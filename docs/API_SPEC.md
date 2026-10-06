@@ -1,5 +1,9 @@
 # RKJ One API Spec
 
+## POS branch QR configuration
+
+`GET /api/pos/qr-config?branch_id=<uuid>` requires an authenticated RKJ One profile and applies the standard POS branch-scope check. It returns the active QR mode, selected branch identity, and the versioned static Fiuu QR descriptor where configured. No Fiuu secret or server credential is returned.
+
 Last updated: 2026-07-10
 
 Base URL:

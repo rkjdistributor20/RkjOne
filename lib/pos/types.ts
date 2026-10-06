@@ -1,5 +1,20 @@
 export type PaymentMethod = 'CASH' | 'QR' | 'MIXED';
 
+export interface PosQrConfig {
+ mode: 'FIUU_DYNAMIC' | 'FIUU_STATIC_MANUAL';
+ configured: boolean;
+ branch: {
+  id: string;
+  code: string;
+  name: string;
+ };
+ staticQr: {
+  branchCode: string;
+  imageUrl: string;
+  recipientName: 'ROTI KAYA JUNUS';
+ } | null;
+}
+
 export type StockStatus = 'OK' | 'LOW' | 'OUT';
 
 export type PosOfficialHardwareProfile = 'SAMSUNG_TAB_S10_LITE_5G_128' | 'HONOR_PAD_X8B_LTE_256';

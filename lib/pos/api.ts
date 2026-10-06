@@ -5,6 +5,7 @@ import type {
  MenuStockBalance,
  OfflineSalePayload,
  PosPresenceReason,
+ PosQrConfig,
  PosShiftSummary,
  PosShiftAvailableStaff,
  PosShiftStaffMember,
@@ -177,7 +178,11 @@ export async function fetchTransactions(branchId: string, shiftId?: string) {
 }
 
 export async function createSale(payload: CreateSalePayload) {
- return fetchJson<{ result: SaleResult }>('/api/pos/transactions', {
+ return fetchJson<{
+  result: SaleResult;
+  manual_payment_review: Record<string, unknown> | null;
+  manual_payment_review_error: string | null;
+ }>('/api/pos/transactions', {
  method: 'POST',
  body: JSON.stringify(payload),
  });
@@ -282,6 +287,13 @@ export async function createPosQrPayment(
    reused: boolean;
   };
  };
+}
+
+export async function fetchPosQrConfig(branchId: string) {
+ return fetchCachedJson<PosQrConfig>(
+  `/api/pos/qr-config?branch_id=${encodeURIComponent(branchId)}`,
+  5 * 60 * 1000,
+ );
 }
 
 export class PosQrPaymentError extends Error {
