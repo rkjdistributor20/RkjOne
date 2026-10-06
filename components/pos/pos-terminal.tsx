@@ -966,7 +966,7 @@ export function PosTerminal() {
  </div>)}
  <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-3">
  <div className="flex min-h-0 flex-col overflow-hidden lg:col-span-2">
- <ProductGrid />
+ <ProductGrid trainingMode={trainingMode} />
  </div>
  <div className="flex min-h-0 flex-col overflow-hidden">
   <CartPanel trainingMode={trainingMode} onCheckout={() => setPaymentOpen(true)} />

@@ -47,7 +47,11 @@ function formatMenuBalance(balance: {
  return formatKioskStockLabel(balance);
 }
 
-export function ProductGrid() {
+type ProductGridProps = {
+ trainingMode?: boolean;
+};
+
+export function ProductGrid({ trainingMode = false }: ProductGridProps) {
  const categories = usePosStore((s) => s.categories);
  const selectedCategory = usePosStore((s) => s.selectedCategory);
  const products = usePosStore((s) => s.products);
@@ -78,6 +82,7 @@ export function ProductGrid() {
  const hasSearch = searchQuery.trim().length > 0;
  const hasCategoryFilter = Boolean(selectedCategory);
  const hasAnyProducts = products.length > 0;
+ const salesEnabled = Boolean(shift) || trainingMode;
 
  return (
  <div className="rkj-surface flex h-full min-h-0 flex-col gap-3 overflow-hidden rounded-lg p-3">
@@ -149,7 +154,7 @@ export function ProductGrid() {
  })}
  </div>
 
- {!shift && (
+ {!salesEnabled && (
  <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50 px-3 py-2 text-center text-sm font-medium text-amber-900">
  Buka syif dahulu untuk mula jual
  </div>)}
@@ -167,7 +172,7 @@ export function ProductGrid() {
  <PelbagaiProductGrid
  products={filteredProducts}
  stockByProduct={stockByProduct}
- shiftOpen={!!shift}
+ shiftOpen={salesEnabled}
  onAdd={addToCart}
  />) : (
  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
@@ -178,7 +183,7 @@ export function ProductGrid() {
  <button
  key={product.id}
  type="button"
- disabled={!shift || outOfStock}
+ disabled={!salesEnabled || outOfStock}
  onClick={() => addToCart(product)}
  className={cn(
  'flex min-h-[116px] flex-col justify-between rounded-lg border bg-white p-3 text-left shadow-sm transition-all',
