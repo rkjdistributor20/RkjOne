@@ -7,6 +7,7 @@ import { Banknote, QrCode, Split, Delete, CheckCircle2, Clock3, LoaderCircle, Re
 import {
  createPosQrPayment,
  createSale,
+ fetchPosQrConfig,
  fetchPosQrPayment,
  PosQrPaymentError,
 } from '@/lib/pos/api';
@@ -21,7 +22,7 @@ import {
 } from '@/lib/pos/payment-idempotency';
 import { useAuthStore } from '@/stores/auth-store';
 import { usePosStore } from '@/stores/pos-store';
-import type { PaymentMethod, SaleResult } from '@/lib/pos/types';
+import type { PaymentMethod, PosQrConfig, SaleResult } from '@/lib/pos/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -185,6 +186,11 @@ export function PaymentDialog({
  const [checkingQrStatus, setCheckingQrStatus] = useState(false);
  const [qrImageError, setQrImageError] = useState(false);
  const [qrImageRetry, setQrImageRetry] = useState(0);
+ const [qrConfig, setQrConfig] = useState<PosQrConfig | null>(null);
+ const [qrConfigLoading, setQrConfigLoading] = useState(false);
+ const [qrConfigError, setQrConfigError] = useState<string | null>(null);
+ const [qrConfigRetry, setQrConfigRetry] = useState(0);
+ const [manualQrVerified, setManualQrVerified] = useState(false);
 
  const quickAmounts = useMemo(() => buildQuickAmounts(total), [total]);
  const defaultAmount = total > 0 ? total.toFixed(2) : '';
@@ -214,6 +220,9 @@ export function PaymentDialog({
  method === 'CASH' ? cashNum : method === 'QR' ? qrNum : cashNum + qrNum;
 
  const shortfall = Math.max(total - paidAmount, 0);
+ const requiresQrConfig = method !== 'CASH' && !trainingMode;
+ const requiresManualQrVerification = requiresQrConfig
+  && qrConfig?.mode === 'FIUU_STATIC_MANUAL';
  const paymentError =
  !shift && !trainingMode
  ? 'Buka syif POS dahulu.'
@@ -223,6 +232,12 @@ export function PaymentDialog({
  ? 'Jumlah bayaran tidak sah.'
  : method !== 'CASH' && !isOnline
  ? 'DuitNow QR perlu online untuk menjana kod dan menyemak pengesahan bayaran.'
+ : requiresQrConfig && (qrConfigLoading || (!qrConfig && !qrConfigError))
+ ? 'Maklumat DuitNow QR cawangan sedang dimuatkan.'
+ : requiresQrConfig && qrConfigError
+ ? qrConfigError
+ : requiresManualQrVerification && !qrConfig?.staticQr
+ ? 'DuitNow QR belum dipadankan untuk cawangan ini. Hubungi HQ.'
  : profile?.role === 'AREA_MANAGER' && !isOnline
  ? 'AM emergency POS perlu online supaya jadual syif boleh disahkan.'
  : method === 'QR' && (!hasValidCurrencyPrecision(qrAmount) || qrCents !== totalCents)
@@ -231,6 +246,8 @@ export function PaymentDialog({
  ? 'Amaun DuitNow QR campur tidak sah atau melebihi jumlah jualan.'
  : paidAmount < total
  ? `Bayaran kurang ${formatRM(shortfall)}.`
+ : requiresManualQrVerification && !manualQrVerified
+ ? 'Semak bukti bayaran pelanggan dan tandakan pengesahan DuitNow QR.'
  : null;
  const canPay = !paymentError && total > 0;
  const qrDisplayExpired = Boolean(qrPayment && qrStatus === 'PENDING' && qrSecondsRemaining <= 0);
@@ -246,10 +263,44 @@ export function PaymentDialog({
  setCheckingQrStatus(false);
  setQrImageError(false);
  setQrImageRetry(0);
+ setQrConfig(null);
+ setQrConfigLoading(false);
+ setQrConfigError(null);
+ setQrConfigRetry(0);
+ setManualQrVerified(false);
  qrAttemptKeyRef.current = null;
  }, []);
 
  const storageKey = shift ? activeQrStorageKey(branchId, shift.id) : null;
+
+ useEffect(() => {
+  if (!open || method === 'CASH' || trainingMode) return;
+
+  let cancelled = false;
+  setQrConfigLoading(true);
+  setQrConfigError(null);
+  setManualQrVerified(false);
+
+  void fetchPosQrConfig(branchId)
+   .then((config) => {
+    if (!cancelled) setQrConfig(config);
+   })
+   .catch((error: unknown) => {
+    if (!cancelled) {
+     setQrConfig(null);
+     setQrConfigError(error instanceof Error
+      ? error.message
+      : 'DuitNow QR cawangan gagal dimuatkan.');
+    }
+   })
+   .finally(() => {
+    if (!cancelled) setQrConfigLoading(false);
+   });
+
+  return () => {
+   cancelled = true;
+  };
+ }, [branchId, method, open, qrConfigRetry, trainingMode]);
 
  const removeStoredQrPayment = useCallback(() => {
   if (!storageKey) return;
@@ -464,7 +515,7 @@ export function PaymentDialog({
  }
 
  const usesQr = method === 'QR' || (method === 'MIXED' && payload.qr_amount > 0);
- if (usesQr) {
+ if (usesQr && qrConfig?.mode === 'FIUU_DYNAMIC') {
   try {
    if (storageKey) {
     const stored = readStoredQrPayment(storageKey);
@@ -531,8 +582,13 @@ export function PaymentDialog({
   }
  }
 
- const { result } = await createSale(payload);
- if (usesQr) toast.success('Jualan direkod. QR perlu pengesahan manual kewangan.');
+ const { result, manual_payment_review_error: manualReviewError } = await createSale(payload);
+ if (usesQr && manualReviewError) {
+  toast.warning(
+   `Jualan ${result.receipt_number} direkod, tetapi senarai semakan Kewangan gagal dikemas kini. Hubungi HQ dan jangan rekod jualan semula.`,
+   { duration: 12_000 },
+  );
+ } else if (usesQr) toast.success('Bayaran DuitNow QR cawangan telah direkod untuk semakan Kewangan.');
  else toast.success('Bayaran berjaya - stok ditolak');
  clearCart();
  handleDialogOpenChange(false);
@@ -669,6 +725,7 @@ export function PaymentDialog({
  onClick={() => {
  setMethod('CASH');
  setCashTenderedOverride(null);
+ setManualQrVerified(false);
  }}
  icon={Banknote}
  label="Tunai"
@@ -678,6 +735,7 @@ export function PaymentDialog({
  onClick={() => {
  setMethod('QR');
  setQrAmountOverride(null);
+ setManualQrVerified(false);
  }}
  icon={QrCode}
   label="DuitNow QR"
@@ -686,6 +744,10 @@ export function PaymentDialog({
  active={method === 'MIXED'}
  onClick={() => {
  setMethod('MIXED');
+ const half = total / 2;
+ setCashTenderedOverride(half.toFixed(2));
+ setQrAmountOverride((total - half).toFixed(2));
+ setManualQrVerified(false);
  }}
  icon={Split}
  label="Campur"
@@ -748,6 +810,7 @@ export function PaymentDialog({
  value={qrAmount}
  onChange={(e) => {
  setQrAmountOverride(e.target.value);
+ setManualQrVerified(false);
  }}
  />
  </div>
@@ -757,34 +820,11 @@ export function PaymentDialog({
  className="h-12 w-full text-base font-semibold"
  onClick={() => {
  setQrAmountOverride(null);
+ setManualQrVerified(false);
  }}
  >
  QR penuh - {formatRM(total)}
  </Button>
- </div>)}
-
-  {method === 'QR' && (
-  <div className="rounded-2xl border-2 border-amber-200 bg-amber-50/70 p-4">
- <div className="flex items-start justify-between gap-3">
- <div>
-  <p className="text-base font-bold text-amber-950">DuitNow QR</p>
-  <p className="text-xs text-muted-foreground">
-  Sistem menjana QR Fiuu dalam mod online. Mod manual hanya digunakan apabila server menetapkan operasi manual.
- </p>
- </div>
- <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">
-  Selamat
- </span>
- </div>
- <div className="mt-4 rounded-2xl border bg-white p-4 text-center shadow-sm">
- <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
- <QrCode className="h-12 w-12" />
- </div>
- <p className="mt-3 text-2xl font-bold tabular-nums text-amber-950">{formatRM(qrNum)}</p>
- <p className="text-xs text-muted-foreground">
-  Jualan Fiuu hanya disahkan selepas callback bertandatangan dan jumlah bayaran sepadan.
- </p>
- </div>
  </div>)}
 
  {method === 'MIXED' && (
@@ -808,7 +848,10 @@ export function PaymentDialog({
  step="0.01"
  className="h-12 text-lg font-semibold tabular-nums"
  value={qrAmount}
- onChange={(e) => setQrAmountOverride(e.target.value)}
+ onChange={(e) => {
+ setQrAmountOverride(e.target.value);
+ setManualQrVerified(false);
+ }}
  />
  </div>
  <Button
@@ -819,10 +862,113 @@ export function PaymentDialog({
  const half = (total / 2).toFixed(2);
  setCashTenderedOverride(half);
  setQrAmountOverride((total - total / 2).toFixed(2));
+ setManualQrVerified(false);
  }}
  >
  Bahagi sama - tunai + QR
  </Button>
+ </div>)}
+
+ {(method === 'QR' || method === 'MIXED') && (
+ <div className="rounded-2xl border-2 border-amber-200 bg-gradient-to-b from-amber-50 to-white p-4">
+  <div className="flex items-start justify-between gap-3">
+   <div>
+    <p className="text-base font-bold text-amber-950">DuitNow QR melalui Fiuu</p>
+    <p className="text-xs text-muted-foreground">
+     {qrConfig?.mode === 'FIUU_DYNAMIC'
+      ? 'QR amaun tepat akan dijana dan disahkan secara automatik oleh Fiuu.'
+      : 'QR rasmi cawangan dipaparkan secara automatik. Pelanggan masukkan amaun yang ditunjukkan.'}
+    </p>
+   </div>
+   <span className={cn(
+    'rounded-full px-2 py-1 text-xs font-semibold',
+    qrConfig?.mode === 'FIUU_DYNAMIC'
+     ? 'bg-emerald-100 text-emerald-800'
+     : 'bg-amber-100 text-amber-800')}
+   >
+    {qrConfig?.mode === 'FIUU_DYNAMIC' ? 'Automatik' : 'QR cawangan'}
+   </span>
+  </div>
+
+  <div className="mt-4 rounded-2xl border bg-white p-4 text-center shadow-sm">
+   {qrConfigLoading && (
+    <div className="flex min-h-52 items-center justify-center gap-2 text-sm text-muted-foreground" role="status">
+     <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" />
+     Memuatkan QR rasmi cawangan...
+    </div>
+   )}
+
+   {!qrConfigLoading && qrConfigError && (
+    <div className="flex min-h-40 flex-col items-center justify-center gap-3 text-sm text-red-800" role="alert">
+     <QrCode className="h-12 w-12" aria-hidden="true" />
+     <p>{qrConfigError}</p>
+     <Button
+      type="button"
+      variant="outline"
+      onClick={() => {
+       setQrConfigRetry((current) => current + 1);
+      }}
+     >
+      <RefreshCw className="mr-2 h-4 w-4" aria-hidden="true" /> Cuba semula
+     </Button>
+    </div>
+   )}
+
+   {!qrConfigLoading && !qrConfigError && qrConfig?.mode === 'FIUU_STATIC_MANUAL' && qrConfig.staticQr && (
+    <>
+     <div className="mx-auto max-w-72 overflow-hidden rounded-2xl border-4 border-white bg-white shadow-md ring-1 ring-slate-200">
+      <Image
+       src={qrConfig.staticQr.imageUrl}
+       alt={`DuitNow QR ${qrConfig.branch.code} ${qrConfig.branch.name}`}
+       width={910}
+       height={910}
+       className="h-auto w-full"
+       unoptimized
+      />
+     </div>
+     <p className="mt-3 text-sm font-bold text-slate-900">
+      {qrConfig.branch.name} <span className="text-slate-500">({qrConfig.branch.code})</span>
+     </p>
+     <p className="text-xs text-emerald-700">
+      Pastikan penerima: <strong>{qrConfig.staticQr.recipientName}</strong>
+     </p>
+    </>
+   )}
+
+   {!qrConfigLoading && !qrConfigError && qrConfig?.mode === 'FIUU_DYNAMIC' && (
+    <div className="mx-auto flex min-h-40 flex-col items-center justify-center gap-3 text-amber-800">
+     <div className="flex h-24 w-24 items-center justify-center rounded-2xl bg-amber-100">
+      <QrCode className="h-12 w-12" aria-hidden="true" />
+     </div>
+     <p className="text-xs text-muted-foreground">Tekan Sahkan Bayaran untuk menjana QR amaun tepat.</p>
+    </div>
+   )}
+
+   {trainingMode && (
+    <div className="mx-auto flex min-h-40 flex-col items-center justify-center gap-3 text-sky-800">
+     <div className="flex h-24 w-24 items-center justify-center rounded-2xl bg-sky-100">
+      <QrCode className="h-12 w-12" aria-hidden="true" />
+     </div>
+     <p className="text-xs">Simulasi latihan sahaja - tiada bayaran sebenar dipindahkan.</p>
+    </div>
+   )}
+
+   <p className="mt-3 text-3xl font-bold tabular-nums text-amber-950">{formatRM(qrNum)}</p>
+  </div>
+
+  {requiresManualQrVerification && qrConfig?.staticQr && (
+   <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border-2 border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">
+    <input
+     type="checkbox"
+     className="mt-0.5 h-5 w-5 accent-emerald-600"
+     checked={manualQrVerified}
+     onChange={(event) => setManualQrVerified(event.target.checked)}
+    />
+    <span>
+     Saya telah melihat status <strong>Berjaya</strong> pada telefon pelanggan dan amaun sepadan.
+    </span>
+   </label>
+  )}
  </div>)}
 
  {changeAmount > 0 && method !== 'QR' && (

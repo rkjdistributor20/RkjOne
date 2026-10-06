@@ -2,6 +2,12 @@
 
 Last updated: 2026-08-26
 
+## Static QR operational fallback (2026-10-06)
+
+Fiuu static DuitNow QR registrations for `BR001` through `BR036` are now bundled into RKJ One as versioned public payment assets. The POS resolves the selected branch through an authenticated, organization- and branch-scoped endpoint before displaying its assigned QR. In `manual` mode the cashier must verify the successful customer payment, matching amount and recipient name `ROTI KAYA JUNUS`, then tick the confirmation before RKJ One records the sale for Finance reconciliation.
+
+All 36 generated assets were decoded and compared byte-for-byte with the Fiuu EMV payload manifest. This fallback is immediately usable without exposing any Fiuu secret. It does not convert a static QR into an automatically confirmed transaction: signed OPA callback UAT and provider-issued branch credentials remain required before `POS_QR_PAYMENT_MODE=fiuu` may be enabled in Production.
+
 ## Verified design
 
 - Merchant: Roti Kaya Junus (`rotikayajunus` in the merchant portal).
