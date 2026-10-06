@@ -80,25 +80,100 @@ export async function POST(request: Request) {
  return NextResponse.json({ error: 'Jumlah bayaran tidak sah' }, { status: 400 });
  }
 
- const { data: payment, error } = await (service as SupabaseClient).from('agent_online_payments').insert({
+ const paymentSelect =
+ 'id, amount_rm, status, payment_method, purpose, provider, gateway_ref, gateway_session_id, checkout_url';
+ const { data: existingPayment } = await (service as SupabaseClient)
+ .from('agent_online_payments')
+ .select(paymentSelect)
+ .eq('organization_id', profile.organization_id)
+ .eq('agent_account_id', account.id)
+ .eq('purpose', purpose)
+ .eq('reference_id', referenceId)
+ .eq('status', 'PENDING')
+ .order('created_at', { ascending: false })
+ .limit(1)
+ .maybeSingle();
+
+ let paymentRow = existingPayment as PaymentRow | null;
+ if (!paymentRow) {
+ const { data: payment, error } = await (service as SupabaseClient)
+ .from('agent_online_payments')
+ .insert({
  organization_id: profile.organization_id,
  agent_account_id: account.id,
  purpose,
- reference_type: purpose === 'STOCK_ORDER' ? 'agent_stock_orders' : 'agent_outlet_subscriptions',
+ reference_type: purpose === 'STOCK_ORDER'
+ ? 'agent_stock_orders'
+ : 'agent_outlet_subscriptions',
  reference_id: referenceId,
  amount_rm: amount,
  payment_method: paymentMethod,
  status: 'PENDING',
  created_by: profile.id,
- }).select('id, amount_rm, status, payment_method, purpose, provider, gateway_ref, gateway_session_id, checkout_url').single();
+ })
+ .select(paymentSelect)
+ .single();
 
- if (error) return NextResponse.json({ error: error.message }, { status: 500 });
- const paymentRow = payment as PaymentRow;
+ if (error) {
+ if (error.code !== '23505') {
+ return NextResponse.json({ error: error.message }, { status: 500 });
+ }
+ const { data: racedPayment } = await (service as SupabaseClient)
+ .from('agent_online_payments')
+ .select(paymentSelect)
+ .eq('organization_id', profile.organization_id)
+ .eq('agent_account_id', account.id)
+ .eq('purpose', purpose)
+ .eq('reference_id', referenceId)
+ .eq('status', 'PENDING')
+ .maybeSingle();
+ paymentRow = racedPayment as PaymentRow | null;
+ } else {
+ paymentRow = payment as PaymentRow;
+ }
+ }
+ if (!paymentRow) {
+ return NextResponse.json({ error: 'Rekod pembayaran tidak dapat diwujudkan' }, { status: 500 });
+ }
+
+ if (
+ Number(paymentRow.amount_rm) !== amount ||
+ paymentRow.payment_method !== paymentMethod ||
+ paymentRow.purpose !== purpose
+ ) {
+ return NextResponse.json(
+ { error: 'Permintaan ulangan tidak sepadan dengan pembayaran PENDING' },
+ { status: 409 },
+ );
+ }
 
  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
  const statusUrl = `${appUrl}/api/sales-agent/payments/${paymentRow.id}/status`;
  const cancelUrl = `${appUrl}/api/sales-agent/payments/${paymentRow.id}/cancel`;
  const returnUrl = `${appUrl}/sales-agent/payment-return?payment=${paymentRow.id}`;
+ if (paymentRow.checkout_url && paymentRow.provider && paymentRow.gateway_session_id) {
+ return NextResponse.json({
+ payment: paymentRow,
+ checkout: {
+ mode: 'live',
+ provider: paymentRow.provider,
+ payment_id: paymentRow.id,
+ checkout_url: paymentRow.checkout_url,
+ gateway_session_id: paymentRow.gateway_session_id,
+ },
+ session: {
+ id: paymentRow.id,
+ provider: paymentRow.provider,
+ mode: 'live',
+ checkout_url: paymentRow.checkout_url,
+ gateway_session_id: paymentRow.gateway_session_id,
+ status_url: statusUrl,
+ cancel_url: cancelUrl,
+ return_url: returnUrl,
+ },
+ idempotent_replay: true,
+ });
+ }
  let checkout;
  try {
  checkout = await initiateAgentPayment({
@@ -108,6 +183,7 @@ export async function POST(request: Request) {
  purpose,
  payerEmail: profile.email ?? '',
  payerName: profile.full_name ?? account.company_name,
+ payerPhone: account.contact_phone ?? '',
  returnUrl,
  cancelUrl,
  });
@@ -134,7 +210,9 @@ export async function POST(request: Request) {
  .from('agent_online_payments')
  .update({
  provider: checkout.provider,
- gateway_ref: checkout.gateway_session_id ?? paymentRow.gateway_ref ?? null,
+ gateway_ref: checkout.provider === 'fiuu'
+ ? paymentRow.gateway_ref ?? null
+ : checkout.gateway_session_id ?? paymentRow.gateway_ref ?? null,
  gateway_session_id: checkout.gateway_session_id,
  checkout_url: checkout.checkout_url,
  })

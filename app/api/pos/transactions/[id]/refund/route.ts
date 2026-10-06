@@ -1,11 +1,29 @@
 import { NextResponse } from 'next/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
-import { callRpc } from '@/lib/supabase/rpc';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { getCurrentProfile } from '@/lib/auth/session';
+import type { Database, Json } from '@/types/database';
 import {
  assertCanAccessPosBranch,
+ canRefundPosTransaction,
  posAccessErrorStatus,
 } from '@/lib/pos/access';
+
+type DatabaseWithInternalRefundRpc = Omit<Database, 'public'> & {
+ public: Omit<Database['public'], 'Functions'> & {
+ Functions: Database['public']['Functions'] & {
+  refund_pos_transaction_internal: {
+   Args: {
+    p_transaction_id: string;
+    p_reason: string;
+    p_actor_id: string;
+   };
+   Returns: Json;
+  };
+ };
+ };
+};
 
 export async function POST(
  request: Request,
@@ -13,6 +31,11 @@ export async function POST(
  const profile = await getCurrentProfile();
  if (!profile) {
  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+ }
+ if (!canRefundPosTransaction(profile.role)) {
+ return NextResponse.json(
+  { error: 'Bayar balik hanya dibenarkan untuk Pentadbir atau Finance.' },
+  { status: 403 });
  }
 
  const { id } = await params;
@@ -39,17 +62,42 @@ export async function POST(
  return NextResponse.json({ error: 'Transaksi tidak dijumpai' }, { status: 404 });
  }
 
+ if (profile.role !== 'FINANCE') {
  try {
- await assertCanAccessPosBranch(supabase, profile, transaction.branch_id);
+  await assertCanAccessPosBranch(supabase, profile, transaction.branch_id);
  } catch (err) {
- return NextResponse.json(
- { error: err instanceof Error ? err.message : 'Akses cawangan ditolak' },
- { status: posAccessErrorStatus(err) });
+  return NextResponse.json(
+  { error: err instanceof Error ? err.message : 'Akses cawangan ditolak' },
+  { status: posAccessErrorStatus(err) });
+ }
  }
 
- const { data, error } = await callRpc(supabase, 'refund_pos_transaction', {
+ const { data: fiuuPayment, error: paymentError } = await supabase
+ .from('pos_online_payments')
+ .select('id')
+ .eq('organization_id', profile.organization_id)
+ .eq('branch_id', transaction.branch_id)
+ .eq('transaction_id', transaction.id)
+ .eq('provider', 'fiuu')
+ .limit(1)
+ .maybeSingle();
+ if (paymentError) {
+ return NextResponse.json({ error: paymentError.message }, { status: 400 });
+ }
+ if (fiuuPayment) {
+ return NextResponse.json(
+  {
+   error: 'Bayaran Fiuu belum boleh dipulangkan secara automatik. Finance mesti proses refund di Fiuu dan rekonsiliasi sebelum status RKJ One diubah.',
+   code: 'FIUU_PROVIDER_REFUND_REQUIRED',
+  },
+  { status: 409 });
+ }
+
+ const admin = createAdminClient() as SupabaseClient<DatabaseWithInternalRefundRpc>;
+ const { data, error } = await admin.rpc('refund_pos_transaction_internal', {
  p_transaction_id: id,
  p_reason: reason,
+ p_actor_id: profile.id,
  });
 
  if (error) {

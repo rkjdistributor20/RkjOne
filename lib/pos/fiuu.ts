@@ -3,6 +3,12 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 const FIUU_DUITNOW_QR_CHANNEL_ID = '24';
 const FIUU_SANDBOX_PRECREATE_URL = 'https://sandbox-payment.fiuu.com/RMS/API/MOLOPA/precreate.php';
 const FIUU_PRODUCTION_PRECREATE_URL = 'https://opa.fiuu.com/RMS/API/MOLOPA/precreate.php';
+export const FIUU_CALLBACK_GRACE_MS = 20 * 60 * 1000;
+
+export function isFiuuReconciliationExpired(expiresAt: string, nowMs = Date.now()): boolean {
+  const expiryMs = new Date(expiresAt).getTime();
+  return Number.isFinite(expiryMs) && expiryMs + FIUU_CALLBACK_GRACE_MS <= nowMs;
+}
 
 type FiuuEnvironment = 'sandbox' | 'production';
 
@@ -104,12 +110,18 @@ function parseValiditySeconds(): number {
   return value;
 }
 
-function validatePrecreateUrl(value: string): string {
+function validatePrecreateUrl(value: string, environment: FiuuEnvironment): string {
   const url = new URL(value);
   const localDevelopment = process.env.NODE_ENV !== 'production'
     && (url.hostname === 'localhost' || url.hostname === '127.0.0.1');
   if (url.protocol !== 'https:' && !localDevelopment) {
     throw new Error('Endpoint Fiuu mesti menggunakan HTTPS');
+  }
+  const approvedHostname = environment === 'production'
+    ? new URL(FIUU_PRODUCTION_PRECREATE_URL).hostname
+    : new URL(FIUU_SANDBOX_PRECREATE_URL).hostname;
+  if (!localDevelopment && url.hostname !== approvedHostname) {
+    throw new Error(`Endpoint Fiuu ${environment} tidak berada pada hos yang diluluskan`);
   }
   return url.toString();
 }
@@ -118,11 +130,20 @@ export function getPosQrPaymentMode(): 'manual' | 'fiuu' {
   return process.env.POS_QR_PAYMENT_MODE?.trim().toLowerCase() === 'fiuu' ? 'fiuu' : 'manual';
 }
 
-export function getFiuuOpaConfig(branchCode: string, deviceCode: string): FiuuOpaConfig | null {
-  if (getPosQrPaymentMode() !== 'fiuu') return null;
+export function getFiuuOpaConfig(
+  branchCode: string,
+  deviceCode: string,
+  options: { requireActiveMode?: boolean } = {},
+): FiuuOpaConfig | null {
+  if (options.requireActiveMode !== false && getPosQrPaymentMode() !== 'fiuu') return null;
 
   const applications = parseApplications();
   const mapped = applications[branchCode.toUpperCase()];
+  const environment: FiuuEnvironment = process.env.POS_FIUU_ENVIRONMENT?.trim().toLowerCase() === 'production'
+    ? 'production'
+    : 'sandbox';
+  if (environment === 'production' && (!mapped || !mapped.storeId)) return null;
+
   const applicationCode = mapped?.applicationCode
     ?? process.env.POS_FIUU_APPLICATION_CODE?.trim()
     ?? '';
@@ -133,9 +154,6 @@ export function getFiuuOpaConfig(branchCode: string, deviceCode: string): FiuuOp
   if (!applicationCode || !secretKey) return null;
   if (applicationCode.length > 32) throw new Error('Application Code Fiuu melebihi 32 aksara');
 
-  const environment: FiuuEnvironment = process.env.POS_FIUU_ENVIRONMENT?.trim().toLowerCase() === 'production'
-    ? 'production'
-    : 'sandbox';
   const defaultUrl = environment === 'production'
     ? FIUU_PRODUCTION_PRECREATE_URL
     : FIUU_SANDBOX_PRECREATE_URL;
@@ -159,7 +177,10 @@ export function getFiuuOpaConfig(branchCode: string, deviceCode: string): FiuuOp
     ),
     channelId: FIUU_DUITNOW_QR_CHANNEL_ID,
     environment,
-    precreateUrl: validatePrecreateUrl(process.env.POS_FIUU_PRECREATE_URL?.trim() || defaultUrl),
+    precreateUrl: validatePrecreateUrl(
+      process.env.POS_FIUU_PRECREATE_URL?.trim() || defaultUrl,
+      environment,
+    ),
     validitySeconds: parseValiditySeconds(),
   };
 }

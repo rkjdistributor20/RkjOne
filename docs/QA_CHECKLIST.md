@@ -89,6 +89,7 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [ ] Readiness dashboard reports at least one approved active ADMIN and zero active non-admin profiles without legal-entity scope.
 - [ ] Every active real-user profile has an Auth user and completes role-based first-login UAT.
 - [ ] Fiuu remains in manual mode until OPA credentials, callback signature, idempotency and settlement reconciliation pass in staging and pilot.
+- [ ] Fiuu POS reload, duplicate-create, QR expiry, late callback, callback replay and shift-close grace cases pass against the staging OPA application.
 - [ ] Vercel production deployment is Ready.
 - [ ] Production alias points to expected deployment.
 - [ ] Vercel error logs checked for the last hour.

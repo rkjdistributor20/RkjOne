@@ -5,6 +5,33 @@ import { getFiuuOpaConfig, verifyFiuuOpaSignature } from '@/lib/pos/fiuu';
 import { enforceRateLimit } from '@/lib/security/rate-limit';
 import type { Json } from '@/types/database';
 
+const MAX_WEBHOOK_BODY_BYTES = 64 * 1024;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+async function readBoundedBody(request: Request): Promise<string> {
+ const declaredLength = Number(request.headers.get('content-length') ?? 0);
+ if (Number.isFinite(declaredLength) && declaredLength > MAX_WEBHOOK_BODY_BYTES) {
+  throw new Error('PAYLOAD_TOO_LARGE');
+ }
+ if (!request.body) return '';
+
+ const reader = request.body.getReader();
+ const decoder = new TextDecoder();
+ let bytesRead = 0;
+ let raw = '';
+ while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+  bytesRead += value.byteLength;
+  if (bytesRead > MAX_WEBHOOK_BODY_BYTES) {
+   await reader.cancel();
+   throw new Error('PAYLOAD_TOO_LARGE');
+  }
+  raw += decoder.decode(value, { stream: true });
+ }
+ return raw + decoder.decode();
+}
+
 function isRecord(value: Json): value is { [key: string]: Json | undefined } {
  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -27,10 +54,10 @@ function parsePayload(raw: string, contentType: string): Record<string, unknown>
  }
 }
 
-async function handleFiuuNotification(body: Record<string, unknown>) {
+async function handleFiuuNotification(body: Record<string, unknown>, request: Request) {
  const applicationCode = cleanProviderValue(body.applicationCode, 32);
  const referenceId = cleanProviderValue(body.referenceId, 40);
- if (!applicationCode || !referenceId || !cleanProviderValue(body.signature, 128)) {
+ if (!applicationCode || !UUID_PATTERN.test(referenceId) || !cleanProviderValue(body.signature, 128)) {
   return NextResponse.json({ error: 'Invalid Fiuu notification' }, { status: 400 });
  }
 
@@ -52,13 +79,20 @@ async function handleFiuuNotification(body: Record<string, unknown>) {
  const deviceCode = cleanProviderValue(payment.sale_payload.fiuu_device_code, 40);
  let config;
  try {
-  config = getFiuuOpaConfig(branchCode, deviceCode);
+  config = getFiuuOpaConfig(branchCode, deviceCode, { requireActiveMode: false });
  } catch {
   return NextResponse.json({ error: 'Fiuu configuration invalid' }, { status: 503 });
  }
  if (!config || config.applicationCode !== applicationCode) {
   return NextResponse.json({ error: 'Fiuu application mismatch' }, { status: 401 });
  }
+ const applicationLimited = enforceRateLimit(request, {
+  key: 'pos-fiuu-webhook-application',
+  identity: config.applicationCode,
+  limit: 600,
+  windowMs: 60 * 1000,
+ });
+ if (applicationLimited) return applicationLimited;
  if (!verifyFiuuOpaSignature(body, config.secretKey)) {
   return NextResponse.json({ error: 'Invalid Fiuu signature' }, { status: 401 });
  }
@@ -124,19 +158,32 @@ async function handleBillplzNotification(body: Record<string, unknown>) {
 }
 
 export async function POST(request: Request) {
- const limited = enforceRateLimit(request, {
-  key: 'pos-qr-webhook',
-  limit: 180,
-  windowMs: 60 * 1000,
- });
- if (limited) return limited;
-
- const raw = await request.text();
+ let raw: string;
+ try {
+  raw = await readBoundedBody(request);
+ } catch (error) {
+  if (error instanceof Error && error.message === 'PAYLOAD_TOO_LARGE') {
+   return NextResponse.json({ error: 'Payment payload too large' }, { status: 413 });
+  }
+  return NextResponse.json({ error: 'Invalid payment payload' }, { status: 400 });
+ }
  const body = parsePayload(raw, request.headers.get('content-type') ?? '');
  if (!body) return NextResponse.json({ error: 'Invalid payment payload' }, { status: 400 });
 
  if (body.applicationCode || body.referenceId) {
-  return handleFiuuNotification(body);
+  const providerIpLimited = enforceRateLimit(request, {
+   key: 'pos-fiuu-webhook-provider-ip',
+   limit: 3000,
+   windowMs: 60 * 1000,
+  });
+  if (providerIpLimited) return providerIpLimited;
+  return handleFiuuNotification(body, request);
  }
+ const limited = enforceRateLimit(request, {
+  key: 'pos-qr-webhook-billplz',
+  limit: 180,
+  windowMs: 60 * 1000,
+ });
+ if (limited) return limited;
  return handleBillplzNotification(body);
 }

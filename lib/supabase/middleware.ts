@@ -14,6 +14,8 @@ const PUBLIC_API_PATHS = new Set([
  '/api/auth/login',
  '/api/pos/qr-payments/webhook',
  '/api/sales-agent/payments/webhook',
+ '/api/sales-agent/payments/fiuu/webhook',
+ '/api/sales-agent/payments/fiuu/return',
 ]);
 
 type MiddlewareProfile = {
@@ -171,6 +173,7 @@ export async function updateSession(request: NextRequest) {
 
  if (
  !isApiRoute &&
+ !(hasOfficialPosCredential && !kioskBypassed && pathname === '/pos') &&
  !isDashboardRouteAllowed(pathname, {
  role: profileRow?.role,
  legalEntityCode: profileRow?.legal_entity?.code,

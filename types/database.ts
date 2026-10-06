@@ -6780,6 +6780,7 @@ export type Database = {
           failed_at: string | null
           gateway_ref: string | null
           id: string
+          idempotency_key: string | null
           organization_id: string
           paid_at: string | null
           provider: string
@@ -6799,6 +6800,7 @@ export type Database = {
           failed_at?: string | null
           gateway_ref?: string | null
           id?: string
+          idempotency_key?: string | null
           organization_id: string
           paid_at?: string | null
           provider?: string
@@ -6818,6 +6820,7 @@ export type Database = {
           failed_at?: string | null
           gateway_ref?: string | null
           id?: string
+          idempotency_key?: string | null
           organization_id?: string
           paid_at?: string | null
           provider?: string

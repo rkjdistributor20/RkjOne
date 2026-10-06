@@ -1,12 +1,13 @@
 'use client';
 
-import { useMemo, useState, useCallback, useEffect } from 'react';
+import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { toast } from 'sonner';
 import { Banknote, QrCode, Split, Delete, CheckCircle2, Clock3, LoaderCircle, RefreshCw } from 'lucide-react';
 import {
  createPosQrPayment,
  createSale,
+ fetchPosQrConfig,
  fetchPosQrPayment,
  PosQrPaymentError,
 } from '@/lib/pos/api';
@@ -15,9 +16,13 @@ import {
  getOfflineQueue,
 } from '@/lib/pos/offline-queue';
 import { formatRM, generateOfflineId } from '@/lib/pos/utils';
+import {
+ createPosPaymentIdempotencyKey,
+ isValidPosPaymentIdempotencyKey,
+} from '@/lib/pos/payment-idempotency';
 import { useAuthStore } from '@/stores/auth-store';
 import { usePosStore } from '@/stores/pos-store';
-import type { PaymentMethod, SaleResult } from '@/lib/pos/types';
+import type { PaymentMethod, PosQrConfig, SaleResult } from '@/lib/pos/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -56,7 +61,69 @@ type ActiveQrPayment = {
  amountRm: number;
  expiresAt: string;
  environment: 'sandbox' | 'production';
+ cartFingerprint: string;
 };
+
+type QrPaymentStatus = 'PENDING' | 'PAID' | 'FAILED' | 'EXPIRED' | 'CANCELLED';
+
+function activeQrStorageKey(branchId: string, shiftId: string) {
+ return `rkj-pos-active-qr:${branchId}:${shiftId}`;
+}
+
+function paymentFingerprint(payload: {
+ branchId: string;
+ shiftId: string;
+ items: Array<{ product_id: string; quantity: number }>;
+ payment_method: PaymentMethod;
+ cash_amount: number;
+ qr_amount: number;
+}) {
+ return JSON.stringify({
+  branchId: payload.branchId,
+  shiftId: payload.shiftId,
+  items: [...payload.items].sort((a, b) => a.product_id.localeCompare(b.product_id)),
+  payment_method: payload.payment_method,
+  cash_amount: Math.round(payload.cash_amount * 100),
+  qr_amount: Math.round(payload.qr_amount * 100),
+ });
+}
+
+function readStoredQrPayment(key: string): { payment: ActiveQrPayment; idempotencyKey: string } | null {
+ try {
+  const raw = window.sessionStorage.getItem(key);
+  if (!raw) return null;
+  const parsed: unknown = JSON.parse(raw);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+  const paymentValue = Reflect.get(parsed, 'payment');
+  const idempotencyKey = Reflect.get(parsed, 'idempotencyKey');
+  if (!paymentValue || typeof paymentValue !== 'object' || Array.isArray(paymentValue)
+   || !isValidPosPaymentIdempotencyKey(idempotencyKey)) return null;
+
+  const id = Reflect.get(paymentValue, 'id');
+  const imageUrl = Reflect.get(paymentValue, 'imageUrl');
+  const amountRm = Reflect.get(paymentValue, 'amountRm');
+  const expiresAt = Reflect.get(paymentValue, 'expiresAt');
+  const environment = Reflect.get(paymentValue, 'environment');
+  const cartFingerprint = Reflect.get(paymentValue, 'cartFingerprint');
+  if (typeof id !== 'string' || !id
+   || typeof imageUrl !== 'string' || !imageUrl.startsWith('/api/pos/qr-payments/')
+   || typeof amountRm !== 'number' || !Number.isFinite(amountRm) || amountRm <= 0
+   || typeof expiresAt !== 'string' || !Number.isFinite(Date.parse(expiresAt))
+   || (environment !== 'sandbox' && environment !== 'production')
+   || typeof cartFingerprint !== 'string' || !cartFingerprint) return null;
+
+  return {
+   payment: { id, imageUrl, amountRm, expiresAt, environment, cartFingerprint },
+   idempotencyKey,
+  };
+ } catch {
+  return null;
+ }
+}
+
+function hasValidCurrencyPrecision(value: string) {
+ return /^\d+(?:\.\d{1,2})?$/.test(value);
+}
 
 function parseMoney(value: string) {
  const parsed = Number(value);
@@ -112,8 +179,18 @@ export function PaymentDialog({
  const [qrAmountOverride, setQrAmountOverride] = useState<string | null>(null);
  const [loading, setLoading] = useState(false);
  const [qrPayment, setQrPayment] = useState<ActiveQrPayment | null>(null);
- const [qrStatus, setQrStatus] = useState<'PENDING' | 'PAID' | 'FAILED' | 'EXPIRED'>('PENDING');
+ const [qrStatus, setQrStatus] = useState<QrPaymentStatus>('PENDING');
  const [qrSecondsRemaining, setQrSecondsRemaining] = useState(0);
+ const qrAttemptKeyRef = useRef<string | null>(null);
+ const [qrPollError, setQrPollError] = useState<string | null>(null);
+ const [checkingQrStatus, setCheckingQrStatus] = useState(false);
+ const [qrImageError, setQrImageError] = useState(false);
+ const [qrImageRetry, setQrImageRetry] = useState(0);
+ const [qrConfig, setQrConfig] = useState<PosQrConfig | null>(null);
+ const [qrConfigLoading, setQrConfigLoading] = useState(false);
+ const [qrConfigError, setQrConfigError] = useState<string | null>(null);
+ const [qrConfigRetry, setQrConfigRetry] = useState(0);
+ const [manualQrVerified, setManualQrVerified] = useState(false);
 
  const quickAmounts = useMemo(() => buildQuickAmounts(total), [total]);
  const defaultAmount = total > 0 ? total.toFixed(2) : '';
@@ -121,6 +198,16 @@ export function PaymentDialog({
  const qrAmount = qrAmountOverride ?? defaultAmount;
  const cashNum = parseMoney(cashTendered);
  const qrNum = parseMoney(qrAmount);
+ const totalCents = Math.round(total * 100);
+ const qrCents = Math.round(qrNum * 100);
+ const currentPaymentFingerprint = shift ? paymentFingerprint({
+  branchId,
+  shiftId: shift.id,
+  items: cart.map((item) => ({ product_id: item.productId, quantity: item.quantity })),
+  payment_method: method,
+  cash_amount: method === 'QR' ? 0 : cashNum,
+  qr_amount: method === 'CASH' ? 0 : qrNum,
+ }) : null;
 
  const changeAmount =
  method === 'CASH'
@@ -133,6 +220,9 @@ export function PaymentDialog({
  method === 'CASH' ? cashNum : method === 'QR' ? qrNum : cashNum + qrNum;
 
  const shortfall = Math.max(total - paidAmount, 0);
+ const requiresQrConfig = method !== 'CASH' && !trainingMode;
+ const requiresManualQrVerification = requiresQrConfig
+  && qrConfig?.mode === 'FIUU_STATIC_MANUAL';
  const paymentError =
  !shift && !trainingMode
  ? 'Buka syif POS dahulu.'
@@ -141,13 +231,26 @@ export function PaymentDialog({
  : total <= 0
  ? 'Jumlah bayaran tidak sah.'
  : method !== 'CASH' && !isOnline
- ? 'QR manual perlu online untuk rekod audit dan pengesahan kewangan.'
+ ? 'DuitNow QR perlu online untuk menjana kod dan menyemak pengesahan bayaran.'
+ : requiresQrConfig && (qrConfigLoading || (!qrConfig && !qrConfigError))
+ ? 'Maklumat DuitNow QR cawangan sedang dimuatkan.'
+ : requiresQrConfig && qrConfigError
+ ? qrConfigError
+ : requiresManualQrVerification && !qrConfig?.staticQr
+ ? 'DuitNow QR belum dipadankan untuk cawangan ini. Hubungi HQ.'
  : profile?.role === 'AREA_MANAGER' && !isOnline
  ? 'AM emergency POS perlu online supaya jadual syif boleh disahkan.'
+ : method === 'QR' && (!hasValidCurrencyPrecision(qrAmount) || qrCents !== totalCents)
+ ? 'Amaun DuitNow QR mesti sama tepat dengan jumlah jualan.'
+ : method === 'MIXED' && (!hasValidCurrencyPrecision(qrAmount) || qrCents > totalCents)
+ ? 'Amaun DuitNow QR campur tidak sah atau melebihi jumlah jualan.'
  : paidAmount < total
  ? `Bayaran kurang ${formatRM(shortfall)}.`
+ : requiresManualQrVerification && !manualQrVerified
+ ? 'Semak bukti bayaran pelanggan dan tandakan pengesahan DuitNow QR.'
  : null;
  const canPay = !paymentError && total > 0;
+ const qrDisplayExpired = Boolean(qrPayment && qrStatus === 'PENDING' && qrSecondsRemaining <= 0);
 
  const resetPaymentForm = useCallback(() => {
  setMethod('CASH');
@@ -156,16 +259,119 @@ export function PaymentDialog({
  setQrPayment(null);
  setQrStatus('PENDING');
  setQrSecondsRemaining(0);
+ setQrPollError(null);
+ setCheckingQrStatus(false);
+ setQrImageError(false);
+ setQrImageRetry(0);
+ setQrConfig(null);
+ setQrConfigLoading(false);
+ setQrConfigError(null);
+ setQrConfigRetry(0);
+ setManualQrVerified(false);
+ qrAttemptKeyRef.current = null;
  }, []);
 
+ const storageKey = shift ? activeQrStorageKey(branchId, shift.id) : null;
+
+ useEffect(() => {
+  if (!open || method === 'CASH' || trainingMode) return;
+
+  let cancelled = false;
+  setQrConfigLoading(true);
+  setQrConfigError(null);
+  setManualQrVerified(false);
+
+  void fetchPosQrConfig(branchId)
+   .then((config) => {
+    if (!cancelled) setQrConfig(config);
+   })
+   .catch((error: unknown) => {
+    if (!cancelled) {
+     setQrConfig(null);
+     setQrConfigError(error instanceof Error
+      ? error.message
+      : 'DuitNow QR cawangan gagal dimuatkan.');
+    }
+   })
+   .finally(() => {
+    if (!cancelled) setQrConfigLoading(false);
+   });
+
+  return () => {
+   cancelled = true;
+  };
+ }, [branchId, method, open, qrConfigRetry, trainingMode]);
+
+ const removeStoredQrPayment = useCallback(() => {
+  if (!storageKey) return;
+  try {
+   window.sessionStorage.removeItem(storageKey);
+  } catch {
+   // Storage may be unavailable in a restricted WebView; polling remains authoritative.
+  }
+ }, [storageKey]);
+
+ useEffect(() => {
+  if (!open || !storageKey || qrPayment) return;
+  const stored = readStoredQrPayment(storageKey);
+  if (!stored) return;
+  qrAttemptKeyRef.current = stored.idempotencyKey;
+  setQrPayment(stored.payment);
+  setQrStatus('PENDING');
+  setQrSecondsRemaining(Math.max(
+   0,
+   Math.ceil((new Date(stored.payment.expiresAt).getTime() - Date.now()) / 1000),
+  ));
+  setQrPollError('Percubaan DuitNow QR terdahulu dipulihkan. Menyemak status bayaran...');
+ }, [open, qrPayment, storageKey]);
+
  const handleDialogOpenChange = useCallback((nextOpen: boolean) => {
- if (!nextOpen && qrPayment && qrStatus === 'PENDING') {
+ if (!nextOpen && qrPayment && (qrStatus === 'PENDING' || qrStatus === 'PAID')) {
   toast.info('Tunggu keputusan QR atau tamat tempoh sebelum menutup bayaran.');
   return;
  }
  if (!nextOpen) resetPaymentForm();
  onOpenChange(nextOpen);
  }, [onOpenChange, qrPayment, qrStatus, resetPaymentForm]);
+
+ const reconcileQrPayment = useCallback(async (activePayment: ActiveQrPayment, manual = false) => {
+  if (manual) setCheckingQrStatus(true);
+  try {
+   const response = await fetchPosQrPayment(activePayment.id);
+   setQrPollError(null);
+   if (response.payment.status === 'PAID') {
+    setQrStatus('PAID');
+    removeStoredQrPayment();
+    if (!response.result) {
+     setQrPollError('Bayaran telah diterima tetapi resit belum tersedia. Semak status semula; jangan jana QR baharu.');
+     return;
+    }
+    if (currentPaymentFingerprint === activePayment.cartFingerprint) {
+     clearCart();
+    }
+    toast.success('Bayaran DuitNow QR disahkan oleh Fiuu.');
+    resetPaymentForm();
+    onOpenChange(false);
+    onSuccess(response.result);
+    return;
+   }
+   if (response.payment.status === 'EXPIRED') {
+    setQrStatus('EXPIRED');
+    removeStoredQrPayment();
+    return;
+   }
+   if (response.payment.status === 'FAILED' || response.payment.status === 'CANCELLED') {
+    setQrStatus(response.payment.status);
+    removeStoredQrPayment();
+   }
+  } catch (error) {
+   setQrPollError(error instanceof Error
+    ? `Status bayaran tidak dapat disemak: ${error.message}`
+    : 'Status bayaran tidak dapat disemak. Semak sambungan dan cuba lagi.');
+  } finally {
+   if (manual) setCheckingQrStatus(false);
+  }
+ }, [clearCart, currentPaymentFingerprint, onOpenChange, onSuccess, removeStoredQrPayment, resetPaymentForm]);
 
  useEffect(() => {
   if (!qrPayment || qrStatus !== 'PENDING') return;
@@ -179,26 +385,8 @@ export function PaymentDialog({
   const poll = async () => {
    if (polling) return;
    polling = true;
-   try {
-    const response = await fetchPosQrPayment(qrPayment.id);
-    if (!active) return;
-    if (response.payment.status === 'PAID' && response.result) {
-     setQrStatus('PAID');
-     toast.success('Bayaran DuitNow QR disahkan oleh Fiuu.');
-     clearCart();
-     resetPaymentForm();
-     onOpenChange(false);
-     onSuccess(response.result);
-     return;
-    }
-    if (response.payment.status === 'FAILED' || response.payment.status === 'EXPIRED') {
-     setQrStatus(response.payment.status);
-    }
-   } catch {
-    // A temporary polling failure must not convert a payment to failed.
-   } finally {
-    polling = false;
-   }
+   await reconcileQrPayment(qrPayment);
+   polling = false;
   };
 
   refreshCountdown();
@@ -210,7 +398,7 @@ export function PaymentDialog({
    window.clearInterval(countdownTimer);
    window.clearInterval(pollTimer);
   };
- }, [clearCart, onOpenChange, onSuccess, qrPayment, qrStatus, resetPaymentForm]);
+ }, [qrPayment, qrStatus, reconcileQrPayment]);
 
  const appendNumpad = useCallback((key: string) => {
  setCashTenderedOverride((prevOverride) => {
@@ -327,28 +515,80 @@ export function PaymentDialog({
  }
 
  const usesQr = method === 'QR' || (method === 'MIXED' && payload.qr_amount > 0);
- if (usesQr) {
+ if (usesQr && qrConfig?.mode === 'FIUU_DYNAMIC') {
   try {
-   const { payment } = await createPosQrPayment(payload);
-   setQrPayment({
+   if (storageKey) {
+    const stored = readStoredQrPayment(storageKey);
+    if (stored) {
+     qrAttemptKeyRef.current = stored.idempotencyKey;
+     setQrPayment(stored.payment);
+     setQrStatus('PENDING');
+     setQrSecondsRemaining(1);
+     setQrPollError('Percubaan DuitNow QR terdahulu dipulihkan. Menyemak status bayaran...');
+     toast.info('Bayaran QR terdahulu masih perlu diselesaikan.');
+     return;
+    }
+   }
+   const idempotencyKey = qrAttemptKeyRef.current ?? createPosPaymentIdempotencyKey();
+   qrAttemptKeyRef.current = idempotencyKey;
+   const { payment } = await createPosQrPayment(payload, idempotencyKey);
+   if (payment.status === 'PAID') {
+    const existing = await fetchPosQrPayment(payment.id);
+    if (!existing.result) throw new Error('Resit bayaran Fiuu belum tersedia. Cuba semula.');
+    removeStoredQrPayment();
+    toast.success('Bayaran DuitNow QR telah disahkan oleh Fiuu.');
+    clearCart();
+    resetPaymentForm();
+    onOpenChange(false);
+    onSuccess(existing.result);
+    return;
+   }
+   if (!payment.qr_image_url || !payment.expires_at) {
+    throw new Error('Kod QR Fiuu masih dijana. Cuba semula sebentar lagi.');
+   }
+   const activePayment: ActiveQrPayment = {
     id: payment.id,
     imageUrl: payment.qr_image_url,
     amountRm: payment.amount_rm,
     expiresAt: payment.expires_at,
     environment: payment.environment,
-   });
+    cartFingerprint: paymentFingerprint(payload),
+   };
+   setQrPayment(activePayment);
    setQrStatus('PENDING');
+   setQrSecondsRemaining(1);
+   setQrPollError(null);
+   setQrImageError(false);
+   if (storageKey) {
+    try {
+     window.sessionStorage.setItem(storageKey, JSON.stringify({
+      payment: activePayment,
+      idempotencyKey,
+     }));
+    } catch {
+     // Keep the active in-memory attempt usable when WebView storage is unavailable.
+    }
+   }
    toast.info('Imbas DuitNow QR dan tunggu pengesahan Fiuu.');
    return;
   } catch (error) {
+   if (error instanceof PosQrPaymentError && error.mode !== 'FIUU_ATTEMPT_INITIALIZING') {
+    qrAttemptKeyRef.current = null;
+    removeStoredQrPayment();
+   }
    if (!(error instanceof PosQrPaymentError) || error.mode !== 'MANUAL_QR_ONLY') {
     throw error;
    }
   }
  }
 
- const { result } = await createSale(payload);
- if (usesQr) toast.success('Jualan direkod. QR perlu pengesahan manual kewangan.');
+ const { result, manual_payment_review_error: manualReviewError } = await createSale(payload);
+ if (usesQr && manualReviewError) {
+  toast.warning(
+   `Jualan ${result.receipt_number} direkod, tetapi senarai semakan Kewangan gagal dikemas kini. Hubungi HQ dan jangan rekod jualan semula.`,
+   { duration: 12_000 },
+  );
+ } else if (usesQr) toast.success('Bayaran DuitNow QR cawangan telah direkod untuk semakan Kewangan.');
  else toast.success('Bayaran berjaya - stok ditolak');
  clearCart();
  handleDialogOpenChange(false);
@@ -393,21 +633,42 @@ export function PaymentDialog({
       qrStatus === 'PENDING' ? 'bg-amber-100 text-amber-900' :
       qrStatus === 'PAID' ? 'bg-emerald-100 text-emerald-900' : 'bg-red-100 text-red-900')}
      >
-      {qrStatus === 'PENDING' ? 'Menunggu' : qrStatus === 'PAID' ? 'Dibayar' : qrStatus === 'EXPIRED' ? 'Tamat tempoh' : 'Gagal'}
+      {qrStatus === 'PENDING' ? (qrDisplayExpired ? 'Menyemak tamat tempoh' : 'Menunggu') : qrStatus === 'PAID' ? 'Dibayar' : qrStatus === 'EXPIRED' ? 'Tamat tempoh' : qrStatus === 'CANCELLED' ? 'Dibatalkan' : 'Gagal'}
      </span>
     </div>
 
-    {qrStatus === 'PENDING' ? (
+    {qrStatus === 'PENDING' && !qrDisplayExpired ? (
      <>
       <div className="mx-auto mt-4 w-full max-w-[18rem] overflow-hidden rounded-2xl border bg-white p-3 shadow-sm">
-       <Image
-        src={qrPayment.imageUrl}
-        alt={`Kod DuitNow QR untuk bayaran ${formatRM(qrPayment.amountRm)}`}
-        width={360}
-        height={360}
-        className="h-auto w-full object-contain"
-        unoptimized
-       />
+       {qrImageError ? (
+        <div className="flex aspect-square flex-col items-center justify-center gap-3 rounded-xl bg-red-50 p-4 text-sm text-red-900">
+         <QrCode className="h-10 w-10" aria-hidden="true" />
+         <p className="font-semibold">Imej QR tidak dapat dimuatkan.</p>
+         <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="bg-white"
+          onClick={() => {
+           setQrImageError(false);
+           setQrImageRetry((value) => value + 1);
+          }}
+         >
+          <RefreshCw className="mr-2 h-4 w-4" aria-hidden="true" /> Cuba imej semula
+         </Button>
+        </div>
+       ) : (
+        <Image
+         key={qrImageRetry}
+         src={`${qrPayment.imageUrl}${qrPayment.imageUrl.includes('?') ? '&' : '?'}retry=${qrImageRetry}`}
+         alt={`Kod DuitNow QR untuk bayaran ${formatRM(qrPayment.amountRm)}`}
+         width={360}
+         height={360}
+         className="h-auto w-full object-contain"
+         unoptimized
+         onError={() => setQrImageError(true)}
+        />
+       )}
       </div>
       <p className="mt-3 text-3xl font-bold tabular-nums text-emerald-950">{formatRM(qrPayment.amountRm)}</p>
       <div className="mt-2 flex items-center justify-center gap-2 text-sm text-muted-foreground">
@@ -432,9 +693,26 @@ export function PaymentDialog({
      <div className="mt-5 rounded-xl border bg-white p-5">
       <QrCode className="mx-auto h-10 w-10 text-muted-foreground" aria-hidden="true" />
       <p className="mt-3 font-semibold text-foreground">
-       {qrStatus === 'EXPIRED' ? 'Kod QR telah tamat tempoh.' : 'Bayaran tidak dapat disahkan.'}
+       {qrStatus === 'PAID'
+        ? 'Bayaran diterima. Resit sedang dipulihkan.'
+        : qrDisplayExpired || qrStatus === 'EXPIRED'
+        ? 'Kod QR telah tamat tempoh.'
+        : qrStatus === 'CANCELLED'
+        ? 'Bayaran telah dibatalkan.'
+        : 'Bayaran tidak dapat disahkan.'}
       </p>
-      <p className="mt-1 text-sm text-muted-foreground">Jana kod baharu. Jangan serahkan resit atau stok sebelum status Dibayar.</p>
+      <p className="mt-1 text-sm text-muted-foreground">
+       {qrStatus === 'PAID'
+        ? 'Semak status semula. Jangan jana QR baharu untuk jualan ini.'
+        : qrDisplayExpired || qrStatus === 'EXPIRED'
+        ? 'Callback lewat masih direkonsiliasi. Jangan jana QR baharu untuk jualan ini.'
+        : 'Jana kod baharu. Jangan serahkan resit atau stok sebelum status Dibayar.'}
+      </p>
+     </div>
+    )}
+    {qrPollError && (
+     <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-left text-sm text-red-900" role="alert">
+      {qrPollError}
      </div>
     )}
    </div>
@@ -447,6 +725,7 @@ export function PaymentDialog({
  onClick={() => {
  setMethod('CASH');
  setCashTenderedOverride(null);
+ setManualQrVerified(false);
  }}
  icon={Banknote}
  label="Tunai"
@@ -456,6 +735,7 @@ export function PaymentDialog({
  onClick={() => {
  setMethod('QR');
  setQrAmountOverride(null);
+ setManualQrVerified(false);
  }}
  icon={QrCode}
   label="DuitNow QR"
@@ -464,6 +744,10 @@ export function PaymentDialog({
  active={method === 'MIXED'}
  onClick={() => {
  setMethod('MIXED');
+ const half = total / 2;
+ setCashTenderedOverride(half.toFixed(2));
+ setQrAmountOverride((total - half).toFixed(2));
+ setManualQrVerified(false);
  }}
  icon={Split}
  label="Campur"
@@ -526,6 +810,7 @@ export function PaymentDialog({
  value={qrAmount}
  onChange={(e) => {
  setQrAmountOverride(e.target.value);
+ setManualQrVerified(false);
  }}
  />
  </div>
@@ -535,34 +820,11 @@ export function PaymentDialog({
  className="h-12 w-full text-base font-semibold"
  onClick={() => {
  setQrAmountOverride(null);
+ setManualQrVerified(false);
  }}
  >
  QR penuh - {formatRM(total)}
  </Button>
- </div>)}
-
-  {method === 'QR' && (
-  <div className="rounded-2xl border-2 border-amber-200 bg-amber-50/70 p-4">
- <div className="flex items-start justify-between gap-3">
- <div>
-  <p className="text-base font-bold text-amber-950">DuitNow QR</p>
-  <p className="text-xs text-muted-foreground">
-  Sistem akan menjana QR Fiuu apabila saluran diaktifkan. Jika belum tersedia, proses manual sedia ada kekal digunakan.
- </p>
- </div>
- <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">
-  Selamat
- </span>
- </div>
- <div className="mt-4 rounded-2xl border bg-white p-4 text-center shadow-sm">
- <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
- <QrCode className="h-12 w-12" />
- </div>
- <p className="mt-3 text-2xl font-bold tabular-nums text-amber-950">{formatRM(qrNum)}</p>
- <p className="text-xs text-muted-foreground">
-  Jualan Fiuu hanya disahkan selepas callback bertandatangan dan jumlah bayaran sepadan.
- </p>
- </div>
  </div>)}
 
  {method === 'MIXED' && (
@@ -586,7 +848,10 @@ export function PaymentDialog({
  step="0.01"
  className="h-12 text-lg font-semibold tabular-nums"
  value={qrAmount}
- onChange={(e) => setQrAmountOverride(e.target.value)}
+ onChange={(e) => {
+ setQrAmountOverride(e.target.value);
+ setManualQrVerified(false);
+ }}
  />
  </div>
  <Button
@@ -597,10 +862,113 @@ export function PaymentDialog({
  const half = (total / 2).toFixed(2);
  setCashTenderedOverride(half);
  setQrAmountOverride((total - total / 2).toFixed(2));
+ setManualQrVerified(false);
  }}
  >
  Bahagi sama - tunai + QR
  </Button>
+ </div>)}
+
+ {(method === 'QR' || method === 'MIXED') && (
+ <div className="rounded-2xl border-2 border-amber-200 bg-gradient-to-b from-amber-50 to-white p-4">
+  <div className="flex items-start justify-between gap-3">
+   <div>
+    <p className="text-base font-bold text-amber-950">DuitNow QR melalui Fiuu</p>
+    <p className="text-xs text-muted-foreground">
+     {qrConfig?.mode === 'FIUU_DYNAMIC'
+      ? 'QR amaun tepat akan dijana dan disahkan secara automatik oleh Fiuu.'
+      : 'QR rasmi cawangan dipaparkan secara automatik. Pelanggan masukkan amaun yang ditunjukkan.'}
+    </p>
+   </div>
+   <span className={cn(
+    'rounded-full px-2 py-1 text-xs font-semibold',
+    qrConfig?.mode === 'FIUU_DYNAMIC'
+     ? 'bg-emerald-100 text-emerald-800'
+     : 'bg-amber-100 text-amber-800')}
+   >
+    {qrConfig?.mode === 'FIUU_DYNAMIC' ? 'Automatik' : 'QR cawangan'}
+   </span>
+  </div>
+
+  <div className="mt-4 rounded-2xl border bg-white p-4 text-center shadow-sm">
+   {qrConfigLoading && (
+    <div className="flex min-h-52 items-center justify-center gap-2 text-sm text-muted-foreground" role="status">
+     <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" />
+     Memuatkan QR rasmi cawangan...
+    </div>
+   )}
+
+   {!qrConfigLoading && qrConfigError && (
+    <div className="flex min-h-40 flex-col items-center justify-center gap-3 text-sm text-red-800" role="alert">
+     <QrCode className="h-12 w-12" aria-hidden="true" />
+     <p>{qrConfigError}</p>
+     <Button
+      type="button"
+      variant="outline"
+      onClick={() => {
+       setQrConfigRetry((current) => current + 1);
+      }}
+     >
+      <RefreshCw className="mr-2 h-4 w-4" aria-hidden="true" /> Cuba semula
+     </Button>
+    </div>
+   )}
+
+   {!qrConfigLoading && !qrConfigError && qrConfig?.mode === 'FIUU_STATIC_MANUAL' && qrConfig.staticQr && (
+    <>
+     <div className="mx-auto max-w-72 overflow-hidden rounded-2xl border-4 border-white bg-white shadow-md ring-1 ring-slate-200">
+      <Image
+       src={qrConfig.staticQr.imageUrl}
+       alt={`DuitNow QR ${qrConfig.branch.code} ${qrConfig.branch.name}`}
+       width={910}
+       height={910}
+       className="h-auto w-full"
+       unoptimized
+      />
+     </div>
+     <p className="mt-3 text-sm font-bold text-slate-900">
+      {qrConfig.branch.name} <span className="text-slate-500">({qrConfig.branch.code})</span>
+     </p>
+     <p className="text-xs text-emerald-700">
+      Pastikan penerima: <strong>{qrConfig.staticQr.recipientName}</strong>
+     </p>
+    </>
+   )}
+
+   {!qrConfigLoading && !qrConfigError && qrConfig?.mode === 'FIUU_DYNAMIC' && (
+    <div className="mx-auto flex min-h-40 flex-col items-center justify-center gap-3 text-amber-800">
+     <div className="flex h-24 w-24 items-center justify-center rounded-2xl bg-amber-100">
+      <QrCode className="h-12 w-12" aria-hidden="true" />
+     </div>
+     <p className="text-xs text-muted-foreground">Tekan Sahkan Bayaran untuk menjana QR amaun tepat.</p>
+    </div>
+   )}
+
+   {trainingMode && (
+    <div className="mx-auto flex min-h-40 flex-col items-center justify-center gap-3 text-sky-800">
+     <div className="flex h-24 w-24 items-center justify-center rounded-2xl bg-sky-100">
+      <QrCode className="h-12 w-12" aria-hidden="true" />
+     </div>
+     <p className="text-xs">Simulasi latihan sahaja - tiada bayaran sebenar dipindahkan.</p>
+    </div>
+   )}
+
+   <p className="mt-3 text-3xl font-bold tabular-nums text-amber-950">{formatRM(qrNum)}</p>
+  </div>
+
+  {requiresManualQrVerification && qrConfig?.staticQr && (
+   <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border-2 border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">
+    <input
+     type="checkbox"
+     className="mt-0.5 h-5 w-5 accent-emerald-600"
+     checked={manualQrVerified}
+     onChange={(event) => setManualQrVerified(event.target.checked)}
+    />
+    <span>
+     Saya telah melihat status <strong>Berjaya</strong> pada telefon pelanggan dan amaun sepadan.
+    </span>
+   </label>
+  )}
  </div>)}
 
  {changeAmount > 0 && method !== 'QR' && (
@@ -633,24 +1001,45 @@ export function PaymentDialog({
   </div>
 
   <div className="flex gap-2 border-t bg-muted/20 p-4">
-  {qrPayment ? (
-   qrStatus === 'PENDING' ? (
-    <Button className="h-12 w-full gap-2 rounded-xl" disabled aria-live="polite">
-     <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" />
-     Menunggu bayaran Fiuu
-    </Button>
-   ) : (
+   {qrPayment ? (
+    qrStatus === 'PENDING' || qrStatus === 'PAID' ? (
+     <div className="flex w-full gap-2">
+      <Button className="h-12 flex-1 gap-2 rounded-xl" disabled aria-live="polite">
+       <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" />
+       {qrStatus === 'PAID'
+        ? 'Memulihkan resit'
+        : qrDisplayExpired
+        ? 'Merekonsiliasi callback lewat'
+        : 'Menunggu bayaran Fiuu'}
+      </Button>
+      <Button
+       type="button"
+       variant="outline"
+       className="h-12 gap-2"
+       disabled={checkingQrStatus}
+       onClick={() => void reconcileQrPayment(qrPayment, true)}
+      >
+       <RefreshCw className={cn('h-5 w-5', checkingQrStatus && 'animate-spin')} aria-hidden="true" />
+       Semak status
+      </Button>
+     </div>
+    ) : (
     <>
      <Button variant="outline" className="h-12 flex-1" onClick={() => handleDialogOpenChange(false)}>
       Tutup
      </Button>
      <Button
       className="h-12 flex-[2] gap-2 rounded-xl bg-amber-500 font-bold hover:bg-amber-600"
-      onClick={() => {
-       setQrPayment(null);
-       setQrStatus('PENDING');
-       setQrSecondsRemaining(0);
-      }}
+       onClick={() => {
+        removeStoredQrPayment();
+        setQrPayment(null);
+        setQrStatus('PENDING');
+        setQrSecondsRemaining(0);
+        setQrPollError(null);
+        setQrImageError(false);
+        setQrImageRetry(0);
+        qrAttemptKeyRef.current = null;
+       }}
      >
       <RefreshCw className="h-5 w-5" aria-hidden="true" />
       Jana QR baharu

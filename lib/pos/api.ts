@@ -5,6 +5,7 @@ import type {
  MenuStockBalance,
  OfflineSalePayload,
  PosPresenceReason,
+ PosQrConfig,
  PosShiftSummary,
  PosShiftAvailableStaff,
  PosShiftStaffMember,
@@ -177,7 +178,11 @@ export async function fetchTransactions(branchId: string, shiftId?: string) {
 }
 
 export async function createSale(payload: CreateSalePayload) {
- return fetchJson<{ result: SaleResult }>('/api/pos/transactions', {
+ return fetchJson<{
+  result: SaleResult;
+  manual_payment_review: Record<string, unknown> | null;
+  manual_payment_review_error: string | null;
+ }>('/api/pos/transactions', {
  method: 'POST',
  body: JSON.stringify(payload),
  });
@@ -253,11 +258,14 @@ export async function submitPosRejectStock(
 }
 
 
-export async function createPosQrPayment(payload: CreateSalePayload) {
+export async function createPosQrPayment(
+ payload: CreateSalePayload,
+ idempotencyKey: string,
+) {
  const response = await fetch('/api/pos/qr-payments', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify(payload),
+  body: JSON.stringify({ ...payload, idempotency_key: idempotencyKey }),
  });
  const data = await response.json();
  if (!response.ok) {
@@ -270,14 +278,22 @@ export async function createPosQrPayment(payload: CreateSalePayload) {
  return data as {
   payment: {
    id: string;
-   status: 'PENDING';
+   status: 'PENDING' | 'PAID';
    amount_rm: number;
-   qr_image_url: string;
-   gateway_ref: string;
-   expires_at: string;
+   qr_image_url: string | null;
+   gateway_ref: string | null;
+   expires_at: string | null;
    environment: 'sandbox' | 'production';
+   reused: boolean;
   };
  };
+}
+
+export async function fetchPosQrConfig(branchId: string) {
+ return fetchCachedJson<PosQrConfig>(
+  `/api/pos/qr-config?branch_id=${encodeURIComponent(branchId)}`,
+  5 * 60 * 1000,
+ );
 }
 
 export class PosQrPaymentError extends Error {

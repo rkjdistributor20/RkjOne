@@ -6,6 +6,8 @@ import { Ban, RotateCcw } from 'lucide-react';
 import { voidTransaction, refundTransaction } from '@/lib/pos/api';
 import { formatRM } from '@/lib/pos/utils';
 import { usePosStore } from '@/stores/pos-store';
+import { useAuthStore } from '@/stores/auth-store';
+import { canRefundPosTransaction, canVoidPosTransaction } from '@/lib/pos/access';
 import type { PosTransactionRow } from '@/lib/pos/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -31,11 +33,14 @@ const STATUS_COLORS = {
 };
 
 export function TransactionHistory({ onRefresh, canViewFullHistory = false }: TransactionHistoryProps) {
+ const role = useAuthStore((state) => state.profile?.role);
  const transactions = usePosStore((s) => s.transactions);
  const [actionTx, setActionTx] = useState<PosTransactionRow | null>(null);
  const [actionType, setActionType] = useState<'void' | 'refund' | null>(null);
  const [reason, setReason] = useState('');
  const [loading, setLoading] = useState(false);
+ const canVoid = canVoidPosTransaction(role);
+ const canRefund = canRefundPosTransaction(role);
 
  async function handleAction() {
  if (!actionTx || !actionType || !reason.trim()) return;
@@ -98,8 +103,9 @@ export function TransactionHistory({ onRefresh, canViewFullHistory = false }: Tr
  <span className="text-xs text-muted-foreground">
  {tx.payment_method}
  </span>
- {tx.status === 'COMPLETED' && (
+ {tx.status === 'COMPLETED' && (canVoid || canRefund) && (
  <div className="flex gap-1">
+ {canVoid && (
  <Button
  variant="ghost"
  size="sm"
@@ -111,7 +117,8 @@ export function TransactionHistory({ onRefresh, canViewFullHistory = false }: Tr
  >
  <Ban className="mr-1 h-3 w-3" />
  Batal
- </Button>
+ </Button>)}
+ {canRefund && (
  <Button
  variant="ghost"
  size="sm"
@@ -123,7 +130,7 @@ export function TransactionHistory({ onRefresh, canViewFullHistory = false }: Tr
  >
  <RotateCcw className="mr-1 h-3 w-3" />
  Bayar Balik
- </Button>
+ </Button>)}
  </div>)}
  </div>
  </div>)))}

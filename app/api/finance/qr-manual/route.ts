@@ -1,7 +1,15 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { getCurrentProfile } from '@/lib/auth/session';
+import type { Database, Json } from '@/types/database';
+
+type PosOnlinePaymentUpdate = Database['public']['Tables']['pos_online_payments']['Update'];
+
+function isJsonObject(value: Json): value is { [key: string]: Json | undefined } {
+ return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
 
 const REVIEW_ROLES = new Set([
  'SUPER_ADMIN',
@@ -74,8 +82,7 @@ export async function PATCH(request: Request) {
  return NextResponse.json({ error: 'payment_id dan status sah diperlukan' }, { status: 400 });
  }
 
- const supabase = await createClient();
- const db = supabase as SupabaseClient;
+ const db = createAdminClient();
  const { data: payment, error: loadError } = await db
  .from('pos_online_payments')
  .select('id, status, sale_payload')
@@ -85,16 +92,12 @@ export async function PATCH(request: Request) {
  .maybeSingle();
 
  if (loadError) return NextResponse.json({ error: loadError.message }, { status: 400 });
- const paymentRow = payment as { id: string; status: string; sale_payload: unknown } | null;
- if (!paymentRow) return NextResponse.json({ error: 'Rekod QR manual tidak dijumpai' }, { status: 404 });
+ if (!payment) return NextResponse.json({ error: 'Rekod QR manual tidak dijumpai' }, { status: 404 });
 
  const now = new Date().toISOString();
- const salePayload =
- typeof paymentRow.sale_payload === 'object' && paymentRow.sale_payload !== null && !Array.isArray(paymentRow.sale_payload)
- ? paymentRow.sale_payload as Record<string, unknown>
- : {};
+ const salePayload = isJsonObject(payment.sale_payload) ? payment.sale_payload : {};
 
- const patch: Record<string, unknown> = {
+ const patch: PosOnlinePaymentUpdate = {
  status: body.status,
  updated_at: now,
  sale_payload: {
@@ -118,6 +121,8 @@ export async function PATCH(request: Request) {
  .from('pos_online_payments')
  .update(patch)
  .eq('id', body.payment_id)
+ .eq('organization_id', profile.organization_id)
+ .eq('provider', 'manual_qr')
  .select('id, status, paid_at, failed_at, sale_payload')
  .single();
 

@@ -1,6 +1,6 @@
 # RKJ One Production Finalization Runbook
 
-Last verified: 2026-08-05 (Asia/Kuala_Lumpur)
+Last verified: 2026-08-08 (Asia/Kuala_Lumpur)
 
 This runbook records the remaining gates before RKJ One is handed to staff. It contains no passwords, tokens or API keys.
 
@@ -17,15 +17,15 @@ Never reuse Production keys in Preview, local development or staging. Never link
 
 - The 149-migration baseline replayed successfully in isolated local Supabase after four migration-history corrections. Before reconciliation markers, the integrated repository contained 152 migrations including the later Fiuu and legal-entity work; the 11 Production history markers bring the canonical history to 163 files.
 - Staging includes the Fiuu schema migrations and `20260805170000_backfill_profile_legal_entity_from_staff.sql`.
-- Staging migration history matches the repository through `20260805170000`; a linked `db push --dry-run` reports that staging is up to date.
+- Staging migration history matches the repository through `20260808135000`; a linked `db push --dry-run` reports that staging is up to date.
 - The staging legal-entity audit reports zero active non-admin profiles without a legal entity and one active ADMIN.
 - The 2026-08-05 read-only Production audit found 11 historical versions (`20260722114542` through `20260722154920`) that were originally absent from the repository. `supabase migration fetch` recovered their SQL to an external audit directory. Each version maps to a later replay-safe repository migration, and the differences were reviewed. The repository now uses explicit no-op history markers for the Production-only version IDs; the broken historical SQL is not replayed. The later canonical migrations remain responsible for applying the corrected behavior.
-- All 163 canonical migration files replay successfully from an empty local database. The 11 no-op history markers have also been recorded in staging, and staging now reports no pending migration.
-- After reconciliation, the Production dry-run succeeds and lists exactly 14 pending canonical migrations: the 11 replay-safe security/index/RLS migrations followed by the explicit Data API grants, Fiuu POS QR schema and legal-entity backfill migrations.
+- All 169 canonical migration files replay successfully from an empty local database. The 11 no-op history markers have also been recorded in staging. On 2026-08-08 the two POS shift approval migrations and four Fiuu payment hardening migrations were applied to staging; a linked dry-run then reported no pending migration and linked schema lint returned no error.
+- The 2026-08-05 Production dry-run listed 14 pending canonical migrations. That result is now a historical checkpoint; Production must be audited again because six newer staging migrations were added afterward.
 - Production daily physical backups are available. The latest backup observed was `04 Aug 2026 14:54:14 UTC`.
 - Point-in-time recovery was not enabled when checked. Database backups do not include Storage objects.
 - Production has 107 active profiles. The audit found zero active ADMIN accounts, 68 profiles that had never signed in, two Operation Manager profiles missing a legal entity and one Distributor staff profile with no verified branch assignment.
-- Fiuu DuitNow QR Offline is activated at the merchant. OPA credentials, signed callback UAT and settlement reconciliation remain unconfirmed.
+- Fiuu DuitNow QR Offline is activated at the merchant. Both merchant applications are approved and the Roti Kaya Junus sandbox portal exposes Merchant ID, Verify Key and Secret Key. The precise OPA identifier/signature/callback contract, signed callback UAT and settlement reconciliation remain unconfirmed; a technical confirmation request was sent under Fiuu Ticket `2924959` on 2026-08-08.
 - Google Play Production currently serves RKJ One Staff `1.4` (version code `5`) at full rollout. Internal testing `1.5` (version code `6`) is active and available to the configured testers; Production promotion remains gated by physical-device acceptance.
 
 ## Production GO gates
@@ -36,7 +36,7 @@ All items below are mandatory:
 2. Owner/HR confirms branch and region assignments that cannot be derived from an existing staff record.
 3. Role UAT passes for SUPER_ADMIN, ADMIN, OM, AM, Finance, HR, POS staff, driver, factory and sales agent.
 4. A current Production recovery point is available immediately before migration, with a named person authorized to restore it.
-5. Production dry-run still lists exactly the 14 reviewed canonical migrations recorded below, with no additional version or ordering difference.
+5. A fresh Production migration list and dry-run are reviewed immediately before rollout. The earlier 14-migration checkpoint is historical and must not be reused because six newer staging migrations now exist.
 6. Staging Preview passes login, access isolation, POS, inventory, finance, fleet, HR and negative security smoke tests.
 7. Fiuu remains `manual` unless OPA credentials, signed callback, idempotency, receipt, stock movement, shift summary and settlement all reconcile.
 8. The exact Vercel deployment and Supabase project references are recorded before release.
