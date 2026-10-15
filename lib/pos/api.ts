@@ -284,15 +284,39 @@ export async function createPosQrPayment(
    gateway_ref: string | null;
    expires_at: string | null;
    environment: 'sandbox' | 'production';
+   integration: 'opa' | 'vt_app';
+   provider_order_id: string | null;
    reused: boolean;
   };
  };
 }
 
+export async function submitFiuuVtResult(paymentId: string, result: unknown) {
+ return fetchJson<{
+  payment: { id: string; status: 'PENDING' | 'REPORTED' | 'PAID' | 'FAILED' | 'EXPIRED' | 'CANCELLED' };
+  next_action: 'CHECK_STATUS' | 'CHECK_STATUS_LATER' | 'MANUAL_CONFIRMATION' | 'COMPLETE';
+  warning?: string;
+ }>(`/api/pos/qr-payments/${encodeURIComponent(paymentId)}/vt-result`, {
+  method: 'POST',
+  body: JSON.stringify({ result }),
+ });
+}
+
+export async function confirmFiuuVtPayment(paymentId: string) {
+ return fetchJson<{
+  payment: { id: string; status: 'PAID' };
+  result?: SaleResult;
+  reused?: boolean;
+ }>(`/api/pos/qr-payments/${encodeURIComponent(paymentId)}/vt-confirm`, {
+  method: 'POST',
+  body: JSON.stringify({ confirm: true }),
+ });
+}
+
 export async function fetchPosQrConfig(branchId: string) {
- return fetchCachedJson<PosQrConfig>(
+ return fetchJson<PosQrConfig>(
   `/api/pos/qr-config?branch_id=${encodeURIComponent(branchId)}`,
-  5 * 60 * 1000,
+  { cache: 'no-store' },
  );
 }
 
@@ -311,7 +335,7 @@ export async function fetchPosQrPayment(paymentId: string) {
  return fetchJson<{
  payment: {
  id: string;
- status: 'PENDING' | 'PAID' | 'FAILED' | 'EXPIRED' | 'CANCELLED';
+  status: 'PENDING' | 'REPORTED' | 'PAID' | 'FAILED' | 'EXPIRED' | 'CANCELLED';
  amount_rm: number;
  transaction_id: string | null;
  expires_at: string | null;

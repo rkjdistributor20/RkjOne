@@ -1,6 +1,30 @@
 # RKJ One Fiuu DuitNow QR POS Setup
 
-Last updated: 2026-08-26
+Last updated: 2026-10-15
+
+## Fiuu VT App-to-App BR001 pilot (2026-10-15)
+
+Fiuu supplied the official VT App-to-App v1.2 specification and confirmed on 2026-10-08 that the function was activated. RKJ One now has a separate `fiuu_vt` transport for a strictly allowlisted managed Android tablet. It requires Fiuu VT to be installed through Managed Google Play, launches package `com.rms.mobile.razervt` explicitly, requests merchant-presented DuitNow QR through channel `RPP_DuitNowQR-Offline`, and performs a second `STATUS` operation after the SALE result.
+
+The VT deep-link response does **not** contain HMAC, a digital signature, nonce or server-verifiable proof. For that reason:
+
+- SALE never creates a sale, receipt or stock movement;
+- STATUS must match the random order ID, Transaction ID, amount, `MYR` and exact DuitNow channel;
+- `22`, `33` and `45` remain pending; `11`, `44` and `55` close the attempt;
+- STATUS `00` is recorded as `REPORTED`, not `PAID`;
+- a cashier must verify the successful Fiuu VT screen and explicitly confirm once;
+- only then may the service-role-only, row-locked RPC create one sale, one receipt and one stock deduction;
+- BR002-BR036 continue using their static QR/manual workflow.
+
+This is a safe usable pilot, not fully automatic cryptographic confirmation. Fully automatic rollout requires Fiuu to provide an authenticated server status API or signed callback. Configure the pilot only with:
+
+```dotenv
+POS_QR_PAYMENT_MODE=fiuu_vt
+POS_FIUU_VT_BRANCHES=BR001
+POS_FIUU_VT_VALIDITY_SECONDS=900
+```
+
+Do not add all branches to the allowlist before BR001 device UAT and Finance settlement reconciliation pass. A native Android 1.7.0 (version code 17) build is required; the web/PWA alone cannot launch and validate the Fiuu VT app.
 
 ## Static QR operational fallback (2026-10-06)
 

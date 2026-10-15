@@ -88,12 +88,16 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [ ] Production and staging project references are independently verified before linking or pushing migrations.
 - [ ] Readiness dashboard reports at least one approved active ADMIN and zero active non-admin profiles without legal-entity scope.
 - [ ] Every active real-user profile has an Auth user and completes role-based first-login UAT.
-- [ ] Fiuu remains in manual mode until OPA credentials, callback signature, idempotency and settlement reconciliation pass in staging and pilot.
+- [ ] Fiuu remains static/manual outside the explicit BR001 pilot until OPA credentials or another signed server proof, idempotency and settlement reconciliation pass.
 - [ ] Fiuu POS reload, duplicate-create, QR expiry, late callback, callback replay and shift-close grace cases pass against the staging OPA application.
+- [ ] BR001 Fiuu VT passes managed-device install/activation, SALE → STATUS, success, cancel, timeout, pending, app-kill/reopen, duplicate callback and mixed-payment tests.
+- [ ] VT SALE never creates a sale; unsigned STATUS `00` shows `REPORTED` and requires an explicit cashier confirmation before one atomic receipt/stock deduction.
+- [ ] BR002-BR036 continue to display their mapped static QR while `POS_QR_PAYMENT_MODE=fiuu_vt` and `POS_FIUU_VT_BRANCHES=BR001` are set.
+- [ ] The EMM force-installs `com.rms.mobile.razervt` and permits RKJ One ↔ Fiuu VT handoff without enabling sideloading, extra apps or unrestricted Settings.
 - [ ] Inactive profiles are denied by application session loading and all RLS identity helpers before their Auth token naturally expires.
 - [ ] An HQ user cannot use a branch UUID belonging to another organization through Data API or any SECURITY DEFINER RPC.
 - [ ] Authenticated branch users can read scoped POS financial rows but cannot directly insert, update or delete transaction, item, payment or receipt rows.
-- [ ] Android 1.6.9 is installed from the exact Internal Testing bundle and passes printer, auto-print and drawer tests for CASH and MIXED, while QR-only never opens the drawer.
+- [ ] Android 1.7.0 is installed from the exact Internal Testing bundle and passes printer, auto-print, drawer and BR001 Fiuu VT tests; QR-only never opens the drawer.
 - [ ] Vercel production deployment is Ready.
 - [ ] Production alias points to expected deployment.
 - [ ] Vercel error logs checked for the last hour.

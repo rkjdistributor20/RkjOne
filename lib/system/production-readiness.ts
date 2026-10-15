@@ -28,9 +28,10 @@ type ReadinessInput = {
  posPilotPassed: boolean;
  monitoringVerified: boolean;
  hasFiuuCredentials: boolean;
+ hasFiuuVtPilot: boolean;
  hasFiuuSchema: boolean;
  fiuuLiveUatPassed: boolean;
- posQrPaymentMode: 'manual' | 'fiuu';
+ posQrPaymentMode: 'manual' | 'fiuu' | 'fiuu_vt';
  branches: number | null;
  legalEntities: number | null;
  activeProfiles: number | null;
@@ -68,8 +69,9 @@ export function buildProductionReadiness(input: ReadinessInput): ProductionReadi
  const hasCompleteScope = input.activeProfilesMissingLegalEntity === 0;
  const hasCompleteAuth = input.activeProfilesWithoutAuthUser === 0;
  const hasCompletedFirstLogin = input.activeProfilesNeverSignedIn === 0;
- const fiuuReady = input.posQrPaymentMode === 'fiuu'
-  && input.hasFiuuCredentials
+ const fiuuRuntimeConfigured = (input.posQrPaymentMode === 'fiuu' && input.hasFiuuCredentials)
+  || (input.posQrPaymentMode === 'fiuu_vt' && input.hasFiuuVtPilot);
+ const fiuuReady = fiuuRuntimeConfigured
   && input.hasFiuuSchema
   && input.fiuuLiveUatPassed;
 
@@ -146,6 +148,7 @@ export function buildProductionReadiness(input: ReadinessInput): ProductionReadi
  [
   `Mod QR POS: ${input.posQrPaymentMode}`,
   `Kredensial OPA: ${input.hasFiuuCredentials ? 'dikesan' : 'belum lengkap'}`,
+  `Pilot VT: ${input.hasFiuuVtPilot ? 'dikonfigurasi' : 'tidak aktif'}`,
   `Skema Fiuu: ${input.hasFiuuSchema ? 'tersedia' : 'belum tersedia'}`,
  ]),
  area(

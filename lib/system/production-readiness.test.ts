@@ -9,6 +9,7 @@ const BASE_INPUT = {
  posPilotPassed: false,
  monitoringVerified: false,
  hasFiuuCredentials: false,
+ hasFiuuVtPilot: false,
  hasFiuuSchema: false,
  fiuuLiveUatPassed: false,
  posQrPaymentMode: 'manual' as const,

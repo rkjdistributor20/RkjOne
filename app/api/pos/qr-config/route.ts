@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { getCurrentProfile } from '@/lib/auth/session';
 import { assertCanAccessPosBranch, posAccessErrorStatus } from '@/lib/pos/access';
 import { getPosQrPaymentMode } from '@/lib/pos/fiuu';
+import { FIUU_VT_DUITNOW_CHANNEL, FIUU_VT_PACKAGE } from '@/lib/pos/fiuu-vt';
+import { isFiuuVtEnabledForBranch } from '@/lib/pos/fiuu-vt-server';
 import { getFiuuStaticQrConfig } from '@/lib/pos/fiuu-static';
 import { enforceRateLimit } from '@/lib/security/rate-limit';
 import { createClient } from '@/lib/supabase/server';
@@ -43,22 +45,38 @@ export async function GET(request: Request) {
  if (!branch) return NextResponse.json({ error: 'Cawangan tidak dijumpai' }, { status: 404 });
 
  const staticQr = getFiuuStaticQrConfig(branch.branch_code);
- const dynamic = getPosQrPaymentMode() === 'fiuu';
+ const paymentMode = getPosQrPaymentMode();
+ const dynamic = paymentMode === 'fiuu';
+ let vtEnabled = false;
+ try {
+  vtEnabled = paymentMode === 'fiuu_vt' && isFiuuVtEnabledForBranch(branch.branch_code);
+ } catch (configurationError) {
+  console.error('[pos-fiuu-vt] invalid_branch_configuration', {
+   reason: configurationError instanceof Error ? configurationError.message : 'unknown',
+  });
+ }
 
  return NextResponse.json(
   {
-   mode: dynamic ? 'FIUU_DYNAMIC' : 'FIUU_STATIC_MANUAL',
+   mode: dynamic ? 'FIUU_DYNAMIC' : vtEnabled ? 'FIUU_VT_APP' : 'FIUU_STATIC_MANUAL',
    branch: {
     id: branch.id,
     code: branch.branch_code,
     name: branch.branch_name,
    },
    staticQr,
-   configured: dynamic || Boolean(staticQr),
+   vt: vtEnabled ? {
+    packageName: FIUU_VT_PACKAGE,
+    channel: FIUU_VT_DUITNOW_CHANNEL,
+    pilot: true,
+   } : null,
+   configured: dynamic || vtEnabled || Boolean(staticQr),
   },
   {
    headers: {
-    'Cache-Control': 'private, max-age=300, stale-while-revalidate=600',
+    'Cache-Control': paymentMode === 'fiuu_vt'
+     ? 'private, no-store'
+     : 'private, max-age=300, stale-while-revalidate=600',
    },
   },
  );

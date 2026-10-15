@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -18,6 +19,11 @@ import {
  getPosQrPaymentMode,
  isFiuuReconciliationExpired,
 } from '@/lib/pos/fiuu';
+import { buildFiuuVtOrderId } from '@/lib/pos/fiuu-vt';
+import {
+ getFiuuVtValiditySeconds,
+ isFiuuVtEnabledForBranch,
+} from '@/lib/pos/fiuu-vt-server';
 import {
  isSamePosPaymentIntent,
  isValidPosPaymentIdempotencyKey,
@@ -38,6 +44,13 @@ type ExistingPayment = {
  gateway_ref: string | null;
  checkout_url: string | null;
  expires_at: string | null;
+ provider_order_id: string | null;
+};
+
+type FiuuPaymentTransport = {
+ provider: 'fiuu' | 'fiuu_vt';
+ integration: 'opa' | 'vt_app';
+ environment: 'sandbox' | 'production';
 };
 
 function isSalePayload(value: unknown): value is CreateSalePayload {
@@ -59,10 +72,10 @@ function errorMessage(error: unknown) {
 function existingPaymentResponse(
  payment: ExistingPayment,
  expected: PosPaymentIntentIdentity,
- environment: 'sandbox' | 'production',
+ transport: FiuuPaymentTransport,
  conflictMode: 'IDEMPOTENCY_KEY_REUSED' | 'FIUU_ACTIVE_ATTEMPT_EXISTS' = 'IDEMPOTENCY_KEY_REUSED',
 ) {
- const matches = payment.provider === 'fiuu' && isSamePosPaymentIntent({
+ const matches = payment.provider === transport.provider && isSamePosPaymentIntent({
   branchId: payment.branch_id,
   shiftId: payment.shift_id,
   createdBy: payment.created_by ?? '',
@@ -89,7 +102,9 @@ function existingPaymentResponse(
     qr_image_url: null,
     gateway_ref: payment.gateway_ref,
     expires_at: payment.expires_at,
-    environment,
+    environment: transport.environment,
+    integration: transport.integration,
+    provider_order_id: payment.provider_order_id,
     reused: true,
    },
   });
@@ -104,10 +119,14 @@ function existingPaymentResponse(
    },
    { status: 409 });
  }
- if (!payment.checkout_url || !payment.gateway_ref || !payment.expires_at) {
+ if (!payment.expires_at
+  || (transport.integration === 'opa' && (!payment.checkout_url || !payment.gateway_ref))
+  || (transport.integration === 'vt_app' && !payment.provider_order_id)) {
   return NextResponse.json(
    {
-    error: 'Kod QR Fiuu masih dijana. Cuba semula sebentar lagi.',
+    error: transport.integration === 'vt_app'
+     ? 'Percubaan Fiuu VT masih disediakan. Cuba semula sebentar lagi.'
+     : 'Kod QR Fiuu masih dijana. Cuba semula sebentar lagi.',
     mode: 'FIUU_ATTEMPT_INITIALIZING',
    },
    { status: 409 });
@@ -118,10 +137,14 @@ function existingPaymentResponse(
    id: payment.id,
    status: 'PENDING',
    amount_rm: Number(payment.amount_rm),
-   qr_image_url: `/api/pos/qr-payments/${encodeURIComponent(payment.id)}/image`,
+   qr_image_url: transport.integration === 'opa'
+    ? `/api/pos/qr-payments/${encodeURIComponent(payment.id)}/image`
+    : null,
    gateway_ref: payment.gateway_ref,
    expires_at: payment.expires_at,
-   environment,
+   environment: transport.environment,
+   integration: transport.integration,
+   provider_order_id: payment.provider_order_id,
    reused: true,
   },
  });
@@ -138,7 +161,8 @@ export async function POST(request: Request) {
  const profile = await getCurrentProfile();
  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
- if (getPosQrPaymentMode() !== 'fiuu') {
+ const paymentMode = getPosQrPaymentMode();
+ if (paymentMode === 'manual') {
   return NextResponse.json(
    {
     error: 'POS QR online belum diaktifkan. Gunakan bayaran QR manual di POS dan sahkan di dashboard Kewangan.',
@@ -255,17 +279,37 @@ export async function POST(request: Request) {
   return NextResponse.json({ error: 'Bayaran campur memerlukan amaun tunai' }, { status: 400 });
  }
 
- let config;
- try {
-  config = getFiuuOpaConfig(device.branchCode ?? body.branchId, device.deviceCode);
- } catch (error) {
-  console.error('[pos-fiuu] invalid_configuration', { reason: errorMessage(error) });
-  return NextResponse.json({ error: 'Konfigurasi Fiuu POS tidak sah. Hubungi HQ.' }, { status: 503 });
- }
- if (!config) {
-  return NextResponse.json(
-   { error: 'Fiuu belum dikonfigurasi untuk cawangan ini.', mode: 'FIUU_CONFIGURATION_REQUIRED' },
-   { status: 503 });
+ const branchCode = device.branchCode?.trim().toUpperCase() ?? '';
+ let config: ReturnType<typeof getFiuuOpaConfig> = null;
+ let transport: FiuuPaymentTransport;
+ let validitySeconds: number;
+ if (paymentMode === 'fiuu_vt') {
+  try {
+   if (!branchCode || !isFiuuVtEnabledForBranch(branchCode)) {
+    return NextResponse.json(
+     { error: 'Fiuu VT belum dibenarkan untuk cawangan ini.', mode: 'FIUU_VT_BRANCH_NOT_ENABLED' },
+     { status: 409 });
+   }
+  } catch (error) {
+   console.error('[pos-fiuu-vt] invalid_configuration', { reason: errorMessage(error) });
+   return NextResponse.json({ error: 'Konfigurasi pilot Fiuu VT tidak sah. Hubungi HQ.' }, { status: 503 });
+  }
+  transport = { provider: 'fiuu_vt', integration: 'vt_app', environment: 'production' };
+  validitySeconds = getFiuuVtValiditySeconds();
+ } else {
+  try {
+   config = getFiuuOpaConfig(branchCode || body.branchId, device.deviceCode);
+  } catch (error) {
+   console.error('[pos-fiuu] invalid_configuration', { reason: errorMessage(error) });
+   return NextResponse.json({ error: 'Konfigurasi Fiuu POS tidak sah. Hubungi HQ.' }, { status: 503 });
+  }
+  if (!config) {
+   return NextResponse.json(
+    { error: 'Fiuu belum dikonfigurasi untuk cawangan ini.', mode: 'FIUU_CONFIGURATION_REQUIRED' },
+    { status: 503 });
+  }
+  transport = { provider: 'fiuu', integration: 'opa', environment: config.environment };
+  validitySeconds = config.validitySeconds;
  }
 
  const salePayload = {
@@ -279,10 +323,10 @@ export async function POST(request: Request) {
   ...(body.offline_id ? { offline_id: body.offline_id } : {}),
   ...(body.receipt_email ? { receipt_email: body.receipt_email } : {}),
   ...(body.receipt_phone ? { receipt_phone: body.receipt_phone } : {}),
-  fiuu_branch_code: device.branchCode ?? body.branchId,
+  fiuu_branch_code: branchCode || body.branchId,
   fiuu_device_code: device.deviceCode,
  } satisfies Json;
- const expiresAt = new Date(Date.now() + config.validitySeconds * 1000).toISOString();
+ const expiresAt = new Date(Date.now() + validitySeconds * 1000).toISOString();
  const admin = createAdminClient();
  const expectedIntent: PosPaymentIntentIdentity = {
   branchId: body.branchId,
@@ -291,7 +335,7 @@ export async function POST(request: Request) {
   amountRm: qrAmount,
   salePayload,
  };
- const existingSelect = 'id, amount_rm, branch_id, shift_id, created_by, provider, status, sale_payload, gateway_ref, checkout_url, expires_at';
+ const existingSelect = 'id, amount_rm, branch_id, shift_id, created_by, provider, status, sale_payload, gateway_ref, checkout_url, expires_at, provider_order_id';
 
  // A provider success cannot be accepted after this bounded grace. Expire only
  // those stale rows before checking the server-side one-active-intent guard.
@@ -302,8 +346,7 @@ export async function POST(request: Request) {
   .eq('organization_id', profile.organization_id)
   .eq('branch_id', body.branchId)
   .eq('shift_id', body.shiftId)
-  .eq('created_by', profile.id)
-  .eq('provider', 'fiuu')
+  .in('provider', ['fiuu', 'fiuu_vt'])
   .eq('status', 'PENDING')
   .lte('expires_at', reconciliationCutoff);
  if (expireError) {
@@ -320,7 +363,7 @@ export async function POST(request: Request) {
   return NextResponse.json({ error: 'Percubaan QR tidak dapat disahkan' }, { status: 400 });
  }
  if (existingPayment) {
-  return existingPaymentResponse(existingPayment, expectedIntent, config.environment);
+  return existingPaymentResponse(existingPayment, expectedIntent, transport);
  }
 
  const { data: activePayment, error: activeError } = await admin
@@ -330,7 +373,7 @@ export async function POST(request: Request) {
   .eq('branch_id', body.branchId)
   .eq('shift_id', body.shiftId)
   .eq('created_by', profile.id)
-  .eq('provider', 'fiuu')
+  .in('provider', ['fiuu', 'fiuu_vt'])
   .eq('status', 'PENDING')
   .maybeSingle();
  if (activeError) {
@@ -340,20 +383,47 @@ export async function POST(request: Request) {
   return existingPaymentResponse(
    activePayment,
    expectedIntent,
-   config.environment,
+   transport,
    'FIUU_ACTIVE_ATTEMPT_EXISTS',
   );
  }
 
+ const { data: activeDevicePayment, error: activeDeviceError } = await admin
+  .from('pos_online_payments')
+  .select(existingSelect)
+  .eq('organization_id', profile.organization_id)
+  .eq('branch_id', body.branchId)
+  .in('provider', ['fiuu', 'fiuu_vt'])
+  .eq('status', 'PENDING')
+  .contains('sale_payload', { fiuu_device_code: device.deviceCode })
+  .maybeSingle();
+ if (activeDeviceError) {
+  return NextResponse.json({ error: 'Percubaan QR aktif tablet tidak dapat disahkan' }, { status: 400 });
+ }
+ if (activeDevicePayment) {
+  return existingPaymentResponse(
+   activeDevicePayment,
+   expectedIntent,
+   transport,
+   'FIUU_ACTIVE_ATTEMPT_EXISTS',
+  );
+ }
+
+ const paymentId = randomUUID();
+ const providerOrderId = transport.integration === 'vt_app'
+  ? buildFiuuVtOrderId(paymentId)
+  : null;
  const { data: payment, error: insertError } = await admin
   .from('pos_online_payments')
   .insert({
+   id: paymentId,
    organization_id: profile.organization_id,
    branch_id: body.branchId,
    shift_id: body.shiftId,
    amount_rm: qrAmount,
    status: 'PENDING',
-   provider: 'fiuu',
+   provider: transport.provider,
+   provider_order_id: providerOrderId,
    sale_payload: salePayload,
    created_by: profile.id,
    expires_at: expiresAt,
@@ -370,7 +440,7 @@ export async function POST(request: Request) {
     .eq('idempotency_key', idempotencyKey)
     .maybeSingle();
    if (racedPayment) {
-    return existingPaymentResponse(racedPayment, expectedIntent, config.environment);
+    return existingPaymentResponse(racedPayment, expectedIntent, transport);
    }
    const { data: racedActivePayment } = await admin
     .from('pos_online_payments')
@@ -379,27 +449,61 @@ export async function POST(request: Request) {
     .eq('branch_id', body.branchId)
     .eq('shift_id', body.shiftId)
     .eq('created_by', profile.id)
-    .eq('provider', 'fiuu')
+     .in('provider', ['fiuu', 'fiuu_vt'])
     .eq('status', 'PENDING')
     .maybeSingle();
    if (racedActivePayment) {
     return existingPaymentResponse(
      racedActivePayment,
      expectedIntent,
-     config.environment,
+      transport,
      'FIUU_ACTIVE_ATTEMPT_EXISTS',
     );
    }
+    const { data: racedDevicePayment } = await admin
+     .from('pos_online_payments')
+     .select(existingSelect)
+     .eq('organization_id', profile.organization_id)
+     .eq('branch_id', body.branchId)
+     .in('provider', ['fiuu', 'fiuu_vt'])
+     .eq('status', 'PENDING')
+     .contains('sale_payload', { fiuu_device_code: device.deviceCode })
+     .maybeSingle();
+    if (racedDevicePayment) {
+     return existingPaymentResponse(
+      racedDevicePayment,
+      expectedIntent,
+      transport,
+      'FIUU_ACTIVE_ATTEMPT_EXISTS',
+     );
+    }
   }
-  return NextResponse.json({ error: insertError?.message ?? 'Rekod QR gagal dicipta' }, { status: 400 });
+   return NextResponse.json({ error: 'Rekod QR gagal dicipta' }, { status: 400 });
+ }
+
+ if (transport.integration === 'vt_app') {
+  return NextResponse.json({
+   payment: {
+    id: payment.id,
+    status: 'PENDING',
+    amount_rm: qrAmount,
+    qr_image_url: null,
+    gateway_ref: null,
+    provider_order_id: providerOrderId,
+    expires_at: expiresAt,
+    environment: transport.environment,
+    integration: transport.integration,
+    reused: false,
+   },
+  });
  }
 
  try {
   const qr = await createFiuuDynamicQr({
-   config,
+   config: config!,
    paymentId: payment.id,
    amountRm: qrAmount,
-   description: `RKJ POS ${device.branchCode ?? 'Branch'}`,
+   description: `RKJ POS ${branchCode || 'Branch'}`,
   });
   const { error: updateError } = await admin
    .from('pos_online_payments')
@@ -421,7 +525,9 @@ export async function POST(request: Request) {
     qr_image_url: `/api/pos/qr-payments/${encodeURIComponent(payment.id)}/image`,
     gateway_ref: qr.gatewayReference,
     expires_at: qr.expiresAt,
-    environment: config.environment,
+    environment: transport.environment,
+    integration: transport.integration,
+    provider_order_id: null,
     reused: false,
    },
   });

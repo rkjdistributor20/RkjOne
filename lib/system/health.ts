@@ -177,7 +177,10 @@ async function loadAccessReadiness(supabase: DbClient) {
 async function hasFiuuDatabaseSchema(supabase: DbClient) {
   const { error } = await supabase
     .from("pos_online_payments")
-    .select("expires_at", { count: "exact", head: true });
+    .select("expires_at, provider_order_id, provider_result, provider_status_checked_at", {
+      count: "exact",
+      head: true,
+    });
   return !error;
 }
 
@@ -206,8 +209,9 @@ function launchItem(
 function buildLaunchControl(input: {
   hasSupabaseEnv: boolean;
   hasFiuuCredentials: boolean;
+  hasFiuuVtPilot: boolean;
   hasFiuuSchema: boolean;
-  posQrPaymentMode: "manual" | "fiuu";
+  posQrPaymentMode: "manual" | "fiuu" | "fiuu_vt";
   branches: number | null;
   legalEntities: number | null;
   activeProfiles: number | null;
@@ -226,8 +230,8 @@ function buildLaunchControl(input: {
     input.activeProfilesMissingLegalEntity === 0 &&
     input.activeProfilesWithoutAuthUser === 0;
   const hasCompletedFirstLogin = input.activeProfilesNeverSignedIn === 0;
-  const hasFiuuRuntime = input.posQrPaymentMode === "fiuu" &&
-    input.hasFiuuCredentials &&
+  const hasFiuuRuntime = ((input.posQrPaymentMode === "fiuu" && input.hasFiuuCredentials) ||
+    (input.posQrPaymentMode === "fiuu_vt" && input.hasFiuuVtPilot)) &&
     input.hasFiuuSchema;
   const items: LaunchControlItem[] = [
     launchItem(
@@ -341,10 +345,10 @@ export async function buildSystemHealthSnapshot(
   const hasFiuuCredentials = Boolean(process.env.POS_FIUU_APPLICATIONS_JSON) ||
     (Boolean(process.env.POS_FIUU_APPLICATION_CODE) &&
       Boolean(process.env.POS_FIUU_SECRET_KEY));
-  const posQrPaymentMode = process.env.POS_QR_PAYMENT_MODE
-    ?.trim()
-    .toLowerCase() === "fiuu"
-    ? "fiuu"
+  const hasFiuuVtPilot = Boolean(process.env.POS_FIUU_VT_BRANCHES?.trim());
+  const rawPosQrPaymentMode = process.env.POS_QR_PAYMENT_MODE?.trim().toLowerCase();
+  const posQrPaymentMode = rawPosQrPaymentMode === "fiuu" || rawPosQrPaymentMode === "fiuu_vt"
+    ? rawPosQrPaymentMode
     : "manual";
   const productionReadiness = buildProductionReadiness({
     hasSupabaseEnv,
@@ -356,6 +360,7 @@ export async function buildSystemHealthSnapshot(
     posPilotPassed: false,
     monitoringVerified: false,
     hasFiuuCredentials,
+    hasFiuuVtPilot,
     hasFiuuSchema,
     fiuuLiveUatPassed: false,
     posQrPaymentMode,
@@ -374,6 +379,7 @@ export async function buildSystemHealthSnapshot(
   const launchControl = buildLaunchControl({
     hasSupabaseEnv,
     hasFiuuCredentials,
+    hasFiuuVtPilot,
     hasFiuuSchema,
     posQrPaymentMode,
     branches,
@@ -549,8 +555,8 @@ export async function buildSystemHealthSnapshot(
           "payment-env",
           "Kesiapan Fiuu live",
           "WARN",
-          `Mod QR POS ${posQrPaymentMode}; kredensial OPA ${hasFiuuCredentials ? "dikesan" : "belum lengkap"}; skema Fiuu ${hasFiuuSchema ? "tersedia" : "belum tersedia"}; UAT transaksi live belum direkodkan.`,
-          "Kekalkan QR manual sehingga migrasi, kredensial OPA, webhook dan transaksi pilot disahkan.",
+          `Mod QR POS ${posQrPaymentMode}; kredensial OPA ${hasFiuuCredentials ? "dikesan" : "belum lengkap"}; pilot VT ${hasFiuuVtPilot ? "dikonfigurasi" : "tidak aktif"}; skema Fiuu ${hasFiuuSchema ? "tersedia" : "belum tersedia"}; UAT transaksi live belum direkodkan.`,
+          "Kekalkan QR statik/manual di luar pilot sehingga migrasi, bukti provider dan settlement disahkan.",
         ),
       ],
     },

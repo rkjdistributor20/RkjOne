@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-15 - BR001 Fiuu VT App-to-App pilot
+
+- Added Android 1.7.0 native handoff to the Managed Google Play Fiuu VT app with package-specific callback routing.
+- Added a BR001-only server allowlist while preserving static QR/manual processing for BR002-BR036 and older Android/PWA clients.
+- Added durable payment intent recovery, SALE-to-STATUS validation, unique order/Transaction IDs, one-active-device guards and an atomic service-role fulfillment RPC.
+- Kept unsigned VT `STATUS=00` as `REPORTED` until a cashier explicitly confirms the successful Fiuu screen; fully automatic rollout remains blocked pending signed server proof from Fiuu.
+- Added the Fiuu VT linked-app Android Enterprise policy, provisioning/UAT documentation and 1.7.0 Internal Testing release checklist.
+- Local validation passed: 48 tests, TypeScript, ESLint, Next.js Production build and Android debug APK build. No Production database, environment, Play track or branch was changed.
+
 ## 2026-10-06 - 36 Fiuu static DuitNow QR in RKJ One POS
 
 - Added the verified branch-specific Fiuu DuitNow QR assets for `BR001` through `BR036` to the RKJ One deployment.

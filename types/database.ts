@@ -6784,6 +6784,12 @@ export type Database = {
           organization_id: string
           paid_at: string | null
           provider: string
+          provider_confirmed_at: string | null
+          provider_confirmed_by: string | null
+          provider_order_id: string | null
+          provider_result: Json | null
+          provider_status_checked_at: string | null
+          provider_transaction_id: string | null
           sale_payload: Json
           shift_id: string
           status: string
@@ -6804,6 +6810,12 @@ export type Database = {
           organization_id: string
           paid_at?: string | null
           provider?: string
+          provider_confirmed_at?: string | null
+          provider_confirmed_by?: string | null
+          provider_order_id?: string | null
+          provider_result?: Json | null
+          provider_status_checked_at?: string | null
+          provider_transaction_id?: string | null
           sale_payload: Json
           shift_id: string
           status?: string
@@ -6824,6 +6836,12 @@ export type Database = {
           organization_id?: string
           paid_at?: string | null
           provider?: string
+          provider_confirmed_at?: string | null
+          provider_confirmed_by?: string | null
+          provider_order_id?: string | null
+          provider_result?: Json | null
+          provider_status_checked_at?: string | null
+          provider_transaction_id?: string | null
           sale_payload?: Json
           shift_id?: string
           status?: string
@@ -6841,6 +6859,13 @@ export type Database = {
           {
             foreignKeyName: "pos_online_payments_created_by_fkey"
             columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_online_payments_provider_confirmed_by_fkey"
+            columns: ["provider_confirmed_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -10857,6 +10882,19 @@ export type Database = {
           p_currency: string
           p_gateway_ref: string
           p_payment_id: string
+        }
+        Returns: Json
+      }
+      fulfill_pos_fiuu_vt_payment: {
+        Args: {
+          p_amount: number
+          p_channel: string
+          p_confirmed_by: string
+          p_currency: string
+          p_payment_id: string
+          p_provider_order_id: string
+          p_provider_result: Json
+          p_provider_transaction_id: string
         }
         Returns: Json
       }

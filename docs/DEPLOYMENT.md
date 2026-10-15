@@ -66,7 +66,7 @@ POS Fiuu DuitNow QR variables:
 
 | Variable | Required | Scope |
 |----------|----------|-------|
-| `POS_QR_PAYMENT_MODE` | Yes | Server; use `manual` until Fiuu UAT passes, then `fiuu` |
+| `POS_QR_PAYMENT_MODE` | Yes | Server; `manual`, signed OPA `fiuu`, or branch-gated app-to-app `fiuu_vt` |
 | `POS_FIUU_ENVIRONMENT` | When Fiuu enabled | Server; `sandbox` or `production` |
 | `POS_FIUU_APPLICATIONS_JSON` | Preferred when Fiuu enabled | Server secret; Application Code/Secret Key mapping by branch code |
 | `POS_FIUU_APPLICATION_CODE` | Optional pilot fallback | Server secret |
@@ -75,8 +75,10 @@ POS Fiuu DuitNow QR variables:
 | `POS_FIUU_CHANNEL_ID` | Yes when Fiuu enabled | Server; must remain `24` for DuitNow QR Offline |
 | `POS_FIUU_QR_VALIDITY_SECONDS` | Optional | Server; 60-999 seconds, default 600 |
 | `POS_FIUU_PRECREATE_URL` | Optional | Server; official endpoint override only |
+| `POS_FIUU_VT_BRANCHES` | When VT pilot enabled | Server; explicit comma-separated pilot codes, initially `BR001` only |
+| `POS_FIUU_VT_VALIDITY_SECONDS` | Optional | Server; 60-3600 seconds, default 900 |
 
-Never expose Fiuu Application Secret Keys as `NEXT_PUBLIC_*`. Configure the signed payment notification URL as `/api/pos/qr-payments/webhook`. Follow `docs/FIUU_POS_SETUP.md` before changing `POS_QR_PAYMENT_MODE` to `fiuu`.
+Never expose Fiuu Application Secret Keys as `NEXT_PUBLIC_*`. Configure the signed OPA payment notification URL as `/api/pos/qr-payments/webhook`. Fiuu VT deep-link results are not signed: they require a STATUS recheck plus explicit cashier confirmation and must not be treated as equivalent to the signed OPA webhook. Follow `docs/FIUU_POS_SETUP.md` before changing the mode.
 
 ## Local Setup
 

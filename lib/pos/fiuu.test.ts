@@ -48,6 +48,12 @@ describe('Fiuu configuration safety', () => {
   expect(getFiuuOpaConfig('BR001', 'POS001')).toBeNull();
  });
 
+ it('recognizes the dedicated VT mode without enabling OPA credentials', () => {
+  process.env.POS_QR_PAYMENT_MODE = 'fiuu_vt';
+  expect(getPosQrPaymentMode()).toBe('fiuu_vt');
+  expect(getFiuuOpaConfig('BR001', 'POS001')).toBeNull();
+ });
+
  it('loads only the requested branch credentials and fixes DuitNow to channel 24', () => {
   process.env.POS_QR_PAYMENT_MODE = 'fiuu';
   process.env.POS_FIUU_ENVIRONMENT = 'sandbox';

@@ -26,7 +26,7 @@ Never reuse Production keys in Preview, local development or staging. Never link
 - Point-in-time recovery was not enabled at the previous check. Current backup, restore authority and recovery-point availability must be re-confirmed in the Supabase dashboard. Database backups do not include Storage objects.
 - Production has 107 active profiles. The audit found zero active ADMIN accounts, 68 profiles that had never signed in, two Operation Manager profiles missing a legal entity and one Distributor staff profile with no verified branch assignment.
 - Fiuu merchant approval does not by itself prove the application-facing OPA contract. Provider-issued Application Code, Store/Terminal mapping, signed callback UAT and settlement reconciliation remain mandatory before dynamic QR mode is enabled.
-- Android `1.6.9` (version code `16`) compiles locally and includes direct Bluetooth receipt printing plus cash-drawer handling. Its current Google Play track and exact uploaded bundle remain **To be confirmed** in Play Console; promotion remains gated by a Play-delivered physical-device acceptance test.
+- Android `1.7.0` (version code `17`) compiles locally and includes direct Bluetooth receipt printing, cash-drawer handling and the BR001-only Fiuu VT bridge. Its current Google Play track and exact uploaded bundle remain **To be confirmed** in Play Console; promotion remains gated by a Play-delivered physical-device acceptance test.
 
 ## Production GO gates
 

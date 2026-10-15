@@ -1,7 +1,7 @@
 export type PaymentMethod = 'CASH' | 'QR' | 'MIXED';
 
 export interface PosQrConfig {
- mode: 'FIUU_DYNAMIC' | 'FIUU_STATIC_MANUAL';
+ mode: 'FIUU_DYNAMIC' | 'FIUU_VT_APP' | 'FIUU_STATIC_MANUAL';
  configured: boolean;
  branch: {
   id: string;
@@ -12,6 +12,11 @@ export interface PosQrConfig {
   branchCode: string;
   imageUrl: string;
   recipientName: 'ROTI KAYA JUNUS';
+ } | null;
+ vt?: {
+  packageName: 'com.rms.mobile.razervt';
+  channel: 'RPP_DuitNowQR-Offline';
+  pilot: true;
  } | null;
 }
 

@@ -10,6 +10,12 @@
       ],
       "autoUpdateMode": "AUTO_UPDATE_HIGH_PRIORITY",
       "defaultPermissionPolicy": "GRANT"
+    },
+    {
+      "packageName": "com.rms.mobile.razervt",
+      "installType": "FORCE_INSTALLED",
+      "autoUpdateMode": "AUTO_UPDATE_HIGH_PRIORITY",
+      "defaultPermissionPolicy": "GRANT"
     }
   ],
   "addUserDisabled": true,

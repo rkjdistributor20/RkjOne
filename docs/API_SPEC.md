@@ -4,7 +4,7 @@
 
 `GET /api/pos/qr-config?branch_id=<uuid>` requires an authenticated RKJ One profile and applies the standard POS branch-scope check. It returns the active QR mode, selected branch identity, and the versioned static Fiuu QR descriptor where configured. No Fiuu secret or server credential is returned.
 
-Last updated: 2026-07-10
+Last updated: 2026-10-15
 
 Base URL:
 
@@ -21,11 +21,11 @@ Authentication:
 
 ## POS Fiuu DuitNow QR API
 
-The POS creates a sale only after a signed Fiuu Offline Payment API notification is verified. The default remains manual mode until merchant channel activation and sandbox UAT are complete.
+The signed OPA transport creates a sale only after a valid Fiuu Offline Payment API notification. The separate Fiuu VT App-to-App pilot generates and checks the QR in the managed Android app, but its deep-link result is unsigned and therefore requires explicit cashier confirmation before fulfillment. The default remains manual mode until the selected transport passes UAT.
 
 ### POST `/api/pos/qr-payments`
 
-Creates a pending Fiuu DuitNow QR payment for an authenticated, authorized POS shift member on an official branch device. Product prices, quantities, discount and payment split are recalculated on the server. The returned QR image URL is an authenticated RKJ One proxy; the provider image URL and credentials are not returned to the browser.
+Creates a pending Fiuu DuitNow QR payment for an authenticated, authorized POS shift member on an official branch device. Product prices, quantities, discount and payment split are recalculated on the server. OPA returns an authenticated RKJ One QR image proxy. A branch-gated VT request instead returns a provider order ID for the native Fiuu VT handoff and never returns credentials.
 
 The request must include an opaque `idempotency_key` of 16-64 letters, numbers, underscores or hyphens. Retrying the same organization, branch, shift, creator, amount and sale payload returns the existing intent. Reusing the key for different intent data returns `409` and never creates another payment.
 
@@ -40,6 +40,14 @@ Returns the provider QR image through an authenticated, branch-scoped, no-store 
 ### POST `/api/pos/qr-payments/webhook`
 
 Public provider callback endpoint. Request bodies are capped at 64 KiB. Fiuu callbacks require a valid HMAC-SHA256 signature and must match the stored application, reference, provider transaction ID, amount, MYR currency and DuitNow channel `24`. Fulfilment, stock deduction, receipt creation and payment completion occur in one database transaction. Invalid callbacks do not create a sale. Callback credentials remain available for already-issued intents when new QR creation is rolled back to manual mode.
+
+### POST `/api/pos/qr-payments/[paymentId]/vt-result`
+
+Accepts only a normalized result captured by the native RKJ One bridge on the same official device, user, branch and shift that created the intent. SALE never fulfills a transaction and always leads to a STATUS request. STATUS `22`, `33` and `45` remain pending; `11`, `44` and `55` close the attempt. Unsigned STATUS `00` records `REPORTED` and requires manual confirmation.
+
+### POST `/api/pos/qr-payments/[paymentId]/vt-confirm`
+
+Requires the same authenticated official device and a fresh matching STATUS `00` result. It invokes a service-role-only, row-locked RPC that creates at most one sale, receipt and stock movement. This endpoint is an interim human-confirmed pilot control, not cryptographic proof from Fiuu.
 
 Response convention:
 

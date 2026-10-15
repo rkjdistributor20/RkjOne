@@ -16,7 +16,7 @@ export async function GET(
  const { paymentId } = await context.params;
  const service = createAdminClient();
  const { data, error } = await service.from('pos_online_payments').select(
-  'id, branch_id, shift_id, amount_rm, status, gateway_ref, paid_at, transaction_id, expires_at',
+  'id, branch_id, shift_id, amount_rm, status, provider, gateway_ref, paid_at, transaction_id, expires_at, provider_result',
  ).eq('id', paymentId).eq('organization_id', profile.organization_id).maybeSingle();
 
  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
@@ -30,7 +30,17 @@ export async function GET(
    { status: posAccessErrorStatus(err) });
  }
 
- const payment = data.status === 'PENDING'
+ const providerResult = data.provider_result && typeof data.provider_result === 'object'
+  && !Array.isArray(data.provider_result)
+  ? data.provider_result as Record<string, unknown>
+  : null;
+ const vtReported = data.provider === 'fiuu_vt'
+  && data.status === 'PENDING'
+  && providerResult?.opType === 'STATUS'
+  && providerResult?.status === '00';
+ const payment = vtReported
+  ? { ...data, status: 'REPORTED' }
+  : data.status === 'PENDING'
   && data.expires_at
   && isFiuuReconciliationExpired(data.expires_at)
   ? { ...data, status: 'EXPIRED' }
@@ -46,5 +56,18 @@ export async function GET(
   result = receipt?.receipt_data ?? null;
  }
 
- return NextResponse.json({ payment, result });
+ return NextResponse.json({
+  payment: {
+   id: payment.id,
+   branch_id: payment.branch_id,
+   shift_id: payment.shift_id,
+   amount_rm: payment.amount_rm,
+   status: payment.status,
+   gateway_ref: payment.gateway_ref,
+   paid_at: payment.paid_at,
+   transaction_id: payment.transaction_id,
+   expires_at: payment.expires_at,
+  },
+  result,
+ });
 }
