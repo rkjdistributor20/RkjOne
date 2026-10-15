@@ -43,7 +43,7 @@ Public provider callback endpoint. Request bodies are capped at 64 KiB. Fiuu cal
 
 ### POST `/api/pos/qr-payments/[paymentId]/vt-result`
 
-Accepts only a normalized result captured by the native RKJ One bridge on the same official device, user, branch and shift that created the intent. SALE never fulfills a transaction and always leads to a STATUS request. STATUS `22`, `33` and `45` remain pending; `11`, `44` and `55` close the attempt. Unsigned STATUS `00` records `REPORTED` and requires manual confirmation.
+Accepts only a normalized result captured by the native RKJ One bridge on the same official device, user, branch and shift that created the intent. SALE never fulfills a transaction and always leads to a STATUS request. STATUS `22`, `33`, `45` and `55` remain locked pending during the bounded reconciliation window; `11` and `44` close the attempt. Unsigned STATUS `00` records the database state `REPORTED` and requires manual confirmation.
 
 ### POST `/api/pos/qr-payments/[paymentId]/vt-confirm`
 

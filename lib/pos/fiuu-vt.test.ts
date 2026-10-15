@@ -3,6 +3,7 @@ import {
  buildFiuuVtOrderId,
  buildFiuuVtRequestUrl,
  FIUU_VT_DUITNOW_CHANNEL,
+ getFiuuVtStatusDisposition,
  isFiuuVtPendingStatus,
  parseFiuuVtResult,
 } from './fiuu-vt';
@@ -118,12 +119,20 @@ describe('Fiuu VT callback validation', () => {
   expect(() => parseFiuuVtResult(value)).toThrow();
  });
 
- it('keeps only documented in-progress statuses pending', () => {
+ it('keeps documented in-progress and bounded timeout status pending', () => {
   expect(isFiuuVtPendingStatus('22')).toBe(true);
   expect(isFiuuVtPendingStatus('33')).toBe(true);
   expect(isFiuuVtPendingStatus('45')).toBe(true);
+  expect(isFiuuVtPendingStatus('55')).toBe(true);
   expect(isFiuuVtPendingStatus('00')).toBe(false);
   expect(isFiuuVtPendingStatus('44')).toBe(false);
+ });
+
+ it('keeps status 55 locked pending until reconciliation grace ends', () => {
+  expect(getFiuuVtStatusDisposition('00')).toBe('REPORTED');
+  expect(getFiuuVtStatusDisposition('11')).toBe('FAILED');
+  expect(getFiuuVtStatusDisposition('44')).toBe('CANCELLED');
+  expect(getFiuuVtStatusDisposition('55')).toBe('PENDING');
  });
 });
 

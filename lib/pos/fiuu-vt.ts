@@ -5,8 +5,8 @@ export const RKJ_FIUU_CALLBACK_SCHEME = 'com.rkjone.staff';
 export const RKJ_FIUU_CALLBACK_HOST = 'fiuu-vt.rkj.one';
 export const FIUU_VT_DUITNOW_CHANNEL = 'RPP_DuitNowQR-Offline';
 
-export const FIUU_VT_PENDING_STATUSES = ['22', '33', '45'] as const;
-export const FIUU_VT_TERMINAL_STATUSES = ['00', '11', '44', '55'] as const;
+export const FIUU_VT_PENDING_STATUSES = ['22', '33', '45', '55'] as const;
+export const FIUU_VT_TERMINAL_STATUSES = ['00', '11', '44'] as const;
 
 export type FiuuVtOperation = 'SALE' | 'STATUS';
 export type FiuuVtStatusCode = '00' | '11' | '22' | '33' | '44' | '45' | '55';
@@ -21,6 +21,8 @@ export type FiuuVtResult = {
  channel: typeof FIUU_VT_DUITNOW_CHANNEL;
  payDate: string | null;
 };
+
+export type FiuuVtStatusDisposition = 'REPORTED' | 'PENDING' | 'FAILED' | 'CANCELLED';
 
 const ORDER_ID_PATTERN = /^[A-Za-z0-9_-]{4,64}$/;
 const TRANSACTION_ID_PATTERN = /^[A-Za-z0-9_-]{1,80}$/;
@@ -131,4 +133,15 @@ export function parseFiuuVtResult(input: unknown): FiuuVtResult {
 
 export function isFiuuVtPendingStatus(status: FiuuVtStatusCode): boolean {
  return (FIUU_VT_PENDING_STATUSES as readonly string[]).includes(status);
+}
+
+export function getFiuuVtStatusDisposition(
+ status: FiuuVtStatusCode,
+): FiuuVtStatusDisposition {
+ if (status === '00') return 'REPORTED';
+ if (status === '11') return 'FAILED';
+ if (status === '44') return 'CANCELLED';
+ // Status 55 is kept pending until the bounded callback grace ends. This
+ // prevents a second payable attempt while a late success can still arrive.
+ return 'PENDING';
 }

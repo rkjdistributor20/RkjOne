@@ -132,6 +132,13 @@ export function getPosQrPaymentMode(): 'manual' | 'fiuu' | 'fiuu_vt' {
   return 'manual';
 }
 
+export function getFiuuEnvironment(): FiuuEnvironment {
+  const environment = process.env.POS_FIUU_ENVIRONMENT?.trim().toLowerCase();
+  if (!environment || environment === 'sandbox') return 'sandbox';
+  if (environment === 'production') return 'production';
+  throw new Error('Persekitaran Fiuu mesti sandbox atau production');
+}
+
 export function getFiuuOpaConfig(
   branchCode: string,
   deviceCode: string,
@@ -141,9 +148,7 @@ export function getFiuuOpaConfig(
 
   const applications = parseApplications();
   const mapped = applications[branchCode.toUpperCase()];
-  const environment: FiuuEnvironment = process.env.POS_FIUU_ENVIRONMENT?.trim().toLowerCase() === 'production'
-    ? 'production'
-    : 'sandbox';
+  const environment = getFiuuEnvironment();
   if (environment === 'production' && (!mapped || !mapped.storeId)) return null;
 
   const applicationCode = mapped?.applicationCode

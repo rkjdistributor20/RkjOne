@@ -34,7 +34,7 @@ export async function POST(
  const admin = createAdminClient();
  const { data: payment, error } = await admin
   .from('pos_online_payments')
-  .select('id, organization_id, branch_id, shift_id, created_by, provider, status, amount_rm, sale_payload, provider_order_id, provider_transaction_id, provider_result, provider_status_checked_at')
+  .select('id, organization_id, branch_id, shift_id, created_by, provider, status, amount_rm, sale_payload, provider_order_id, provider_transaction_id, provider_result, provider_status_checked_at, provider_sale_reported_at')
   .eq('id', paymentId)
   .eq('organization_id', profile.organization_id)
   .maybeSingle();
@@ -62,7 +62,7 @@ export async function POST(
  if (payment.status === 'PAID') {
   return NextResponse.json({ payment: { id: payment.id, status: 'PAID' }, reused: true });
  }
- if (!['PENDING', 'EXPIRED'].includes(payment.status)) {
+ if (payment.status !== 'REPORTED') {
   return NextResponse.json({ error: 'Percubaan Fiuu VT tidak boleh disahkan' }, { status: 409 });
  }
 
@@ -80,6 +80,7 @@ export async function POST(
   : 0;
  if (result.opType !== 'STATUS'
   || result.status !== '00'
+  || !payment.provider_sale_reported_at
   || result.orderId !== payment.provider_order_id
   || result.transactionId !== payment.provider_transaction_id
   || Math.round(result.amountRm * 100) !== Math.round(Number(payment.amount_rm) * 100)

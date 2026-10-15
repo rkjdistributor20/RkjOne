@@ -10,10 +10,14 @@ The VT deep-link response does **not** contain HMAC, a digital signature, nonce 
 
 - SALE never creates a sale, receipt or stock movement;
 - STATUS must match the random order ID, Transaction ID, amount, `MYR` and exact DuitNow channel;
-- `22`, `33` and `45` remain pending; `11`, `44` and `55` close the attempt;
-- STATUS `00` is recorded as `REPORTED`, not `PAID`;
+- `22`, `33` and `45` remain pending; `11` and `44` close the attempt;
+- `55` remains locked as pending until the bounded reconciliation grace ends, so a second payable attempt cannot overlap a late success;
+- STATUS is rejected unless the matching SALE result and immutable Transaction ID were recorded first;
+- STATUS `00` is recorded durably as `REPORTED`, not `PAID`, and cannot be expired into a second payable attempt;
 - a cashier must verify the successful Fiuu VT screen and explicitly confirm once;
 - only then may the service-role-only, row-locked RPC create one sale, one receipt and one stock deduction;
+- shift closure locks the shift before calculating totals and remains blocked while a `REPORTED` payment awaits confirmation;
+- all POS mixed payments require an exact cash-plus-QR split with no cash change, preventing drawer totals from being overstated across dynamic and static/manual fallback;
 - BR002-BR036 continue using their static QR/manual workflow.
 
 This is a safe usable pilot, not fully automatic cryptographic confirmation. Fully automatic rollout requires Fiuu to provide an authenticated server status API or signed callback. Configure the pilot only with:

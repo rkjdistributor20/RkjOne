@@ -8,6 +8,7 @@ import {
 import { assertOfficialPosDevice } from '@/lib/pos/device-auth';
 import { FIUU_CALLBACK_GRACE_MS } from '@/lib/pos/fiuu';
 import {
+ getFiuuVtStatusDisposition,
  isFiuuVtPendingStatus,
  parseFiuuVtResult,
  type FiuuVtResult,
@@ -33,13 +34,6 @@ function sanitizedResult(result: FiuuVtResult): Json {
   channel: result.channel,
   payDate: result.payDate,
  };
-}
-
-function terminalPaymentStatus(status: FiuuVtResult['status']): 'FAILED' | 'CANCELLED' | 'EXPIRED' | null {
- if (status === '11') return 'FAILED';
- if (status === '44') return 'CANCELLED';
- if (status === '55') return 'EXPIRED';
- return null;
 }
 
 export async function POST(
@@ -75,7 +69,7 @@ export async function POST(
  const admin = createAdminClient();
  const { data: payment, error } = await admin
   .from('pos_online_payments')
-  .select('id, organization_id, branch_id, shift_id, created_by, provider, status, amount_rm, expires_at, sale_payload, provider_order_id, provider_transaction_id, provider_result')
+  .select('id, organization_id, branch_id, shift_id, created_by, provider, status, amount_rm, expires_at, sale_payload, provider_order_id, provider_transaction_id, provider_result, provider_sale_reported_at')
   .eq('id', paymentId)
   .eq('organization_id', profile.organization_id)
   .maybeSingle();
@@ -103,13 +97,13 @@ export async function POST(
  if (payment.status === 'PAID') {
   return NextResponse.json({ payment: { id: payment.id, status: 'PAID' }, next_action: 'COMPLETE' });
  }
- if (!['PENDING', 'EXPIRED'].includes(payment.status)) {
+ if (payment.status !== 'PENDING' && payment.status !== 'REPORTED') {
   return NextResponse.json(
    { error: 'Percubaan Fiuu VT sudah ditutup', mode: 'FIUU_ATTEMPT_TERMINAL' },
    { status: 409 },
   );
  }
- if (payment.expires_at
+ if (payment.status === 'PENDING' && payment.expires_at
   && Date.now() > new Date(payment.expires_at).getTime() + FIUU_CALLBACK_GRACE_MS) {
   return NextResponse.json(
    { error: 'Tempoh rekonsiliasi Fiuu VT telah tamat', mode: 'FIUU_ATTEMPT_TERMINAL' },
@@ -120,56 +114,102 @@ export async function POST(
   || Math.round(Number(payment.amount_rm) * 100) !== Math.round(result.amountRm * 100)) {
   return NextResponse.json({ error: 'Keputusan Fiuu VT tidak sepadan dengan jualan' }, { status: 409 });
  }
- if (payment.provider_transaction_id
-  && payment.provider_transaction_id !== result.transactionId) {
-  return NextResponse.json({ error: 'Transaction ID Fiuu VT tidak sepadan' }, { status: 409 });
- }
-
- const previous = jsonRecord(payment.provider_result);
- if (result.opType === 'STATUS'
-  && previous?.opType === 'SALE'
-  && typeof previous.transactionId === 'string'
-  && previous.transactionId !== result.transactionId) {
-  return NextResponse.json({ error: 'Semakan STATUS tidak sepadan dengan transaksi SALE Fiuu VT' }, { status: 409 });
- }
-
  const checkedAt = new Date().toISOString();
  const safeResult = sanitizedResult(result);
  if (result.opType === 'SALE') {
-  const { error: updateError } = await admin
+  if (payment.provider_sale_reported_at || payment.provider_transaction_id) {
+   if (payment.provider_transaction_id !== result.transactionId) {
+    return NextResponse.json({ error: 'Transaction ID SALE Fiuu VT tidak sepadan' }, { status: 409 });
+   }
+   if (payment.status === 'REPORTED') {
+    return NextResponse.json({
+     payment: { id: payment.id, status: 'REPORTED' },
+     next_action: 'MANUAL_CONFIRMATION',
+     warning: 'Bayaran berjaya telah dilaporkan. Sahkan paparan Fiuu sebelum memuktamadkan jualan.',
+    });
+   }
+   return NextResponse.json({
+    payment: { id: payment.id, status: 'PENDING' },
+    next_action: 'CHECK_STATUS',
+   });
+  }
+  const { data: updatedSale, error: updateError } = await admin
    .from('pos_online_payments')
    .update({
     provider_result: safeResult,
-    provider_status_checked_at: checkedAt,
+    provider_transaction_id: result.transactionId,
+    provider_sale_reported_at: checkedAt,
+    provider_status_checked_at: null,
     updated_at: checkedAt,
    })
    .eq('id', payment.id)
-   .in('status', ['PENDING', 'EXPIRED']);
+   .eq('status', 'PENDING')
+   .is('provider_sale_reported_at', null)
+   .is('provider_transaction_id', null)
+   .select('id')
+   .maybeSingle();
   if (updateError) return NextResponse.json({ error: 'Laporan SALE Fiuu VT gagal disimpan' }, { status: 400 });
+  if (!updatedSale) {
+   return NextResponse.json({ error: 'Laporan SALE Fiuu VT bertindih. Jalankan semakan STATUS semula.' }, { status: 409 });
+  }
   return NextResponse.json({
    payment: { id: payment.id, status: 'PENDING' },
    next_action: 'CHECK_STATUS',
   });
  }
 
- const terminalStatus = terminalPaymentStatus(result.status);
+ if (!payment.provider_sale_reported_at || !payment.provider_transaction_id) {
+  return NextResponse.json(
+   { error: 'Laporan SALE Fiuu VT diperlukan sebelum semakan STATUS', mode: 'FIUU_VT_SALE_REQUIRED' },
+   { status: 409 },
+  );
+ }
+ if (payment.provider_transaction_id !== result.transactionId) {
+  return NextResponse.json({ error: 'Semakan STATUS tidak sepadan dengan transaksi SALE Fiuu VT' }, { status: 409 });
+ }
+ const disposition = getFiuuVtStatusDisposition(result.status);
+ const reportedContradiction = payment.status === 'REPORTED' && result.status !== '00';
+ const terminalStatus = disposition === 'FAILED' || disposition === 'CANCELLED'
+  ? disposition
+  : null;
+ const nextStatus = payment.status === 'REPORTED'
+  ? 'REPORTED'
+  : disposition === 'REPORTED'
+   ? 'REPORTED'
+   : terminalStatus;
  const update = {
   provider_result: safeResult,
-  provider_transaction_id: result.transactionId,
   provider_status_checked_at: checkedAt,
   updated_at: checkedAt,
-  ...(terminalStatus ? {
-   status: terminalStatus,
-   failed_at: checkedAt,
+  ...(nextStatus ? {
+   status: nextStatus,
+   ...(terminalStatus ? { failed_at: checkedAt } : {}),
   } : {}),
  };
- const { error: updateError } = await admin
+ const { data: updatedStatus, error: updateError } = await admin
   .from('pos_online_payments')
   .update(update)
   .eq('id', payment.id)
-  .in('status', ['PENDING', 'EXPIRED']);
+  .eq('status', payment.status)
+  .eq('provider_transaction_id', result.transactionId)
+  .not('provider_sale_reported_at', 'is', null)
+  .select('id')
+  .maybeSingle();
  if (updateError) {
   return NextResponse.json({ error: 'Keputusan STATUS Fiuu VT gagal disimpan' }, { status: 400 });
+ }
+ if (!updatedStatus) {
+  return NextResponse.json({ error: 'Status percubaan Fiuu VT berubah. Semak semula transaksi.' }, { status: 409 });
+ }
+
+ if (reportedContradiction) {
+  return NextResponse.json(
+   {
+    error: 'Keputusan Fiuu VT bercanggah dengan kejayaan terdahulu. Jangan sahkan atau jana SALE baharu; hubungi HQ untuk rekonsiliasi.',
+    mode: 'FIUU_VT_RECONCILIATION_REQUIRED',
+   },
+   { status: 409 },
+  );
  }
 
  if (result.status === '00') {
@@ -177,6 +217,13 @@ export async function POST(
    payment: { id: payment.id, status: 'REPORTED' },
    next_action: 'MANUAL_CONFIRMATION',
    warning: 'STATUS Fiuu VT tidak bertandatangan. Sahkan paparan berjaya sebelum memuktamadkan jualan.',
+  });
+ }
+ if (result.status === '55') {
+  return NextResponse.json({
+   payment: { id: payment.id, status: 'PENDING' },
+   next_action: 'CHECK_STATUS_LATER',
+   warning: 'Fiuu VT melaporkan transaksi tamat. Percubaan dikunci sementara rekonsiliasi lewat masih dibenarkan.',
   });
  }
  if (isFiuuVtPendingStatus(result.status)) {

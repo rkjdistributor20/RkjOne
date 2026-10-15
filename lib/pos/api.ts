@@ -278,7 +278,7 @@ export async function createPosQrPayment(
  return data as {
   payment: {
    id: string;
-   status: 'PENDING' | 'PAID';
+   status: 'PENDING' | 'REPORTED' | 'PAID';
    amount_rm: number;
    qr_image_url: string | null;
    gateway_ref: string | null;

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
  buildFiuuOpaSignature,
  FIUU_CALLBACK_GRACE_MS,
+ getFiuuEnvironment,
  getFiuuOpaConfig,
  getPosQrPaymentMode,
  isFiuuReconciliationExpired,
@@ -52,6 +53,15 @@ describe('Fiuu configuration safety', () => {
   process.env.POS_QR_PAYMENT_MODE = 'fiuu_vt';
   expect(getPosQrPaymentMode()).toBe('fiuu_vt');
   expect(getFiuuOpaConfig('BR001', 'POS001')).toBeNull();
+ });
+
+ it('defaults VT to sandbox and rejects an ambiguous environment', () => {
+  delete process.env.POS_FIUU_ENVIRONMENT;
+  expect(getFiuuEnvironment()).toBe('sandbox');
+  process.env.POS_FIUU_ENVIRONMENT = 'production';
+  expect(getFiuuEnvironment()).toBe('production');
+  process.env.POS_FIUU_ENVIRONMENT = 'prod';
+  expect(() => getFiuuEnvironment()).toThrow('Persekitaran Fiuu mesti sandbox atau production');
  });
 
  it('loads only the requested branch credentials and fixes DuitNow to channel 24', () => {

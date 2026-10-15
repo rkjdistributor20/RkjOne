@@ -15,6 +15,7 @@ import { inventoryRpc } from '@/lib/supabase/inventory-rpc';
 import {
  createFiuuDynamicQr,
  FIUU_CALLBACK_GRACE_MS,
+ getFiuuEnvironment,
  getFiuuOpaConfig,
  getPosQrPaymentMode,
  isFiuuReconciliationExpired,
@@ -107,6 +108,24 @@ function existingPaymentResponse(
     provider_order_id: payment.provider_order_id,
     reused: true,
    },
+  });
+ }
+
+ if (payment.status === 'REPORTED') {
+  return NextResponse.json({
+   payment: {
+    id: payment.id,
+    status: 'REPORTED',
+    amount_rm: Number(payment.amount_rm),
+    qr_image_url: null,
+    gateway_ref: payment.gateway_ref,
+    expires_at: payment.expires_at,
+    environment: transport.environment,
+    integration: transport.integration,
+    provider_order_id: payment.provider_order_id,
+    reused: true,
+   },
+   next_action: 'MANUAL_CONFIRMATION',
   });
  }
 
@@ -278,23 +297,36 @@ export async function POST(request: Request) {
  if (body.payment_method === 'MIXED' && cashAmount <= 0) {
   return NextResponse.json({ error: 'Bayaran campur memerlukan amaun tunai' }, { status: 400 });
  }
+ if (body.payment_method === 'MIXED'
+  && Math.round((cashAmount + qrAmount) * 100) !== Math.round(total * 100)) {
+  return NextResponse.json(
+   { error: 'Bayaran campur Fiuu memerlukan amaun tunai tepat tanpa baki. Laraskan tunai atau QR.' },
+   { status: 400 },
+  );
+ }
 
  const branchCode = device.branchCode?.trim().toUpperCase() ?? '';
  let config: ReturnType<typeof getFiuuOpaConfig> = null;
  let transport: FiuuPaymentTransport;
  let validitySeconds: number;
  if (paymentMode === 'fiuu_vt') {
+  let vtEnvironment: FiuuPaymentTransport['environment'] = 'sandbox';
   try {
    if (!branchCode || !isFiuuVtEnabledForBranch(branchCode)) {
     return NextResponse.json(
      { error: 'Fiuu VT belum dibenarkan untuk cawangan ini.', mode: 'FIUU_VT_BRANCH_NOT_ENABLED' },
      { status: 409 });
    }
+   vtEnvironment = getFiuuEnvironment();
   } catch (error) {
    console.error('[pos-fiuu-vt] invalid_configuration', { reason: errorMessage(error) });
    return NextResponse.json({ error: 'Konfigurasi pilot Fiuu VT tidak sah. Hubungi HQ.' }, { status: 503 });
   }
-  transport = { provider: 'fiuu_vt', integration: 'vt_app', environment: 'production' };
+   transport = {
+    provider: 'fiuu_vt',
+    integration: 'vt_app',
+    environment: vtEnvironment,
+   };
   validitySeconds = getFiuuVtValiditySeconds();
  } else {
   try {
@@ -374,7 +406,7 @@ export async function POST(request: Request) {
   .eq('shift_id', body.shiftId)
   .eq('created_by', profile.id)
   .in('provider', ['fiuu', 'fiuu_vt'])
-  .eq('status', 'PENDING')
+  .in('status', ['PENDING', 'REPORTED'])
   .maybeSingle();
  if (activeError) {
   return NextResponse.json({ error: 'Percubaan QR aktif tidak dapat disahkan' }, { status: 400 });
@@ -393,8 +425,9 @@ export async function POST(request: Request) {
   .select(existingSelect)
   .eq('organization_id', profile.organization_id)
   .eq('branch_id', body.branchId)
-  .in('provider', ['fiuu', 'fiuu_vt'])
-  .eq('status', 'PENDING')
+  .eq('shift_id', body.shiftId)
+  .eq('provider', transport.provider)
+  .in('status', ['PENDING', 'REPORTED'])
   .contains('sale_payload', { fiuu_device_code: device.deviceCode })
   .maybeSingle();
  if (activeDeviceError) {
@@ -450,7 +483,7 @@ export async function POST(request: Request) {
     .eq('shift_id', body.shiftId)
     .eq('created_by', profile.id)
      .in('provider', ['fiuu', 'fiuu_vt'])
-    .eq('status', 'PENDING')
+    .in('status', ['PENDING', 'REPORTED'])
     .maybeSingle();
    if (racedActivePayment) {
     return existingPaymentResponse(
@@ -465,8 +498,9 @@ export async function POST(request: Request) {
      .select(existingSelect)
      .eq('organization_id', profile.organization_id)
      .eq('branch_id', body.branchId)
-     .in('provider', ['fiuu', 'fiuu_vt'])
-     .eq('status', 'PENDING')
+     .eq('shift_id', body.shiftId)
+     .eq('provider', transport.provider)
+     .in('status', ['PENDING', 'REPORTED'])
      .contains('sale_payload', { fiuu_device_code: device.deviceCode })
      .maybeSingle();
     if (racedDevicePayment) {

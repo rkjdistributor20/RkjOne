@@ -286,6 +286,11 @@ export function PaymentDialog({
  ? 'Amaun DuitNow QR mesti sama tepat dengan jumlah jualan.'
  : method === 'MIXED' && (!hasValidCurrencyPrecision(qrAmount) || qrCents > totalCents)
  ? 'Amaun DuitNow QR campur tidak sah atau melebihi jumlah jualan.'
+ : method === 'MIXED' && (
+  !hasValidCurrencyPrecision(cashTendered)
+  || Math.round((cashNum + qrNum) * 100) !== totalCents
+ )
+ ? 'Bayaran campur memerlukan amaun tunai dan QR yang tepat tanpa baki.'
  : paidAmount < total
  ? `Bayaran kurang ${formatRM(shortfall)}.`
  : requiresManualQrVerification && !manualQrVerified
@@ -773,7 +778,7 @@ export function PaymentDialog({
     cartFingerprint: paymentFingerprint(payload),
    };
    setQrPayment(activePayment);
-   setQrStatus('PENDING');
+   setQrStatus(payment.status === 'REPORTED' ? 'REPORTED' : 'PENDING');
    setQrSecondsRemaining(1);
    setQrPollError(null);
    setQrImageError(false);
@@ -786,6 +791,11 @@ export function PaymentDialog({
     } catch {
      // Keep the active in-memory attempt usable when WebView storage is unavailable.
     }
+   }
+   if (payment.status === 'REPORTED') {
+    setQrPollError('Fiuu VT telah melaporkan bayaran berjaya. Jangan buka SALE baharu; sahkan paparan untuk memuktamadkan jualan.');
+    toast.info('Bayaran Fiuu VT terdahulu menunggu pengesahan anda.');
+    return;
    }
     if (activePayment.integration === 'vt_app' && activePayment.providerOrderId) {
      try {

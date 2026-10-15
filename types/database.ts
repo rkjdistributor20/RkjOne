@@ -6788,6 +6788,7 @@ export type Database = {
           provider_confirmed_by: string | null
           provider_order_id: string | null
           provider_result: Json | null
+          provider_sale_reported_at: string | null
           provider_status_checked_at: string | null
           provider_transaction_id: string | null
           sale_payload: Json
@@ -6814,6 +6815,7 @@ export type Database = {
           provider_confirmed_by?: string | null
           provider_order_id?: string | null
           provider_result?: Json | null
+          provider_sale_reported_at?: string | null
           provider_status_checked_at?: string | null
           provider_transaction_id?: string | null
           sale_payload: Json
@@ -6840,6 +6842,7 @@ export type Database = {
           provider_confirmed_by?: string | null
           provider_order_id?: string | null
           provider_result?: Json | null
+          provider_sale_reported_at?: string | null
           provider_status_checked_at?: string | null
           provider_transaction_id?: string | null
           sale_payload?: Json

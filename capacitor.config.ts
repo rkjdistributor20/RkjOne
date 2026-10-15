@@ -1,11 +1,27 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
+const DEFAULT_SERVER_URL = 'https://rkj.one';
+
+function resolveServerUrl(): string {
+ const configured = process.env.RKJ_CAPACITOR_SERVER_URL?.trim() || DEFAULT_SERVER_URL;
+ const url = new URL(configured);
+ const hostname = url.hostname.toLowerCase();
+ const approved = hostname === 'rkj.one'
+  || hostname.endsWith('.rkj.one')
+  || (/^rkj(?:-one)?-[a-z0-9-]+\.vercel\.app$/).test(hostname);
+ if (url.protocol !== 'https:' || !approved || url.username || url.password
+  || (url.pathname !== '/' && url.pathname !== '') || url.search || url.hash) {
+  throw new Error('RKJ_CAPACITOR_SERVER_URL mesti URL HTTPS RKJ One atau Vercel Preview yang diluluskan');
+ }
+ return url.origin;
+}
+
 const config: CapacitorConfig = {
  appId: 'com.rkjone.staff',
  appName: 'RKJ One Staff',
  webDir: 'mobile-fallback',
  server: {
- url: 'https://rkj.one',
+ url: resolveServerUrl(),
  cleartext: false,
  },
  plugins: {

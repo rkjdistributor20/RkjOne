@@ -10,6 +10,7 @@ import {
 } from '@/lib/pos/access';
 import type { PosShiftSummary } from '@/lib/pos/types';
 import { assertOfficialPosDevice } from '@/lib/pos/device-auth';
+import { FIUU_CALLBACK_GRACE_MS } from '@/lib/pos/fiuu';
 
 export async function GET(request: Request) {
  const profile = await getCurrentProfile();
@@ -307,21 +308,29 @@ export async function PATCH(request: Request) {
  { status: posAccessErrorStatus(err) });
  }
 
- const { data: pendingPayment, error: pendingPaymentError } = await supabase
+ const { data: unresolvedPayments, error: pendingPaymentError } = await supabase
  .from('pos_online_payments')
- .select('id')
+ .select('id, status, provider, expires_at')
  .eq('organization_id', shift.organization_id)
  .eq('branch_id', shift.branch_id)
  .eq('shift_id', shift_id)
- .eq('status', 'PENDING')
- .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
- .limit(1)
- .maybeSingle();
+ .in('status', ['PENDING', 'REPORTED', 'EXPIRED'])
+ .limit(50);
 
  if (pendingPaymentError) {
  return NextResponse.json({ error: pendingPaymentError.message }, { status: 400 });
  }
- if (pendingPayment) {
+ const nowMs = Date.now();
+ const blockingPayment = (unresolvedPayments ?? []).find((payment) => {
+  if (payment.status === 'REPORTED') return true;
+  const expiresAtMs = payment.expires_at ? new Date(payment.expires_at).getTime() : Number.POSITIVE_INFINITY;
+  if (payment.status === 'PENDING' && expiresAtMs > nowMs) return true;
+  return (payment.provider === 'fiuu' || payment.provider === 'fiuu_vt')
+   && (payment.status === 'PENDING' || payment.status === 'EXPIRED')
+   && Number.isFinite(expiresAtMs)
+   && expiresAtMs + FIUU_CALLBACK_GRACE_MS > nowMs;
+ });
+ if (blockingPayment) {
  return NextResponse.json(
  {
  error:
@@ -389,6 +398,19 @@ export async function PATCH(request: Request) {
  { status: 400 });
  }
 
+ }
+
+ const { data, error } = await callRpc(supabase, 'close_pos_shift', {
+ p_shift_id: shift_id,
+ p_closing_cash: Number(closing_cash),
+ p_notes: notes ?? null,
+ });
+
+ if (error) {
+ return NextResponse.json({ error: error.message }, { status: 400 });
+ }
+
+ if (activeShiftMembers.length) {
  const { error: endMembersError } = await db
  .from('pos_shift_staff_members')
  .update({
@@ -402,16 +424,6 @@ export async function PATCH(request: Request) {
  if (endMembersError) {
  return NextResponse.json({ error: endMembersError.message }, { status: 400 });
  }
- }
-
- const { data, error } = await callRpc(supabase, 'close_pos_shift', {
- p_shift_id: shift_id,
- p_closing_cash: Number(closing_cash),
- p_notes: notes ?? null,
- });
-
- if (error) {
- return NextResponse.json({ error: error.message }, { status: 400 });
  }
 
  const { error: workEndError } = await db

@@ -7,7 +7,7 @@
 - Added durable payment intent recovery, SALE-to-STATUS validation, unique order/Transaction IDs, one-active-device guards and an atomic service-role fulfillment RPC.
 - Kept unsigned VT `STATUS=00` as `REPORTED` until a cashier explicitly confirms the successful Fiuu screen; fully automatic rollout remains blocked pending signed server proof from Fiuu.
 - Added the Fiuu VT linked-app Android Enterprise policy, provisioning/UAT documentation and 1.7.0 Internal Testing release checklist.
-- Local validation passed: 48 tests, TypeScript, ESLint, Next.js Production build and Android debug APK build. No Production database, environment, Play track or branch was changed.
+- Local validation passed: 51 tests, TypeScript, ESLint, Next.js Production build, system hardening audit and Android debug APK build. No Production database, environment, Play track or branch was changed.
 
 ## 2026-10-06 - 36 Fiuu static DuitNow QR in RKJ One POS
 
