@@ -53,6 +53,7 @@ interface LiveCounterGuardProps {
   branchLabel?: string | null;
   activeStaffCount: number;
   pendingStaffCount: number;
+  staffMembershipStatus: 'UNAVAILABLE' | 'NONE' | 'PENDING_APPROVAL' | 'ACTIVE';
   activePresenceLeave: PosSopStatus['active_leave'];
   pendingDeliveryCount: number;
   requiredStockCheck: PosShiftStockCheckType | null;
@@ -62,6 +63,7 @@ interface LiveCounterGuardProps {
   canBypassPosSop?: boolean;
   onConfirmPresence: () => void;
   onOpenSop: () => void;
+  onOpenSummary: () => void;
   onOpenShift: () => void;
 }
 
@@ -70,6 +72,7 @@ export function LiveCounterGuard({
   branchLabel,
   activeStaffCount,
   pendingStaffCount,
+  staffMembershipStatus,
   activePresenceLeave,
   pendingDeliveryCount,
   requiredStockCheck,
@@ -79,6 +82,7 @@ export function LiveCounterGuard({
   canBypassPosSop = false,
   onConfirmPresence,
   onOpenSop,
+  onOpenSummary,
   onOpenShift,
 }: LiveCounterGuardProps) {
   const [now, setNow] = useState(() => Date.now());
@@ -155,6 +159,17 @@ export function LiveCounterGuard({
         action: onConfirmPresence,
       };
     }
+    if (staffMembershipStatus === 'UNAVAILABLE') {
+      return {
+        tone: 'danger',
+        title: 'Status staf syif belum dapat disahkan',
+        description: 'Sistem tidak dapat memuatkan rekod staf syif. Semak sambungan atau log masuk semula jika sesi telah tamat.',
+        badge: 'Semakan gagal',
+        icon: ShieldAlert,
+        actionLabel: 'Buka Ringkasan',
+        action: onOpenSummary,
+      };
+    }
     if (activeStaffCount <= 0 && pendingStaffCount > 0) {
       return {
         tone: 'watch',
@@ -163,7 +178,7 @@ export function LiveCounterGuard({
         badge: `${pendingStaffCount} tunggu`,
         icon: Users,
         actionLabel: 'Semak staf syif',
-        action: onOpenSop,
+        action: onOpenSummary,
       };
     }
     if (activeStaffCount <= 0) {
@@ -176,7 +191,7 @@ export function LiveCounterGuard({
         badge: '0 staf aktif',
         icon: Users,
         actionLabel: 'Rekod staf',
-        action: onOpenSop,
+        action: onOpenSummary,
       };
     }
     if (idleMinutes >= 10) {
@@ -206,6 +221,7 @@ export function LiveCounterGuard({
     canBypassPosSop,
     idleMinutes,
     onConfirmPresence,
+    onOpenSummary,
     onOpenShift,
     onOpenSop,
     pendingDeliveryCount,
@@ -213,6 +229,7 @@ export function LiveCounterGuard({
     presencePromptActive,
     requiredStockCheck,
     shift,
+    staffMembershipStatus,
   ]);
 
   const Icon = state.icon;

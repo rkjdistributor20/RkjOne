@@ -432,13 +432,13 @@ export function PosTerminal() {
  }
 
  try {
- const txRes = await fetchTransactions(branchId);
+ const txRes = await fetchTransactions(branchId, shift?.id);
  setTransactions(txRes.transactions);
  } catch (err) {
  toast.error(err instanceof Error ? err.message : 'Gagal memuatkan sejarah transaksi');
  setTransactions([]);
  }
- }, [branchId, setTransactions]);
+ }, [branchId, setTransactions, shift?.id]);
 
  const refreshHistory = useCallback(() => {
  void loadTransactions();
@@ -491,8 +491,11 @@ export function PosTerminal() {
 
  useEffect(() => {
  setTransactions([]);
+ }, [branchId, setTransactions]);
+
+ useEffect(() => {
  if (branchId && deviceContext) loadData();
- }, [branchId, deviceContext, loadData, setTransactions]);
+ }, [branchId, deviceContext, loadData]);
 
  useEffect(() => {
  if (activeTab === 'history') {
@@ -859,6 +862,7 @@ export function PosTerminal() {
  branchLabel={branchLabel}
  activeStaffCount={shiftMemberStats.active}
  pendingStaffCount={shiftMemberStats.pending}
+ staffMembershipStatus={currentShiftMemberStatus}
  activePresenceLeave={activePresenceLeave}
  pendingDeliveryCount={pendingDeliveryCount}
  requiredStockCheck={requiredStockCheck}
@@ -868,6 +872,7 @@ export function PosTerminal() {
  canBypassPosSop={canBypassPosSop}
  onConfirmPresence={handlePresenceConfirm}
  onOpenSop={() => setActiveTab('sop')}
+ onOpenSummary={() => setActiveTab('summary')}
  onOpenShift={() => setOpenShiftOpen(true)}
  />}
  {salesBlocked ? (

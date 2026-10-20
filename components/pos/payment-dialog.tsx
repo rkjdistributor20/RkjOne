@@ -1147,13 +1147,19 @@ export function PaymentDialog({
  <div className="rounded-2xl border-2 border-amber-200 bg-gradient-to-b from-amber-50 to-white p-4">
   <div className="flex items-start justify-between gap-3">
    <div>
-    <p className="text-base font-bold text-amber-950">DuitNow QR melalui Fiuu</p>
+    <p className="text-base font-bold text-amber-950">
+      {qrConfig?.mode === 'FIUU_DYNAMIC'
+       ? 'DuitNow QR Fiuu — auto disahkan'
+       : qrConfig?.mode === 'FIUU_VT_APP' && !vtManualFallback
+       ? 'Fiuu VT — semakan STATUS + pengesahan staf'
+       : 'DuitNow QR cawangan — pengesahan manual'}
+    </p>
     <p className="text-xs text-muted-foreground">
       {qrConfig?.mode === 'FIUU_DYNAMIC'
        ? 'QR amaun tepat akan dijana dan disahkan secara automatik oleh Fiuu.'
        : qrConfig?.mode === 'FIUU_VT_APP' && !vtManualFallback
        ? 'Aplikasi Fiuu VT akan menjana QR amaun tepat. Status diperiksa automatik dan dimuktamadkan dengan satu pengesahan staf.'
-       : 'QR rasmi cawangan dipaparkan secara automatik. Pelanggan masukkan amaun yang ditunjukkan.'}
+       : 'QR rasmi cawangan dipaparkan. Pembayaran ini memerlukan pengesahan manual staf.'}
     </p>
    </div>
    <span className={cn(
@@ -1166,7 +1172,7 @@ export function PaymentDialog({
       ? 'Automatik'
       : qrConfig?.mode === 'FIUU_VT_APP' && !vtManualFallback
       ? 'Pilot VT'
-      : 'QR cawangan'}
+      : 'Manual'}
    </span>
   </div>
 
