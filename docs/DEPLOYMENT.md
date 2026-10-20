@@ -53,6 +53,16 @@ Do not set `ALLOW_UNSIGNED_PAYMENT_WEBHOOKS=true` in staging or production.
 
 Fiuu Agent Payment is a separate merchant integration from POS Fiuu DuitNow QR.
 Use Preview/staging credentials only with `SALES_AGENT_FIUU_ENVIRONMENT=sandbox`.
+The adapter submits payment details to Fiuu Hosted Payment Page; RKJ One does not
+render or maintain the FPX issuer-bank list. Under Fiuu's 2026-10-16 compliance
+notice, issuer-list/KFH maintenance remains Fiuu's responsibility for this flow.
+Reassess the 2026-12-31 compliance deadline if a direct or seamless FPX interface
+is introduced.
+
+Fiuu notified `rotikayajunus` and `rkjdistributors` on 2026-10-09 that card
+payment channel services were temporarily suspended. Do not enable Fiuu card or
+debit options until written reinstatement is received; this restriction is
+separate from the Roti Kaya Junus DuitNow QR/VT pilot.
 The provider Notification and Callback URL is
 `/api/sales-agent/payments/fiuu/webhook`; the browser Return URL is
 `/api/sales-agent/payments/fiuu/return` and never finalizes a payment.

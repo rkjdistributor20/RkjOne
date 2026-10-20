@@ -1,6 +1,16 @@
 # RKJ One Fiuu DuitNow QR POS Setup
 
-Last updated: 2026-10-15
+Last updated: 2026-10-20
+
+## Current provider status (2026-10-20)
+
+- Fiuu confirmed on 2026-10-06 that the 36 add-on stores were ready. Their branch-specific static DuitNow QR registrations have been received, validated and bundled into RKJ One.
+- Fiuu confirmed on 2026-10-08 that VT App-to-App was activated. The active implementation track is therefore the BR001-only `fiuu_vt` pilot, not the earlier OPA request draft.
+- On 2026-10-15 RKJ asked Pn Aida/Fiuu for an authenticated server status API or signed callback so a payment can be finalized without staff judgement. Pn Aida said the technical team would check. A reminder was sent on 2026-10-19; no technical answer had arrived in either registered merchant mailbox or WhatsApp by 2026-10-20.
+- An older email draft requesting OPA credentials and 36-store mapping remains unsent. Do not send it as written because it predates Fiuu's VT App-to-App direction.
+- Fiuu notified both merchant accounts on 2026-10-09 that **card payment channel services** were temporarily suspended until further notice. This notice does not state that DuitNow QR or VT is suspended, but card/debit must not be offered through Fiuu until written reinstatement is received.
+- The 2026-10-16 FPX compliance notice requires action by 2026-12-31 only for merchants that render or manage the issuer-bank list themselves. RKJ's Fiuu Agent Payment adapter posts to Fiuu Hosted Payment Page, so Fiuu owns that list. Reassess only if a direct/seamless FPX checkout is introduced.
+- Vercel currently scopes the BR001 VT settings to Preview branch `codex/fiuu-production-rollout`. No Fiuu POS mode or credential was added to Production.
 
 ## Fiuu VT App-to-App BR001 pilot (2026-10-15)
 
@@ -42,17 +52,17 @@ All 36 generated assets were decoded and compared byte-for-byte with the Fiuu EM
 - Product: Fiuu Offline Payment API, Pre-Create Transaction QR.
 - Channel: DuitNow QR Offline, channel ID `24`, currency `MYR`.
 - Merchant portal status verified on 2026-08-05: `DuitNow QR Offline` is already `Activated` at `0.80%` for this merchant account.
-- Other merchant channels shown in the portal are also activated, and extended payment verification is enabled.
+- Earlier portal checks showed other merchant channels as activated, but the 2026-10-09 suspension notice overrides that evidence for card payments until Fiuu confirms reinstatement in writing.
 - The generic merchant Return URL, Notification URL and Callback URL are currently empty.
 - Application ID `121582` is the Roti Kaya Junus POS merchant application. Its registered merchant email is `isaeee94@gmail.com`.
 - Application ID `121583` is the RKJ Distributor Agent Payment merchant application. Its registered merchant email is `rkjdistributor20@gmail.com`.
 - Applications `121582` and `121583` are separate merchant accounts and their credentials, callbacks, transactions and settlement evidence must never be mixed.
 - The dedicated sandbox account for Roti Kaya Junus is accessible. Its Merchant ID, Verify Key and Secret Key are available in the sandbox portal. Values remain secret and are not recorded in the repository.
 - Fiuu Ticket `2971942` confirms that merchant `rotikayajunus` has the offline e-Wallet channel required for OPA. Fiuu will create a separate sandbox Application Code after RKJ confirms that its sandbox account already exists; the Merchant ID must not be assumed to be that Application Code.
-- Application `121582` currently has no store information submitted. Fiuu states that serving multiple Roti Kaya Junus branches requires new add-on store applications. The exact approved Store/Terminal mapping, pre-create/callback signature contract, refund procedure and settlement mapping remain **To be confirmed**.
+- Fiuu's 2026-08-21 reply said Application `121582` had no store information at that time. Fiuu subsequently confirmed on 2026-10-06 that the 36 add-on stores were ready, and the 36 static QR payloads were received. Provider-side VT sub-account identifiers, an authenticated server status/callback contract, refund procedure and settlement mapping remain **To be confirmed**.
 - The public Fiuu Offline Payment API v2.1.18 specification confirms the configured sandbox and Production pre-create URLs, `applicationCode` as a provider-issued OPA identifier, `storeId` and `terminalId` as merchant identifiers, `channelId=24` for DuitNow QR, form-encoded POST requests and HMAC-SHA256 support. It does not establish that the sandbox Merchant ID is an OPA `applicationCode` for this account.
-- RKJ One uses dynamic transaction QR, not a static merchant QR.
-- The application remains in `manual` mode until the provider channel and sandbox callback are approved and tested.
+- RKJ One currently supports verified branch static QR/manual confirmation for all 36 branches and a separately gated VT App-to-App dynamic pilot for BR001. Signed OPA remains an optional alternative, not the active rollout path.
+- BR002-BR036 remain in static/manual mode. BR001 may use `fiuu_vt` in Preview only until device UAT and settlement reconciliation pass.
 - The POS client now preserves an unresolved dynamic-QR intent across a page reload for the same branch and shift. It does not offer a second QR while the original intent can still receive a signed late callback.
 - A database uniqueness guard also permits only one pending Fiuu intent per organization, branch, shift and cashier, covering concurrent tabs or requests beyond the client-side recovery guard.
 - Status polling does not mutate the payment row. After the visible QR expires, RKJ One keeps reconciling during the database-enforced 20-minute callback grace period; only after that period can the attempt become safely retryable.
@@ -61,7 +71,16 @@ All 36 generated assets were decoded and compared byte-for-byte with the Fiuu EM
 
 Merchant portal credentials shown on the portal home page must not be assumed to be OPA Application Code/Secret Key. Obtain the OPA credentials and notification setup from Fiuu for the intended store/branch arrangement.
 
-## Required provider setup
+## Immediate BR001 VT actions
+
+1. Install the exact Android 1.7.0 pilot build and official Fiuu VT app on the registered BR001 tablet through the controlled app channel.
+2. Complete SALE then STATUS testing on the physical device. Treat `STATUS=00` as `REPORTED` and require the one explicit cashier confirmation; do not label it fully automatic.
+3. Reconcile the Fiuu transaction, RKJ One receipt, stock movement, shift total, Fiuu settlement report and company bank credit with Finance present.
+4. Test timeout, cancel, duplicate callback/deep-link, app switch, network loss and late-status recovery before allowing a second payable attempt.
+5. Keep BR002-BR036 on their static QR/manual workflow until BR001 passes and the owner approves the next branch batch.
+6. If Fiuu supplies authenticated server proof, implement and UAT it in staging before removing the cashier confirmation step.
+
+## Required provider setup for signed OPA alternative
 
 1. Confirm the Fiuu Booster/OPA application status in an authenticated Booster session or directly with Fiuu.
 2. Confirm whether Fiuu issues one OPA application per branch/store or one application for the company.

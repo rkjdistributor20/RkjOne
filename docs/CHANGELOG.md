@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-20 - Fiuu operational evidence review
+
+- Reconciled both registered merchant inboxes and the Pn Aida WhatsApp thread against the implemented BR001 VT pilot.
+- Recorded that all 36 add-on stores/static QR registrations are ready and that Fiuu activated VT App-to-App, while authenticated server confirmation remains pending with Fiuu technical.
+- Marked the older unsent OPA email draft as obsolete for the current VT track.
+- Recorded the separate temporary card-channel suspensions for `rotikayajunus` and `rkjdistributors` and kept DuitNow QR/VT scope distinct.
+- Verified that the Fiuu Agent Payment adapter uses Hosted Payment Page, so the 2026-12-31 FPX issuer-list/KFH maintenance notice does not require an RKJ checkout change unless a direct/seamless FPX flow is introduced.
+- Confirmed the BR001 Fiuu settings remain Preview-only; no Production payment mode, credential or rollout was changed.
+
 ## 2026-10-15 - BR001 Fiuu VT App-to-App pilot
 
 - Added Android 1.7.0 native handoff to the Managed Google Play Fiuu VT app with package-specific callback routing.
