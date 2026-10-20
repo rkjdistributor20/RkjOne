@@ -1,4 +1,5 @@
 import type { RotiExpirySummary } from '@/lib/stock/expiry';
+import { ClientJsonError, fetchJson } from '../client/fetch-json';
 import type {
  CreateSalePayload,
  DailySummary,
@@ -19,15 +20,6 @@ import type {
  SaleResult,
 } from './types';
 import type { Product } from '@/types/database';
-
-async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
- const res = await fetch(url, {
- headers: { 'Content-Type': 'application/json' },...options,
- });
- const data = await res.json();
- if (!res.ok) throw new Error(data.error ?? 'Request failed');
- return data;
-}
 
 const referenceCache = new Map<string, { expiresAt: number; value: unknown }>();
 
@@ -262,33 +254,35 @@ export async function createPosQrPayment(
  payload: CreateSalePayload,
  idempotencyKey: string,
 ) {
- const response = await fetch('/api/pos/qr-payments', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ ...payload, idempotency_key: idempotencyKey }),
- });
- const data = await response.json();
- if (!response.ok) {
-  throw new PosQrPaymentError(
-   data.error ?? 'QR payment request failed',
-   response.status,
-   typeof data.mode === 'string' ? data.mode : null,
-  );
+ try {
+  return await fetchJson<{
+   payment: {
+    id: string;
+    status: 'PENDING' | 'REPORTED' | 'PAID';
+    amount_rm: number;
+    qr_image_url: string | null;
+    gateway_ref: string | null;
+    expires_at: string | null;
+    environment: 'sandbox' | 'production';
+    integration: 'opa' | 'vt_app';
+    provider_order_id: string | null;
+    reused: boolean;
+   };
+  }>('/api/pos/qr-payments', {
+   method: 'POST',
+   body: JSON.stringify({ ...payload, idempotency_key: idempotencyKey }),
+  });
+ } catch (error) {
+  if (error instanceof ClientJsonError) {
+   const data = error.data;
+   const mode =
+    typeof data === 'object' && data !== null && 'mode' in data && typeof data.mode === 'string'
+     ? data.mode
+     : null;
+   throw new PosQrPaymentError(error.message, error.status, mode);
+  }
+  throw error;
  }
- return data as {
-  payment: {
-   id: string;
-   status: 'PENDING' | 'REPORTED' | 'PAID';
-   amount_rm: number;
-   qr_image_url: string | null;
-   gateway_ref: string | null;
-   expires_at: string | null;
-   environment: 'sandbox' | 'production';
-   integration: 'opa' | 'vt_app';
-   provider_order_id: string | null;
-   reused: boolean;
-  };
- };
 }
 
 export async function submitFiuuVtResult(paymentId: string, result: unknown) {

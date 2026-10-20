@@ -52,7 +52,7 @@ import {
 import type { RotiExpirySummary } from '@/lib/stock/expiry';
 import { needsBranchPicker } from '@/lib/auth/branch-scope';
 import { canUsePosRejectStock } from '@/lib/auth/stock-access';
-import { canViewFullPosHistory } from '@/lib/pos/access';
+import { canViewFullPosHistory, requiresActivePosShiftMember } from '@/lib/pos/access';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -149,10 +149,14 @@ export function PosTerminal() {
  const [dismissedStockPrompt, setDismissedStockPrompt] = useState<PosShiftStockCheckType | null>(null);
  const [activePresenceLeave, setActivePresenceLeave] = useState<PosSopStatus['active_leave']>(null);
  const [sopSalesBlocked, setSopSalesBlocked] = useState(false);
+ const [sopStatusUnavailable, setSopStatusUnavailable] = useState(true);
  const [lastPosActivityAt, setLastPosActivityAt] = useState(() => Date.now());
  const [presencePrompt, setPresencePrompt] = useState<{ promptedAt: string; dueAt: number } | null>(null);
  const [presenceSaving, setPresenceSaving] = useState(false);
  const [shiftMemberStats, setShiftMemberStats] = useState({ active: 0, pending: 0 });
+ const [currentShiftMemberStatus, setCurrentShiftMemberStatus] = useState<
+ 'UNAVAILABLE' | 'NONE' | 'PENDING_APPROVAL' | 'ACTIVE'
+ >('UNAVAILABLE');
  const [deviceContext, setDeviceContext] = useState<PosDeviceContext | null>(null);
  const [deviceLoading, setDeviceLoading] = useState(true);
  const [enrollmentCode, setEnrollmentCode] = useState('');
@@ -182,6 +186,9 @@ export function PosTerminal() {
  const isAreaManagerEmergencyPos = profile?.role === 'AREA_MANAGER';
  const canBypassPosSop = profile?.role === 'SUPER_ADMIN';
  const shiftRequired = !shift && !trainingMode;
+ const shiftMembershipRequired = Boolean(
+ !trainingMode && shift?.id && requiresActivePosShiftMember(profile?.role));
+ const shiftMembershipBlocked = shiftMembershipRequired && currentShiftMemberStatus !== 'ACTIVE';
  const blockingStockCheck = requiredStockCheck === 'OPENING';
  const advisoryStockCheck =
  requiredStockCheck === 'MID_SHIFT' || requiredStockCheck === 'CLOSE_SHIFT'
@@ -189,7 +196,7 @@ export function PosTerminal() {
  : null;
  const blockingSopStatus = Boolean(sopSalesBlocked && blockingStockCheck);
  const sopWouldBlockSales =
- shiftRequired || blockingSopStatus || pendingDeliveryCount > 0 || blockingStockCheck || Boolean(activePresenceLeave);
+ sopStatusUnavailable || shiftRequired || shiftMembershipBlocked || blockingSopStatus || pendingDeliveryCount > 0 || blockingStockCheck || Boolean(activePresenceLeave);
  const salesBlocked = trainingMode ? false : !canBypassPosSop && sopWouldBlockSales;
  const shouldRunPresenceCheck =
  profile?.role === 'STAFF' &&
@@ -202,7 +209,9 @@ export function PosTerminal() {
  const showAdminTestingNotice = canBypassPosSop && sopWouldBlockSales;
  const showStockPrompt = Boolean(advisoryStockCheck && dismissedStockPrompt !== advisoryStockCheck);
  const sopBadgeCount =
+ (sopStatusUnavailable ? 1 : 0) +
  (shiftRequired ? 1 : 0) +
+ (shiftMembershipBlocked ? 1 : 0) +
  pendingDeliveryCount +
  (requiredStockCheck ? 1 : 0) +
  (activePresenceLeave ? 1 : 0);
@@ -218,6 +227,7 @@ export function PosTerminal() {
  const loadData = useCallback(async () => {
  if (!branchId || !deviceContext) return;
  setLoading(true);
+ if (!trainingMode) setSopStatusUnavailable(true);
  try {
  if (trainingMode) {
   const productsRes = await fetchProducts(branchId);
@@ -234,6 +244,7 @@ export function PosTerminal() {
   setRequiredStockCheck(null);
   setActivePresenceLeave(null);
   setSopSalesBlocked(false);
+  setSopStatusUnavailable(false);
   return;
  }
  const [productsRes, stockRes, shiftRes, summaryRes, expiryRes, stockSopRes] =
@@ -249,6 +260,7 @@ export function PosTerminal() {
  if (productsRes.status === 'fulfilled') {
  setProducts(productsRes.value.products, productsRes.value.categories);
  } else {
+ setProducts([], []);
  toast.error('Gagal memuatkan senarai produk');
  }
 
@@ -265,9 +277,13 @@ export function PosTerminal() {
 
  if (shiftRes.status === 'fulfilled') {
  setShift(shiftRes.value.shift);
+ } else {
+ setShift(null);
  }
  if (summaryRes.status === 'fulfilled') {
  setDailySummary(summaryRes.value.summary);
+ } else {
+ setDailySummary(null);
  }
 
  if (expiryRes.status === 'fulfilled') {
@@ -281,13 +297,22 @@ export function PosTerminal() {
  setRequiredStockCheck(stockSopRes.value.sopStatus?.required_stock_check ?? null);
  setActivePresenceLeave(stockSopRes.value.sopStatus?.active_leave ?? null);
  setSopSalesBlocked(Boolean(stockSopRes.value.sopStatus?.sales_blocked));
+ setSopStatusUnavailable(false);
  } else {
  setPendingDeliveryCount(0);
  setRequiredStockCheck(null);
  setActivePresenceLeave(null);
- setSopSalesBlocked(false);
+ // Never infer that sales are safe merely because the SOP request failed.
+ // SUPER_ADMIN keeps the existing testing bypass, while branch users remain
+ // blocked until the authoritative status can be loaded again.
+ setSopSalesBlocked(true);
+ setSopStatusUnavailable(true);
+ toast.error('Status SOP POS tidak dapat disahkan. Jualan dikunci sementara; sila muat semula atau log masuk semula.');
  }
  } catch (err) {
+ setShift(null);
+ setDailySummary(null);
+ setSopStatusUnavailable(true);
  toast.error(err instanceof Error ? err.message : 'Gagal memuatkan data POS');
  } finally {
  setLoading(false);
@@ -301,9 +326,9 @@ export function PosTerminal() {
  setMenuStockByCategory,
  setSupplementStock,
  setShift,
+ setTransactions,
  setDailySummary,
  setLoading,
- setTransactions,
  ]);
 
  const loadDeviceContext = useCallback(async () => {
@@ -375,20 +400,30 @@ export function PosTerminal() {
  const loadShiftMemberStats = useCallback(async () => {
  if (!branchId || !shift?.id) {
  setShiftMemberStats({ active: 0, pending: 0 });
+ setCurrentShiftMemberStatus('NONE');
  return;
  }
 
  try {
  const res = await fetchShiftMembers(branchId, shift.id);
  const members = res.members ?? [];
+ const currentMember = members.find(
+ (member) => member.profile_id === profile?.id && member.status === 'ACTIVE') ??
+ members.find(
+ (member) => member.profile_id === profile?.id && member.status === 'PENDING_APPROVAL');
  setShiftMemberStats({
  active: members.filter((member) => member.status === 'ACTIVE').length,
  pending: members.filter((member) => member.status === 'PENDING_APPROVAL').length,
  });
+ setCurrentShiftMemberStatus(
+ currentMember?.status === 'ACTIVE' || currentMember?.status === 'PENDING_APPROVAL'
+ ? currentMember.status
+ : 'NONE');
  } catch {
  setShiftMemberStats({ active: 0, pending: 0 });
+ setCurrentShiftMemberStatus('UNAVAILABLE');
  }
- }, [branchId, shift?.id]);
+ }, [branchId, profile?.id, shift?.id]);
 
  const loadTransactions = useCallback(async () => {
  if (!branchId) {
@@ -842,8 +877,16 @@ export function PosTerminal() {
  <ShieldAlert className="h-7 w-7" />
  </div>
  <h3 className="text-xl font-bold">
- {shiftRequired
+ {sopStatusUnavailable
+ ? 'Status POS belum dapat disahkan'
+ : shiftRequired
  ? t('module.pos.openShiftFirst')
+ : shiftMembershipBlocked
+ ? currentShiftMemberStatus === 'PENDING_APPROVAL'
+ ? 'Keahlian syif menunggu kelulusan'
+ : currentShiftMemberStatus === 'UNAVAILABLE'
+ ? 'Status staf syif belum dapat disahkan'
+ : 'Rekod diri masuk syif dahulu'
  : activePresenceLeave
  ? t('module.pos.staffAway')
  : pendingDeliveryCount > 0
@@ -853,8 +896,16 @@ export function PosTerminal() {
  : t('module.pos.completePosTask')}
  </h3>
  <p className="mt-2 text-sm text-red-900/80">
- {shiftRequired
+ {sopStatusUnavailable
+ ? 'Jualan dikunci sementara supaya rekod syif dan stok tidak tersalah. Semak sambungan, cuba muat semula, atau log masuk semula jika sesi telah tamat.'
+ : shiftRequired
  ? t('module.pos.openShiftHelp')
+ : shiftMembershipBlocked
+ ? currentShiftMemberStatus === 'PENDING_APPROVAL'
+ ? 'Permohonan anda sudah direkod tetapi belum ACTIVE. Minta AM, OM atau Admin mengesahkannya dalam Ringkasan > Staf Dalam Syif.'
+ : currentShiftMemberStatus === 'UNAVAILABLE'
+ ? 'Sistem tidak dapat menyemak keahlian syif. Cuba muat semula; jika sesi tamat, log masuk semula.'
+ : 'Pergi ke Ringkasan > Staf Dalam Syif dan tekan “Rekod saya mula bertugas”. Staf biasa perlu diluluskan oleh AM, OM atau Admin sebelum merekod jualan.'
  : activePresenceLeave
  ? t('module.pos.staffAwayHelp')
  : pendingDeliveryCount > 0
@@ -863,8 +914,8 @@ export function PosTerminal() {
  ? `POS wajibkan ${requiredStockLabel} mengikut production date sebelum jualan boleh diteruskan.`
  : 'Selesaikan tugasan POS yang ditandakan sebelum jualan boleh diteruskan.'}
  </p>
- <Button className="mt-4" onClick={() => shiftRequired ? setOpenShiftOpen(true) : setActiveTab('sop')}>
- {shiftRequired ? t('module.pos.openShift') : t('module.pos.completeTask')}
+ <Button className="mt-4" onClick={() => sopStatusUnavailable ? void loadData() : shiftRequired ? setOpenShiftOpen(true) : shiftMembershipBlocked ? setActiveTab('summary') : setActiveTab('sop')}>
+ {sopStatusUnavailable ? 'Cuba semula' : shiftRequired ? t('module.pos.openShift') : shiftMembershipBlocked ? 'Buka Staf Dalam Syif' : t('module.pos.completeTask')}
  </Button>
  </div>
  </div>) : (
@@ -910,7 +961,9 @@ export function PosTerminal() {
  <div>
  <p className="font-bold">Mode testing Pentadbir Utama</p>
  <p className="mt-1 text-sm opacity-85">
- {shiftRequired
+ {sopStatusUnavailable
+ ? 'Status SOP Production belum dapat disahkan. Pentadbir masih boleh menyemak paparan, tetapi jangan lengkapkan transaksi sehingga status berjaya dimuatkan.'
+ : shiftRequired
  ? 'SOP sebenar: buka syif POS dahulu sebelum jualan. Untuk testing, sistem hanya maklumkan dan tidak mengunci skrin admin.'
  : activePresenceLeave
  ? 'SOP sebenar: rekod staf kembali ke kiosk dahulu. Pentadbir Utama boleh terus semak atau test aliran.'
@@ -925,9 +978,9 @@ export function PosTerminal() {
  type="button"
  variant="outline"
  className="bg-white/80"
- onClick={() => shiftRequired ? setOpenShiftOpen(true) : setActiveTab('sop')}
+ onClick={() => sopStatusUnavailable ? void loadData() : shiftRequired ? setOpenShiftOpen(true) : setActiveTab('sop')}
  >
- {shiftRequired ? 'Buka syif' : 'Semak SOP'}
+ {sopStatusUnavailable ? 'Cuba semula' : shiftRequired ? 'Buka syif' : 'Semak SOP'}
  </Button>
  </div>
  </div>)}
@@ -989,7 +1042,7 @@ export function PosTerminal() {
  </TabsContent>}
 
  {!trainingMode && <TabsContent value="summary" className="mt-4">
- <DailySummaryPanel />
+ <DailySummaryPanel onShiftMembersChange={() => void loadShiftMemberStats()} />
  </TabsContent>}
 
  {!trainingMode && showRejectTab && branchId && (

@@ -43,6 +43,10 @@ export function canApprovePosShiftStaff(role?: string | null): boolean {
  return POS_SHIFT_STAFF_APPROVER_ROLES.has(role as UserRole);
 }
 
+export function requiresActivePosShiftMember(role?: string | null): boolean {
+ return Boolean(role) && !POS_BRANCH_ALL_ACCESS_ROLES.has(role as UserRole);
+}
+
 export function canVoidPosTransaction(role?: string | null): boolean {
  return POS_TRANSACTION_VOID_ROLES.has(role as UserRole);
 }
@@ -135,7 +139,7 @@ export async function assertActivePosShiftMember(
  profile: Pick<Profile, 'id' | 'role'>,
  shiftId: string,
  branchId: string) {
- if (POS_BRANCH_ALL_ACCESS_ROLES.has(profile.role as UserRole)) return null;
+ if (!requiresActivePosShiftMember(profile.role)) return null;
 
  const { data: member, error } = await supabase
  .from('pos_shift_staff_members')
