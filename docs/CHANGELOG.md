@@ -8,6 +8,9 @@
 - Recorded the separate temporary card-channel suspensions for `rotikayajunus` and `rkjdistributors` and kept DuitNow QR/VT scope distinct.
 - Verified that the Fiuu Agent Payment adapter uses Hosted Payment Page, so the 2026-12-31 FPX issuer-list/KFH maintenance notice does not require an RKJ checkout change unless a direct/seamless FPX flow is introduced.
 - Confirmed the BR001 Fiuu settings remain Preview-only; no Production payment mode, credential or rollout was changed.
+- Recorded owner authorization for an eventual all-outlet rollout while retaining the technical safety gates.
+- Added a read-only Production readiness audit: 35 active branch records with `BR012` missing/inactive, 6 active and 29 pending official tablets, only 1 tablet seen in seven days, 4 native-app installations and no Device Owner/kiosk-compliant tablets.
+- Kept bulk activation blocked; rollout must proceed from BR001 UAT to the remaining enrolled tablets and then individually enrolled pending devices, with static QR/manual fallback throughout.
 
 ## 2026-10-15 - BR001 Fiuu VT App-to-App pilot
 

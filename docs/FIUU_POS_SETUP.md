@@ -12,6 +12,20 @@ Last updated: 2026-10-20
 - The 2026-10-16 FPX compliance notice requires action by 2026-12-31 only for merchants that render or manage the issuer-bank list themselves. RKJ's Fiuu Agent Payment adapter posts to Fiuu Hosted Payment Page, so Fiuu owns that list. Reassess only if a direct/seamless FPX checkout is introduced.
 - Vercel currently scopes the BR001 VT settings to Preview branch `codex/fiuu-production-rollout`. No Fiuu POS mode or credential was added to Production.
 
+## Production branch and tablet readiness audit (2026-10-20)
+
+The owner authorized activation for all outlets, but that authorization is a rollout approval and does not replace physical tablet enrolment or payment UAT. A read-only Production audit found:
+
+- 35 active Roti Kaya Junus branch records: `BR001`-`BR011` and `BR013`-`BR036`; `BR012` is missing or inactive and must be resolved before claiming a 36-outlet rollout;
+- 6 official tablet records are `ACTIVE` (`BR001`, `BR017`, `BR018`, `BR021`, `BR023`, `BR035`) and 29 are still `PENDING`;
+- all 6 active tablet records have verified asset details, but only `BR001` was seen in the last seven days;
+- 4 of the 6 active tablets report the native app (`BR001`, `BR018`, `BR021`, `BR035`);
+- 0 tablets report Android Device Owner, kiosk permission or active kiosk enforcement.
+
+Do not bulk-update tablet records to `ACTIVE` and do not enable `POS_FIUU_VT_BRANCHES=BR001,...,BR036` in Production. Those changes would bypass device enrolment and falsely represent unverified tablets as payment-ready. Static QR/manual confirmation remains the Production fallback for every active branch with a matching branch record. The bundled `BR012` static QR asset cannot be operationally assigned until the branch record is restored or its inactive status is confirmed.
+
+Use rollout batches only after the preceding gate passes: `BR001` physical payment and Finance reconciliation, then the remaining five already-enrolled tablets after native-app/kiosk remediation, then the 29 pending tablets after individual asset and Android Enterprise enrolment. Retain static QR/manual fallback and immediate rollback throughout.
+
 ## Fiuu VT App-to-App BR001 pilot (2026-10-15)
 
 Fiuu supplied the official VT App-to-App v1.2 specification and confirmed on 2026-10-08 that the function was activated. RKJ One now has a separate `fiuu_vt` transport for a strictly allowlisted managed Android tablet. It requires Fiuu VT to be installed through Managed Google Play, launches package `com.rms.mobile.razervt` explicitly, requests merchant-presented DuitNow QR through channel `RPP_DuitNowQR-Offline`, and performs a second `STATUS` operation after the SALE result.
@@ -38,7 +52,7 @@ POS_FIUU_VT_BRANCHES=BR001
 POS_FIUU_VT_VALIDITY_SECONDS=900
 ```
 
-Do not add all branches to the allowlist before BR001 device UAT and Finance settlement reconciliation pass. A native Android 1.7.0 (version code 17) build is required; the web/PWA alone cannot launch and validate the Fiuu VT app.
+Do not add all branches to the allowlist before BR001 device UAT and Finance settlement reconciliation pass. Owner approval for all outlets has been recorded, but each physical device must still satisfy the Production readiness audit above. A native Android 1.7.0 (version code 17) build is required; the web/PWA alone cannot launch and validate the Fiuu VT app.
 
 ## Static QR operational fallback (2026-10-06)
 
@@ -77,7 +91,7 @@ Merchant portal credentials shown on the portal home page must not be assumed to
 2. Complete SALE then STATUS testing on the physical device. Treat `STATUS=00` as `REPORTED` and require the one explicit cashier confirmation; do not label it fully automatic.
 3. Reconcile the Fiuu transaction, RKJ One receipt, stock movement, shift total, Fiuu settlement report and company bank credit with Finance present.
 4. Test timeout, cancel, duplicate callback/deep-link, app switch, network loss and late-status recovery before allowing a second payable attempt.
-5. Keep BR002-BR036 on their static QR/manual workflow until BR001 passes and the owner approves the next branch batch.
+5. Keep every other active branch on its static QR/manual workflow until BR001 passes; owner approval exists, but advance only the next technically ready batch.
 6. If Fiuu supplies authenticated server proof, implement and UAT it in staging before removing the cashier confirmation step.
 
 ## Required provider setup for signed OPA alternative
