@@ -131,7 +131,15 @@ export async function GET(
 
  return NextResponse.json({
  staff,
- portal: credentials,
+  portal: credentials
+  ? {
+  ...credentials,
+  // `profiles.email` mirrors the actual Supabase Auth login and is the
+  // authoritative value. Older credential rows can retain a pre-migration
+  // address, so do not show that stale address to administrators.
+  login_email: profileMeta?.email ?? credentials.login_email,
+  }
+  : null,
  login: profileMeta
  ? {
  must_change_password: profileMeta.must_change_password,
