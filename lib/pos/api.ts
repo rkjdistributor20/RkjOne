@@ -288,7 +288,7 @@ export async function createPosQrPayment(
 export async function submitFiuuVtResult(paymentId: string, result: unknown) {
  return fetchJson<{
   payment: { id: string; status: 'PENDING' | 'REPORTED' | 'PAID' | 'FAILED' | 'EXPIRED' | 'CANCELLED' };
-  next_action: 'CHECK_STATUS' | 'CHECK_STATUS_LATER' | 'MANUAL_CONFIRMATION' | 'COMPLETE';
+  next_action: 'CHECK_STATUS' | 'CHECK_STATUS_LATER' | 'AUTO_CONFIRMATION' | 'COMPLETE';
   warning?: string;
  }>(`/api/pos/qr-payments/${encodeURIComponent(paymentId)}/vt-result`, {
   method: 'POST',

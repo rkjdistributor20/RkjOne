@@ -21,7 +21,7 @@ Authentication:
 
 ## POS Fiuu DuitNow QR API
 
-The signed OPA transport creates a sale only after a valid Fiuu Offline Payment API notification. The separate Fiuu VT App-to-App pilot generates and checks the QR in the managed Android app, but its deep-link result is unsigned and therefore requires explicit cashier confirmation before fulfillment. The default remains manual mode until the selected transport passes UAT.
+The signed OPA transport creates a sale only after a valid Fiuu Offline Payment API notification. The separate Fiuu VT App-to-App pilot generates and checks the QR in the managed Android app. Its deep-link result is unsigned, so it is accepted only from the official enrolled device after SALE plus a fresh matching STATUS result. A matching `STATUS=00` triggers operational fulfillment automatically. The default remains manual mode until the selected transport passes UAT.
 
 ### POST `/api/pos/qr-payments`
 
@@ -43,11 +43,11 @@ Public provider callback endpoint. Request bodies are capped at 64 KiB. Fiuu cal
 
 ### POST `/api/pos/qr-payments/[paymentId]/vt-result`
 
-Accepts only a normalized result captured by the native RKJ One bridge on the same official device, user, branch and shift that created the intent. SALE never fulfills a transaction and always leads to a STATUS request. STATUS `22`, `33`, `45` and `55` remain locked pending during the bounded reconciliation window; `11` and `44` close the attempt. Unsigned STATUS `00` records the database state `REPORTED` and requires manual confirmation.
+Accepts only a normalized result captured by the native RKJ One bridge on the same official device, user, branch and shift that created the intent. SALE never fulfills a transaction and always leads to a STATUS request. STATUS `22`, `33`, `45` and `55` remain locked pending during the bounded reconciliation window; `11` and `44` close the attempt. Unsigned STATUS `00` records the durable database state `REPORTED` and directs the client to invoke automatic fulfillment.
 
 ### POST `/api/pos/qr-payments/[paymentId]/vt-confirm`
 
-Requires the same authenticated official device and a fresh matching STATUS `00` result. It invokes a service-role-only, row-locked RPC that creates at most one sale, receipt and stock movement. This endpoint is an interim human-confirmed pilot control, not cryptographic proof from Fiuu.
+Requires the same authenticated official device and a fresh matching STATUS `00` result. The client invokes it automatically; a visible retry remains available only for interrupted recovery. It invokes a service-role-only, row-locked RPC that creates at most one sale, receipt and stock movement. This is automatic operational confirmation, not cryptographic proof from Fiuu.
 
 Response convention:
 

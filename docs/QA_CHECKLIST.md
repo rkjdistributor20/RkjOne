@@ -91,8 +91,8 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [ ] Fiuu remains static/manual outside the explicit BR001 pilot until OPA credentials or another signed server proof, idempotency and settlement reconciliation pass.
 - [ ] Fiuu POS reload, duplicate-create, QR expiry, late callback, callback replay and shift-close grace cases pass against the staging OPA application.
 - [ ] BR001 Fiuu VT passes managed-device install/activation, SALE → STATUS, success, cancel, timeout, pending, app-kill/reopen, duplicate callback and mixed-payment tests.
-- [ ] VT SALE never creates a sale; unsigned STATUS `00` shows `REPORTED` and requires an explicit cashier confirmation before one atomic receipt/stock deduction.
-- [ ] A `REPORTED` VT success survives QR expiry, blocks duplicate attempts and shift closure, and can be refreshed with matching STATUS `00` before confirmation.
+- [ ] VT SALE never creates a sale; unsigned STATUS `00` shows `REPORTED` briefly, then automatically invokes one atomic receipt/stock fulfillment without a cashier click.
+- [ ] A `REPORTED` VT success survives QR expiry, blocks duplicate attempts and shift closure, auto-confirms after restore, and can be retried safely after an interrupted request.
 - [ ] Dynamic and static/manual mixed payment reject cash over-tender; the exact cash and QR split reconciles to sale total and expected drawer cash.
 - [ ] BR002-BR036 continue to display their mapped static QR while `POS_QR_PAYMENT_MODE=fiuu_vt` and `POS_FIUU_VT_BRANCHES=BR001` are set.
 - [ ] The EMM force-installs `com.rms.mobile.razervt` and permits RKJ One ↔ Fiuu VT handoff without enabling sideloading, extra apps or unrestricted Settings.

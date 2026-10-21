@@ -88,7 +88,7 @@ POS Fiuu DuitNow QR variables:
 | `POS_FIUU_VT_BRANCHES` | When VT pilot enabled | Server; explicit comma-separated pilot codes, initially `BR001` only |
 | `POS_FIUU_VT_VALIDITY_SECONDS` | Optional | Server; 60-3600 seconds, default 900 |
 
-Never expose Fiuu Application Secret Keys as `NEXT_PUBLIC_*`. Configure the signed OPA payment notification URL as `/api/pos/qr-payments/webhook`. Fiuu VT deep-link results are not signed: they require a STATUS recheck plus explicit cashier confirmation and must not be treated as equivalent to the signed OPA webhook. Follow `docs/FIUU_POS_SETUP.md` before changing the mode.
+Never expose Fiuu Application Secret Keys as `NEXT_PUBLIC_*`. Configure the signed OPA payment notification URL as `/api/pos/qr-payments/webhook`. Fiuu VT deep-link results are not signed: they require SALE plus a fresh exact STATUS recheck on the same enrolled device before automatic idempotent fulfillment, and must not be treated as equivalent to the signed OPA webhook. Follow `docs/FIUU_POS_SETUP.md` before changing the mode.
 
 ## Local Setup
 

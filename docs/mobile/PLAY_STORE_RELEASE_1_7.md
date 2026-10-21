@@ -19,7 +19,7 @@ Release candidate date: 2026-10-15
 
 ## Safety boundary
 
-The Fiuu VT v1.2 deep-link result is not cryptographically signed. `STATUS=00` therefore records a reported success and requires one explicit cashier confirmation before the sale, receipt and stock movement are finalized. Do not describe this release as fully automatic provider verification.
+The Fiuu VT v1.2 deep-link result is not cryptographically signed. `STATUS=00` therefore records a durable reported success before RKJ One automatically invokes the service-role-only fulfillment endpoint. This removes the cashier confirmation click while retaining official-device, user, shift, exact transaction, freshness, row-lock and idempotency controls. Describe it as automatic operational confirmation, not cryptographic provider verification.
 
 ## Internal Testing acceptance
 
@@ -31,4 +31,4 @@ The Fiuu VT v1.2 deep-link result is not cryptographically signed. `STATUS=00` t
 6. Reconcile Fiuu transaction/settlement against RKJ One and the company bank account.
 7. Verify BR002 still uses its static QR/manual Finance review path.
 
-Production promotion and expansion beyond BR001 remain blocked until the pilot and settlement reconciliation pass. Fully automatic final confirmation additionally requires an authenticated Fiuu server status API or signed callback.
+Production promotion and expansion beyond BR001 remain blocked until the pilot and settlement reconciliation pass. Cryptographic provider verification still requires signed OPA, cloudECR or another authenticated Fiuu server status/callback contract.

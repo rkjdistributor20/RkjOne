@@ -124,8 +124,8 @@ export async function POST(
    if (payment.status === 'REPORTED') {
     return NextResponse.json({
      payment: { id: payment.id, status: 'REPORTED' },
-     next_action: 'MANUAL_CONFIRMATION',
-     warning: 'Bayaran berjaya telah dilaporkan. Sahkan paparan Fiuu sebelum memuktamadkan jualan.',
+     next_action: 'AUTO_CONFIRMATION',
+     warning: 'Bayaran berjaya telah dilaporkan. RKJ One akan memuktamadkan jualan secara automatik.',
     });
    }
    return NextResponse.json({
@@ -215,8 +215,8 @@ export async function POST(
  if (result.status === '00') {
   return NextResponse.json({
    payment: { id: payment.id, status: 'REPORTED' },
-   next_action: 'MANUAL_CONFIRMATION',
-   warning: 'STATUS Fiuu VT tidak bertandatangan. Sahkan paparan berjaya sebelum memuktamadkan jualan.',
+   next_action: 'AUTO_CONFIRMATION',
+   warning: 'STATUS Fiuu VT berjaya diterima. RKJ One sedang memuktamadkan jualan secara automatik.',
   });
  }
  if (result.status === '55') {

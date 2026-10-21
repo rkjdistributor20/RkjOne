@@ -214,6 +214,7 @@ export function PaymentDialog({
  const [qrSecondsRemaining, setQrSecondsRemaining] = useState(0);
  const qrAttemptKeyRef = useRef<string | null>(null);
 	const vtResultFingerprintRef = useRef<string | null>(null);
+ const vtAutoConfirmAttemptRef = useRef<string | null>(null);
 	const [qrPollError, setQrPollError] = useState<string | null>(null);
 	const [checkingQrStatus, setCheckingQrStatus] = useState(false);
 	const [qrImageError, setQrImageError] = useState(false);
@@ -319,6 +320,7 @@ export function PaymentDialog({
 	setVtStatusLoading(false);
 	qrAttemptKeyRef.current = null;
 	vtResultFingerprintRef.current = null;
+ vtAutoConfirmAttemptRef.current = null;
 	}, []);
 
 	const storageKey = shift ? activeQrStorageKey(branchId, shift.id) : null;
@@ -432,9 +434,9 @@ export function PaymentDialog({
     await launchFiuuVtStatus(result.orderId);
     return;
    }
-   if (response.next_action === 'MANUAL_CONFIRMATION') {
+   if (response.next_action === 'AUTO_CONFIRMATION') {
     setQrStatus('REPORTED');
-    toast.success('Fiuu VT melaporkan bayaran berjaya. Sahkan paparan untuk keluarkan resit.');
+    toast.success('Fiuu VT melaporkan bayaran berjaya. RKJ One sedang mengeluarkan resit secara automatik.');
     return;
    }
    if (response.payment.status === 'PENDING') {
@@ -486,7 +488,7 @@ export function PaymentDialog({
    setQrPollError(null);
     if (response.payment.status === 'REPORTED') {
      setQrStatus('REPORTED');
-     setQrPollError('Fiuu VT melaporkan bayaran berjaya. Sahkan paparan Fiuu untuk memuktamadkan jualan.');
+     setQrPollError('Fiuu VT melaporkan bayaran berjaya. RKJ One sedang memuktamadkan jualan secara automatik.');
      return;
     }
    if (response.payment.status === 'PAID') {
@@ -530,6 +532,8 @@ export function PaymentDialog({
    setCheckingQrStatus(true);
    setQrPollError(null);
    vtResultFingerprintRef.current = null;
+   vtAutoConfirmAttemptRef.current = null;
+   setQrStatus('PENDING');
    try {
     await launchFiuuVtStatus(qrPayment.providerOrderId);
     setCheckingQrStatus(false);
@@ -569,6 +573,13 @@ export function PaymentDialog({
    setLoading(false);
   }
  }, [clearCart, currentPaymentFingerprint, onOpenChange, onSuccess, qrPayment, removeStoredQrPayment, resetPaymentForm]);
+
+ useEffect(() => {
+  if (!open || qrStatus !== 'REPORTED' || !qrPayment || qrPayment.integration !== 'vt_app') return;
+  if (vtAutoConfirmAttemptRef.current === qrPayment.id) return;
+  vtAutoConfirmAttemptRef.current = qrPayment.id;
+  void confirmReportedFiuuVt();
+ }, [confirmReportedFiuuVt, open, qrPayment, qrStatus]);
 
  useEffect(() => {
   if (!qrPayment || qrStatus !== 'PENDING') return;
@@ -793,8 +804,8 @@ export function PaymentDialog({
     }
    }
    if (payment.status === 'REPORTED') {
-    setQrPollError('Fiuu VT telah melaporkan bayaran berjaya. Jangan buka SALE baharu; sahkan paparan untuk memuktamadkan jualan.');
-    toast.info('Bayaran Fiuu VT terdahulu menunggu pengesahan anda.');
+     setQrPollError('Fiuu VT telah melaporkan bayaran berjaya. Jangan buka SALE baharu; RKJ One sedang memuktamadkan jualan secara automatik.');
+     toast.info('Bayaran Fiuu VT terdahulu sedang disahkan secara automatik.');
     return;
    }
     if (activePayment.integration === 'vt_app' && activePayment.providerOrderId) {
@@ -893,10 +904,10 @@ export function PaymentDialog({
        <CheckCircle2 className="mx-auto h-11 w-11 text-sky-700" aria-hidden="true" />
        <p className="mt-3 font-bold text-sky-950">Fiuu VT melaporkan status berjaya</p>
        <p className="mt-1 text-sm text-sky-900">
-        Semak paparan <strong>Successful / Berjaya</strong> dan amaun {formatRM(qrPayment.amountRm)} dalam Fiuu VT, kemudian tekan pengesahan di bawah.
+         RKJ One sedang mengesahkan amaun {formatRM(qrPayment.amountRm)}, mengeluarkan resit dan mengemas kini stok secara automatik.
        </p>
        <p className="mt-3 rounded-lg bg-white px-3 py-2 text-xs text-amber-900">
-        Langkah ini wajib kerana respons VT belum mempunyai tandatangan kriptografi.
+         Jika sambungan terputus, transaksi kekal terkunci dan boleh dicuba semula tanpa mencipta jualan berganda.
        </p>
       </div>
      ) : qrStatus === 'PENDING' && !qrDisplayExpired ? (
@@ -1151,14 +1162,14 @@ export function PaymentDialog({
       {qrConfig?.mode === 'FIUU_DYNAMIC'
        ? 'DuitNow QR Fiuu — auto disahkan'
        : qrConfig?.mode === 'FIUU_VT_APP' && !vtManualFallback
-       ? 'Fiuu VT — semakan STATUS + pengesahan staf'
+       ? 'Fiuu VT — semakan STATUS + auto sah'
        : 'DuitNow QR cawangan — pengesahan manual'}
     </p>
     <p className="text-xs text-muted-foreground">
       {qrConfig?.mode === 'FIUU_DYNAMIC'
        ? 'QR amaun tepat akan dijana dan disahkan secara automatik oleh Fiuu.'
        : qrConfig?.mode === 'FIUU_VT_APP' && !vtManualFallback
-       ? 'Aplikasi Fiuu VT akan menjana QR amaun tepat. Status diperiksa automatik dan dimuktamadkan dengan satu pengesahan staf.'
+       ? 'Aplikasi Fiuu VT akan menjana QR amaun tepat. STATUS berjaya dimuktamadkan secara automatik kepada resit dan kemas kini stok.'
        : 'QR rasmi cawangan dipaparkan. Pembayaran ini memerlukan pengesahan manual staf.'}
     </p>
    </div>
@@ -1314,7 +1325,7 @@ export function PaymentDialog({
        onClick={() => void confirmReportedFiuuVt()}
       >
        <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
-       {loading ? 'Memuktamadkan...' : 'Sahkan paparan berjaya'}
+       {loading ? 'Memuktamadkan...' : 'Cuba sahkan automatik semula'}
       </Button>
      </div>
     ) : qrStatus === 'PENDING' || qrStatus === 'PAID' ? (

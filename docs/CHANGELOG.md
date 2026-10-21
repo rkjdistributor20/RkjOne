@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-22 - Fiuu VT automatic operational confirmation
+
+- Changed the BR001 VT flow so a fresh matching Fiuu `STATUS=00` automatically invokes the existing service-role-only fulfillment RPC; no cashier confirmation click is required.
+- Retained the durable `REPORTED` intermediate state, same-user/device/branch/shift checks, exact order/Transaction ID/amount/MYR/channel matching, five-minute STATUS freshness, row locks and idempotent receipt/stock fulfillment.
+- Retained a manual retry control only as recovery after network or app interruption; it cannot create a second sale.
+- Clarified that this is automatic operational confirmation from the official Fiuu VT app, not cryptographic provider proof. Signed OPA or cloudECR remains the preferred server-verifiable path for broad rollout.
+- Corrected the earlier NFC assumption: Fiuu's official Google Play listing supports tablets and non-EMV terminal devices, so BR001 may perform QR-only VT UAT without NFC. Tap-to-Pay card acceptance still requires compatible NFC hardware.
+- Local validation passed: 63 tests, targeted ESLint and the Next.js Production build. Production database, environment and deployment remain unchanged pending the BR001 action gate.
+
 ## 2026-10-20 - Fiuu operational evidence review
 
 - Reconciled both registered merchant inboxes and the Pn Aida WhatsApp thread against the implemented BR001 VT pilot.

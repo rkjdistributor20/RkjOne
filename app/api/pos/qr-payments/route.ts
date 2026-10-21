@@ -125,7 +125,7 @@ function existingPaymentResponse(
     provider_order_id: payment.provider_order_id,
     reused: true,
    },
-   next_action: 'MANUAL_CONFIRMATION',
+   next_action: 'AUTO_CONFIRMATION',
   });
  }
 

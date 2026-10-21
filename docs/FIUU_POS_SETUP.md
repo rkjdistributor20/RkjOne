@@ -8,12 +8,12 @@ The controlled RM2.50 BR001 static DuitNow QR sale passed. Transaction `TX-20261
 
 Fiuu VT Production remains blocked by four concrete gates:
 
-1. The official **Fiuu Virtual Terminal** package `com.rms.mobile.razervt` is not installed or activated on BR001. Fiuu's official download page links to the exact Google Play listing. An authenticated direct install attempt on 2026-10-22 returned `No eligible devices for app install`. The native tablet Play Store has only its outlet-specific Google account; `isaeee94@gmail.com` is not associated with Android on that tablet, and native search does not expose the official package. Samsung's official SM-X406B specification states that this tablet has no NFC, while Fiuu markets Android VT for NFC-enabled mobile phones. Fiuu must confirm whether QR-only App-to-App supports this non-NFC model or requires a different approved device/build.
+1. The official **Fiuu Virtual Terminal** package `com.rms.mobile.razervt` is not installed or activated on BR001. Fiuu's official Google Play listing explicitly supports smartphones, tablets and non-EMV terminal devices, so the Samsung SM-X406B can be used for QR-only VT UAT without NFC. The earlier browser install returned `No eligible devices for app install` because the browser Google account was not associated with the tablet; install the exact package from the tablet's Play Store or the approved managed distribution route. NFC is required only for Tap-to-Pay card acceptance.
 2. Production `rkj.one` is still deployed from `master` commit `b5118e9`; the reviewed rollout branch commit `ea5cd2a` exists only as a Ready preview.
 3. Production Supabase project `mtygxueknokcihofdttl` has no row for migration `20261015120000_add_fiuu_vt_br001_pilot.sql`; the migration has not been applied.
 4. Vercel Production has no `POS_QR_PAYMENT_MODE`, `POS_FIUU_VT_BRANCHES`, `POS_FIUU_VT_VALIDITY_SECONDS` or `POS_FIUU_ENVIRONMENT` values for the VT pilot. The corresponding values are scoped to the reviewed Preview branch only.
 
-Do not claim automatic confirmation or enable all outlets. Keep Production static/manual until the official VT app is installed and activated, the BR001-only Production change is explicitly approved, and the dynamic SALE → STATUS → cashier-confirmation payment plus Finance settlement reconciliation passes.
+Do not enable all outlets yet. Keep Production static/manual until the official VT app is installed and activated, the BR001-only Production change is explicitly approved, and the dynamic SALE → STATUS → automatic fulfillment payment plus Finance settlement reconciliation passes. Describe this as automatic operational confirmation, not signed server verification.
 
 ## Current provider status (2026-10-20)
 
@@ -50,14 +50,14 @@ The VT deep-link response does **not** contain HMAC, a digital signature, nonce 
 - `22`, `33` and `45` remain pending; `11` and `44` close the attempt;
 - `55` remains locked as pending until the bounded reconciliation grace ends, so a second payable attempt cannot overlap a late success;
 - STATUS is rejected unless the matching SALE result and immutable Transaction ID were recorded first;
-- STATUS `00` is recorded durably as `REPORTED`, not `PAID`, and cannot be expired into a second payable attempt;
-- a cashier must verify the successful Fiuu VT screen and explicitly confirm once;
-- only then may the service-role-only, row-locked RPC create one sale, one receipt and one stock deduction;
+- STATUS `00` is recorded durably as `REPORTED`, cannot be expired into a second payable attempt and immediately directs the RKJ One client to automatic fulfillment;
+- the automatic request still requires the same authenticated user, official device, branch and active shift, plus a fresh exact STATUS match;
+- the service-role-only, row-locked RPC then creates at most one sale, one receipt and one stock deduction;
 - shift closure locks the shift before calculating totals and remains blocked while a `REPORTED` payment awaits confirmation;
 - all POS mixed payments require an exact cash-plus-QR split with no cash change, preventing drawer totals from being overstated across dynamic and static/manual fallback;
 - BR002-BR036 continue using their static QR/manual workflow.
 
-This is a safe usable pilot, not fully automatic cryptographic confirmation. Fully automatic rollout requires Fiuu to provide an authenticated server status API or signed callback. Configure the pilot only with:
+This is automatic operational confirmation, not cryptographic provider verification. A forged deep link would still need the private pending order context and exact transaction details on the enrolled device, but the Fiuu v1.2 response itself is unsigned. Signed OPA or cloudECR remains the preferred server-verifiable path for broad rollout. Configure the pilot only with:
 
 ```dotenv
 POS_QR_PAYMENT_MODE=fiuu_vt
@@ -100,13 +100,13 @@ Merchant portal credentials shown on the portal home page must not be assumed to
 
 ## Immediate BR001 VT actions
 
-1. Ask Fiuu to confirm whether QR-only App-to-App supports non-NFC Samsung model SM-X406B. If supported, obtain the exact approved non-NFC/Managed Google Play distribution route; if unsupported, use a Fiuu-approved NFC-capable device for the pilot. Install only `com.rms.mobile.razervt` and activate merchant `masterkayajunus01` through the provider-approved process. Do not add the merchant Gmail account to an outlet tablet merely to bypass eligibility, and do not use an unrelated app or unverified APK.
+1. Install only `com.rms.mobile.razervt` on BR001 from Google Play or the approved managed distribution route and activate merchant `masterkayajunus01`. The official listing supports tablets/non-EMV devices for QR; do not substitute an unrelated app or unverified APK.
 2. After explicit Production approval, apply only migration `20261015120000_add_fiuu_vt_br001_pilot.sql`, configure only the BR001 VT environment values and promote the reviewed rollout branch. Keep BR002-BR036 on static/manual QR.
-3. Complete SALE then STATUS testing on the physical device. Treat `STATUS=00` as `REPORTED` and require the one explicit cashier confirmation; do not label it fully automatic.
+3. Complete SALE then STATUS testing on the physical device. Verify that `STATUS=00` briefly records `REPORTED`, automatically becomes `PAID`, emits one receipt and deducts stock exactly once without a cashier confirmation click.
 4. Reconcile the Fiuu transaction, RKJ One receipt, stock movement, shift total, Fiuu settlement report and company bank credit with Finance present.
 5. Test timeout, cancel, duplicate callback/deep-link, app switch, network loss and late-status recovery before allowing a second payable attempt.
 6. Keep every other active branch on its static QR/manual workflow until BR001 passes; owner approval exists, but advance only the next technically ready batch.
-7. If Fiuu supplies authenticated server proof, implement and UAT it in staging before removing the cashier confirmation step.
+7. If Fiuu supplies authenticated server proof, implement and UAT it in staging before describing the flow as cryptographically provider-verified or expanding broadly.
 
 ## Required provider setup for signed OPA alternative
 
