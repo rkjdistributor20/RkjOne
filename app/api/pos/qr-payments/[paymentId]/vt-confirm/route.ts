@@ -113,7 +113,7 @@ export async function POST(
   p_confirmed_by: profile.id,
  });
  if (fulfillError) {
-  console.error('[pos-fiuu-vt] manual_confirm_failed', {
+  console.error('[pos-fiuu-vt] fulfillment_failed', {
    paymentId: payment.id,
    reason: fulfillError.message.slice(0, 160),
   });

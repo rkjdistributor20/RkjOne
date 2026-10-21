@@ -8,8 +8,8 @@ The controlled RM2.50 BR001 static DuitNow QR sale passed. Transaction `TX-20261
 
 Fiuu VT Production remains blocked by four concrete gates:
 
-1. The official **Fiuu Virtual Terminal** package `com.rms.mobile.razervt` is not installed or activated on BR001. Fiuu's official Google Play listing explicitly supports smartphones, tablets and non-EMV terminal devices, so the Samsung SM-X406B can be used for QR-only VT UAT without NFC. The earlier browser install returned `No eligible devices for app install` because the browser Google account was not associated with the tablet; install the exact package from the tablet's Play Store or the approved managed distribution route. NFC is required only for Tap-to-Pay card acceptance.
-2. Production `rkj.one` is still deployed from `master` commit `b5118e9`; the reviewed rollout branch commit `ea5cd2a` exists only as a Ready preview.
+1. The official **Fiuu Virtual Terminal** package `com.rms.mobile.razervt` is not installed or activated on BR001. Although Fiuu's public Google Play listing advertises smartphones, tablets and non-EMV devices generally, the exact listing on the BR001 Samsung SM-X406B native Play Store reports `Your device isn't compatible with this version`. The earlier browser result `No eligible devices for app install` was therefore not merely an account-association problem. Do not add the merchant Gmail account as a bypass; obtain Fiuu's approved managed build/device list or use a confirmed compatible device.
+2. Production `rkj.one` is still deployed from `master` commit `b5118e9`; the reviewed rollout code commit `c03d2ae` exists only as a Ready preview.
 3. Production Supabase project `mtygxueknokcihofdttl` has no row for migration `20261015120000_add_fiuu_vt_br001_pilot.sql`; the migration has not been applied.
 4. Vercel Production has no `POS_QR_PAYMENT_MODE`, `POS_FIUU_VT_BRANCHES`, `POS_FIUU_VT_VALIDITY_SECONDS` or `POS_FIUU_ENVIRONMENT` values for the VT pilot. The corresponding values are scoped to the reviewed Preview branch only.
 
@@ -100,7 +100,7 @@ Merchant portal credentials shown on the portal home page must not be assumed to
 
 ## Immediate BR001 VT actions
 
-1. Install only `com.rms.mobile.razervt` on BR001 from Google Play or the approved managed distribution route and activate merchant `masterkayajunus01`. The official listing supports tablets/non-EMV devices for QR; do not substitute an unrelated app or unverified APK.
+1. Obtain an approved route for `com.rms.mobile.razervt`: either Fiuu provides a managed build compatible with SM-X406B or confirms a different supported Android device for BR001. Activate only merchant `masterkayajunus01`; do not substitute an unrelated app, unverified APK or a personal/merchant Google-account bypass.
 2. After explicit Production approval, apply only migration `20261015120000_add_fiuu_vt_br001_pilot.sql`, configure only the BR001 VT environment values and promote the reviewed rollout branch. Keep BR002-BR036 on static/manual QR.
 3. Complete SALE then STATUS testing on the physical device. Verify that `STATUS=00` briefly records `REPORTED`, automatically becomes `PAID`, emits one receipt and deducts stock exactly once without a cashier confirmation click.
 4. Reconcile the Fiuu transaction, RKJ One receipt, stock movement, shift total, Fiuu settlement report and company bank credit with Finance present.

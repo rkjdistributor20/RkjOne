@@ -6,7 +6,7 @@
 - Retained the durable `REPORTED` intermediate state, same-user/device/branch/shift checks, exact order/Transaction ID/amount/MYR/channel matching, five-minute STATUS freshness, row locks and idempotent receipt/stock fulfillment.
 - Retained a manual retry control only as recovery after network or app interruption; it cannot create a second sale.
 - Clarified that this is automatic operational confirmation from the official Fiuu VT app, not cryptographic provider proof. Signed OPA or cloudECR remains the preferred server-verifiable path for broad rollout.
-- Corrected the earlier NFC assumption: Fiuu's official Google Play listing supports tablets and non-EMV terminal devices, so BR001 may perform QR-only VT UAT without NFC. Tap-to-Pay card acceptance still requires compatible NFC hardware.
+- Rechecked Play eligibility on the physical BR001 device. Fiuu's public listing advertises tablet/non-EMV support generally, but the native Play Store on Samsung SM-X406B reports `Your device isn't compatible with this version`; BR001 therefore still needs a Fiuu-approved managed build or confirmed compatible device before VT UAT.
 - Local validation passed: 63 tests, targeted ESLint and the Next.js Production build. Production database, environment and deployment remain unchanged pending the BR001 action gate.
 
 ## 2026-10-20 - Fiuu operational evidence review
