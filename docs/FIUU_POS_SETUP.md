@@ -1,6 +1,19 @@
 # RKJ One Fiuu DuitNow QR POS Setup
 
-Last updated: 2026-10-20
+Last updated: 2026-10-22
+
+## Current BR001 decision (2026-10-22)
+
+The controlled RM2.50 BR001 static DuitNow QR sale passed. Transaction `TX-20261021-00001` completed once under shift `SH-20261021-0001`, the expected stock was deducted, the shift total reconciled to RM2.50 and Finance manually marked the related payment record paid. This confirms the existing RKJ One static-QR/manual sale pipeline only; it is not proof of Fiuu VT automatic or App-to-App confirmation.
+
+Fiuu VT Production remains blocked by four concrete gates:
+
+1. The official **Fiuu Virtual Terminal** package `com.rms.mobile.razervt` is not installed or activated on BR001. Fiuu's official download page links to the exact Google Play listing, but Google Play currently reports that the app is not available for the selected device/account.
+2. Production `rkj.one` is still deployed from `master` commit `b5118e9`; the reviewed rollout branch commit `ea5cd2a` exists only as a Ready preview.
+3. Production Supabase project `mtygxueknokcihofdttl` has no row for migration `20261015120000_add_fiuu_vt_br001_pilot.sql`; the migration has not been applied.
+4. Vercel Production has no `POS_QR_PAYMENT_MODE`, `POS_FIUU_VT_BRANCHES`, `POS_FIUU_VT_VALIDITY_SECONDS` or `POS_FIUU_ENVIRONMENT` values for the VT pilot. The corresponding values are scoped to the reviewed Preview branch only.
+
+Do not claim automatic confirmation or enable all outlets. Keep Production static/manual until the official VT app is installed and activated, the BR001-only Production change is explicitly approved, and the dynamic SALE → STATUS → cashier-confirmation payment plus Finance settlement reconciliation passes.
 
 ## Current provider status (2026-10-20)
 
@@ -87,12 +100,13 @@ Merchant portal credentials shown on the portal home page must not be assumed to
 
 ## Immediate BR001 VT actions
 
-1. Install the exact Android 1.7.0 pilot build and official Fiuu VT app on the registered BR001 tablet through the controlled app channel.
-2. Complete SALE then STATUS testing on the physical device. Treat `STATUS=00` as `REPORTED` and require the one explicit cashier confirmation; do not label it fully automatic.
-3. Reconcile the Fiuu transaction, RKJ One receipt, stock movement, shift total, Fiuu settlement report and company bank credit with Finance present.
-4. Test timeout, cancel, duplicate callback/deep-link, app switch, network loss and late-status recovery before allowing a second payable attempt.
-5. Keep every other active branch on its static QR/manual workflow until BR001 passes; owner approval exists, but advance only the next technically ready batch.
-6. If Fiuu supplies authenticated server proof, implement and UAT it in staging before removing the cashier confirmation step.
+1. Resolve eligibility for and install the exact official Fiuu VT package `com.rms.mobile.razervt` on the registered BR001 tablet; activate merchant `masterkayajunus01` through the provider-approved process. Do not use an unrelated app or unverified APK.
+2. After explicit Production approval, apply only migration `20261015120000_add_fiuu_vt_br001_pilot.sql`, configure only the BR001 VT environment values and promote the reviewed rollout branch. Keep BR002-BR036 on static/manual QR.
+3. Complete SALE then STATUS testing on the physical device. Treat `STATUS=00` as `REPORTED` and require the one explicit cashier confirmation; do not label it fully automatic.
+4. Reconcile the Fiuu transaction, RKJ One receipt, stock movement, shift total, Fiuu settlement report and company bank credit with Finance present.
+5. Test timeout, cancel, duplicate callback/deep-link, app switch, network loss and late-status recovery before allowing a second payable attempt.
+6. Keep every other active branch on its static QR/manual workflow until BR001 passes; owner approval exists, but advance only the next technically ready batch.
+7. If Fiuu supplies authenticated server proof, implement and UAT it in staging before removing the cashier confirmation step.
 
 ## Required provider setup for signed OPA alternative
 
