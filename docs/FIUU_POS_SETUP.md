@@ -8,7 +8,7 @@ The controlled RM2.50 BR001 static DuitNow QR sale passed. Transaction `TX-20261
 
 Fiuu VT Production remains blocked by four concrete gates:
 
-1. The official **Fiuu Virtual Terminal** package `com.rms.mobile.razervt` is not installed or activated on BR001. Fiuu's official download page links to the exact Google Play listing, but Google Play currently reports that the app is not available for the selected device/account.
+1. The official **Fiuu Virtual Terminal** package `com.rms.mobile.razervt` is not installed or activated on BR001. Fiuu's official download page links to the exact Google Play listing. An authenticated direct install attempt on 2026-10-22 returned `No eligible devices for app install`. The native tablet Play Store has only its outlet-specific Google account; `isaeee94@gmail.com` is not associated with Android on that tablet, and native search does not expose the official package.
 2. Production `rkj.one` is still deployed from `master` commit `b5118e9`; the reviewed rollout branch commit `ea5cd2a` exists only as a Ready preview.
 3. Production Supabase project `mtygxueknokcihofdttl` has no row for migration `20261015120000_add_fiuu_vt_br001_pilot.sql`; the migration has not been applied.
 4. Vercel Production has no `POS_QR_PAYMENT_MODE`, `POS_FIUU_VT_BRANCHES`, `POS_FIUU_VT_VALIDITY_SECONDS` or `POS_FIUU_ENVIRONMENT` values for the VT pilot. The corresponding values are scoped to the reviewed Preview branch only.
@@ -100,7 +100,7 @@ Merchant portal credentials shown on the portal home page must not be assumed to
 
 ## Immediate BR001 VT actions
 
-1. Resolve eligibility for and install the exact official Fiuu VT package `com.rms.mobile.razervt` on the registered BR001 tablet; activate merchant `masterkayajunus01` through the provider-approved process. Do not use an unrelated app or unverified APK.
+1. With explicit owner approval, add the registered merchant Google account to the BR001 Android device and recheck eligibility once. If it remains ineligible, ask Fiuu for the supported-device requirement or approved Managed Google Play/private distribution route. Install only `com.rms.mobile.razervt` and activate merchant `masterkayajunus01` through the provider-approved process. Do not use an unrelated app or unverified APK.
 2. After explicit Production approval, apply only migration `20261015120000_add_fiuu_vt_br001_pilot.sql`, configure only the BR001 VT environment values and promote the reviewed rollout branch. Keep BR002-BR036 on static/manual QR.
 3. Complete SALE then STATUS testing on the physical device. Treat `STATUS=00` as `REPORTED` and require the one explicit cashier confirmation; do not label it fully automatic.
 4. Reconcile the Fiuu transaction, RKJ One receipt, stock movement, shift total, Fiuu settlement report and company bank credit with Finance present.
