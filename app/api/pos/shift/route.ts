@@ -325,7 +325,9 @@ export async function PATCH(request: Request) {
   if (payment.status === 'REPORTED') return true;
   const expiresAtMs = payment.expires_at ? new Date(payment.expires_at).getTime() : Number.POSITIVE_INFINITY;
   if (payment.status === 'PENDING' && expiresAtMs > nowMs) return true;
-  return (payment.provider === 'fiuu' || payment.provider === 'fiuu_vt')
+  return (payment.provider === 'fiuu'
+    || payment.provider === 'fiuu_vt'
+    || payment.provider === 'fiuu_cloudecr')
    && (payment.status === 'PENDING' || payment.status === 'EXPIRED')
    && Number.isFinite(expiresAtMs)
    && expiresAtMs + FIUU_CALLBACK_GRACE_MS > nowMs;

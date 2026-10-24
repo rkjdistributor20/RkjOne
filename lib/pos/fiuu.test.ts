@@ -55,6 +55,12 @@ describe('Fiuu configuration safety', () => {
   expect(getFiuuOpaConfig('BR001', 'POS001')).toBeNull();
  });
 
+ it('recognizes cloudECR without enabling OPA credentials', () => {
+  process.env.POS_QR_PAYMENT_MODE = 'fiuu_cloudecr';
+  expect(getPosQrPaymentMode()).toBe('fiuu_cloudecr');
+  expect(getFiuuOpaConfig('BR001', 'POS001')).toBeNull();
+ });
+
  it('defaults VT to sandbox and rejects an ambiguous environment', () => {
   delete process.env.POS_FIUU_ENVIRONMENT;
   expect(getFiuuEnvironment()).toBe('sandbox');

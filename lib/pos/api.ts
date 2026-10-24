@@ -264,7 +264,7 @@ export async function createPosQrPayment(
     gateway_ref: string | null;
     expires_at: string | null;
     environment: 'sandbox' | 'production';
-    integration: 'opa' | 'vt_app';
+    integration: 'opa' | 'vt_app' | 'cloudecr';
     provider_order_id: string | null;
     reused: boolean;
    };

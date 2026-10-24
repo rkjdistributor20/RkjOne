@@ -210,8 +210,9 @@ function buildLaunchControl(input: {
   hasSupabaseEnv: boolean;
   hasFiuuCredentials: boolean;
   hasFiuuVtPilot: boolean;
+  hasFiuuCloudEcrPilot: boolean;
   hasFiuuSchema: boolean;
-  posQrPaymentMode: "manual" | "fiuu" | "fiuu_vt";
+  posQrPaymentMode: "manual" | "fiuu" | "fiuu_vt" | "fiuu_cloudecr";
   branches: number | null;
   legalEntities: number | null;
   activeProfiles: number | null;
@@ -231,7 +232,8 @@ function buildLaunchControl(input: {
     input.activeProfilesWithoutAuthUser === 0;
   const hasCompletedFirstLogin = input.activeProfilesNeverSignedIn === 0;
   const hasFiuuRuntime = ((input.posQrPaymentMode === "fiuu" && input.hasFiuuCredentials) ||
-    (input.posQrPaymentMode === "fiuu_vt" && input.hasFiuuVtPilot)) &&
+    (input.posQrPaymentMode === "fiuu_vt" && input.hasFiuuVtPilot) ||
+    (input.posQrPaymentMode === "fiuu_cloudecr" && input.hasFiuuCloudEcrPilot)) &&
     input.hasFiuuSchema;
   const items: LaunchControlItem[] = [
     launchItem(
@@ -346,8 +348,20 @@ export async function buildSystemHealthSnapshot(
     (Boolean(process.env.POS_FIUU_APPLICATION_CODE) &&
       Boolean(process.env.POS_FIUU_SECRET_KEY));
   const hasFiuuVtPilot = Boolean(process.env.POS_FIUU_VT_BRANCHES?.trim());
+  const fiuuCloudEcrBaseUrl = process.env.POS_FIUU_CLOUDECR_BASE_URL?.trim()
+    .replace(/\/$/, "");
+  const hasFiuuCloudEcrPilot = Boolean(process.env.POS_FIUU_CLOUDECR_BRANCHES?.trim())
+    && fiuuCloudEcrBaseUrl === "https://cloudecr.fiuu.com"
+    && Boolean(process.env.POS_FIUU_CLOUDECR_POS_ID?.trim())
+    && Boolean(process.env.POS_FIUU_CLOUDECR_PASSWORD?.trim())
+    && Boolean(process.env.POS_FIUU_CLOUDECR_MERCHANT_ID?.trim())
+    && Boolean(process.env.POS_FIUU_CLOUDECR_DEVICE_ID?.trim())
+    && Boolean(process.env.POS_FIUU_CLOUDECR_TERMINAL_SN?.trim())
+    && Boolean(process.env.POS_FIUU_CLOUDECR_SECRET_KEY?.trim());
   const rawPosQrPaymentMode = process.env.POS_QR_PAYMENT_MODE?.trim().toLowerCase();
-  const posQrPaymentMode = rawPosQrPaymentMode === "fiuu" || rawPosQrPaymentMode === "fiuu_vt"
+  const posQrPaymentMode = rawPosQrPaymentMode === "fiuu"
+    || rawPosQrPaymentMode === "fiuu_vt"
+    || rawPosQrPaymentMode === "fiuu_cloudecr"
     ? rawPosQrPaymentMode
     : "manual";
   const productionReadiness = buildProductionReadiness({
@@ -361,6 +375,7 @@ export async function buildSystemHealthSnapshot(
     monitoringVerified: false,
     hasFiuuCredentials,
     hasFiuuVtPilot,
+    hasFiuuCloudEcrPilot,
     hasFiuuSchema,
     fiuuLiveUatPassed: false,
     posQrPaymentMode,
@@ -380,6 +395,7 @@ export async function buildSystemHealthSnapshot(
     hasSupabaseEnv,
     hasFiuuCredentials,
     hasFiuuVtPilot,
+    hasFiuuCloudEcrPilot,
     hasFiuuSchema,
     posQrPaymentMode,
     branches,
@@ -555,7 +571,7 @@ export async function buildSystemHealthSnapshot(
           "payment-env",
           "Kesiapan Fiuu live",
           "WARN",
-          `Mod QR POS ${posQrPaymentMode}; kredensial OPA ${hasFiuuCredentials ? "dikesan" : "belum lengkap"}; pilot VT ${hasFiuuVtPilot ? "dikonfigurasi" : "tidak aktif"}; skema Fiuu ${hasFiuuSchema ? "tersedia" : "belum tersedia"}; UAT transaksi live belum direkodkan.`,
+          `Mod QR POS ${posQrPaymentMode}; kredensial OPA ${hasFiuuCredentials ? "dikesan" : "belum lengkap"}; pilot VT ${hasFiuuVtPilot ? "dikonfigurasi" : "tidak aktif"}; pilot VT+ cloudECR ${hasFiuuCloudEcrPilot ? "dikonfigurasi" : "tidak aktif"}; skema Fiuu ${hasFiuuSchema ? "tersedia" : "belum tersedia"}; UAT transaksi live belum direkodkan.`,
           "Kekalkan QR statik/manual di luar pilot sehingga migrasi, bukti provider dan settlement disahkan.",
         ),
       ],

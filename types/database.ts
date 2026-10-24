@@ -6787,6 +6787,8 @@ export type Database = {
           provider_confirmed_at: string | null
           provider_confirmed_by: string | null
           provider_order_id: string | null
+          provider_reconcile_claimed_at: string | null
+          provider_reconcile_reference_id: string | null
           provider_result: Json | null
           provider_sale_reported_at: string | null
           provider_status_checked_at: string | null
@@ -6814,6 +6816,8 @@ export type Database = {
           provider_confirmed_at?: string | null
           provider_confirmed_by?: string | null
           provider_order_id?: string | null
+          provider_reconcile_claimed_at?: string | null
+          provider_reconcile_reference_id?: string | null
           provider_result?: Json | null
           provider_sale_reported_at?: string | null
           provider_status_checked_at?: string | null
@@ -6841,6 +6845,8 @@ export type Database = {
           provider_confirmed_at?: string | null
           provider_confirmed_by?: string | null
           provider_order_id?: string | null
+          provider_reconcile_claimed_at?: string | null
+          provider_reconcile_reference_id?: string | null
           provider_result?: Json | null
           provider_sale_reported_at?: string | null
           provider_status_checked_at?: string | null
@@ -10717,6 +10723,14 @@ export type Database = {
         Returns: Json
       }
       clock_out_staff: { Args: { p_staff_id: string }; Returns: Json }
+      claim_pos_fiuu_cloudecr_reconciliation: {
+        Args: {
+          p_min_interval_seconds?: number
+          p_payment_id: string
+          p_query_reference_id: string
+        }
+        Returns: boolean
+      }
       close_expired_production_order_windows: { Args: never; Returns: number }
       close_pos_shift: {
         Args: { p_closing_cash: number; p_notes?: string; p_shift_id: string }
@@ -10886,6 +10900,10 @@ export type Database = {
           p_gateway_ref: string
           p_payment_id: string
         }
+        Returns: Json
+      }
+      fulfill_pos_fiuu_cloudecr_payment: {
+        Args: { p_payment_id: string }
         Returns: Json
       }
       fulfill_pos_fiuu_vt_payment: {
@@ -11102,6 +11120,10 @@ export type Database = {
           p_receipt_phone?: string
           p_shift_id: string
         }
+        Returns: Json
+      }
+      report_pos_fiuu_cloudecr_payment: {
+        Args: { p_payment_id: string; p_provider_result: Json }
         Returns: Json
       }
       publish_weekly_roster: { Args: { p_plan_id: string }; Returns: Json }

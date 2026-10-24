@@ -1,6 +1,6 @@
 # RKJ One QA Checklist
 
-Last updated: 2026-07-11
+Last updated: 2026-10-24
 
 Use this checklist for QA AI, Code Reviewer AI, and human review before merge/deploy.
 
@@ -81,6 +81,26 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [x] HR dashboard separates management/HR actions from staff self-service actions.
 - [x] `npm run verify:workflow` guards the Settings/HR responsibility boundary.
 
+## Fiuu cloudECR / VT+ BR001 evidence — 2026-10-24
+
+- [x] Phone Link identifies the connected BR001 tablet as Samsung `SM-X406B` running Android 16.
+- [x] Google Play account `rkjdistributor20@gmail.com` registers Samsung `SM-X406B` and HONOR `ELN2-L29`/HONOR Pad X9a; the HONOR is not `NDL2-L09`/X8b.
+- [x] Standard Fiuu VT availability was checked and is unavailable on both registered devices.
+- [x] Fiuu VT+ availability was checked and is offered to all devices registered on the account.
+- [x] The earlier Android 10/X8b support diagnosis is recorded as a non-matching device profile, without attributing fault; future troubleshooting uses the verified inventory.
+- [x] The evidence review made no Production database, environment, deployment, merchant-portal or outlet change.
+- [ ] Fiuu provisions or identifies the BR001 cloudECR POS account and VT+ account and supplies credentials through an approved secure channel.
+- [ ] BR001 VT+ is activated, cloudECR-enabled and bound; `GET /api/terminals` confirms the expected terminal and connected state.
+- [ ] Fiuu confirms the 36-submerchant mapping and whether credentials, Secret Key, POS account, MID/TID and settlement are shared or isolated per sub-merchant.
+- [ ] BR001 validates token login/refresh, request and response HMAC, unique references, exact amount/currency/device matching and rejection of invalid signatures.
+- [x] Local code requires exact POS ID, Device ID and Terminal SN; `getLast` uses a unique query reference plus the original SALE reference in signed metadata.
+- [x] Local code uses a 180-second database claim/lease—longer than the server request window—to permit at most one `getLast` call per payment across concurrent tabs and stores signed success as `REPORTED` before receipt/stock fulfilment.
+- [x] Local code permits only one unresolved SALE for the exact cloudECR POS ID, Device ID and Terminal SN across RKJ tablets, stores the exact HMAC-verified payload, and preserves a server-side pricing snapshot.
+- [ ] BR001 proves that successful Fiuu `getLast` returns the original SALE reference in signed metadata; absent metadata must remain fail-closed and be escalated to Fiuu.
+- [ ] BR001 validates uncertain-result recovery through `getLast`: each inquiry uses a new query reference, signed metadata contains the original SALE reference, and network/duplicate recovery creates no duplicate sale, receipt or stock movement.
+- [ ] Finance reconciles the physical BR001 payment against the provider transaction, RKJ receipt, stock, shift, Fiuu settlement report and bank credit.
+- [ ] Owner gives fresh confirmation immediately before any Production migration, credential, environment or deployment change.
+
 ## Deployment Review
 
 - [ ] Migration applied to Supabase if schema changed.
@@ -88,14 +108,14 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [ ] Production and staging project references are independently verified before linking or pushing migrations.
 - [ ] Readiness dashboard reports at least one approved active ADMIN and zero active non-admin profiles without legal-entity scope.
 - [ ] Every active real-user profile has an Auth user and completes role-based first-login UAT.
-- [ ] Fiuu remains static/manual outside the explicit BR001 pilot until OPA credentials or another signed server proof, idempotency and settlement reconciliation pass.
+- [ ] Fiuu remains static/manual in Production and outside the explicit BR001 pilot until cloudECR/VT+ signed-response UAT, idempotency and settlement reconciliation pass.
 - [ ] Fiuu POS reload, duplicate-create, QR expiry, late callback, callback replay and shift-close grace cases pass against the staging OPA application.
-- [ ] BR001 Fiuu VT passes managed-device install/activation, SALE → STATUS, success, cancel, timeout, pending, app-kill/reopen, duplicate callback and mixed-payment tests.
-- [ ] VT SALE never creates a sale; unsigned STATUS `00` shows `REPORTED` briefly, then automatically invokes one atomic receipt/stock fulfillment without a cashier click.
-- [ ] A `REPORTED` VT success survives QR expiry, blocks duplicate attempts and shift closure, auto-confirms after restore, and can be retried safely after an interrupted request.
+- [ ] The legacy standard Fiuu VT path is not promoted to the Play-incompatible Samsung `SM-X406B` or HONOR `ELN2-L29`; use it only if Fiuu later supplies an approved compatible route.
+- [ ] BR001 cloudECR/VT+ passes activation/binding, sale, signed final response, failure, timeout/Get Last, pending inquiry, app-kill/reopen and mixed-payment tests.
+- [ ] A valid signed success invokes one atomic receipt/stock fulfillment; pending, invalid-signature, mismatched or ambiguous results create no sale.
 - [ ] Dynamic and static/manual mixed payment reject cash over-tender; the exact cash and QR split reconciles to sale total and expected drawer cash.
-- [ ] BR002-BR036 continue to display their mapped static QR while `POS_QR_PAYMENT_MODE=fiuu_vt` and `POS_FIUU_VT_BRANCHES=BR001` are set.
-- [ ] The EMM force-installs `com.rms.mobile.razervt` and permits RKJ One ↔ Fiuu VT handoff without enabling sideloading, extra apps or unrestricted Settings.
+- [ ] BR002-BR036 continue to display their mapped static QR throughout the BR001-only cloudECR/VT+ pilot.
+- [ ] The managed-device policy installs only the official Fiuu VT+ listing and permits the approved RKJ One ↔ VT+ flow without sideloading, extra apps or unrestricted Settings.
 - [ ] Inactive profiles are denied by application session loading and all RLS identity helpers before their Auth token naturally expires.
 - [ ] An HQ user cannot use a branch UUID belonging to another organization through Data API or any SECURITY DEFINER RPC.
 - [ ] Authenticated branch users can read scoped POS financial rows but cannot directly insert, update or delete transaction, item, payment or receipt rows.

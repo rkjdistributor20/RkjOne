@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-10-24 - Fiuu device inventory and BR001 cloudECR/VT+ preparation
+
+- Recorded Phone Link metadata for the connected BR001 tablet: Samsung `SM-X406B` running Android 16.
+- Recorded the Google Play device inventory under `rkjdistributor20@gmail.com`: Samsung `SM-X406B` and HONOR `ELN2-L29`, identified as HONOR Pad X9a rather than `NDL2-L09`/X8b.
+- Confirmed that the standard Fiuu VT listing is unavailable for both registered devices, while Fiuu VT+ is available to all devices on the account.
+- Documented professionally that the earlier Android 10/X8b support diagnosis does not match the verified current inventory and should be revisited using the exact model/OS evidence.
+- Added a fail-closed `fiuu_cloudecr` transport for a BR001-only allowlist, server-side token handling, HMAC request/response verification, unique 20-character references, signed SALE and safe `getLast` recovery.
+- Added an additive migration and atomic fulfillment RPC that accepts only an exact successful response for the expected POS, device, reference, amount, currency and DuitNow channel before issuing one receipt and stock movement.
+- Hardened recovery so every `getLast` has a new reference, must return the original SALE reference in signed metadata, and must match the configured Terminal SN. A 180-second database lease exceeds the server request window and prevents overlapping provider calls across tabs.
+- Locked unresolved cloudECR transactions globally by POS ID, Device ID and Terminal SN; preserved the exact HMAC-verified payload; restricted the API origin to `https://cloudecr.fiuu.com`; and stored a server pricing snapshot before SALE.
+- Persisted each validated `00/00` success as durable `REPORTED` evidence before idempotent receipt/stock fulfillment; ambiguous `getLast` responses remain pending rather than reopening a payable attempt.
+- Added POS UI/readiness wiring and automated tests. Provisioned POS/VT+ accounts, secure credentials, binding, per-submerchant mapping, physical UAT and Finance settlement remain mandatory gates.
+- No migration, environment value, deployment, merchant configuration or BR002-BR036 rollout was applied to Production.
+
 ## 2026-10-22 - Fiuu VT automatic operational confirmation
 
 - Changed the BR001 VT flow so a fresh matching Fiuu `STATUS=00` automatically invokes the existing service-role-only fulfillment RPC; no cashier confirmation click is required.

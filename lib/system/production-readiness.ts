@@ -29,9 +29,10 @@ type ReadinessInput = {
  monitoringVerified: boolean;
  hasFiuuCredentials: boolean;
  hasFiuuVtPilot: boolean;
+ hasFiuuCloudEcrPilot: boolean;
  hasFiuuSchema: boolean;
  fiuuLiveUatPassed: boolean;
- posQrPaymentMode: 'manual' | 'fiuu' | 'fiuu_vt';
+ posQrPaymentMode: 'manual' | 'fiuu' | 'fiuu_vt' | 'fiuu_cloudecr';
  branches: number | null;
  legalEntities: number | null;
  activeProfiles: number | null;
@@ -70,7 +71,8 @@ export function buildProductionReadiness(input: ReadinessInput): ProductionReadi
  const hasCompleteAuth = input.activeProfilesWithoutAuthUser === 0;
  const hasCompletedFirstLogin = input.activeProfilesNeverSignedIn === 0;
  const fiuuRuntimeConfigured = (input.posQrPaymentMode === 'fiuu' && input.hasFiuuCredentials)
-  || (input.posQrPaymentMode === 'fiuu_vt' && input.hasFiuuVtPilot);
+  || (input.posQrPaymentMode === 'fiuu_vt' && input.hasFiuuVtPilot)
+  || (input.posQrPaymentMode === 'fiuu_cloudecr' && input.hasFiuuCloudEcrPilot);
  const fiuuReady = fiuuRuntimeConfigured
   && input.hasFiuuSchema
   && input.fiuuLiveUatPassed;
@@ -149,6 +151,7 @@ export function buildProductionReadiness(input: ReadinessInput): ProductionReadi
   `Mod QR POS: ${input.posQrPaymentMode}`,
   `Kredensial OPA: ${input.hasFiuuCredentials ? 'dikesan' : 'belum lengkap'}`,
   `Pilot VT: ${input.hasFiuuVtPilot ? 'dikonfigurasi' : 'tidak aktif'}`,
+  `Pilot VT+ cloudECR: ${input.hasFiuuCloudEcrPilot ? 'dikonfigurasi' : 'tidak aktif'}`,
   `Skema Fiuu: ${input.hasFiuuSchema ? 'tersedia' : 'belum tersedia'}`,
  ]),
  area(

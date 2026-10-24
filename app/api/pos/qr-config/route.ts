@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server';
 import { getCurrentProfile } from '@/lib/auth/session';
 import { assertCanAccessPosBranch, posAccessErrorStatus } from '@/lib/pos/access';
 import { getPosQrPaymentMode } from '@/lib/pos/fiuu';
+import { getFiuuCloudEcrConfig } from '@/lib/pos/fiuu-cloudecr';
+import {
+ FIUU_CLOUDECR_APP_PACKAGE,
+ isFiuuCloudEcrEnabledForBranch,
+} from '@/lib/pos/fiuu-cloudecr-server';
 import { FIUU_VT_DUITNOW_CHANNEL, FIUU_VT_PACKAGE } from '@/lib/pos/fiuu-vt';
 import { isFiuuVtEnabledForBranch } from '@/lib/pos/fiuu-vt-server';
 import { getFiuuStaticQrConfig } from '@/lib/pos/fiuu-static';
@@ -48,6 +53,7 @@ export async function GET(request: Request) {
  const paymentMode = getPosQrPaymentMode();
  const dynamic = paymentMode === 'fiuu';
  let vtEnabled = false;
+ let cloudEcrEnabled = false;
  try {
   vtEnabled = paymentMode === 'fiuu_vt' && isFiuuVtEnabledForBranch(branch.branch_code);
  } catch (configurationError) {
@@ -55,10 +61,26 @@ export async function GET(request: Request) {
    reason: configurationError instanceof Error ? configurationError.message : 'unknown',
   });
  }
+ try {
+  cloudEcrEnabled = paymentMode === 'fiuu_cloudecr'
+   && isFiuuCloudEcrEnabledForBranch(branch.branch_code);
+  if (cloudEcrEnabled) getFiuuCloudEcrConfig();
+ } catch (configurationError) {
+  cloudEcrEnabled = false;
+  console.error('[pos-fiuu-cloudecr] invalid_branch_configuration', {
+   reason: configurationError instanceof Error ? configurationError.message : 'unknown',
+  });
+ }
 
  return NextResponse.json(
   {
-   mode: dynamic ? 'FIUU_DYNAMIC' : vtEnabled ? 'FIUU_VT_APP' : 'FIUU_STATIC_MANUAL',
+   mode: dynamic
+    ? 'FIUU_DYNAMIC'
+    : cloudEcrEnabled
+     ? 'FIUU_CLOUDECR'
+     : vtEnabled
+      ? 'FIUU_VT_APP'
+      : 'FIUU_STATIC_MANUAL',
    branch: {
     id: branch.id,
     code: branch.branch_code,
@@ -70,11 +92,15 @@ export async function GET(request: Request) {
     channel: FIUU_VT_DUITNOW_CHANNEL,
     pilot: true,
    } : null,
-   configured: dynamic || vtEnabled || Boolean(staticQr),
+   cloudEcr: cloudEcrEnabled ? {
+    appPackageName: FIUU_CLOUDECR_APP_PACKAGE,
+    pilot: true,
+   } : null,
+   configured: dynamic || cloudEcrEnabled || vtEnabled || Boolean(staticQr),
   },
   {
    headers: {
-    'Cache-Control': paymentMode === 'fiuu_vt'
+    'Cache-Control': paymentMode === 'fiuu_vt' || paymentMode === 'fiuu_cloudecr'
      ? 'private, no-store'
      : 'private, max-age=300, stale-while-revalidate=600',
    },

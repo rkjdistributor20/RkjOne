@@ -10,6 +10,7 @@ const BASE_INPUT = {
  monitoringVerified: false,
  hasFiuuCredentials: false,
  hasFiuuVtPilot: false,
+ hasFiuuCloudEcrPilot: false,
  hasFiuuSchema: false,
  fiuuLiveUatPassed: false,
  posQrPaymentMode: 'manual' as const,
@@ -64,5 +65,24 @@ describe('production readiness evidence', () => {
   expect(statusFor(snapshot, 'backup-restore')).toBe('READY');
   expect(statusFor(snapshot, 'pos-offline')).toBe('READY');
   expect(statusFor(snapshot, 'monitoring-alerts')).toBe('READY');
+ });
+
+ it('keeps cloudECR blocked until schema and live UAT both pass', () => {
+  const configuredOnly = buildProductionReadiness({
+   ...BASE_INPUT,
+   hasFiuuCloudEcrPilot: true,
+   hasFiuuSchema: true,
+   posQrPaymentMode: 'fiuu_cloudecr',
+  });
+  expect(statusFor(configuredOnly, 'payment-gateway')).toBe('NEEDS_ACTION');
+
+  const signedUatPassed = buildProductionReadiness({
+   ...BASE_INPUT,
+   hasFiuuCloudEcrPilot: true,
+   hasFiuuSchema: true,
+   fiuuLiveUatPassed: true,
+   posQrPaymentMode: 'fiuu_cloudecr',
+  });
+  expect(statusFor(signedUatPassed, 'payment-gateway')).toBe('READY');
  });
 });

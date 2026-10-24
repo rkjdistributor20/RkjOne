@@ -73,7 +73,7 @@ type ActiveQrPayment = {
  amountRm: number;
  expiresAt: string;
  environment: 'sandbox' | 'production';
- integration: 'opa' | 'vt_app';
+ integration: 'opa' | 'vt_app' | 'cloudecr';
  providerOrderId: string | null;
  cartFingerprint: string;
 };
@@ -121,14 +121,16 @@ function readStoredQrPayment(key: string): { payment: ActiveQrPayment; idempoten
   const integrationValue = Reflect.get(paymentValue, 'integration');
   const providerOrderIdValue = Reflect.get(paymentValue, 'providerOrderId');
   const cartFingerprint = Reflect.get(paymentValue, 'cartFingerprint');
-  const integration = integrationValue === 'vt_app' ? 'vt_app' : 'opa';
+  const integration = integrationValue === 'vt_app' || integrationValue === 'cloudecr'
+   ? integrationValue
+   : 'opa';
   const providerOrderId = typeof providerOrderIdValue === 'string' && providerOrderIdValue
    ? providerOrderIdValue
    : null;
   if (typeof id !== 'string' || !id
    || (integration === 'opa'
     && (typeof imageUrl !== 'string' || !imageUrl.startsWith('/api/pos/qr-payments/')))
-   || (integration === 'vt_app' && !providerOrderId)
+   || ((integration === 'vt_app' || integration === 'cloudecr') && !providerOrderId)
    || typeof amountRm !== 'number' || !Number.isFinite(amountRm) || amountRm <= 0
    || typeof expiresAt !== 'string' || !Number.isFinite(Date.parse(expiresAt))
    || (environment !== 'sandbox' && environment !== 'production')
@@ -493,11 +495,11 @@ export function PaymentDialog({
     }
    if (response.payment.status === 'PAID') {
     setQrStatus('PAID');
-    removeStoredQrPayment();
     if (!response.result) {
      setQrPollError('Bayaran telah diterima tetapi resit belum tersedia. Semak status semula; jangan jana QR baharu.');
      return;
     }
+    removeStoredQrPayment();
     if (currentPaymentFingerprint === activePayment.cartFingerprint) {
      clearCart();
     }
@@ -582,7 +584,9 @@ export function PaymentDialog({
  }, [confirmReportedFiuuVt, open, qrPayment, qrStatus]);
 
  useEffect(() => {
-  if (!qrPayment || qrStatus !== 'PENDING') return;
+  if (!qrPayment
+   || (qrStatus !== 'PENDING'
+    && !(qrStatus === 'REPORTED' && qrPayment.integration === 'cloudecr'))) return;
   let active = true;
   let polling = false;
 
@@ -603,7 +607,7 @@ export function PaymentDialog({
   refreshCountdown();
   void poll();
   const countdownTimer = window.setInterval(refreshCountdown, 1000);
-  const pollTimer = window.setInterval(() => void poll(), 2000);
+  const pollTimer = window.setInterval(() => void poll(), 5000);
   return () => {
    active = false;
    window.clearInterval(countdownTimer);
@@ -733,6 +737,7 @@ export function PaymentDialog({
 
  const usesQr = method === 'QR' || (method === 'MIXED' && payload.qr_amount > 0);
   const usesAutomaticQr = qrConfig?.mode === 'FIUU_DYNAMIC'
+   || qrConfig?.mode === 'FIUU_CLOUDECR'
    || (qrConfig?.mode === 'FIUU_VT_APP' && !vtManualFallback);
   if (usesQr && usesAutomaticQr) {
   try {
@@ -773,9 +778,10 @@ export function PaymentDialog({
    }
     if (!payment.expires_at
      || (payment.integration === 'opa' && !payment.qr_image_url)
-     || (payment.integration === 'vt_app' && !payment.provider_order_id)) {
-     throw new Error(payment.integration === 'vt_app'
-      ? 'Percubaan Fiuu VT masih disediakan. Cuba semula sebentar lagi.'
+     || ((payment.integration === 'vt_app' || payment.integration === 'cloudecr')
+      && !payment.provider_order_id)) {
+     throw new Error(payment.integration === 'vt_app' || payment.integration === 'cloudecr'
+      ? 'Percubaan Fiuu sedang disediakan. Cuba semula sebentar lagi.'
       : 'Kod QR Fiuu masih dijana. Cuba semula sebentar lagi.');
    }
    const activePayment: ActiveQrPayment = {
@@ -881,10 +887,16 @@ export function PaymentDialog({
     <div className="flex items-center justify-between gap-3 text-left">
      <div>
        <p className="font-bold text-emerald-950">
-        {qrPayment.integration === 'vt_app' ? 'DuitNow QR melalui Fiuu VT' : 'DuitNow QR melalui Fiuu'}
+        {qrPayment.integration === 'cloudecr'
+         ? 'DuitNow QR melalui Fiuu VT+'
+         : qrPayment.integration === 'vt_app'
+          ? 'DuitNow QR melalui Fiuu VT'
+          : 'DuitNow QR melalui Fiuu'}
        </p>
        <p className="text-xs text-muted-foreground">
-        {qrPayment.integration === 'vt_app'
+        {qrPayment.integration === 'cloudecr'
+         ? 'QR amaun tepat dihantar secara selamat ke aplikasi Fiuu VT+ yang terikat pada tablet.'
+         : qrPayment.integration === 'vt_app'
          ? 'QR amaun tepat dipaparkan oleh aplikasi rasmi Fiuu pada tablet.'
          : 'Imbas menggunakan aplikasi bank atau e-dompet yang menyokong DuitNow.'}
        </p>
@@ -912,12 +924,14 @@ export function PaymentDialog({
       </div>
      ) : qrStatus === 'PENDING' && !qrDisplayExpired ? (
      <>
-       {qrPayment.integration === 'vt_app' ? (
+       {qrPayment.integration === 'vt_app' || qrPayment.integration === 'cloudecr' ? (
         <div className="mx-auto mt-4 flex min-h-56 w-full max-w-[18rem] flex-col items-center justify-center gap-3 rounded-2xl border bg-white p-5 shadow-sm">
          <div className="flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-amber-100 to-emerald-100">
           <QrCode className="h-12 w-12 text-amber-800" aria-hidden="true" />
          </div>
-         <p className="font-semibold text-foreground">Teruskan pada aplikasi Fiuu VT</p>
+         <p className="font-semibold text-foreground">
+          {qrPayment.integration === 'cloudecr' ? 'Teruskan pada aplikasi Fiuu VT+' : 'Teruskan pada aplikasi Fiuu VT'}
+         </p>
          <p className="text-xs text-muted-foreground">Pelanggan mengimbas QR yang dipaparkan dalam aplikasi Fiuu.</p>
         </div>
        ) : (
@@ -964,7 +978,9 @@ export function PaymentDialog({
       </div>
       <div className="mt-3 flex items-center justify-center gap-2 text-sm font-medium text-amber-800" role="status">
        <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
-        {qrPayment.integration === 'vt_app'
+        {qrPayment.integration === 'cloudecr'
+         ? 'Menunggu pengesahan selamat daripada Fiuu cloudECR'
+         : qrPayment.integration === 'vt_app'
          ? 'Menunggu keputusan daripada aplikasi Fiuu VT'
          : 'Menunggu pengesahan selamat daripada Fiuu'}
       </div>
@@ -1161,6 +1177,8 @@ export function PaymentDialog({
     <p className="text-base font-bold text-amber-950">
       {qrConfig?.mode === 'FIUU_DYNAMIC'
        ? 'DuitNow QR Fiuu — auto disahkan'
+       : qrConfig?.mode === 'FIUU_CLOUDECR'
+       ? 'Fiuu VT+ cloudECR — auto disahkan'
        : qrConfig?.mode === 'FIUU_VT_APP' && !vtManualFallback
        ? 'Fiuu VT — semakan STATUS + auto sah'
        : 'DuitNow QR cawangan — pengesahan manual'}
@@ -1168,6 +1186,8 @@ export function PaymentDialog({
     <p className="text-xs text-muted-foreground">
       {qrConfig?.mode === 'FIUU_DYNAMIC'
        ? 'QR amaun tepat akan dijana dan disahkan secara automatik oleh Fiuu.'
+       : qrConfig?.mode === 'FIUU_CLOUDECR'
+       ? 'RKJ One menghantar SALE ke Fiuu cloudECR; Fiuu VT+ memaparkan QR dan resit hanya dikeluarkan selepas respons bertandatangan disahkan.'
        : qrConfig?.mode === 'FIUU_VT_APP' && !vtManualFallback
        ? 'Aplikasi Fiuu VT akan menjana QR amaun tepat. STATUS berjaya dimuktamadkan secara automatik kepada resit dan kemas kini stok.'
        : 'QR rasmi cawangan dipaparkan. Pembayaran ini memerlukan pengesahan manual staf.'}
@@ -1175,12 +1195,16 @@ export function PaymentDialog({
    </div>
    <span className={cn(
     'rounded-full px-2 py-1 text-xs font-semibold',
-     qrConfig?.mode === 'FIUU_DYNAMIC' || (qrConfig?.mode === 'FIUU_VT_APP' && !vtManualFallback)
+     qrConfig?.mode === 'FIUU_DYNAMIC'
+      || qrConfig?.mode === 'FIUU_CLOUDECR'
+      || (qrConfig?.mode === 'FIUU_VT_APP' && !vtManualFallback)
      ? 'bg-emerald-100 text-emerald-800'
      : 'bg-amber-100 text-amber-800')}
    >
      {qrConfig?.mode === 'FIUU_DYNAMIC'
       ? 'Automatik'
+      : qrConfig?.mode === 'FIUU_CLOUDECR'
+      ? 'Pilot VT+'
       : qrConfig?.mode === 'FIUU_VT_APP' && !vtManualFallback
       ? 'Pilot VT'
       : 'Manual'}
@@ -1235,13 +1259,17 @@ export function PaymentDialog({
    )}
 
     {!qrConfigLoading && !qrConfigError
-     && (qrConfig?.mode === 'FIUU_DYNAMIC' || (qrConfig?.mode === 'FIUU_VT_APP' && !vtManualFallback)) && (
+     && (qrConfig?.mode === 'FIUU_DYNAMIC'
+      || qrConfig?.mode === 'FIUU_CLOUDECR'
+      || (qrConfig?.mode === 'FIUU_VT_APP' && !vtManualFallback)) && (
     <div className="mx-auto flex min-h-40 flex-col items-center justify-center gap-3 text-amber-800">
      <div className="flex h-24 w-24 items-center justify-center rounded-2xl bg-amber-100">
       <QrCode className="h-12 w-12" aria-hidden="true" />
      </div>
       <p className="text-xs text-muted-foreground">
-       {qrConfig.mode === 'FIUU_VT_APP'
+       {qrConfig.mode === 'FIUU_CLOUDECR'
+        ? 'Tekan Sahkan Bayaran untuk menghantar amaun ke Fiuu VT+ melalui cloudECR.'
+        : qrConfig.mode === 'FIUU_VT_APP'
         ? 'Tekan Sahkan Bayaran untuk membuka Fiuu VT dan memaparkan QR amaun tepat.'
         : 'Tekan Sahkan Bayaran untuk menjana QR amaun tepat.'}
       </p>
@@ -1321,11 +1349,13 @@ export function PaymentDialog({
       <Button
        type="button"
        className="h-12 flex-1 gap-2 rounded-xl bg-emerald-600 font-bold hover:bg-emerald-700"
-       disabled={loading}
-       onClick={() => void confirmReportedFiuuVt()}
+       disabled={loading || checkingQrStatus}
+       onClick={() => void (qrPayment.integration === 'cloudecr'
+        ? checkActiveQrStatus()
+        : confirmReportedFiuuVt())}
       >
        <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
-       {loading ? 'Memuktamadkan...' : 'Cuba sahkan automatik semula'}
+       {loading || checkingQrStatus ? 'Memuktamadkan...' : 'Cuba sahkan automatik semula'}
       </Button>
      </div>
     ) : qrStatus === 'PENDING' || qrStatus === 'PAID' ? (
@@ -1336,6 +1366,8 @@ export function PaymentDialog({
         ? 'Memulihkan resit'
         : qrDisplayExpired
         ? 'Merekonsiliasi callback lewat'
+        : qrPayment.integration === 'cloudecr'
+        ? 'Menunggu Fiuu VT+'
         : qrPayment.integration === 'vt_app'
         ? 'Menunggu Fiuu VT'
         : 'Menunggu bayaran Fiuu'}

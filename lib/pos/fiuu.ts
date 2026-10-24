@@ -126,9 +126,11 @@ function validatePrecreateUrl(value: string, environment: FiuuEnvironment): stri
   return url.toString();
 }
 
-export function getPosQrPaymentMode(): 'manual' | 'fiuu' | 'fiuu_vt' {
+export type PosQrPaymentMode = 'manual' | 'fiuu' | 'fiuu_vt' | 'fiuu_cloudecr';
+
+export function getPosQrPaymentMode(): PosQrPaymentMode {
   const mode = process.env.POS_QR_PAYMENT_MODE?.trim().toLowerCase();
-  if (mode === 'fiuu' || mode === 'fiuu_vt') return mode;
+  if (mode === 'fiuu' || mode === 'fiuu_vt' || mode === 'fiuu_cloudecr') return mode;
   return 'manual';
 }
 

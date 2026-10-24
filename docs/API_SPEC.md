@@ -4,7 +4,7 @@
 
 `GET /api/pos/qr-config?branch_id=<uuid>` requires an authenticated RKJ One profile and applies the standard POS branch-scope check. It returns the active QR mode, selected branch identity, and the versioned static Fiuu QR descriptor where configured. No Fiuu secret or server credential is returned.
 
-Last updated: 2026-10-15
+Last updated: 2026-10-24
 
 Base URL:
 
@@ -21,17 +21,17 @@ Authentication:
 
 ## POS Fiuu DuitNow QR API
 
-The signed OPA transport creates a sale only after a valid Fiuu Offline Payment API notification. The separate Fiuu VT App-to-App pilot generates and checks the QR in the managed Android app. Its deep-link result is unsigned, so it is accepted only from the official enrolled device after SALE plus a fresh matching STATUS result. A matching `STATUS=00` triggers operational fulfillment automatically. The default remains manual mode until the selected transport passes UAT.
+The signed OPA transport creates a sale only after a valid Fiuu Offline Payment API notification. The legacy Fiuu VT App-to-App pilot uses an unsigned deep-link result and remains unavailable on the registered RKJ tablets. The preferred BR001-only path is Fiuu VT+ through cloudECR: credentials and tokens remain server-side, every request and response uses HMAC-SHA256, and a provider success is stored durably as `REPORTED` before receipt and stock fulfilment. The default remains manual mode until the selected transport passes physical UAT and Finance settlement reconciliation.
 
 ### POST `/api/pos/qr-payments`
 
-Creates a pending Fiuu DuitNow QR payment for an authenticated, authorized POS shift member on an official branch device. Product prices, quantities, discount and payment split are recalculated on the server. OPA returns an authenticated RKJ One QR image proxy. A branch-gated VT request instead returns a provider order ID for the native Fiuu VT handoff and never returns credentials.
+Creates a pending Fiuu DuitNow QR payment for an authenticated, authorized POS shift member on an official branch device. Product prices, quantities, discount and payment split are recalculated on the server. OPA returns an authenticated RKJ One QR image proxy. Legacy VT returns a provider order ID for the native handoff. In BR001 cloudECR mode, the server sends one signed SALE to the configured POS account and stores the expected POS ID, Device ID and Terminal SN with the intent; no credential, token or Secret Key is returned to the client.
 
 The request must include an opaque `idempotency_key` of 16-64 letters, numbers, underscores or hyphens. Retrying the same organization, branch, shift, creator, amount and sale payload returns the existing intent. Reusing the key for different intent data returns `409` and never creates another payment.
 
 ### GET `/api/pos/qr-payments/[paymentId]`
 
-Returns branch-scoped payment status. A receipt is returned only after the payment is atomically fulfilled. Polling never mutates a pending database row. After the displayed QR expires, the response remains pending during the bounded late-callback reconciliation window and becomes expired only when that window has ended.
+Returns branch-scoped payment status. A receipt is returned only after the payment is atomically fulfilled. For cloudECR, the route may acquire a database reconciliation lease and issue `getLast`; each query uses a new reference, while the signed response must carry the original SALE reference in metadata and match the exact POS ID, Device ID, Terminal SN, amount, `MYR`, DuitNow channel and numeric Fiuu Transaction ID. The lease permits at most one provider reconciliation attempt per 180 seconds across concurrent tabs. A `getLast` failure never marks the original SALE failed. A successful response is stored as `REPORTED` before idempotent fulfilment is attempted or retried. The stored evidence includes the exact HMAC-verified response payload. Fulfilment also requires the server-side pricing snapshot to still match the active catalogue; a mismatch remains `REPORTED` for Finance resolution rather than issuing a receipt for a different amount. After the payment validity period, the intent remains locked during the bounded reconciliation grace and becomes expired only after that window ends.
 
 ### GET `/api/pos/qr-payments/[paymentId]/image`
 

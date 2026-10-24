@@ -20,6 +20,17 @@ import {
  getPosQrPaymentMode,
  isFiuuReconciliationExpired,
 } from '@/lib/pos/fiuu';
+import {
+ buildFiuuCloudEcrReferenceId,
+ getFiuuCloudEcrConfig,
+ type FiuuCloudEcrConfig,
+ type FiuuCloudEcrResponse,
+} from '@/lib/pos/fiuu-cloudecr';
+import { sendFiuuCloudEcrSale } from '@/lib/pos/fiuu-cloudecr-runtime';
+import {
+ getFiuuCloudEcrValiditySeconds,
+ isFiuuCloudEcrEnabledForBranch,
+} from '@/lib/pos/fiuu-cloudecr-server';
 import { buildFiuuVtOrderId } from '@/lib/pos/fiuu-vt';
 import {
  getFiuuVtValiditySeconds,
@@ -49,10 +60,12 @@ type ExistingPayment = {
 };
 
 type FiuuPaymentTransport = {
- provider: 'fiuu' | 'fiuu_vt';
- integration: 'opa' | 'vt_app';
+ provider: 'fiuu' | 'fiuu_vt' | 'fiuu_cloudecr';
+ integration: 'opa' | 'vt_app' | 'cloudecr';
  environment: 'sandbox' | 'production';
 };
+
+export const maxDuration = 100;
 
 function isSalePayload(value: unknown): value is CreateSalePayload {
  if (!value || typeof value !== 'object') return false;
@@ -68,6 +81,24 @@ function isSalePayload(value: unknown): value is CreateSalePayload {
 
 function errorMessage(error: unknown) {
  return error instanceof Error ? error.message : 'Fiuu tidak dapat menjana QR';
+}
+
+function sanitizedCloudEcrResult(result: FiuuCloudEcrResponse): Json {
+ return {
+  transType: result.transType,
+  posId: result.posId,
+  deviceId: result.deviceId,
+  referenceId: result.referenceId,
+  statusCode: result.statusCode,
+  responseCode: result.responseCode,
+  responseText: result.responseText,
+  softwareVersion: result.softwareVersion,
+  terminalSn: result.terminalSn,
+  apiVersion: result.apiVersion,
+  transData: result.transData ? { ...result.transData } : null,
+  signature: result.signature,
+  verified_payload: result.verifiedPayload as unknown as Json,
+ };
 }
 
 function existingPaymentResponse(
@@ -140,11 +171,12 @@ function existingPaymentResponse(
  }
  if (!payment.expires_at
   || (transport.integration === 'opa' && (!payment.checkout_url || !payment.gateway_ref))
-  || (transport.integration === 'vt_app' && !payment.provider_order_id)) {
+  || ((transport.integration === 'vt_app' || transport.integration === 'cloudecr')
+   && !payment.provider_order_id)) {
   return NextResponse.json(
    {
-    error: transport.integration === 'vt_app'
-     ? 'Percubaan Fiuu VT masih disediakan. Cuba semula sebentar lagi.'
+    error: transport.integration === 'vt_app' || transport.integration === 'cloudecr'
+     ? 'Percubaan Fiuu masih disediakan. Cuba semula sebentar lagi.'
      : 'Kod QR Fiuu masih dijana. Cuba semula sebentar lagi.',
     mode: 'FIUU_ATTEMPT_INITIALIZING',
    },
@@ -266,6 +298,9 @@ export async function POST(request: Request) {
  }
 
  const productIds = [...new Set(normalizedItems.map((item) => item.product_id))];
+ if (productIds.length !== normalizedItems.length) {
+  return NextResponse.json({ error: 'Produk jualan tidak boleh berulang dalam satu transaksi' }, { status: 400 });
+ }
  const { data: products, error: productError } = await supabase
   .from('products')
   .select('id, price')
@@ -277,10 +312,19 @@ export async function POST(request: Request) {
   return NextResponse.json({ error: 'Produk jualan tidak sah atau tidak aktif' }, { status: 400 });
  }
  const prices = new Map(products.map((product) => [product.id, Number(product.price)]));
- const subtotal = normalizedItems.reduce(
+ const subtotal = Number(normalizedItems.reduce(
   (sum, item) => sum + (prices.get(item.product_id) ?? 0) * item.quantity,
   0,
- );
+ ).toFixed(2));
+ const pricingSnapshot = normalizedItems.map((item) => {
+  const unitPrice = Number((prices.get(item.product_id) ?? 0).toFixed(2));
+  return {
+   product_id: item.product_id,
+   quantity: item.quantity,
+   unit_price: unitPrice,
+   line_total: Number((unitPrice * item.quantity).toFixed(2)),
+  };
+ });
  const discount = Number(body.discount ?? 0);
  if (!Number.isFinite(discount) || discount < 0 || discount > subtotal) {
   return NextResponse.json({ error: 'Diskaun jualan tidak sah' }, { status: 400 });
@@ -307,9 +351,32 @@ export async function POST(request: Request) {
 
  const branchCode = device.branchCode?.trim().toUpperCase() ?? '';
  let config: ReturnType<typeof getFiuuOpaConfig> = null;
+ let cloudEcrConfig: FiuuCloudEcrConfig | null = null;
  let transport: FiuuPaymentTransport;
  let validitySeconds: number;
- if (paymentMode === 'fiuu_vt') {
+ if (paymentMode === 'fiuu_cloudecr') {
+  try {
+   if (!branchCode || !isFiuuCloudEcrEnabledForBranch(branchCode)) {
+    return NextResponse.json(
+     { error: 'Fiuu VT+ cloudECR belum dibenarkan untuk cawangan ini.', mode: 'FIUU_CLOUDECR_BRANCH_NOT_ENABLED' },
+     { status: 409 },
+    );
+   }
+   cloudEcrConfig = getFiuuCloudEcrConfig();
+  } catch (error) {
+   console.error('[pos-fiuu-cloudecr] invalid_configuration', { reason: errorMessage(error) });
+   return NextResponse.json(
+    { error: 'Konfigurasi pilot Fiuu VT+ cloudECR tidak lengkap. Hubungi HQ.' },
+    { status: 503 },
+   );
+  }
+  transport = {
+   provider: 'fiuu_cloudecr',
+   integration: 'cloudecr',
+   environment: 'production',
+  };
+  validitySeconds = getFiuuCloudEcrValiditySeconds();
+ } else if (paymentMode === 'fiuu_vt') {
   let vtEnvironment: FiuuPaymentTransport['environment'] = 'sandbox';
   try {
    if (!branchCode || !isFiuuVtEnabledForBranch(branchCode)) {
@@ -352,11 +419,19 @@ export async function POST(request: Request) {
   cash_amount: cashAmount,
   qr_amount: qrAmount,
   discount,
+  subtotal,
+  total,
+  pricing_snapshot: pricingSnapshot,
   ...(body.offline_id ? { offline_id: body.offline_id } : {}),
   ...(body.receipt_email ? { receipt_email: body.receipt_email } : {}),
   ...(body.receipt_phone ? { receipt_phone: body.receipt_phone } : {}),
   fiuu_branch_code: branchCode || body.branchId,
   fiuu_device_code: device.deviceCode,
+  ...(cloudEcrConfig ? {
+   fiuu_cloudecr_pos_id: cloudEcrConfig.posId,
+   fiuu_cloudecr_device_id: cloudEcrConfig.deviceId,
+   fiuu_cloudecr_terminal_sn: cloudEcrConfig.terminalSn,
+  } : {}),
  } satisfies Json;
  const expiresAt = new Date(Date.now() + validitySeconds * 1000).toISOString();
  const admin = createAdminClient();
@@ -378,7 +453,7 @@ export async function POST(request: Request) {
   .eq('organization_id', profile.organization_id)
   .eq('branch_id', body.branchId)
   .eq('shift_id', body.shiftId)
-  .in('provider', ['fiuu', 'fiuu_vt'])
+  .in('provider', ['fiuu', 'fiuu_vt', 'fiuu_cloudecr'])
   .eq('status', 'PENDING')
   .lte('expires_at', reconciliationCutoff);
  if (expireError) {
@@ -405,7 +480,7 @@ export async function POST(request: Request) {
   .eq('branch_id', body.branchId)
   .eq('shift_id', body.shiftId)
   .eq('created_by', profile.id)
-  .in('provider', ['fiuu', 'fiuu_vt'])
+  .in('provider', ['fiuu', 'fiuu_vt', 'fiuu_cloudecr'])
   .in('status', ['PENDING', 'REPORTED'])
   .maybeSingle();
  if (activeError) {
@@ -420,18 +495,29 @@ export async function POST(request: Request) {
   );
  }
 
- const { data: activeDevicePayment, error: activeDeviceError } = await admin
-  .from('pos_online_payments')
-  .select(existingSelect)
-  .eq('organization_id', profile.organization_id)
-  .eq('branch_id', body.branchId)
-  .eq('shift_id', body.shiftId)
-  .eq('provider', transport.provider)
-  .in('status', ['PENDING', 'REPORTED'])
-  .contains('sale_payload', { fiuu_device_code: device.deviceCode })
+ const activeEndpointQuery = () => {
+  const base = admin
+   .from('pos_online_payments')
+   .select(existingSelect)
+   .eq('organization_id', profile.organization_id)
+   .eq('provider', transport.provider)
+   .in('status', ['PENDING', 'REPORTED']);
+  if (transport.integration === 'cloudecr' && cloudEcrConfig) {
+   return base.contains('sale_payload', {
+    fiuu_cloudecr_pos_id: cloudEcrConfig.posId,
+    fiuu_cloudecr_device_id: cloudEcrConfig.deviceId,
+    fiuu_cloudecr_terminal_sn: cloudEcrConfig.terminalSn,
+   });
+  }
+  return base
+   .eq('branch_id', body.branchId)
+   .eq('shift_id', body.shiftId)
+   .contains('sale_payload', { fiuu_device_code: device.deviceCode });
+ };
+ const { data: activeDevicePayment, error: activeDeviceError } = await activeEndpointQuery()
   .maybeSingle();
  if (activeDeviceError) {
-  return NextResponse.json({ error: 'Percubaan QR aktif tablet tidak dapat disahkan' }, { status: 400 });
+  return NextResponse.json({ error: 'Percubaan QR aktif terminal tidak dapat disahkan' }, { status: 400 });
  }
  if (activeDevicePayment) {
   return existingPaymentResponse(
@@ -445,7 +531,9 @@ export async function POST(request: Request) {
  const paymentId = randomUUID();
  const providerOrderId = transport.integration === 'vt_app'
   ? buildFiuuVtOrderId(paymentId)
-  : null;
+  : transport.integration === 'cloudecr'
+   ? buildFiuuCloudEcrReferenceId(paymentId)
+   : null;
  const { data: payment, error: insertError } = await admin
   .from('pos_online_payments')
   .insert({
@@ -482,7 +570,7 @@ export async function POST(request: Request) {
     .eq('branch_id', body.branchId)
     .eq('shift_id', body.shiftId)
     .eq('created_by', profile.id)
-     .in('provider', ['fiuu', 'fiuu_vt'])
+     .in('provider', ['fiuu', 'fiuu_vt', 'fiuu_cloudecr'])
     .in('status', ['PENDING', 'REPORTED'])
     .maybeSingle();
    if (racedActivePayment) {
@@ -493,16 +581,7 @@ export async function POST(request: Request) {
      'FIUU_ACTIVE_ATTEMPT_EXISTS',
     );
    }
-    const { data: racedDevicePayment } = await admin
-     .from('pos_online_payments')
-     .select(existingSelect)
-     .eq('organization_id', profile.organization_id)
-     .eq('branch_id', body.branchId)
-     .eq('shift_id', body.shiftId)
-     .eq('provider', transport.provider)
-     .in('status', ['PENDING', 'REPORTED'])
-     .contains('sale_payload', { fiuu_device_code: device.deviceCode })
-     .maybeSingle();
+    const { data: racedDevicePayment } = await activeEndpointQuery().maybeSingle();
     if (racedDevicePayment) {
      return existingPaymentResponse(
       racedDevicePayment,
@@ -513,6 +592,144 @@ export async function POST(request: Request) {
     }
   }
    return NextResponse.json({ error: 'Rekod QR gagal dicipta' }, { status: 400 });
+ }
+
+ if (transport.integration === 'cloudecr') {
+  const pendingPayment = {
+   id: payment.id,
+   status: 'PENDING' as const,
+   amount_rm: qrAmount,
+   qr_image_url: null,
+   gateway_ref: null,
+   provider_order_id: providerOrderId,
+   expires_at: expiresAt,
+   environment: transport.environment,
+   integration: transport.integration,
+   reused: false,
+  };
+  try {
+   const providerResult = await sendFiuuCloudEcrSale({
+    referenceId: providerOrderId!,
+    amountRm: qrAmount,
+    note: `RKJ ${branchCode}`,
+   });
+   const safeResult = sanitizedCloudEcrResult(providerResult);
+   const checkedAt = new Date().toISOString();
+   if (providerResult.statusCode === '00' && providerResult.responseCode === '00') {
+    const providerTransactionId = providerResult.transData?.transId;
+    if (!providerTransactionId) {
+     const { error: evidenceError } = await admin.from('pos_online_payments').update({
+      provider_result: safeResult,
+      provider_status_checked_at: checkedAt,
+      updated_at: checkedAt,
+     }).eq('id', payment.id).eq('status', 'PENDING');
+     if (evidenceError) {
+      console.error('[pos-fiuu-cloudecr] invalid_success_evidence_failed', {
+       paymentId: payment.id,
+       reason: evidenceError.message.slice(0, 160),
+      });
+     }
+     return NextResponse.json({
+      payment: pendingPayment,
+      warning: 'Fiuu melaporkan kejayaan tanpa Transaction ID. Percubaan dikunci untuk rekonsiliasi.',
+     }, { status: 202 });
+    }
+    const { error: reportError } = await admin.rpc(
+     'report_pos_fiuu_cloudecr_payment',
+     { p_payment_id: payment.id, p_provider_result: safeResult },
+    );
+    if (reportError) {
+     console.error('[pos-fiuu-cloudecr] success_report_failed', {
+      paymentId: payment.id,
+      reason: reportError.message.slice(0, 160),
+     });
+     return NextResponse.json({
+      payment: pendingPayment,
+      warning: 'Fiuu melaporkan kejayaan tetapi bukti belum dapat dikunci. Jangan cuba jualan semula; RKJ One akan rekonsiliasi.',
+     }, { status: 202 });
+    }
+    const reportedPayment = {
+     ...pendingPayment,
+     status: 'REPORTED' as const,
+     gateway_ref: providerTransactionId,
+    };
+    const { data: receipt, error: fulfillError } = await admin.rpc(
+     'fulfill_pos_fiuu_cloudecr_payment',
+     { p_payment_id: payment.id },
+    );
+    if (fulfillError) {
+     console.error('[pos-fiuu-cloudecr] fulfillment_failed', {
+      paymentId: payment.id,
+      reason: fulfillError.message.slice(0, 160),
+     });
+     return NextResponse.json({
+      payment: reportedPayment,
+      warning: 'Bayaran dilaporkan berjaya tetapi resit belum dapat dimuktamadkan. Jangan cuba jualan semula.',
+     }, { status: 202 });
+    }
+    return NextResponse.json({
+     payment: {
+      ...pendingPayment,
+      status: 'PAID',
+      gateway_ref: providerTransactionId,
+     },
+     result: receipt,
+    });
+   }
+
+   if (providerResult.statusCode === '11') {
+    const { data: declinedPayment, error: declineUpdateError } = await admin.from('pos_online_payments').update({
+     status: 'FAILED',
+     provider_result: safeResult,
+     provider_status_checked_at: checkedAt,
+     failed_at: checkedAt,
+     updated_at: checkedAt,
+    }).eq('id', payment.id).eq('provider', 'fiuu_cloudecr').eq('status', 'PENDING')
+     .select('id').maybeSingle();
+    if (declineUpdateError || !declinedPayment) {
+     console.error('[pos-fiuu-cloudecr] decline_update_failed', {
+      paymentId: payment.id,
+      reason: declineUpdateError?.message.slice(0, 160) ?? 'conditional update changed no row',
+     });
+     return NextResponse.json({
+      payment: pendingPayment,
+      warning: 'Fiuu menolak transaksi tetapi status tempatan belum dapat dikunci. Jangan hantar SALE baharu; semak status semula.',
+     }, { status: 202 });
+    }
+    return NextResponse.json(
+     {
+      error: providerResult.responseText || 'Fiuu VT+ menolak transaksi.',
+      mode: 'FIUU_CLOUDECR_DECLINED',
+     },
+     { status: 409 },
+    );
+   }
+
+   const { data: pendingPaymentUpdate, error: pendingUpdateError } = await admin.from('pos_online_payments').update({
+    provider_result: safeResult,
+    provider_status_checked_at: checkedAt,
+    updated_at: checkedAt,
+   }).eq('id', payment.id).eq('provider', 'fiuu_cloudecr').eq('status', 'PENDING')
+    .select('id').maybeSingle();
+   if (pendingUpdateError || !pendingPaymentUpdate) {
+    console.error('[pos-fiuu-cloudecr] pending_update_failed', {
+     paymentId: payment.id,
+     reason: pendingUpdateError?.message.slice(0, 160) ?? 'conditional update changed no row',
+    });
+   }
+   return NextResponse.json({ payment: pendingPayment }, { status: 202 });
+  } catch (error) {
+   // The request may already have reached Fiuu. Keep the intent locked and use
+   // getLast instead of sending another SALE that could charge twice.
+   console.error('[pos-fiuu-cloudecr] sale_result_unknown', {
+    paymentId: payment.id,
+    reason: errorMessage(error).slice(0, 160),
+   });
+   return NextResponse.json({
+    payment: pendingPayment,
+    warning: 'Keputusan Fiuu belum diketahui. RKJ One akan menyemak semula tanpa menghantar SALE kedua.',
+   }, { status: 202 });
+  }
  }
 
  if (transport.integration === 'vt_app') {
