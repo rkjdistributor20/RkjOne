@@ -59,6 +59,26 @@ export async function GET(
    { status: posAccessErrorStatus(err) });
  }
 
+ if (data.provider === 'fiuu' && data.status === 'REPORTED' && data.gateway_ref) {
+  const { error: fulfillError } = await service.rpc('fulfill_pos_fiuu_payment', {
+   p_payment_id: data.id,
+   p_gateway_ref: data.gateway_ref,
+   p_amount: Number(data.amount_rm),
+   p_currency: 'MYR',
+   p_channel_id: '24',
+  });
+  if (fulfillError) {
+   console.error('[pos-fiuu] reported_fulfillment_retry_failed', {
+    paymentId: data.id,
+    reason: fulfillError.message.slice(0, 160),
+   });
+  }
+
+  const refreshed = await service.from('pos_online_payments').select(paymentSelect)
+   .eq('id', paymentId).eq('organization_id', profile.organization_id).maybeSingle();
+  if (!refreshed.error && refreshed.data) data = refreshed.data;
+ }
+
  if (data.provider === 'fiuu_cloudecr') {
   if (data.status === 'REPORTED') {
    const { error: fulfillError } = await service.rpc('fulfill_pos_fiuu_cloudecr_payment', {

@@ -20,6 +20,7 @@ import {
  getPosQrPaymentMode,
  isFiuuReconciliationExpired,
 } from '@/lib/pos/fiuu';
+import { isFiuuOpaEnabledForBranch } from '@/lib/pos/fiuu-opa-server';
 import {
  buildFiuuCloudEcrReferenceId,
  getFiuuCloudEcrConfig,
@@ -249,6 +250,24 @@ export async function POST(request: Request) {
    { status: posAccessErrorStatus(error) });
  }
 
+ const branchCode = device.branchCode?.trim().toUpperCase() ?? '';
+ if (paymentMode === 'fiuu') {
+  try {
+   if (!branchCode || !isFiuuOpaEnabledForBranch(branchCode)) {
+    return NextResponse.json(
+     { error: 'Fiuu OPA belum dibenarkan untuk cawangan ini.', mode: 'FIUU_OPA_BRANCH_NOT_ENABLED' },
+     { status: 409 },
+    );
+   }
+  } catch (error) {
+   console.error('[pos-fiuu-opa] invalid_branch_configuration', { reason: errorMessage(error) });
+   return NextResponse.json(
+    { error: 'Konfigurasi pilot Fiuu OPA tidak sah. Hubungi HQ.' },
+    { status: 503 },
+   );
+  }
+ }
+
  const { data: sopStatus, error: sopError } = await inventoryRpc(supabase, 'pos_sop_status', {
   p_branch_id: body.branchId,
  });
@@ -349,7 +368,6 @@ export async function POST(request: Request) {
   );
  }
 
- const branchCode = device.branchCode?.trim().toUpperCase() ?? '';
  let config: ReturnType<typeof getFiuuOpaConfig> = null;
  let cloudEcrConfig: FiuuCloudEcrConfig | null = null;
  let transport: FiuuPaymentTransport;
@@ -397,7 +415,7 @@ export async function POST(request: Request) {
   validitySeconds = getFiuuVtValiditySeconds();
  } else {
   try {
-   config = getFiuuOpaConfig(branchCode || body.branchId, device.deviceCode);
+   config = getFiuuOpaConfig(branchCode, device.deviceCode);
   } catch (error) {
    console.error('[pos-fiuu] invalid_configuration', { reason: errorMessage(error) });
    return NextResponse.json({ error: 'Konfigurasi Fiuu POS tidak sah. Hubungi HQ.' }, { status: 503 });

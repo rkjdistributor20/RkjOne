@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getCurrentProfile } from '@/lib/auth/session';
 import { assertCanAccessPosBranch, posAccessErrorStatus } from '@/lib/pos/access';
 import { getPosQrPaymentMode } from '@/lib/pos/fiuu';
+import { isFiuuOpaEnabledForBranch } from '@/lib/pos/fiuu-opa-server';
 import { getFiuuCloudEcrConfig } from '@/lib/pos/fiuu-cloudecr';
 import {
  FIUU_CLOUDECR_APP_PACKAGE,
@@ -51,9 +52,17 @@ export async function GET(request: Request) {
 
  const staticQr = getFiuuStaticQrConfig(branch.branch_code);
  const paymentMode = getPosQrPaymentMode();
- const dynamic = paymentMode === 'fiuu';
+ let dynamicEnabled = false;
  let vtEnabled = false;
  let cloudEcrEnabled = false;
+ try {
+  dynamicEnabled = paymentMode === 'fiuu'
+   && isFiuuOpaEnabledForBranch(branch.branch_code);
+ } catch (configurationError) {
+  console.error('[pos-fiuu-opa] invalid_branch_configuration', {
+   reason: configurationError instanceof Error ? configurationError.message : 'unknown',
+  });
+ }
  try {
   vtEnabled = paymentMode === 'fiuu_vt' && isFiuuVtEnabledForBranch(branch.branch_code);
  } catch (configurationError) {
@@ -74,7 +83,7 @@ export async function GET(request: Request) {
 
  return NextResponse.json(
   {
-   mode: dynamic
+   mode: dynamicEnabled
     ? 'FIUU_DYNAMIC'
     : cloudEcrEnabled
      ? 'FIUU_CLOUDECR'
@@ -96,11 +105,13 @@ export async function GET(request: Request) {
     appPackageName: FIUU_CLOUDECR_APP_PACKAGE,
     pilot: true,
    } : null,
-   configured: dynamic || cloudEcrEnabled || vtEnabled || Boolean(staticQr),
+   configured: dynamicEnabled || cloudEcrEnabled || vtEnabled || Boolean(staticQr),
   },
   {
    headers: {
-    'Cache-Control': paymentMode === 'fiuu_vt' || paymentMode === 'fiuu_cloudecr'
+    'Cache-Control': paymentMode === 'fiuu'
+     || paymentMode === 'fiuu_vt'
+     || paymentMode === 'fiuu_cloudecr'
      ? 'private, no-store'
      : 'private, max-age=300, stale-while-revalidate=600',
    },

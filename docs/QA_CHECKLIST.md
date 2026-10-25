@@ -81,7 +81,7 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [x] HR dashboard separates management/HR actions from staff self-service actions.
 - [x] `npm run verify:workflow` guards the Settings/HR responsibility boundary.
 
-## Fiuu cloudECR / VT+ BR001 evidence — 2026-10-24
+## Fiuu OPA primary / cloudECR + VT+ fallback BR001 evidence — 2026-10-26
 
 - [x] Phone Link identifies the connected BR001 tablet as Samsung `SM-X406B` running Android 16.
 - [x] Google Play account `rkjdistributor20@gmail.com` registers Samsung `SM-X406B` and HONOR `ELN2-L29`/HONOR Pad X9a; the HONOR is not `NDL2-L09`/X8b.
@@ -89,6 +89,14 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [x] Fiuu VT+ availability was checked and is offered to all devices registered on the account.
 - [x] The earlier Android 10/X8b support diagnosis is recorded as a non-matching device profile, without attributing fault; future troubleshooting uses the verified inventory.
 - [x] The evidence review made no Production database, environment, deployment, merchant-portal or outlet change.
+- [x] OPA dynamic creation fails closed unless payment mode is `fiuu` and the explicit branch allowlist contains the hard-locked pilot `BR001`; wildcards, malformed entries and BR002-BR036 are rejected.
+- [x] A verified signed OPA success is persisted as sanitized `REPORTED` evidence before receipt/stock fulfilment, and duplicate callbacks retry idempotently after a transient fulfilment failure.
+- [x] The webhook and both service-role OPA RPCs independently require the actual branch, shift and stored sale payload to identify `BR001`.
+- [x] Authenticated status polling retries a stranded OPA `REPORTED` fulfilment without submitting another provider charge.
+- [x] OPA fulfilment locks products and compares the active catalogue with the stored pricing snapshot before creating a receipt or stock movement.
+- [ ] Provider-issued BR001 OPA Application Code, Secret Key, Store ID and Terminal ID are configured only in the intended non-Production server environment.
+- [ ] The Fiuu notification URL points to the exact Preview/staging webhook host and a signed sandbox callback passes end-to-end.
+- [ ] BR001 OPA UAT proves one payment, one sale, one receipt, one stock movement and one shift-total increment, followed by Finance settlement reconciliation.
 - [ ] Fiuu provisions or identifies the BR001 cloudECR POS account and VT+ account and supplies credentials through an approved secure channel.
 - [ ] BR001 VT+ is activated, cloudECR-enabled and bound; `GET /api/terminals` confirms the expected terminal and connected state.
 - [ ] Fiuu confirms the 36-submerchant mapping and whether credentials, Secret Key, POS account, MID/TID and settlement are shared or isolated per sub-merchant.
@@ -108,13 +116,13 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [ ] Production and staging project references are independently verified before linking or pushing migrations.
 - [ ] Readiness dashboard reports at least one approved active ADMIN and zero active non-admin profiles without legal-entity scope.
 - [ ] Every active real-user profile has an Auth user and completes role-based first-login UAT.
-- [ ] Fiuu remains static/manual in Production and outside the explicit BR001 pilot until cloudECR/VT+ signed-response UAT, idempotency and settlement reconciliation pass.
+- [ ] Fiuu remains static/manual in Production and outside the explicit BR001 pilot until OPA signed-callback UAT, idempotency and settlement reconciliation pass.
 - [ ] Fiuu POS reload, duplicate-create, QR expiry, late callback, callback replay and shift-close grace cases pass against the staging OPA application.
 - [ ] The legacy standard Fiuu VT path is not promoted to the Play-incompatible Samsung `SM-X406B` or HONOR `ELN2-L29`; use it only if Fiuu later supplies an approved compatible route.
 - [ ] BR001 cloudECR/VT+ passes activation/binding, sale, signed final response, failure, timeout/Get Last, pending inquiry, app-kill/reopen and mixed-payment tests.
-- [ ] A valid signed success invokes one atomic receipt/stock fulfillment; pending, invalid-signature, mismatched or ambiguous results create no sale.
+- [ ] A valid signed OPA success first commits `REPORTED` evidence and then invokes one atomic receipt/stock fulfilment; pending, invalid-signature, mismatched or ambiguous results create no sale.
 - [ ] Dynamic and static/manual mixed payment reject cash over-tender; the exact cash and QR split reconciles to sale total and expected drawer cash.
-- [ ] BR002-BR036 continue to display their mapped static QR throughout the BR001-only cloudECR/VT+ pilot.
+- [ ] BR002-BR036 continue to display their mapped static QR throughout the BR001-only OPA or cloudECR/VT+ pilot.
 - [ ] The managed-device policy installs only the official Fiuu VT+ listing and permits the approved RKJ One ↔ VT+ flow without sideloading, extra apps or unrestricted Settings.
 - [ ] Inactive profiles are denied by application session loading and all RLS identity helpers before their Auth token naturally expires.
 - [ ] An HQ user cannot use a branch UUID belonging to another organization through Data API or any SECURITY DEFINER RPC.

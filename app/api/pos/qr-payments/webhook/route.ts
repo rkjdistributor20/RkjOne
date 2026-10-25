@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { verifyPosBillplzSignature } from '@/lib/pos/qr-gateway';
 import { getFiuuOpaConfig, verifyFiuuOpaSignature } from '@/lib/pos/fiuu';
+import { FIUU_OPA_PILOT_BRANCH } from '@/lib/pos/fiuu-opa-server';
 import { enforceRateLimit } from '@/lib/security/rate-limit';
 import type { Json } from '@/types/database';
 
@@ -40,6 +41,19 @@ function cleanProviderValue(value: unknown, maxLength = 200): string {
  return typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
 }
 
+type ReportFiuuPaymentRpc = (
+ functionName: 'report_pos_fiuu_payment',
+ args: {
+  p_payment_id: string;
+  p_gateway_ref: string;
+  p_amount: number;
+  p_currency: string;
+  p_channel_id: string;
+  p_status_code: string;
+  p_provider_result: Json;
+ },
+) => PromiseLike<{ data: Json | null; error: { message: string } | null }>;
+
 function parsePayload(raw: string, contentType: string): Record<string, unknown> | null {
  if (!contentType.includes('application/json')) {
   return Object.fromEntries(new URLSearchParams(raw));
@@ -64,7 +78,7 @@ async function handleFiuuNotification(body: Record<string, unknown>, request: Re
  const admin = createAdminClient();
  const { data: payment, error: paymentError } = await admin
  .from('pos_online_payments')
-  .select('id, status, provider, amount_rm, gateway_ref, sale_payload, transaction_id')
+  .select('id, branch_id, status, provider, amount_rm, gateway_ref, sale_payload, transaction_id')
   .eq('id', referenceId)
   .eq('provider', 'fiuu')
   .maybeSingle();
@@ -75,7 +89,12 @@ async function handleFiuuNotification(body: Record<string, unknown>, request: Re
   return NextResponse.json({ error: 'Fiuu payment metadata tidak sah' }, { status: 400 });
  }
 
- const branchCode = cleanProviderValue(payment.sale_payload.fiuu_branch_code, 40);
+ const branchCode = cleanProviderValue(payment.sale_payload.fiuu_branch_code, 40).toUpperCase();
+ const saleBranchId = cleanProviderValue(payment.sale_payload.branchId, 40).toLowerCase();
+ if (branchCode !== FIUU_OPA_PILOT_BRANCH
+  || saleBranchId !== payment.branch_id.toLowerCase()) {
+  return NextResponse.json({ error: 'Fiuu OPA pilot branch mismatch' }, { status: 403 });
+ }
  const deviceCode = cleanProviderValue(payment.sale_payload.fiuu_device_code, 40);
  let config;
  try {
@@ -105,12 +124,50 @@ async function handleFiuuNotification(body: Record<string, unknown>, request: Re
  const gatewayRef = cleanProviderValue(body.molTransactionId, 40);
  const currency = cleanProviderValue(body.currencyCode, 3).toUpperCase();
  const channelId = cleanProviderValue(body.channelId, 4);
- const amount = Number(body.amount);
+ const rawAmount = typeof body.amount === 'string' ? body.amount.trim() : '';
+ const amount = Number(rawAmount);
  if (!gatewayRef || gatewayRef !== payment.gateway_ref
   || currency !== 'MYR' || channelId !== config.channelId
+  || !/^(?:0|[1-9]\d*)\.\d{2}$/.test(rawAmount)
   || !Number.isFinite(amount)
-  || Number(amount.toFixed(2)) !== Number(Number(payment.amount_rm).toFixed(2))) {
+  || amount !== Number(payment.amount_rm)) {
   return NextResponse.json({ error: 'Fiuu payment details mismatch' }, { status: 400 });
+ }
+
+ const providerResult: Json = {
+  applicationCode,
+  referenceId: referenceId.toLowerCase(),
+  molTransactionId: gatewayRef,
+  amount: rawAmount,
+  currencyCode: currency,
+  channelId,
+  statusCode,
+  signature: cleanProviderValue(body.signature, 64).toLowerCase(),
+ };
+ const reportRpc = admin.rpc.bind(admin) as unknown as ReportFiuuPaymentRpc;
+ const { data: reportResult, error: reportError } = await reportRpc('report_pos_fiuu_payment', {
+  p_payment_id: payment.id,
+  p_gateway_ref: gatewayRef,
+  p_amount: amount,
+  p_currency: currency,
+  p_channel_id: channelId,
+  p_status_code: statusCode,
+  p_provider_result: providerResult,
+ });
+ if (reportError) {
+  console.error('[pos-fiuu] payment_report_failed', {
+   paymentId: payment.id,
+   reason: reportError.message.slice(0, 160),
+  });
+  return NextResponse.json({ error: 'Fiuu payment report failed' }, { status: 409 });
+ }
+
+ const reportStatus = isRecord(reportResult) ? reportResult.status : null;
+ if (reportStatus === 'PAID') {
+  return NextResponse.json({ ok: true, status: 'PAID', replay: true, result: reportResult });
+ }
+ if (reportStatus !== 'REPORTED') {
+  return NextResponse.json({ error: 'Fiuu payment report state invalid' }, { status: 409 });
  }
 
  const { data: result, error: fulfillError } = await admin.rpc('fulfill_pos_fiuu_payment', {
@@ -125,7 +182,10 @@ async function handleFiuuNotification(body: Record<string, unknown>, request: Re
    paymentId: payment.id,
    reason: fulfillError.message.slice(0, 160),
   });
-  return NextResponse.json({ error: 'Fiuu payment fulfillment failed' }, { status: 409 });
+  return NextResponse.json({
+   error: 'Fiuu payment fulfillment failed',
+   status: 'REPORTED',
+  }, { status: 409 });
  }
  return NextResponse.json({ ok: true, status: 'PAID', result });
 }

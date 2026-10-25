@@ -1,6 +1,6 @@
 # Fiuu BR001 OPA Dynamic DuitNow QR UAT and rollback runbook
 
-Last updated: 2026-10-25
+Last updated: 2026-10-26
 
 ## Decision and authority
 
@@ -67,12 +67,13 @@ Required non-secret settings for the Preview/staging pilot:
 
 ```dotenv
 POS_QR_PAYMENT_MODE=fiuu
+POS_FIUU_OPA_BRANCHES=BR001
 POS_FIUU_ENVIRONMENT=sandbox
 POS_FIUU_CHANNEL_ID=24
 POS_FIUU_QR_VALIDITY_SECONDS=180
 ```
 
-The official DuitNow pre-create validity range is 60–180 seconds. RKJ One defaults to 180 and rejects/falls back from values outside that range.
+`POS_QR_PAYMENT_MODE=fiuu` alone does not expose dynamic QR. The server also requires the explicit OPA branch allowlist and currently hard-locks it to `BR001`; empty, wildcard, malformed or non-BR001 entries fail closed. The official DuitNow pre-create validity range is 60–180 seconds. RKJ One defaults to 180 and rejects/falls back from values outside that range.
 
 Configure the Fiuu real-time notification endpoint for the intended Preview host:
 
@@ -113,8 +114,9 @@ Save only redacted evidence: timestamp, deployment, commit, non-secret branch/st
 2. Confirm the displayed amount and currency match the server-calculated sale exactly.
 3. Complete one payment; do not refresh, regenerate or start another payment.
 4. Accept provider success only from a valid signed notification with status `00` matching the stored Application Code, reference, amount, currency, channel and provider transaction ID.
-5. Confirm RKJ One creates exactly one payment, sale, receipt, shift-total increment and expected stock movement.
-6. Reload and repeat read-only checks. No duplicate sale, receipt or stock movement may appear.
+5. Confirm the verified notification is first committed as durable, sanitized `REPORTED` evidence, then fulfilled in a separate idempotent database transaction.
+6. Confirm RKJ One creates exactly one payment, sale, receipt, shift-total increment and expected stock movement.
+7. Reload and repeat read-only checks. No duplicate sale, receipt or stock movement may appear.
 
 ### Recovery and negative cases
 
@@ -122,7 +124,8 @@ Save only redacted evidence: timestamp, deployment, commit, non-secret branch/st
 - Expired/cancelled QR with no successful notification: no sale, receipt, stock movement or shift increment.
 - Duplicate valid notification: return the existing result and create nothing twice.
 - Late valid callback within the bounded reconciliation grace: fulfil at most once.
-- Provider success with local fulfilment error: retain `REPORTED` evidence, block a second payable attempt and reconcile; never relabel it unpaid to retry.
+- Provider success with local fulfilment error: retain `REPORTED` evidence, return a retryable acknowledgement failure, block a second payable attempt and let either a duplicate valid callback or authenticated status polling safely retry fulfilment; never relabel it unpaid or send another SALE.
+- Catalogue price changed after QR creation: keep the payment `REPORTED` for Finance resolution; never issue a receipt whose totals differ from the paid, server-side pricing snapshot.
 - Reused idempotency key with different branch, shift, creator, amount or basket: reject.
 - Cross-branch user or device: reject.
 

@@ -1,6 +1,6 @@
 # RKJ One Fiuu DuitNow QR POS Setup
 
-Last updated: 2026-10-25
+Last updated: 2026-10-26
 
 ## Authoritative BR001 operating runbook
 
@@ -161,6 +161,14 @@ RKJ replied under the same ticket confirming that the dedicated Roti Kaya Junus 
 
 Use Vercel server-only environment variables. `POS_FIUU_APPLICATIONS_JSON` is preferred for branch isolation:
 
+```dotenv
+POS_QR_PAYMENT_MODE=fiuu
+POS_FIUU_OPA_BRANCHES=BR001
+POS_FIUU_ENVIRONMENT=sandbox
+```
+
+The payment-mode selector is not sufficient by itself. OPA creation is also protected by `POS_FIUU_OPA_BRANCHES`, and the present pilot implementation fails closed unless the normalized allowlist contains exactly the hard-locked pilot branch `BR001`. Wildcards, malformed entries and `BR002`–`BR036` are rejected.
+
 ```json
 {
   "BRANCH_CODE": {
@@ -173,6 +181,8 @@ Use Vercel server-only environment variables. `POS_FIUU_APPLICATIONS_JSON` is pr
 ```
 
 Do not commit the real JSON. Keep `POS_QR_PAYMENT_MODE=manual` until UAT passes. Staging must use `POS_FIUU_ENVIRONMENT=sandbox`; Production must use `production` only after written approval and pilot sign-off. A `POS_FIUU_PRECREATE_URL` override must use the approved host for the selected environment; localhost is accepted only during non-production development.
+
+A valid signed `STATUS=00` notification is handled in two committed phases: first persist sanitized provider evidence and mark the payment `REPORTED`, then perform receipt, stock, shift and sale fulfilment idempotently. The callback and both database RPCs independently enforce the BR001 pilot identity. If the second phase fails, the durable `REPORTED` row remains and either a duplicate valid Fiuu notification or authenticated payment-status polling can retry fulfilment without issuing another charge. Fulfilment locks the referenced products and refuses a receipt if the active catalogue no longer matches the server-side pricing snapshot.
 
 ## UAT acceptance
 
@@ -202,6 +212,8 @@ The detailed decision table and evidence checklist are in [FIUU_BR001_UAT_RUNBOO
 Staging migration status on 2026-08-08: all `169` repository migrations are applied and the linked schema lint reports no error. Vercel Preview contains a branch-scoped sensitive `POS_FIUU_APPLICATIONS_JSON` mapping for pilot branch `BR001` only. No Fiuu credential was added to Production.
 
 Validation on 2026-08-26: all `171` repository migrations, including the new callback/concurrency hardening, are applied to the isolated local Supabase database and the separate `rkj-one-staging-my` Supabase project. The local index and security-definer function state were verified, and local schema lint completed with unrelated pre-existing warnings only. Staging migration history is synchronized at `171/171`; a subsequent linked schema-lint attempt was blocked by the CLI database credential and did not change the staging database. Repository tests (`31/31`), TypeScript, ESLint and the Next.js Production build pass locally. The migration has not been applied to Production. Provider-issued OPA credentials, the approved branch Store/Terminal mapping, signed sandbox callback UAT and Finance settlement reconciliation remain mandatory before enabling Production.
+
+Validation on 2026-10-26: the BR001 OPA allowlist and durable two-phase notification implementation pass all repository tests (`116/116`), TypeScript, error-only ESLint and the Next.js Production build (`162` pages). Migrations `20261024120000_add_fiuu_cloudecr_br001_pilot.sql` and `20261026120000_durable_fiuu_opa_notification.sql` are applied to the isolated `rkj-one-staging-my` Supabase project, and linked migration history is synchronized through `20261026120000`. Linked schema lint completes with unrelated pre-existing warnings only and reports no issue in the new Fiuu functions. A fresh local replay could not be run because the Docker engine was unavailable. Neither migration has been applied to Production, and no Production environment, credential, provider or outlet setting was changed.
 
 ## Play Store
 
