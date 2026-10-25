@@ -177,10 +177,10 @@ async function loadAccessReadiness(supabase: DbClient) {
 async function hasFiuuDatabaseSchema(supabase: DbClient) {
   const { error } = await supabase
     .from("pos_online_payments")
-    .select("expires_at, provider_order_id, provider_result, provider_status_checked_at", {
-      count: "exact",
-      head: true,
-    });
+    .select(
+      "expires_at, provider_order_id, provider_result, provider_status_checked_at, provider_reconcile_reference_id, provider_reconcile_claimed_at, provider_sale_reported_at, provider_transaction_id",
+      { count: "exact", head: true },
+    );
   return !error;
 }
 

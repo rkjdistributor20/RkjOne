@@ -78,7 +78,7 @@ export async function POST(
  .eq('organization_id', profile.organization_id)
  .eq('branch_id', transaction.branch_id)
  .eq('transaction_id', transaction.id)
- .eq('provider', 'fiuu')
+ .in('provider', ['fiuu', 'fiuu_vt', 'fiuu_cloudecr'])
  .limit(1)
  .maybeSingle();
  if (paymentError) {
