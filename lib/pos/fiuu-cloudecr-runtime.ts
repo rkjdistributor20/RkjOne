@@ -3,9 +3,17 @@ import {
  ensureFiuuCloudEcrAuth,
  getFiuuCloudEcrConfig,
  getFiuuCloudEcrLast,
+ isFiuuCloudEcrProviderError,
+ listFiuuCloudEcrEwalletChannels,
+ listFiuuCloudEcrTerminals,
+ loginFiuuCloudEcr,
+ logoutFiuuCloudEcr,
+ refreshFiuuCloudEcr,
  type FiuuCloudEcrConfig,
+ type FiuuCloudEcrEwalletChannel,
  type FiuuCloudEcrFetch,
  type FiuuCloudEcrResponse,
+ type FiuuCloudEcrTerminal,
  type FiuuCloudEcrTokens,
 } from './fiuu-cloudecr';
 
@@ -32,7 +40,72 @@ function cacheKey(config: FiuuCloudEcrConfig): string {
 }
 
 function isUnauthorized(error: unknown): boolean {
- return error instanceof Error && /\(401\)/.test(error.message);
+ return isFiuuCloudEcrProviderError(error)
+  && (error.status === 401 || error.code?.startsWith('401') === true);
+}
+
+function isActiveSession(error: unknown): boolean {
+ return isFiuuCloudEcrProviderError(error) && error.code === '40314';
+}
+
+async function logoutKnownSession(input: {
+ config: FiuuCloudEcrConfig;
+ fetcher: FiuuCloudEcrFetch;
+ current: FiuuCloudEcrTokens;
+}): Promise<boolean> {
+ try {
+  await logoutFiuuCloudEcr(
+   input.config,
+   input.current.access.token,
+   input.fetcher,
+  );
+  return true;
+ } catch (error) {
+  if (isUnauthorized(error)) return false;
+  throw error;
+ }
+}
+
+async function loginWithActiveSessionRecovery(input: {
+ config: FiuuCloudEcrConfig;
+ fetcher: FiuuCloudEcrFetch;
+ current?: FiuuCloudEcrTokens | null;
+}): Promise<FiuuCloudEcrTokens> {
+ try {
+  return await loginFiuuCloudEcr(input.config, input.fetcher);
+ } catch (error) {
+  if (!isActiveSession(error) || !input.current) throw error;
+  const loggedOut = await logoutKnownSession({
+   config: input.config,
+   fetcher: input.fetcher,
+   current: input.current,
+  });
+  // Without a usable known token there is no safe API mechanism to terminate
+  // another process's session. Preserve the actionable 40314 in that case.
+  if (!loggedOut) throw error;
+  return loginFiuuCloudEcr(input.config, input.fetcher);
+ }
+}
+
+async function recoverAuthorization(input: {
+ config: FiuuCloudEcrConfig;
+ fetcher: FiuuCloudEcrFetch;
+ current?: FiuuCloudEcrTokens | null;
+}): Promise<FiuuCloudEcrTokens> {
+ if (input.current) {
+  // Try the known refresh token once even if its local timestamp has just
+  // elapsed; this avoids creating a second provider session due to clock skew.
+  try {
+   return await refreshFiuuCloudEcr(
+    input.config,
+    input.current.refresh.token,
+    input.fetcher,
+   );
+  } catch (error) {
+   if (!isUnauthorized(error)) throw error;
+  }
+ }
+ return loginWithActiveSessionRecovery(input);
 }
 
 async function withAuthorizedCloudEcr<T>(input: {
@@ -44,19 +117,28 @@ async function withAuthorizedCloudEcr<T>(input: {
  const key = cacheKey(config);
  const cache = tokenCache();
  const pending = authPromiseCache();
- const authorize = async (forceLogin = false): Promise<FiuuCloudEcrTokens> => {
+ const authorize = async (
+  forceRecovery = false,
+  fallbackCurrent?: FiuuCloudEcrTokens | null,
+ ): Promise<FiuuCloudEcrTokens> => {
   const existing = pending.get(key);
   if (existing) return existing;
   const promise = (async () => {
-   const current = forceLogin ? null : cache.get(key);
+   const current = cache.get(key) ?? fallbackCurrent;
    try {
-    const next = await ensureFiuuCloudEcrAuth({ config, fetcher, current });
+    const next = forceRecovery
+     ? await recoverAuthorization({ config, fetcher, current })
+     : await ensureFiuuCloudEcrAuth({ config, fetcher, current });
     cache.set(key, next);
     return next;
    } catch (error) {
-    if (!current || !isUnauthorized(error)) throw error;
+    if (forceRecovery
+     || !current
+     || (!isUnauthorized(error) && !isActiveSession(error))) throw error;
     cache.delete(key);
-    const next = await ensureFiuuCloudEcrAuth({ config, fetcher });
+    const next = isUnauthorized(error)
+     ? await loginWithActiveSessionRecovery({ config, fetcher, current })
+     : await recoverAuthorization({ config, fetcher, current });
     cache.set(key, next);
     return next;
    }
@@ -74,8 +156,13 @@ async function withAuthorizedCloudEcr<T>(input: {
  } catch (error) {
   if (!isUnauthorized(error)) throw error;
   cache.delete(key);
-  tokens = await authorize(true);
-  return input.operation(config, tokens.access.token);
+  tokens = await authorize(true, tokens);
+  try {
+   return await input.operation(config, tokens.access.token);
+  } catch (retryError) {
+   if (isUnauthorized(retryError)) cache.delete(key);
+   throw retryError;
+  }
  }
 }
 
@@ -113,6 +200,34 @@ export async function reconcileFiuuCloudEcrLast(input: {
    queryReferenceId: input.queryReferenceId,
    originalReferenceId: input.originalReferenceId,
    expectedAmountRm: input.amountRm,
+  }),
+ });
+}
+
+export async function fetchFiuuCloudEcrTerminals(input: {
+ fetcher?: FiuuCloudEcrFetch;
+} = {}): Promise<readonly FiuuCloudEcrTerminal[]> {
+ return withAuthorizedCloudEcr({
+  fetcher: input.fetcher,
+  operation: (config, accessToken) => listFiuuCloudEcrTerminals({
+   config,
+   fetcher: input.fetcher ?? fetch,
+   accessToken,
+  }),
+ });
+}
+
+export async function fetchFiuuCloudEcrEwalletChannels(input: {
+ currency?: 'MYR';
+ fetcher?: FiuuCloudEcrFetch;
+} = {}): Promise<readonly FiuuCloudEcrEwalletChannel[]> {
+ return withAuthorizedCloudEcr({
+  fetcher: input.fetcher,
+  operation: (config, accessToken) => listFiuuCloudEcrEwalletChannels({
+   config,
+   fetcher: input.fetcher ?? fetch,
+   accessToken,
+   currency: input.currency,
   }),
  });
 }

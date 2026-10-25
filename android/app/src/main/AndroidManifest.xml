@@ -3,6 +3,7 @@
 
     <queries>
         <package android:name="com.rms.mobile.razervt" />
+        <package android:name="com.fiuu.cloudecrvt" />
     </queries>
 
     <application

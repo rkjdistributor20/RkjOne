@@ -3,15 +3,18 @@ import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 export const FIUU_CLOUDECR_API_VERSION = 'v1';
 export const FIUU_CLOUDECR_DUITNOW_CHANNEL = 'duitNowQr';
 export const FIUU_CLOUDECR_QR_PAYMENT_METHOD = 'qrCustScan';
+export const FIUU_CLOUDECR_TRANSACTION_TIMEOUT_MS = 80_000;
 
-// A cold request can require refresh/login, the requested operation, and one
-// unauthorized retry (at most five upstream calls). Keep the per-call ceiling
-// low enough that the complete chain remains below the 100-second route budget.
-const DEFAULT_TIMEOUT_MS = 15_000;
-const MAX_REQUEST_TIMEOUT_MS = 15_000;
+// Fiuu recommends allowing the POS 80 seconds to receive the complete transfer
+// response. Keep a small configurable margin for non-production diagnostics,
+// while using the official recommendation by default.
+const DEFAULT_TIMEOUT_MS = FIUU_CLOUDECR_TRANSACTION_TIMEOUT_MS;
+const MAX_REQUEST_TIMEOUT_MS = 90_000;
+const AUTH_AND_PREFLIGHT_TIMEOUT_MS = 15_000;
 const AUTH_EXPIRY_SAFETY_MS = 30_000;
 const REFERENCE_ID_PATTERN = /^[A-Za-z0-9_-]{1,20}$/;
 const SIGNATURE_PATTERN = /^[a-fA-F0-9]{64}$/;
+const PROVIDER_ERROR_CODE_PATTERN = /^[A-Za-z0-9_.-]{1,32}$/;
 
 type Environment = Readonly<Record<string, string | undefined>>;
 type JsonRecord = Record<string, unknown>;
@@ -41,6 +44,56 @@ export type FiuuCloudEcrTokens = Readonly<{
  access: FiuuCloudEcrToken;
  refresh: FiuuCloudEcrToken;
 }>;
+
+export type FiuuCloudEcrTerminal = Readonly<{
+ terminalId: string;
+ connected: boolean;
+ isVT: boolean;
+}>;
+
+export type FiuuCloudEcrEwalletChannel = Readonly<{
+ name: string;
+ status: 0 | 1;
+ currency: readonly string[];
+ logoUrl3: string | null;
+}>;
+
+export class FiuuCloudEcrProviderError extends Error {
+ readonly status: number;
+ readonly code: string | null;
+ readonly providerMessage: string | null;
+ readonly operation: string;
+ readonly retryAfterSeconds: number | null;
+
+ constructor(input: {
+  status: number;
+  code: string | null;
+  providerMessage: string | null;
+  operation: string;
+  retryAfterSeconds: number | null;
+ }) {
+  const detail = [
+   `HTTP ${input.status}`,
+   input.code ? `kod ${input.code}` : null,
+  ].filter(Boolean).join(', ');
+  super(
+   `Permintaan ${input.operation} cloudECR ditolak (${detail})`
+   + (input.providerMessage ? `: ${input.providerMessage}` : ''),
+  );
+  this.name = 'FiuuCloudEcrProviderError';
+  this.status = input.status;
+  this.code = input.code;
+  this.providerMessage = input.providerMessage;
+  this.operation = input.operation;
+  this.retryAfterSeconds = input.retryAfterSeconds;
+ }
+}
+
+export function isFiuuCloudEcrProviderError(
+ error: unknown,
+): error is FiuuCloudEcrProviderError {
+ return error instanceof FiuuCloudEcrProviderError;
+}
 
 export type FiuuCloudEcrTransactionType = 'sale' | 'getLast';
 export type FiuuCloudEcrStatusCode = '00' | '11' | '22';
@@ -148,7 +201,7 @@ function parseTimeout(value: string | undefined): number {
  if (!value?.trim()) return DEFAULT_TIMEOUT_MS;
  const timeoutMs = Number(value);
  if (!Number.isInteger(timeoutMs) || timeoutMs < 1_000 || timeoutMs > MAX_REQUEST_TIMEOUT_MS) {
-  throw new Error('Konfigurasi cloudECR timeout mesti antara 1000 dan 15000 ms');
+  throw new Error('Konfigurasi cloudECR timeout mesti antara 1000 dan 90000 ms');
  }
  return timeoutMs;
 }
@@ -334,49 +387,149 @@ export function parseFiuuCloudEcrAuthResponse(value: unknown): FiuuCloudEcrToken
  };
 }
 
+type FiuuCloudEcrRequestPath =
+ | '/auth/login'
+ | '/auth/refresh'
+ | '/auth/logout'
+ | '/api/transfer'
+ | '/api/terminals'
+ | '/api/ewallet-channels';
+
+function normalizeProviderErrorCode(value: unknown): string | null {
+ if (typeof value !== 'string' && typeof value !== 'number') return null;
+ const normalized = String(value).trim();
+ return PROVIDER_ERROR_CODE_PATTERN.test(normalized) ? normalized : null;
+}
+
+function sanitizeProviderMessage(
+ value: unknown,
+ config: FiuuCloudEcrConfig,
+ authorization: string | undefined,
+): string | null {
+ if (typeof value !== 'string' && typeof value !== 'number') return null;
+ let normalized = String(value).replace(/[\u0000-\u001f\u007f]+/g, ' ').trim();
+ if (!normalized) return null;
+ for (const secret of [config.password, config.secretKey, authorization]) {
+  if (secret && secret.length >= 4) normalized = normalized.split(secret).join('[REDACTED]');
+ }
+ normalized = normalized
+  .replace(/Bearer\s+[^\s,;]+/gi, 'Bearer [REDACTED]')
+  .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, '[REDACTED]');
+ return normalized.slice(0, 300);
+}
+
+function parseProviderErrorPayload(
+ rawBody: string,
+ config: FiuuCloudEcrConfig,
+ authorization: string | undefined,
+): Readonly<{ code: string | null; message: string | null }> {
+ let parsed: unknown;
+ try {
+  parsed = JSON.parse(rawBody);
+ } catch {
+  return { code: null, message: null };
+ }
+ if (!isRecord(parsed)) return { code: null, message: null };
+
+ const nestedError = isRecord(parsed.error) ? parsed.error : null;
+ const records = nestedError ? [parsed, nestedError] : [parsed];
+ let code: string | null = null;
+ let message: string | null = null;
+ for (const record of records) {
+  code ??= normalizeProviderErrorCode(
+   record.code ?? record.errorCode ?? record.statusCode,
+  );
+  message ??= sanitizeProviderMessage(
+   record.message ?? record.errorMessage ?? record.responseText ?? record.detail,
+   config,
+   authorization,
+  );
+ }
+ if (!message && typeof parsed.error === 'string') {
+  message = sanitizeProviderMessage(parsed.error, config, authorization);
+ }
+ return { code, message };
+}
+
+function parseRetryAfterSeconds(value: string | null): number | null {
+ if (!value) return null;
+ const seconds = Number(value);
+ if (Number.isInteger(seconds) && seconds >= 0) return seconds;
+ const retryAt = Date.parse(value);
+ if (!Number.isFinite(retryAt)) return null;
+ return Math.max(0, Math.ceil((retryAt - Date.now()) / 1_000));
+}
+
 async function requestJson(input: {
  config: FiuuCloudEcrConfig;
  fetcher: FiuuCloudEcrFetch;
- path: '/auth/login' | '/auth/refresh' | '/api/transfer';
+ path: FiuuCloudEcrRequestPath;
  operation: string;
+ method: 'GET' | 'POST';
  authorization?: string;
  body?: unknown;
+ query?: Readonly<Record<string, string>>;
+ timeoutMs?: number;
+ discardSuccessBody?: boolean;
 }): Promise<unknown> {
  assertServerRuntime();
  const headers: Record<string, string> = { Accept: 'application/json' };
  if (input.authorization) headers.Authorization = `Bearer ${input.authorization}`;
  if (input.body !== undefined) headers['Content-Type'] = 'application/json';
 
+ const url = new URL(input.path, `${input.config.baseUrl}/`);
+ for (const [key, value] of Object.entries(input.query ?? {})) {
+  url.searchParams.set(key, value);
+ }
+
  const controller = new AbortController();
- const timer = setTimeout(() => controller.abort(), input.config.requestTimeoutMs);
+ const timeoutMs = input.timeoutMs
+  ?? Math.min(input.config.requestTimeoutMs, AUTH_AND_PREFLIGHT_TIMEOUT_MS);
+ const timer = setTimeout(() => controller.abort(), timeoutMs);
  try {
   let response: Response;
   try {
-   response = await input.fetcher(
-    new URL(input.path, `${input.config.baseUrl}/`).toString(),
-    {
-     method: 'POST',
-     headers,
-     body: input.body === undefined ? undefined : JSON.stringify(input.body),
-     cache: 'no-store',
-     signal: controller.signal,
-    },
-   );
+   response = await input.fetcher(url.toString(), {
+    method: input.method,
+    headers,
+    body: input.body === undefined ? undefined : JSON.stringify(input.body),
+    cache: 'no-store',
+    signal: controller.signal,
+   });
   } catch {
    throw new Error(controller.signal.aborted
     ? `Permintaan ${input.operation} cloudECR melebihi had masa`
     : `Permintaan ${input.operation} cloudECR gagal`);
   }
 
-  if (!response.ok) {
-   throw new Error(`Permintaan ${input.operation} cloudECR ditolak (${response.status})`);
-  }
+  let rawBody: string;
   try {
-   return await response.json();
+   rawBody = await response.text();
   } catch {
    throw new Error(controller.signal.aborted
     ? `Permintaan ${input.operation} cloudECR melebihi had masa`
-    : `Respons ${input.operation} cloudECR bukan JSON yang sah`);
+    : `Respons ${input.operation} cloudECR tidak dapat dibaca`);
+  }
+
+  if (!response.ok) {
+   const provider = parseProviderErrorPayload(
+    rawBody,
+    input.config,
+    input.authorization,
+   );
+   throw new FiuuCloudEcrProviderError({
+    status: response.status,
+    code: provider.code,
+    providerMessage: provider.message,
+    operation: input.operation,
+    retryAfterSeconds: parseRetryAfterSeconds(response.headers.get('Retry-After')),
+   });
+  }
+  if (input.discardSuccessBody) return null;
+  try {
+   return JSON.parse(rawBody);
+  } catch {
+   throw new Error(`Respons ${input.operation} cloudECR bukan JSON yang sah`);
   }
  } finally {
   // Keep the deadline active until the complete response body is consumed.
@@ -393,6 +546,7 @@ export async function loginFiuuCloudEcr(
   fetcher,
   path: '/auth/login',
   operation: 'login',
+ method: 'POST',
   body: { posId: config.posId, password: config.password },
  });
  return parseFiuuCloudEcrAuthResponse(body);
@@ -409,9 +563,27 @@ export async function refreshFiuuCloudEcr(
   fetcher,
   path: '/auth/refresh',
   operation: 'refresh token',
+ method: 'POST',
   authorization: token,
  });
  return parseFiuuCloudEcrAuthResponse(body);
+}
+
+export async function logoutFiuuCloudEcr(
+ config: FiuuCloudEcrConfig,
+ accessToken: string,
+ fetcher: FiuuCloudEcrFetch,
+): Promise<void> {
+ const token = requiredResponseString(accessToken, 'access token', 8_192);
+ await requestJson({
+  config,
+  fetcher,
+  path: '/auth/logout',
+  operation: 'logout',
+  method: 'POST',
+  authorization: token,
+  discardSuccessBody: true,
+ });
 }
 
 function tokenIsUsable(token: FiuuCloudEcrToken | undefined, nowMs: number): boolean {
@@ -435,6 +607,78 @@ export async function ensureFiuuCloudEcrAuth(input: {
   return refreshFiuuCloudEcr(input.config, input.current.refresh.token, input.fetcher);
  }
  return loginFiuuCloudEcr(input.config, input.fetcher);
+}
+
+function responseDataArray(value: unknown, label: string): unknown[] {
+ if (!isRecord(value) || !Array.isArray(value.data)) {
+  throw new Error(`Respons cloudECR ${label} tidak sah`);
+ }
+ return value.data;
+}
+
+function requiredResponseBoolean(value: unknown, label: string): boolean {
+ if (typeof value !== 'boolean') throw new Error(`Respons cloudECR ${label} tidak sah`);
+ return value;
+}
+
+export async function listFiuuCloudEcrTerminals(input: {
+ config: FiuuCloudEcrConfig;
+ fetcher: FiuuCloudEcrFetch;
+ accessToken: string;
+}): Promise<readonly FiuuCloudEcrTerminal[]> {
+ const body = await requestJson({
+  config: input.config,
+  fetcher: input.fetcher,
+  path: '/api/terminals',
+  operation: 'senarai terminal',
+  method: 'GET',
+  authorization: validateAccessToken(input.accessToken),
+ });
+ return responseDataArray(body, 'senarai terminal').map((entry) => {
+  if (!isRecord(entry)) throw new Error('Respons cloudECR terminal tidak sah');
+  return {
+   terminalId: requiredResponseString(entry.terminalId, 'Terminal ID', 100),
+   connected: requiredResponseBoolean(entry.connected, 'status sambungan terminal'),
+   isVT: requiredResponseBoolean(entry.isVT, 'jenis terminal'),
+  };
+ });
+}
+
+export async function listFiuuCloudEcrEwalletChannels(input: {
+ config: FiuuCloudEcrConfig;
+ fetcher: FiuuCloudEcrFetch;
+ accessToken: string;
+ currency?: 'MYR';
+}): Promise<readonly FiuuCloudEcrEwalletChannel[]> {
+ const currency = input.currency ?? 'MYR';
+ const body = await requestJson({
+  config: input.config,
+  fetcher: input.fetcher,
+  path: '/api/ewallet-channels',
+  operation: 'senarai saluran e-wallet',
+  method: 'GET',
+  authorization: validateAccessToken(input.accessToken),
+  query: { currency },
+ });
+ return responseDataArray(body, 'senarai saluran e-wallet').map((entry) => {
+  if (!isRecord(entry)) throw new Error('Respons cloudECR saluran e-wallet tidak sah');
+  const rawStatus = optionalScalarString(entry.status, 'status saluran', 1);
+  if (rawStatus !== '0' && rawStatus !== '1') {
+   throw new Error('Respons cloudECR status saluran tidak sah');
+  }
+  if (!Array.isArray(entry.currency)) {
+   throw new Error('Respons cloudECR mata wang saluran tidak sah');
+  }
+  const currencies = entry.currency.map((value) => (
+   requiredResponseString(value, 'mata wang saluran', 8).toUpperCase()
+  ));
+  return {
+   name: requiredResponseString(entry.name, 'nama saluran', 100),
+   status: rawStatus === '1' ? 1 : 0,
+   currency: currencies,
+   logoUrl3: optionalScalarString(entry.logoUrl3, 'URL logo saluran', 2_048),
+  };
+ });
 }
 
 function normalizeAmount(amountRm: number): string {
@@ -608,8 +852,10 @@ async function executeTransfer(input: {
   fetcher: input.fetcher,
   path: '/api/transfer',
   operation: input.request.transType,
+  method: 'POST',
   authorization: validateAccessToken(input.accessToken),
   body: input.request,
+  timeoutMs: input.config.requestTimeoutMs,
  });
  return matchFiuuCloudEcrResponse(
   parseFiuuCloudEcrResponse(body, input.config.secretKey),

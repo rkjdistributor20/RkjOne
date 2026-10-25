@@ -15,6 +15,359 @@ ALTER TABLE public.pos_online_payments
     OR provider_reconcile_reference_id ~ '^[A-Za-z0-9_-]{4,20}$'
   );
 
+-- Do not treat environment variables alone as proof that BR001 points to the
+-- intended Fiuu settlement account. The pilot remains closed until Operations
+-- records and independently verifies the exact cloudECR endpoint plus the MID
+-- and TID returned by Fiuu. No real identifiers are seeded by this migration.
+CREATE TABLE IF NOT EXISTS public.pos_fiuu_cloudecr_br001_mappings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL
+    REFERENCES public.organizations(id) ON DELETE CASCADE,
+  branch_id UUID NOT NULL
+    REFERENCES public.branches(id) ON DELETE CASCADE,
+  pos_id TEXT NOT NULL,
+  device_id TEXT NOT NULL,
+  terminal_sn TEXT NOT NULL,
+  provider_mid TEXT NOT NULL,
+  provider_tid TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'PENDING'
+    CHECK (status IN ('PENDING', 'ACTIVE', 'REVOKED')),
+  verified_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT pos_fiuu_cloudecr_br001_mapping_pos_id_format CHECK (
+    pos_id = btrim(pos_id)
+    AND length(pos_id) BETWEEN 1 AND 24
+    AND pos_id !~ '[[:cntrl:]]'
+  ),
+  CONSTRAINT pos_fiuu_cloudecr_br001_mapping_device_id_format CHECK (
+    device_id = btrim(device_id)
+    AND length(device_id) BETWEEN 1 AND 100
+    AND device_id !~ '[[:cntrl:]]'
+  ),
+  CONSTRAINT pos_fiuu_cloudecr_br001_mapping_terminal_sn_format CHECK (
+    terminal_sn = btrim(terminal_sn)
+    AND length(terminal_sn) BETWEEN 1 AND 40
+    AND terminal_sn !~ '[[:cntrl:]]'
+  ),
+  CONSTRAINT pos_fiuu_cloudecr_br001_mapping_mid_format CHECK (
+    provider_mid = btrim(provider_mid)
+    AND length(provider_mid) BETWEEN 1 AND 100
+    AND provider_mid !~ '[[:cntrl:]]'
+  ),
+  CONSTRAINT pos_fiuu_cloudecr_br001_mapping_tid_format CHECK (
+    provider_tid = btrim(provider_tid)
+    AND length(provider_tid) BETWEEN 1 AND 100
+    AND provider_tid !~ '[[:cntrl:]]'
+  ),
+  CONSTRAINT pos_fiuu_cloudecr_br001_mapping_active_verified CHECK (
+    status <> 'ACTIVE' OR verified_at IS NOT NULL
+  )
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_fiuu_cloudecr_br001_one_active_branch
+  ON public.pos_fiuu_cloudecr_br001_mappings(organization_id, branch_id)
+  WHERE status = 'ACTIVE';
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_fiuu_cloudecr_br001_one_active_endpoint
+  ON public.pos_fiuu_cloudecr_br001_mappings(
+    organization_id,
+    pos_id,
+    device_id,
+    terminal_sn
+  )
+  WHERE status = 'ACTIVE';
+
+ALTER TABLE public.pos_fiuu_cloudecr_br001_mappings ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.pos_fiuu_cloudecr_br001_mappings
+  FROM PUBLIC, anon, authenticated;
+GRANT SELECT, INSERT, UPDATE
+  ON TABLE public.pos_fiuu_cloudecr_br001_mappings TO service_role;
+
+CREATE OR REPLACE FUNCTION public.guard_pos_fiuu_cloudecr_br001_mapping_scope()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+  v_branch_organization_id UUID;
+  v_branch_code TEXT;
+BEGIN
+  IF TG_OP = 'UPDATE'
+    AND OLD.status = 'REVOKED' THEN
+    RAISE EXCEPTION USING
+      ERRCODE = 'check_violation',
+      MESSAGE = 'Revoked Fiuu cloudECR BR001 mapping is immutable';
+  END IF;
+
+  IF TG_OP = 'UPDATE'
+    AND OLD.status = 'ACTIVE'
+    AND NEW.status NOT IN ('ACTIVE', 'REVOKED') THEN
+    RAISE EXCEPTION USING
+      ERRCODE = 'check_violation',
+      MESSAGE = 'Active Fiuu cloudECR BR001 mapping can only be revoked';
+  END IF;
+
+  IF TG_OP = 'UPDATE'
+    AND OLD.status = 'ACTIVE'
+    AND NEW.status = 'ACTIVE'
+    AND (
+      NEW.organization_id IS DISTINCT FROM OLD.organization_id
+      OR NEW.branch_id IS DISTINCT FROM OLD.branch_id
+      OR NEW.pos_id IS DISTINCT FROM OLD.pos_id
+      OR NEW.device_id IS DISTINCT FROM OLD.device_id
+      OR NEW.terminal_sn IS DISTINCT FROM OLD.terminal_sn
+      OR NEW.provider_mid IS DISTINCT FROM OLD.provider_mid
+      OR NEW.provider_tid IS DISTINCT FROM OLD.provider_tid
+    ) THEN
+    RAISE EXCEPTION USING
+      ERRCODE = 'check_violation',
+      MESSAGE = 'Active Fiuu cloudECR BR001 mapping is immutable; revoke and replace it';
+  END IF;
+
+  IF TG_OP = 'UPDATE'
+    AND OLD.status = 'ACTIVE'
+    AND (
+      NEW.organization_id IS DISTINCT FROM OLD.organization_id
+      OR NEW.branch_id IS DISTINCT FROM OLD.branch_id
+      OR NEW.pos_id IS DISTINCT FROM OLD.pos_id
+      OR NEW.device_id IS DISTINCT FROM OLD.device_id
+      OR NEW.terminal_sn IS DISTINCT FROM OLD.terminal_sn
+      OR NEW.provider_mid IS DISTINCT FROM OLD.provider_mid
+      OR NEW.provider_tid IS DISTINCT FROM OLD.provider_tid
+      OR NEW.status IS DISTINCT FROM OLD.status
+      OR NEW.verified_at IS DISTINCT FROM OLD.verified_at
+    )
+    AND EXISTS (
+      SELECT 1
+      FROM public.pos_online_payments AS payment
+      WHERE payment.organization_id = OLD.organization_id
+        AND payment.branch_id = OLD.branch_id
+        AND payment.provider = 'fiuu_cloudecr'
+        AND payment.status IN ('PENDING', 'REPORTED')
+        AND payment.sale_payload->>'fiuu_cloudecr_pos_id' = OLD.pos_id
+        AND payment.sale_payload->>'fiuu_cloudecr_device_id' = OLD.device_id
+        AND payment.sale_payload->>'fiuu_cloudecr_terminal_sn' = OLD.terminal_sn
+    ) THEN
+    RAISE EXCEPTION USING
+      ERRCODE = 'check_violation',
+      MESSAGE = 'Fiuu cloudECR BR001 mapping cannot change while a payment is unresolved';
+  END IF;
+
+  SELECT branch.organization_id, branch.branch_code
+  INTO v_branch_organization_id, v_branch_code
+  FROM public.branches AS branch
+  WHERE branch.id = NEW.branch_id;
+
+  IF NOT FOUND
+    OR v_branch_organization_id IS DISTINCT FROM NEW.organization_id
+    OR upper(btrim(v_branch_code)) IS DISTINCT FROM 'BR001' THEN
+    RAISE EXCEPTION USING
+      ERRCODE = 'check_violation',
+      MESSAGE = 'Fiuu cloudECR pilot mapping is restricted to BR001';
+  END IF;
+
+  IF NEW.status = 'ACTIVE' AND NEW.verified_at IS NULL THEN
+    RAISE EXCEPTION USING
+      ERRCODE = 'check_violation',
+      MESSAGE = 'Fiuu cloudECR BR001 mapping must be verified before activation';
+  END IF;
+
+  NEW.updated_at := now();
+  RETURN NEW;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.guard_pos_fiuu_cloudecr_br001_mapping_scope()
+  FROM PUBLIC, anon, authenticated;
+
+DROP TRIGGER IF EXISTS guard_pos_fiuu_cloudecr_br001_mapping_scope
+  ON public.pos_fiuu_cloudecr_br001_mappings;
+CREATE TRIGGER guard_pos_fiuu_cloudecr_br001_mapping_scope
+BEFORE INSERT OR UPDATE
+ON public.pos_fiuu_cloudecr_br001_mappings
+FOR EACH ROW
+EXECUTE FUNCTION public.guard_pos_fiuu_cloudecr_br001_mapping_scope();
+
+CREATE OR REPLACE FUNCTION public.require_pos_fiuu_cloudecr_br001_mapping(
+  p_organization_id UUID,
+  p_branch_id UUID,
+  p_pos_id TEXT,
+  p_device_id TEXT,
+  p_terminal_sn TEXT,
+  p_provider_mid TEXT DEFAULT NULL,
+  p_provider_tid TEXT DEFAULT NULL,
+  p_require_provider_ids BOOLEAN DEFAULT false
+)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+  v_mapping_id UUID;
+BEGIN
+  IF p_require_provider_ids IS NULL
+    OR p_organization_id IS NULL
+    OR p_branch_id IS NULL
+    OR NULLIF(btrim(COALESCE(p_pos_id, '')), '') IS NULL
+    OR NULLIF(btrim(COALESCE(p_device_id, '')), '') IS NULL
+    OR NULLIF(btrim(COALESCE(p_terminal_sn, '')), '') IS NULL
+    OR (
+      p_require_provider_ids
+      AND (
+        NULLIF(btrim(COALESCE(p_provider_mid, '')), '') IS NULL
+        OR NULLIF(btrim(COALESCE(p_provider_tid, '')), '') IS NULL
+      )
+    ) THEN
+    RAISE EXCEPTION USING
+      ERRCODE = 'check_violation',
+      MESSAGE = 'Verified Fiuu cloudECR BR001 MID/TID mapping is required';
+  END IF;
+
+  SELECT mapping.id INTO v_mapping_id
+  FROM public.pos_fiuu_cloudecr_br001_mappings AS mapping
+  JOIN public.branches AS branch
+    ON branch.id = mapping.branch_id
+   AND branch.organization_id = mapping.organization_id
+  WHERE mapping.organization_id = p_organization_id
+    AND mapping.branch_id = p_branch_id
+    AND mapping.status = 'ACTIVE'
+    AND mapping.verified_at IS NOT NULL
+    AND upper(btrim(branch.branch_code)) = 'BR001'
+    AND mapping.pos_id = p_pos_id
+    AND mapping.device_id = p_device_id
+    AND mapping.terminal_sn = p_terminal_sn
+    AND (
+      NOT COALESCE(p_require_provider_ids, false)
+      OR (
+        mapping.provider_mid = p_provider_mid
+        AND mapping.provider_tid = p_provider_tid
+      )
+    );
+
+  IF v_mapping_id IS NULL THEN
+    RAISE EXCEPTION USING
+      ERRCODE = 'check_violation',
+      MESSAGE = 'Verified Fiuu cloudECR BR001 MID/TID mapping does not match';
+  END IF;
+
+  RETURN v_mapping_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.require_pos_fiuu_cloudecr_br001_mapping(
+  UUID, UUID, TEXT, TEXT, TEXT, TEXT, TEXT, BOOLEAN
+) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.require_pos_fiuu_cloudecr_br001_mapping(
+  UUID, UUID, TEXT, TEXT, TEXT, TEXT, TEXT, BOOLEAN
+) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.guard_pos_fiuu_cloudecr_br001_payment_mapping()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+BEGIN
+  IF NEW.provider = 'fiuu_cloudecr' THEN
+    IF NEW.sale_payload->>'fiuu_branch_code' IS DISTINCT FROM 'BR001' THEN
+      RAISE EXCEPTION USING
+        ERRCODE = 'check_violation',
+        MESSAGE = 'Fiuu cloudECR pilot payment is restricted to BR001';
+    END IF;
+
+    PERFORM public.require_pos_fiuu_cloudecr_br001_mapping(
+      NEW.organization_id,
+      NEW.branch_id,
+      NEW.sale_payload->>'fiuu_cloudecr_pos_id',
+      NEW.sale_payload->>'fiuu_cloudecr_device_id',
+      NEW.sale_payload->>'fiuu_cloudecr_terminal_sn',
+      NULL,
+      NULL,
+      false
+    );
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.guard_pos_fiuu_cloudecr_br001_payment_mapping()
+  FROM PUBLIC, anon, authenticated;
+
+DROP TRIGGER IF EXISTS guard_pos_fiuu_cloudecr_br001_payment_mapping
+  ON public.pos_online_payments;
+CREATE TRIGGER guard_pos_fiuu_cloudecr_br001_payment_mapping
+BEFORE INSERT OR UPDATE OF provider, organization_id, branch_id, sale_payload
+ON public.pos_online_payments
+FOR EACH ROW
+EXECUTE FUNCTION public.guard_pos_fiuu_cloudecr_br001_payment_mapping();
+
+-- A successful provider charge can remain REPORTED when local receipt/stock
+-- fulfilment fails. Recovery is explicit, auditable and idempotent: the same
+-- recovery key always returns its first terminal result, while a deliberate
+-- retry must use a new key after the underlying data issue is corrected.
+CREATE TABLE IF NOT EXISTS public.pos_fiuu_cloudecr_recovery_attempts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  payment_id UUID NOT NULL
+    REFERENCES public.pos_online_payments(id) ON DELETE RESTRICT,
+  recovery_key TEXT NOT NULL,
+  expected_provider_transaction_id TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'IN_PROGRESS'
+    CHECK (status IN ('IN_PROGRESS', 'SUCCEEDED', 'FAILED')),
+  transaction_id UUID REFERENCES public.pos_transactions(id) ON DELETE RESTRICT,
+  failure_code TEXT,
+  failure_message TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  completed_at TIMESTAMPTZ,
+  CONSTRAINT pos_fiuu_cloudecr_recovery_key_format CHECK (
+    recovery_key ~ '^[A-Za-z0-9_-]{8,64}$'
+  ),
+  CONSTRAINT pos_fiuu_cloudecr_recovery_provider_transaction_format CHECK (
+    expected_provider_transaction_id ~ '^[0-9]{1,10}$'
+  ),
+  CONSTRAINT pos_fiuu_cloudecr_recovery_reason_format CHECK (
+    reason = btrim(reason)
+    AND length(reason) BETWEEN 8 AND 500
+    AND reason !~ '[[:cntrl:]]'
+  ),
+  CONSTRAINT pos_fiuu_cloudecr_recovery_terminal_state CHECK (
+    (
+      status = 'IN_PROGRESS'
+      AND transaction_id IS NULL
+      AND failure_code IS NULL
+      AND failure_message IS NULL
+      AND completed_at IS NULL
+    )
+    OR (
+      status = 'SUCCEEDED'
+      AND transaction_id IS NOT NULL
+      AND failure_code IS NULL
+      AND failure_message IS NULL
+      AND completed_at IS NOT NULL
+    )
+    OR (
+      status = 'FAILED'
+      AND transaction_id IS NULL
+      AND failure_code IS NOT NULL
+      AND failure_message IS NOT NULL
+      AND completed_at IS NOT NULL
+    )
+  ),
+  UNIQUE (payment_id, recovery_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_fiuu_cloudecr_recovery_payment_created
+  ON public.pos_fiuu_cloudecr_recovery_attempts(payment_id, created_at DESC);
+
+ALTER TABLE public.pos_fiuu_cloudecr_recovery_attempts ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.pos_fiuu_cloudecr_recovery_attempts
+  FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON TABLE public.pos_fiuu_cloudecr_recovery_attempts TO service_role;
+
 DROP INDEX IF EXISTS public.idx_pos_online_payments_one_pending_fiuu_actor_shift;
 CREATE UNIQUE INDEX idx_pos_online_payments_one_pending_fiuu_actor_shift
   ON public.pos_online_payments(organization_id, branch_id, shift_id, created_by)
@@ -57,7 +410,7 @@ CREATE OR REPLACE FUNCTION public.claim_pos_fiuu_cloudecr_reconciliation(
 RETURNS BOOLEAN
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, pg_temp
+SET search_path = pg_catalog, public, pg_temp
 AS $$
 DECLARE
   v_claimed_id UUID;
@@ -102,7 +455,7 @@ CREATE OR REPLACE FUNCTION public.report_pos_fiuu_cloudecr_payment(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, pg_temp
+SET search_path = pg_catalog, public, pg_temp
 AS $$
 DECLARE
   v_shift_id UUID;
@@ -143,7 +496,7 @@ BEGIN
   END IF;
 
   v_provider_transaction_id := p_provider_result->'transData'->>'transId';
-  IF v_payment.status IN ('REPORTED', 'PAID')
+  IF v_payment.status = 'PAID'
     AND v_payment.provider_transaction_id = v_provider_transaction_id THEN
     RETURN jsonb_build_object(
       'payment_id', v_payment.id,
@@ -152,10 +505,16 @@ BEGIN
     );
   END IF;
 
-  IF v_payment.status <> 'PENDING' THEN
+  IF v_payment.status NOT IN ('PENDING', 'REPORTED') THEN
     RAISE EXCEPTION 'Fiuu cloudECR POS payment is not fulfillable';
   END IF;
-  IF v_payment.expires_at IS NOT NULL
+  IF v_payment.status = 'REPORTED'
+    AND v_payment.provider_transaction_id
+      IS DISTINCT FROM v_provider_transaction_id THEN
+    RAISE EXCEPTION 'Fiuu cloudECR transaction reference mismatch';
+  END IF;
+  IF v_payment.status = 'PENDING'
+    AND v_payment.expires_at IS NOT NULL
     AND now() > v_payment.expires_at + INTERVAL '20 minutes' THEN
     RAISE EXCEPTION 'Fiuu cloudECR success arrived outside expiry grace';
   END IF;
@@ -164,7 +523,7 @@ BEGIN
   IF p_provider_result IS NULL
     OR jsonb_typeof(p_provider_result) <> 'object'
     OR jsonb_typeof(p_provider_result->'transData') <> 'object'
-    OR v_trans_type NOT IN ('sale', 'getLast')
+    OR COALESCE(v_trans_type, '') NOT IN ('sale', 'getLast')
     OR p_provider_result->>'statusCode' IS DISTINCT FROM '00'
     OR p_provider_result->>'responseCode' IS DISTINCT FROM '00'
     OR COALESCE(p_provider_result->>'signature', '') !~ '^[A-Fa-f0-9]{64}$'
@@ -198,10 +557,39 @@ BEGIN
     OR COALESCE(v_provider_transaction_id, '') !~ '^[0-9]{1,10}$'
     OR p_provider_result->'transData'->>'paymentChannel' IS DISTINCT FROM 'duitNowQr'
     OR p_provider_result->'transData'->>'currency' IS DISTINCT FROM 'MYR'
+    OR NULLIF(btrim(COALESCE(p_provider_result->'transData'->>'mid', '')), '') IS NULL
+    OR NULLIF(btrim(COALESCE(p_provider_result->'transData'->>'tid', '')), '') IS NULL
     OR COALESCE(p_provider_result->'transData'->>'transAmt', '') !~ '^[0-9]+(\.[0-9]{1,2})?$'
     OR round((p_provider_result->'transData'->>'transAmt')::NUMERIC, 2)
       <> round(v_payment.amount_rm, 2) THEN
     RAISE EXCEPTION 'Fiuu cloudECR response is not fulfillable';
+  END IF;
+
+  PERFORM public.require_pos_fiuu_cloudecr_br001_mapping(
+    v_payment.organization_id,
+    v_payment.branch_id,
+    v_payment.sale_payload->>'fiuu_cloudecr_pos_id',
+    v_payment.sale_payload->>'fiuu_cloudecr_device_id',
+    v_payment.sale_payload->>'fiuu_cloudecr_terminal_sn',
+    p_provider_result->'transData'->>'mid',
+    p_provider_result->'transData'->>'tid',
+    true
+  );
+
+  IF v_payment.status = 'REPORTED' THEN
+    UPDATE public.pos_online_payments
+    SET provider_result = p_provider_result,
+        provider_status_checked_at = now(),
+        updated_at = now()
+    WHERE id = v_payment.id
+      AND status = 'REPORTED'
+      AND provider_transaction_id = v_provider_transaction_id;
+
+    RETURN jsonb_build_object(
+      'payment_id', v_payment.id,
+      'status', v_payment.status,
+      'provider_transaction_id', v_payment.provider_transaction_id
+    );
   END IF;
 
   UPDATE public.pos_online_payments
@@ -237,7 +625,7 @@ CREATE OR REPLACE FUNCTION public.fulfill_pos_fiuu_cloudecr_payment(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, pg_temp
+SET search_path = pg_catalog, public, pg_temp
 AS $$
 DECLARE
   v_shift_id UUID;
@@ -300,11 +688,54 @@ BEGIN
 
   IF v_payment.status <> 'REPORTED'
     OR v_payment.provider_transaction_id IS NULL
+    OR COALESCE(v_payment.provider_result->>'transType', '') NOT IN ('sale', 'getLast')
     OR v_payment.provider_result->>'statusCode' IS DISTINCT FROM '00'
     OR v_payment.provider_result->>'responseCode' IS DISTINCT FROM '00'
+    OR jsonb_typeof(v_payment.provider_result->'transData') IS DISTINCT FROM 'object'
+    OR v_payment.provider_result->'transData'->>'transId'
+      IS DISTINCT FROM v_payment.provider_transaction_id
+    OR v_payment.provider_result->>'posId'
+      IS DISTINCT FROM v_payment.sale_payload->>'fiuu_cloudecr_pos_id'
+    OR v_payment.provider_result->>'deviceId'
+      IS DISTINCT FROM v_payment.sale_payload->>'fiuu_cloudecr_device_id'
+    OR v_payment.provider_result->>'terminalSn'
+      IS DISTINCT FROM v_payment.sale_payload->>'fiuu_cloudecr_terminal_sn'
+    OR (
+      v_payment.provider_result->>'transType' = 'sale'
+      AND v_payment.provider_result->>'referenceId'
+        IS DISTINCT FROM v_payment.provider_order_id
+    )
+    OR (
+      v_payment.provider_result->>'transType' = 'getLast'
+      AND (
+        v_payment.provider_reconcile_reference_id IS NULL
+        OR v_payment.provider_result->>'referenceId'
+          IS DISTINCT FROM v_payment.provider_reconcile_reference_id
+      )
+    )
+    OR v_payment.provider_result->'transData'->>'paymentChannel'
+      IS DISTINCT FROM 'duitNowQr'
+    OR v_payment.provider_result->'transData'->>'currency' IS DISTINCT FROM 'MYR'
+    OR NULLIF(btrim(COALESCE(v_payment.provider_result->'transData'->>'mid', '')), '') IS NULL
+    OR NULLIF(btrim(COALESCE(v_payment.provider_result->'transData'->>'tid', '')), '') IS NULL
+    OR COALESCE(v_payment.provider_result->'transData'->>'transAmt', '')
+      !~ '^[0-9]+(\.[0-9]{1,2})?$'
+    OR round((v_payment.provider_result->'transData'->>'transAmt')::NUMERIC, 2)
+      <> round(v_payment.amount_rm, 2)
     OR COALESCE(v_payment.provider_result->>'signature', '') !~ '^[A-Fa-f0-9]{64}$' THEN
     RAISE EXCEPTION 'Fiuu cloudECR POS payment is not fulfillable';
   END IF;
+
+  PERFORM public.require_pos_fiuu_cloudecr_br001_mapping(
+    v_payment.organization_id,
+    v_payment.branch_id,
+    v_payment.sale_payload->>'fiuu_cloudecr_pos_id',
+    v_payment.sale_payload->>'fiuu_cloudecr_device_id',
+    v_payment.sale_payload->>'fiuu_cloudecr_terminal_sn',
+    v_payment.provider_result->'transData'->>'mid',
+    v_payment.provider_result->'transData'->>'tid',
+    true
+  );
 
   -- The customer has already approved the charged amount. Refuse to issue a
   -- different receipt if the catalogue changes before fulfilment. An affected
@@ -444,6 +875,226 @@ REVOKE ALL ON FUNCTION public.fulfill_pos_fiuu_cloudecr_payment(UUID)
   FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.fulfill_pos_fiuu_cloudecr_payment(UUID)
   TO service_role;
+
+CREATE OR REPLACE FUNCTION public.recover_pos_fiuu_cloudecr_fulfillment(
+  p_payment_id UUID,
+  p_recovery_key TEXT,
+  p_expected_provider_transaction_id TEXT,
+  p_reason TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, pg_temp
+AS $$
+DECLARE
+  v_shift_id UUID;
+  v_shift_status TEXT;
+  v_payment public.pos_online_payments%ROWTYPE;
+  v_attempt public.pos_fiuu_cloudecr_recovery_attempts%ROWTYPE;
+  v_attempt_id UUID;
+  v_result JSONB;
+  v_transaction_id UUID;
+  v_error_state TEXT;
+  v_error_message TEXT;
+BEGIN
+  IF p_payment_id IS NULL
+    OR COALESCE(p_recovery_key, '') !~ '^[A-Za-z0-9_-]{8,64}$'
+    OR COALESCE(p_expected_provider_transaction_id, '') !~ '^[0-9]{1,10}$'
+    OR p_reason IS NULL
+    OR p_reason IS DISTINCT FROM btrim(p_reason)
+    OR length(p_reason) NOT BETWEEN 8 AND 500
+    OR p_reason ~ '[[:cntrl:]]' THEN
+    RAISE EXCEPTION USING
+      ERRCODE = 'invalid_parameter_value',
+      MESSAGE = 'Invalid Fiuu cloudECR fulfilment recovery request';
+  END IF;
+
+  SELECT shift_id INTO v_shift_id
+  FROM public.pos_online_payments
+  WHERE id = p_payment_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Fiuu cloudECR POS payment not found';
+  END IF;
+
+  -- Preserve the shift-first lock order used by reporting, normal fulfilment
+  -- and shift closure. An already-PAID idempotent replay remains readable even
+  -- after shift closure; only a fresh REPORTED recovery requires OPEN.
+  SELECT status::TEXT INTO v_shift_status
+  FROM public.pos_shifts
+  WHERE id = v_shift_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Fiuu cloudECR POS shift not found';
+  END IF;
+
+  SELECT * INTO v_payment
+  FROM public.pos_online_payments
+  WHERE id = p_payment_id
+  FOR UPDATE;
+
+  IF NOT FOUND
+    OR v_payment.provider <> 'fiuu_cloudecr'
+    OR v_payment.shift_id IS DISTINCT FROM v_shift_id
+    OR v_payment.sale_payload->>'fiuu_branch_code' IS DISTINCT FROM 'BR001' THEN
+    RAISE EXCEPTION 'Fiuu cloudECR BR001 POS payment not found';
+  END IF;
+
+  SELECT * INTO v_attempt
+  FROM public.pos_fiuu_cloudecr_recovery_attempts
+  WHERE payment_id = p_payment_id
+    AND recovery_key = p_recovery_key
+  FOR UPDATE;
+
+  IF FOUND THEN
+    IF v_attempt.expected_provider_transaction_id
+      IS DISTINCT FROM p_expected_provider_transaction_id THEN
+      RAISE EXCEPTION USING
+        ERRCODE = 'invalid_parameter_value',
+        MESSAGE = 'Fiuu cloudECR recovery key identity mismatch';
+    END IF;
+
+    RETURN jsonb_strip_nulls(jsonb_build_object(
+      'recovery_id', v_attempt.id,
+      'payment_id', v_attempt.payment_id,
+      'status', v_attempt.status,
+      'transaction_id', v_attempt.transaction_id,
+      'failure_code', v_attempt.failure_code,
+      'idempotent_replay', true
+    ));
+  END IF;
+
+  IF v_payment.provider_transaction_id
+      IS DISTINCT FROM p_expected_provider_transaction_id THEN
+    RAISE EXCEPTION USING
+      ERRCODE = 'check_violation',
+      MESSAGE = 'Fiuu cloudECR recovery transaction reference mismatch';
+  END IF;
+
+  IF v_payment.status = 'PAID' AND v_payment.transaction_id IS NOT NULL THEN
+    INSERT INTO public.pos_fiuu_cloudecr_recovery_attempts (
+      payment_id,
+      recovery_key,
+      expected_provider_transaction_id,
+      reason,
+      status,
+      transaction_id,
+      completed_at
+    ) VALUES (
+      v_payment.id,
+      p_recovery_key,
+      p_expected_provider_transaction_id,
+      p_reason,
+      'SUCCEEDED',
+      v_payment.transaction_id,
+      now()
+    )
+    RETURNING id INTO v_attempt_id;
+
+    RETURN jsonb_build_object(
+      'recovery_id', v_attempt_id,
+      'payment_id', v_payment.id,
+      'status', 'SUCCEEDED',
+      'transaction_id', v_payment.transaction_id,
+      'idempotent_replay', true
+    );
+  END IF;
+
+  IF v_payment.status <> 'REPORTED'
+    OR v_payment.provider_transaction_id IS NULL
+    OR v_payment.provider_result->>'statusCode' IS DISTINCT FROM '00'
+    OR v_payment.provider_result->>'responseCode' IS DISTINCT FROM '00'
+    OR jsonb_typeof(v_payment.provider_result->'transData') IS DISTINCT FROM 'object'
+    OR v_payment.provider_result->'transData'->>'transId'
+      IS DISTINCT FROM v_payment.provider_transaction_id
+    OR NULLIF(btrim(COALESCE(v_payment.provider_result->'transData'->>'mid', '')), '') IS NULL
+    OR NULLIF(btrim(COALESCE(v_payment.provider_result->'transData'->>'tid', '')), '') IS NULL
+    OR COALESCE(v_payment.provider_result->>'signature', '') !~ '^[A-Fa-f0-9]{64}$' THEN
+    RAISE EXCEPTION 'Fiuu cloudECR BR001 payment is not recoverable';
+  END IF;
+
+  PERFORM public.require_pos_fiuu_cloudecr_br001_mapping(
+    v_payment.organization_id,
+    v_payment.branch_id,
+    v_payment.sale_payload->>'fiuu_cloudecr_pos_id',
+    v_payment.sale_payload->>'fiuu_cloudecr_device_id',
+    v_payment.sale_payload->>'fiuu_cloudecr_terminal_sn',
+    v_payment.provider_result->'transData'->>'mid',
+    v_payment.provider_result->'transData'->>'tid',
+    true
+  );
+
+  INSERT INTO public.pos_fiuu_cloudecr_recovery_attempts (
+    payment_id,
+    recovery_key,
+    expected_provider_transaction_id,
+    reason
+  ) VALUES (
+    v_payment.id,
+    p_recovery_key,
+    p_expected_provider_transaction_id,
+    p_reason
+  )
+  RETURNING id INTO v_attempt_id;
+
+  BEGIN
+    IF v_shift_status IS DISTINCT FROM 'OPEN' THEN
+      RAISE EXCEPTION 'Fiuu cloudECR BR001 shift is not open for recovery';
+    END IF;
+
+    v_result := public.fulfill_pos_fiuu_cloudecr_payment(v_payment.id);
+    v_transaction_id := (v_result->>'transaction_id')::UUID;
+    IF v_transaction_id IS NULL THEN
+      RAISE EXCEPTION 'Fiuu cloudECR recovery did not produce a transaction';
+    END IF;
+
+    UPDATE public.pos_fiuu_cloudecr_recovery_attempts
+    SET status = 'SUCCEEDED',
+        transaction_id = v_transaction_id,
+        completed_at = now()
+    WHERE id = v_attempt_id;
+
+    RETURN jsonb_build_object(
+      'recovery_id', v_attempt_id,
+      'payment_id', v_payment.id,
+      'status', 'SUCCEEDED',
+      'transaction_id', v_transaction_id,
+      'idempotent_replay', false
+    );
+  EXCEPTION WHEN OTHERS THEN
+    GET STACKED DIAGNOSTICS
+      v_error_state = RETURNED_SQLSTATE,
+      v_error_message = MESSAGE_TEXT;
+
+    UPDATE public.pos_fiuu_cloudecr_recovery_attempts
+    SET status = 'FAILED',
+        failure_code = COALESCE(v_error_state, 'P0001'),
+        failure_message = left(
+          COALESCE(v_error_message, 'Fiuu cloudECR fulfilment recovery failed'),
+          500
+        ),
+        completed_at = now()
+    WHERE id = v_attempt_id;
+
+    RETURN jsonb_build_object(
+      'recovery_id', v_attempt_id,
+      'payment_id', v_payment.id,
+      'status', 'FAILED',
+      'failure_code', COALESCE(v_error_state, 'P0001'),
+      'idempotent_replay', false
+    );
+  END;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.recover_pos_fiuu_cloudecr_fulfillment(
+  UUID, TEXT, TEXT, TEXT
+) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.recover_pos_fiuu_cloudecr_fulfillment(
+  UUID, TEXT, TEXT, TEXT
+) TO service_role;
 
 -- Keep the shift open while a cloudECR response may still be reconciled.
 CREATE OR REPLACE FUNCTION public.guard_pos_shift_close_pending_payments()

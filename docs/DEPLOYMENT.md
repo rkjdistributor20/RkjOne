@@ -76,14 +76,15 @@ POS Fiuu DuitNow QR variables:
 
 | Variable | Required | Scope |
 |----------|----------|-------|
-| `POS_QR_PAYMENT_MODE` | Yes | Server; `manual`, signed OPA `fiuu`, or branch-gated app-to-app `fiuu_vt` |
+| `POS_QR_PAYMENT_MODE` | Yes | Server; `manual`, signed OPA `fiuu`, branch-gated app-to-app `fiuu_vt`, or prepared cloudECR fallback `fiuu_cloudecr` |
 | `POS_FIUU_ENVIRONMENT` | When Fiuu enabled | Server; `sandbox` or `production` |
-| `POS_FIUU_APPLICATIONS_JSON` | Preferred when Fiuu enabled | Server secret; Application Code/Secret Key mapping by branch code |
+| `POS_FIUU_APPLICATIONS_JSON` | Required for Production OPA | Server secret; Application Code, Secret Key, Store ID and Terminal ID mapping by branch code |
 | `POS_FIUU_APPLICATION_CODE` | Optional pilot fallback | Server secret |
 | `POS_FIUU_SECRET_KEY` | Optional pilot fallback | Server secret |
 | `POS_FIUU_STORE_ID` | Optional pilot fallback | Server |
+| `POS_FIUU_TERMINAL_ID` | Optional sandbox/pilot fallback | Server; Production uses the explicit branch mapping instead |
 | `POS_FIUU_CHANNEL_ID` | Yes when Fiuu enabled | Server; must remain `24` for DuitNow QR Offline |
-| `POS_FIUU_QR_VALIDITY_SECONDS` | Optional | Server; 60-999 seconds, default 600 |
+| `POS_FIUU_QR_VALIDITY_SECONDS` | Optional | Server; 60-180 seconds, default 180 |
 | `POS_FIUU_PRECREATE_URL` | Optional | Server; official endpoint override only |
 | `POS_FIUU_VT_BRANCHES` | When VT pilot enabled | Server; explicit comma-separated pilot codes, initially `BR001` only |
 | `POS_FIUU_VT_VALIDITY_SECONDS` | Optional | Server; 60-3600 seconds, default 900 |

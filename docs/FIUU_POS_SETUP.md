@@ -1,12 +1,24 @@
 # RKJ One Fiuu DuitNow QR POS Setup
 
-Last updated: 2026-10-24
+Last updated: 2026-10-25
 
-## Current BR001 decision (2026-10-24)
+## Authoritative BR001 operating runbook
+
+Use [FIUU_BR001_UAT_RUNBOOK.md](./FIUU_BR001_UAT_RUNBOOK.md) for OPA environment safety, BR001 go/no-go gates, preflight, controlled UAT evidence and rollback. It is deliberately credential-free and does not authorize a migration, deployment, Production environment change, real charge or outlet rollout.
+
+The three Fiuu integration paths are separate:
+
+- **OPA Dynamic DuitNow QR** is the primary BR001 path. It is server-to-server and has its own Application Code, Store ID, Terminal ID and Secret Key.
+- **Fiuu VT+ + cloudECR** uses package `com.fiuu.cloudecrvt` and the signed cloudECR REST contract. It is retained as a prepared fallback.
+- **Legacy Fiuu VT App-to-App** uses package `com.rms.mobile.razervt` and unsigned `razervt://` deep-link responses. It is retained only as a separate legacy path.
+
+Never reuse credentials, identifiers, activation/binding material or readiness evidence between these paths.
+
+## Current BR001 decision (2026-10-25)
 
 The controlled RM2.50 BR001 static DuitNow QR sale passed. Transaction `TX-20261021-00001` completed once under shift `SH-20261021-0001`, the expected stock was deducted, the shift total reconciled to RM2.50 and Finance manually marked the related payment record paid. This confirms the existing RKJ One static-QR/manual sale pipeline only; it is not proof of Fiuu VT, Fiuu VT+ or cloudECR automatic confirmation.
 
-The 2026-10-24 device and Google Play audit changes the preferred follow-up path from the legacy Fiuu VT App-to-App package to a **BR001-only Fiuu VT+ and cloudECR pilot**. The signed server adapter, fail-closed branch guard, payment lifecycle and additive migration are now prepared locally for review. No Production migration, environment variable, payment mode, deployment, merchant configuration or outlet rollout was changed.
+The preferred BR001 integration is now **OPA Dynamic DuitNow QR**. It works through RKJ One and Fiuu servers, so the existing Samsung and HONOR tablets do not need NFC, a compatible legacy VT package or a working VT+ application. RKJ One already has the signed request/callback, fail-closed branch mapping, idempotent receipt and stock path required for this route. No Production migration, environment variable, payment mode, deployment, merchant configuration or outlet rollout was changed.
 
 ### Device and Play evidence recorded on 2026-10-24
 
@@ -14,9 +26,10 @@ The 2026-10-24 device and Google Play audit changes the preferred follow-up path
 - Google Play account `rkjdistributor20@gmail.com` has registered two relevant devices: Samsung `SM-X406B` and HONOR `ELN2-L29`, identified by Google Play as **HONOR Pad X9a**. The HONOR device is not model `NDL2-L09` and is not an HONOR Pad X8b.
 - The standard **Fiuu Virtual Terminal** listing/package used by the legacy App-to-App path is unavailable for both registered devices.
 - The current **Fiuu VT+** listing is available to all devices registered under the same Google Play account. Availability establishes only Play eligibility; it does not establish an activated VT+ terminal, cloudECR entitlement, binding or payment readiness.
+- The official Fiuu VT+ package was installed from Play on the physical BR001 Samsung, but remained at its blue splash screen after a clean launch. The same tablet reached `https://cloudecr.fiuu.com` over HTTPS and received the expected API-style response, so DNS/TLS/network access is working and the remaining blocker is inside the provider application/runtime or its provisioning.
 - An earlier support diagnosis referred to Android 10 and an X8b device. That diagnosis appears to have used a different or assumed device profile and does not match the device metadata now observed directly in Phone Link and Google Play. Future provider troubleshooting must use the verified `SM-X406B`/Android 16 and `ELN2-L29`/HONOR Pad X9a inventory so all parties diagnose the same hardware.
 
-The existing tablets do not need replacement for the preferred route. The standard VT package remains incompatible, but the official Fiuu VT+ package `com.fiuu.cloudecrvt` is Play-eligible on both registered devices. The BR001 cloudECR/VT+ path remains blocked by these concrete gates:
+The existing tablets do not need replacement for OPA. The cloudECR/VT+ fallback remains blocked until its application opens beyond the splash screen and these concrete gates pass:
 
 1. In Merchant Portal, create or identify the BR001 VT+ terminal under **VT Activation → List → New VT Terminal**, enable cloudECR, and create or identify its POS API account. Retrieve credentials only through the portal or another approved secure channel.
 2. BR001 VT+ must be activated, cloudECR-enabled and bound to the intended POS account; Play availability alone is insufficient.
@@ -24,7 +37,7 @@ The existing tablets do not need replacement for the preferred route. The standa
 4. A physical BR001 sale, timeout/Get Last or pending inquiry recovery, exact-once RKJ receipt/stock update and Finance settlement reconciliation must pass.
 5. Any required migration, Production environment value or deployment remains subject to a fresh owner confirmation immediately before the Production change.
 
-Do not enable all outlets yet. Keep Production static/manual while cloudECR/VT+ is prepared and tested for BR001 in a controlled environment. BR002-BR036 remain outside the pilot until BR001 physical UAT, receipt, stock, shift and settlement reconciliation all pass.
+Do not enable all outlets yet. Keep Production static/manual while OPA is configured and tested for BR001 in a controlled environment. BR002-BR036 remain outside the pilot until BR001 signed callback, receipt, stock, shift and settlement reconciliation all pass.
 
 ## Historical provider status (through 2026-10-20)
 
@@ -99,40 +112,34 @@ All 36 generated assets were decoded and compared byte-for-byte with the Fiuu EM
 - Fiuu Ticket `2971942` confirms that merchant `rotikayajunus` has the offline e-Wallet channel required for OPA. Fiuu will create a separate sandbox Application Code after RKJ confirms that its sandbox account already exists; the Merchant ID must not be assumed to be that Application Code.
 - Fiuu's 2026-08-21 reply said Application `121582` had no store information at that time. Fiuu subsequently confirmed on 2026-10-06 that the 36 add-on stores were ready, and the 36 static QR payloads were received. The signed cloudECR contract is documented and implemented locally. Provider-side VT+ provisioning, exact sub-account/terminal mapping, refund procedure and settlement mapping remain **To be confirmed**.
 - The public Fiuu Offline Payment API v2.1.18 specification confirms the configured sandbox and Production pre-create URLs, `applicationCode` as a provider-issued OPA identifier, `storeId` and `terminalId` as merchant identifiers, `channelId=24` for DuitNow QR, form-encoded POST requests and HMAC-SHA256 support. It does not establish that the sandbox Merchant ID is an OPA `applicationCode` for this account.
-- RKJ One currently supports verified branch static QR/manual confirmation for all 36 branches. The signed cloudECR + Fiuu VT+ path is implemented fail-closed for BR001 only, but it is not enabled in Production. The remaining gates are POS/VT+ provisioning, secure credentials, exact `posId`/`deviceId`/`terminalSn` binding, per-submerchant mapping, physical UAT and settlement reconciliation.
+- RKJ One currently supports verified branch static QR/manual confirmation for all 36 branches. Signed OPA is the primary automatic-confirmation path for BR001, while the signed cloudECR + Fiuu VT+ adapter remains a prepared fallback. Neither is enabled in Production.
 - BR001-BR036 remain in static/manual mode. Do not enable `fiuu_vt`, cloudECR or VT+ payment handling in Production until the relevant physical UAT and settlement reconciliation pass and the owner confirms the exact Production action.
 - The POS client now preserves an unresolved dynamic-QR intent across a page reload for the same branch and shift. It does not offer a second QR while the original intent can still receive a signed late callback.
 - A database uniqueness guard also permits only one pending Fiuu intent per organization, branch, shift and cashier, covering concurrent tabs or requests beyond the client-side recovery guard.
 - OPA status polling remains read-only. In BR001 cloudECR mode, status polling may acquire a database lease and call `getLast`; concurrent tabs can cause at most one provider reconciliation attempt every 180 seconds. The lease is longer than the server request window so a second query cannot replace the first query reference while it is still running.
-- Each cloudECR HTTP call is capped at 15 seconds. Even the worst cold-authentication and one-retry chain therefore remains inside the 100-second server route budget; a timeout stays recoverable through the durable pending intent and `getLast` flow.
+- The BR001 target is an 80-second cloudECR transaction timeout, with the hosting route budget set higher by a safe margin. A deployment is **NO-GO** if configuration or code rejects `80000`, if the platform ends the request earlier, or if pending/`getLast` recovery is not proven. A timeout must retain the durable intent and must never trigger a second SALE automatically.
 - Every cloudECR SALE uses a unique 20-character reference stored as transaction metadata. Every `getLast` uses a different unique query reference; a successful recovery is accepted only when the signed response returns the original SALE reference in metadata and matches the configured POS ID, Device ID, Terminal SN, amount, currency and DuitNow channel.
 - A signed `00/00` response is persisted first as `REPORTED` with its Fiuu Transaction ID and exact verified response payload. Receipt, stock and shift fulfilment is then idempotently retried from that durable state without sending another SALE. A failed or ambiguous `getLast` never converts the original payment to `FAILED`.
 - Only one unresolved cloudECR SALE may exist for the configured POS ID, Device ID and Terminal SN across all RKJ tablets. A server-side price snapshot plus deterministic product-row locks prevents a concurrent catalogue change from producing a receipt with a different amount. Stock is revalidated during fulfilment; any mismatch stays `REPORTED` for Finance/manual resolution.
 - After the visible QR expires, RKJ One keeps the intent locked during the database-enforced 20-minute reconciliation grace period; only after that period can the attempt become safely retryable.
-- Production QR creation requires an explicit branch entry with provider-issued Application Code, Secret Key and Store ID. Global credentials or an invented Store ID cannot activate a Production branch.
+- Production OPA QR creation requires an explicit branch entry with provider-issued Application Code, Secret Key, Store ID and Terminal ID. Global credentials or an invented identifier cannot activate a Production branch.
 - Callback verification remains available after creation mode is rolled back to `manual`, allowing an already-issued QR to complete safely.
 
 Merchant portal credentials shown on the portal home page must not be assumed to be OPA Application Code/Secret Key. Obtain the OPA credentials and notification setup from Fiuu for the intended store/branch arrangement.
 
-## Immediate BR001 cloudECR/VT+ actions
+## Immediate BR001 OPA actions
 
-1. Use Merchant Portal **VT Activation → List → New VT Terminal** to create or identify one VT+ account for `masterkayajunus01`, enable cloudECR, and create or identify its POS API account. Obtain `merchantId`, `posId`, POS password, Device ID, Terminal SN and Secret Key through the portal or an approved secure channel without recording secrets in Git, chat or screenshots.
-2. Install only the official Fiuu VT+ package `com.fiuu.cloudecrvt` on the physical BR001 Samsung `SM-X406B`, activate it with the portal QR, set the exact cloudECR Secret Key (maximum 40 characters) and bind it to the intended POS account.
-3. Obtain the provider mapping for all 36 sub-merchants, but configure and activate BR001 only. Do not infer that one POS token can select all sub-merchants merely because Fiuu supports multiple sub-accounts.
-4. Exercise the signed cloudECR request/response path in an isolated Preview or staging context first, including token refresh, HMAC verification, `statusCode=00`, unique-reference timeout/Get Last recovery, pending inquiry, the 180-second reconciliation lease, durable `REPORTED` recovery, duplicate protection and exact transaction matching. Confirm that Fiuu returns the original SALE metadata in successful `getLast`; do not weaken this gate if metadata is absent.
-5. Perform one low-value physical BR001 payment with Finance present. Reconcile the Fiuu transaction, RKJ One receipt, stock movement, shift total, Fiuu settlement report and company bank credit.
-6. Keep every other active branch on its static QR/manual workflow until BR001 passes; owner approval exists, but advance only the next technically ready batch.
-7. Request fresh owner confirmation immediately before any Production migration, credential, environment or deployment change. The 2026-10-24 evidence review did not authorize or perform Production changes.
-
-## Required provider setup for signed OPA alternative
-
-1. Confirm the Fiuu Booster/OPA application status in an authenticated Booster session or directly with Fiuu.
-2. Confirm whether Fiuu issues one OPA application per branch/store or one application for the company.
-3. Obtain sandbox Application Code and Secret Key without placing them in Git, chat, screenshots or mobile code.
-4. Configure the staging notification URL after Fiuu issues the OPA credentials:
+1. Retrieve the BR001 sandbox OPA Application Code and Secret Key from the authenticated Fiuu portal or an approved secure channel. Do not substitute the portal Merchant ID, Verify Key or cloudECR Secret Key.
+2. Record the provider-approved BR001 Store ID and Terminal ID. Production will remain fail-closed unless both are explicit in the branch mapping.
+3. Enter a `BR001`-only mapping directly into the Vercel Preview environment; never paste the real values into Git or chat.
+4. Configure the Preview notification URL:
    `https://<vercel-preview-host>/api/pos/qr-payments/webhook`
-5. Complete a signed sandbox transaction and verify the provider callback payload against the current Fiuu OPA specification.
-6. Pilot one branch and one official POS device before enabling more branches.
+5. Complete a signed sandbox transaction using channel `24` and a validity of 60–180 seconds. Verify the callback, exact-once receipt, stock movement, shift update, late/duplicate handling and settlement.
+6. Keep every other branch on static QR/manual until BR001 passes, and request fresh confirmation immediately before any Production action.
+
+## cloudECR/VT+ fallback actions
+
+Do not spend the pilot window on cloudECR until the official VT+ app opens beyond its splash screen. When it does, use the prepared BR001-only adapter and run the separate terminal/POS binding, 80-second SALE, signed response, `getLast` recovery and settlement gates in the runbook.
 
 Do not submit another DuitNow QR Offline channel request while the existing channel remains activated.
 
@@ -159,7 +166,8 @@ Use Vercel server-only environment variables. `POS_FIUU_APPLICATIONS_JSON` is pr
   "BRANCH_CODE": {
     "applicationCode": "provider-issued-code",
     "secretKey": "provider-issued-secret",
-    "storeId": "provider-approved-store-id"
+    "storeId": "provider-approved-store-id",
+    "terminalId": "provider-approved-terminal-id"
   }
 }
 ```
@@ -181,6 +189,8 @@ Do not commit the real JSON. Keep `POS_QR_PAYMENT_MODE=manual` until UAT passes.
 - A signed callback received during the bounded expiry grace creates at most one sale; after the grace ends, a new attempt can be created without accepting the old intent.
 
 ## Rollout and rollback
+
+The detailed decision table and evidence checklist are in [FIUU_BR001_UAT_RUNBOOK.md](./FIUU_BR001_UAT_RUNBOOK.md).
 
 1. Apply the migration to staging and run the full UAT list.
 2. Enable Fiuu only in the Preview environment.

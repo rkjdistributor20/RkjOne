@@ -21,7 +21,7 @@ Authentication:
 
 ## POS Fiuu DuitNow QR API
 
-The signed OPA transport creates a sale only after a valid Fiuu Offline Payment API notification. The legacy Fiuu VT App-to-App pilot uses an unsigned deep-link result and remains unavailable on the registered RKJ tablets. The preferred BR001-only path is Fiuu VT+ through cloudECR: credentials and tokens remain server-side, every request and response uses HMAC-SHA256, and a provider success is stored durably as `REPORTED` before receipt and stock fulfilment. The default remains manual mode until the selected transport passes physical UAT and Finance settlement reconciliation.
+The signed OPA transport creates a sale only after a valid Fiuu Offline Payment API notification and is the primary BR001 route for the existing tablets. It is server-to-server and does not depend on NFC or a native Fiuu terminal application. Fiuu VT+ through cloudECR remains a prepared BR001-only fallback: credentials and tokens remain server-side, every request and response uses HMAC-SHA256, and a provider success is stored durably as `REPORTED` before receipt and stock fulfilment. The legacy VT App-to-App route remains unavailable on the registered tablets. The default remains manual mode until the selected transport passes physical UAT and Finance settlement reconciliation.
 
 ### POST `/api/pos/qr-payments`
 

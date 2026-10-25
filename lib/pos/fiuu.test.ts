@@ -74,7 +74,12 @@ describe('Fiuu configuration safety', () => {
   process.env.POS_QR_PAYMENT_MODE = 'fiuu';
   process.env.POS_FIUU_ENVIRONMENT = 'sandbox';
   process.env.POS_FIUU_APPLICATIONS_JSON = JSON.stringify({
-   BR001: { applicationCode: 'APP001', secretKey: 'secret-001', storeId: 'STORE001' },
+   BR001: {
+    applicationCode: 'APP001',
+    secretKey: 'secret-001',
+    storeId: 'STORE001',
+    terminalId: 'TERM001',
+   },
    BR002: { applicationCode: 'APP002', secretKey: 'secret-002' },
   });
 
@@ -84,11 +89,29 @@ describe('Fiuu configuration safety', () => {
    applicationCode: 'APP001',
    secretKey: 'secret-001',
    storeId: 'STORE001',
+   terminalId: 'TERM001',
    channelId: '24',
    environment: 'sandbox',
   });
-  expect(config?.terminalId).toBe('RKJDEVICE01');
   expect(config?.precreateUrl).toContain('sandbox-payment.fiuu.com');
+  expect(config?.validitySeconds).toBe(180);
+ });
+
+ it('uses only the documented 60 to 180 second DuitNow validity range', () => {
+  process.env.POS_QR_PAYMENT_MODE = 'fiuu';
+  process.env.POS_FIUU_ENVIRONMENT = 'sandbox';
+  process.env.POS_FIUU_APPLICATIONS_JSON = JSON.stringify({
+   BR001: { applicationCode: 'APP001', secretKey: 'secret-001' },
+  });
+
+  process.env.POS_FIUU_QR_VALIDITY_SECONDS = '60';
+  expect(getFiuuOpaConfig('BR001', 'POS001')?.validitySeconds).toBe(60);
+
+  process.env.POS_FIUU_QR_VALIDITY_SECONDS = '180';
+  expect(getFiuuOpaConfig('BR001', 'POS001')?.validitySeconds).toBe(180);
+
+  process.env.POS_FIUU_QR_VALIDITY_SECONDS = '181';
+  expect(getFiuuOpaConfig('BR001', 'POS001')?.validitySeconds).toBe(180);
  });
 
  it('loads callback credentials while new QR creation is disabled', () => {
@@ -106,7 +129,7 @@ describe('Fiuu configuration safety', () => {
   });
  });
 
- it('requires an explicit branch and store mapping in production', () => {
+ it('requires explicit branch, store and terminal mappings in production', () => {
   process.env.POS_QR_PAYMENT_MODE = 'fiuu';
   process.env.POS_FIUU_ENVIRONMENT = 'production';
   process.env.POS_FIUU_APPLICATION_CODE = 'GLOBAL_APP';
@@ -122,9 +145,20 @@ describe('Fiuu configuration safety', () => {
   process.env.POS_FIUU_APPLICATIONS_JSON = JSON.stringify({
    BR001: { applicationCode: 'APP001', secretKey: 'secret-001', storeId: 'STORE001' },
   });
+  expect(getFiuuOpaConfig('BR001', 'POS001')).toBeNull();
+
+  process.env.POS_FIUU_APPLICATIONS_JSON = JSON.stringify({
+   BR001: {
+    applicationCode: 'APP001',
+    secretKey: 'secret-001',
+    storeId: 'STORE001',
+    terminalId: 'TERM001',
+   },
+  });
   expect(getFiuuOpaConfig('BR001', 'POS001')).toMatchObject({
    applicationCode: 'APP001',
    storeId: 'STORE001',
+   terminalId: 'TERM001',
    environment: 'production',
   });
  });
@@ -133,7 +167,12 @@ describe('Fiuu configuration safety', () => {
   process.env.POS_QR_PAYMENT_MODE = 'fiuu';
   process.env.POS_FIUU_ENVIRONMENT = 'production';
   process.env.POS_FIUU_APPLICATIONS_JSON = JSON.stringify({
-   BR001: { applicationCode: 'APP001', secretKey: 'secret-001', storeId: 'STORE001' },
+   BR001: {
+    applicationCode: 'APP001',
+    secretKey: 'secret-001',
+    storeId: 'STORE001',
+    terminalId: 'TERM001',
+   },
   });
   process.env.POS_FIUU_PRECREATE_URL = 'https://example.com/precreate';
 
@@ -146,7 +185,12 @@ describe('Fiuu configuration safety', () => {
   process.env.POS_QR_PAYMENT_MODE = 'fiuu';
   process.env.POS_FIUU_ENVIRONMENT = 'production';
   process.env.POS_FIUU_APPLICATIONS_JSON = JSON.stringify({
-   BR001: { applicationCode: 'APP001', secretKey: 'secret-001', storeId: 'STORE001' },
+   BR001: {
+    applicationCode: 'APP001',
+    secretKey: 'secret-001',
+    storeId: 'STORE001',
+    terminalId: 'TERM001',
+   },
   });
   process.env.POS_FIUU_PRECREATE_URL = 'https://sandbox-payment.fiuu.com/RMS/API/MOLOPA/precreate.php';
 

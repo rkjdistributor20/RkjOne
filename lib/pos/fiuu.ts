@@ -16,6 +16,7 @@ type FiuuApplicationEntry = {
   applicationCode: string;
   secretKey: string;
   storeId?: string;
+  terminalId?: string;
 };
 
 export type FiuuOpaConfig = {
@@ -95,18 +96,19 @@ function parseApplications(): Record<string, FiuuApplicationEntry> {
     const applicationCode = typeof value.applicationCode === 'string' ? value.applicationCode.trim() : '';
     const secretKey = typeof value.secretKey === 'string' ? value.secretKey.trim() : '';
     const storeId = typeof value.storeId === 'string' ? value.storeId.trim() : undefined;
+    const terminalId = typeof value.terminalId === 'string' ? value.terminalId.trim() : undefined;
     if (!applicationCode || applicationCode.length > 32 || !secretKey) {
       throw new Error(`Application Code atau Secret Key Fiuu ${branchCode} tidak lengkap`);
     }
-    result[branchCode.toUpperCase()] = { applicationCode, secretKey, storeId };
+    result[branchCode.toUpperCase()] = { applicationCode, secretKey, storeId, terminalId };
   }
 
   return result;
 }
 
 function parseValiditySeconds(): number {
-  const value = Number(process.env.POS_FIUU_QR_VALIDITY_SECONDS ?? 600);
-  if (!Number.isInteger(value) || value < 60 || value > 999) return 600;
+  const value = Number(process.env.POS_FIUU_QR_VALIDITY_SECONDS ?? 180);
+  if (!Number.isInteger(value) || value < 60 || value > 180) return 180;
   return value;
 }
 
@@ -151,7 +153,7 @@ export function getFiuuOpaConfig(
   const applications = parseApplications();
   const mapped = applications[branchCode.toUpperCase()];
   const environment = getFiuuEnvironment();
-  if (environment === 'production' && (!mapped || !mapped.storeId)) return null;
+  if (environment === 'production' && (!mapped || !mapped.storeId || !mapped.terminalId)) return null;
 
   const applicationCode = mapped?.applicationCode
     ?? process.env.POS_FIUU_APPLICATION_CODE?.trim()
@@ -180,7 +182,7 @@ export function getFiuuOpaConfig(
       'Store ID',
     ),
     terminalId: validateIdentifier(
-      undefined,
+      mapped?.terminalId ?? process.env.POS_FIUU_TERMINAL_ID,
       normalizeIdentifier(deviceCode, 'RKJ'),
       'Terminal ID',
     ),

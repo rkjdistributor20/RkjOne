@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-25 - Select signed OPA for the existing BR001 tablet
+
+- Selected Fiuu OPA Dynamic DuitNow QR as the primary BR001 automatic-verification path because it is server-to-server and does not depend on tablet NFC, legacy VT compatibility or the VT+ application runtime.
+- Recorded that the official VT+ package is Play-installed on the BR001 Samsung but remains on its blue splash screen while direct HTTPS access to the Fiuu cloudECR host succeeds; cloudECR stays prepared as a fallback.
+- Required explicit provider-approved Store ID and Terminal ID in every Production OPA branch mapping; Production no longer derives a terminal identifier from the RKJ device code.
+- Corrected the DuitNow pre-create validity guard to the documented 60-180 second range with a 180-second default.
+- Replaced the BR001 runbook with an OPA-first, signed-callback, exact-once receipt/stock and settlement gate while preserving manual rollback and the BR001-only scope.
+- No Production migration, environment value, deployment, payment or `BR002-BR036` change was made.
+
 ## 2026-10-24 - Fiuu device inventory and BR001 cloudECR/VT+ preparation
 
 - Recorded Phone Link metadata for the connected BR001 tablet: Samsung `SM-X406B` running Android 16.

@@ -3,6 +3,7 @@ package com.rkjone.staff;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageInfo;
 import android.net.Uri;
@@ -27,7 +28,8 @@ import java.util.regex.Pattern;
 
 @CapacitorPlugin(name = "RkjFiuuVt")
 public class RkjFiuuVtPlugin extends Plugin {
-    private static final String FIUU_PACKAGE = "com.rms.mobile.razervt";
+    private static final String LEGACY_FIUU_PACKAGE = "com.rms.mobile.razervt";
+    private static final String FIUU_VT_PLUS_PACKAGE = "com.fiuu.cloudecrvt";
     private static final String FIUU_SCHEME = "razervt";
     private static final String FIUU_HOST = "merchant.razer.com";
     private static final String CALLBACK_HOST = "fiuu-vt.rkj.one";
@@ -49,14 +51,65 @@ public class RkjFiuuVtPlugin extends Plugin {
         JSObject result = new JSObject();
         SharedPreferences preferences = preferences();
         result.put("nativeAndroid", true);
-        result.put("installed", isPackageInstalled(FIUU_PACKAGE));
-        result.put("trustedInstall", isTrustedInstall(FIUU_PACKAGE));
-        result.put("packageName", FIUU_PACKAGE);
-        result.put("versionName", packageVersion(FIUU_PACKAGE));
+        result.put("installed", isPackageInstalled(LEGACY_FIUU_PACKAGE));
+        result.put("trustedInstall", isTrustedInstall(LEGACY_FIUU_PACKAGE));
+        result.put("packageName", LEGACY_FIUU_PACKAGE);
+        result.put("versionName", packageVersion(LEGACY_FIUU_PACKAGE));
         result.put("pendingOrderId", emptyToNull(preferences.getString(PENDING_ORDER, "")));
         result.put("pendingOperation", emptyToNull(preferences.getString(PENDING_OPERATION, "")));
         result.put("resultAvailable", !preferences.getString(LAST_RESULT, "").isEmpty());
         call.resolve(result);
+    }
+
+    /**
+     * Reports readiness for the current Fiuu VT+ application used by cloudECR.
+     * This is intentionally separate from getStatus(), whose contract describes
+     * the legacy razervt App-to-App integration.
+     */
+    @PluginMethod
+    public void getVtPlusStatus(PluginCall call) {
+        call.resolve(vtPlusStatus());
+    }
+
+    /**
+     * Opens Fiuu VT+ without sending legacy razervt transaction parameters.
+     * cloudECR transaction requests remain server-to-server and must never be
+     * routed through the legacy deep-link flow below.
+     */
+    @PluginMethod
+    public void launchVtPlus(PluginCall call) {
+        JSObject status = vtPlusStatus();
+        if (!Boolean.TRUE.equals(status.getBool("installed"))) {
+            call.reject("Aplikasi Fiuu VT+ belum dipasang pada tablet ini.", "FIUU_VT_PLUS_NOT_INSTALLED");
+            return;
+        }
+        if (!Boolean.TRUE.equals(status.getBool("trustedInstall"))) {
+            call.reject("Fiuu VT+ mesti dipasang melalui Google Play.", "FIUU_VT_PLUS_UNTRUSTED_INSTALL");
+            return;
+        }
+        if (!Boolean.TRUE.equals(status.getBool("enabled"))) {
+            call.reject("Aplikasi Fiuu VT+ dinyahdayakan pada tablet ini.", "FIUU_VT_PLUS_DISABLED");
+            return;
+        }
+
+        Intent intent = getContext().getPackageManager().getLaunchIntentForPackage(FIUU_VT_PLUS_PACKAGE);
+        if (intent == null || intent.resolveActivity(getContext().getPackageManager()) == null) {
+            call.reject("Aplikasi Fiuu VT+ tiada skrin pelancaran yang boleh dibuka.", "FIUU_VT_PLUS_NOT_LAUNCHABLE");
+            return;
+        }
+
+        intent.setPackage(FIUU_VT_PLUS_PACKAGE);
+        intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        try {
+            RkjDevicePolicyPlugin.runWithSystemDialogGuard(getActivity(), () -> getActivity().startActivity(intent));
+            JSObject result = new JSObject();
+            result.put("launched", true);
+            result.put("packageName", FIUU_VT_PLUS_PACKAGE);
+            call.resolve(result);
+        } catch (RuntimeException error) {
+            RkjDevicePolicyPlugin.resumeKioskAfterSystemDialog(getActivity());
+            call.reject("Aplikasi Fiuu VT+ tidak dapat dibuka.", "FIUU_VT_PLUS_LAUNCH_FAILED");
+        }
     }
 
     @PluginMethod
@@ -209,16 +262,16 @@ public class RkjFiuuVtPlugin extends Plugin {
     }
 
     private void launchFiuu(PluginCall call, Uri uri) {
-        if (!isPackageInstalled(FIUU_PACKAGE)) {
+        if (!isPackageInstalled(LEGACY_FIUU_PACKAGE)) {
             call.reject("Aplikasi Fiuu VT belum dipasang pada tablet ini.", "FIUU_VT_NOT_INSTALLED");
             return;
         }
-        if (!isTrustedInstall(FIUU_PACKAGE)) {
+        if (!isTrustedInstall(LEGACY_FIUU_PACKAGE)) {
             call.reject("Fiuu VT mesti dipasang melalui Managed Google Play.", "FIUU_VT_UNTRUSTED_INSTALL");
             return;
         }
         Intent intent = new Intent(Intent.ACTION_VIEW, uri);
-        intent.setPackage(FIUU_PACKAGE);
+        intent.setPackage(LEGACY_FIUU_PACKAGE);
         try {
             RkjDevicePolicyPlugin.runWithSystemDialogGuard(getActivity(), () -> getActivity().startActivity(intent));
             JSObject result = new JSObject();
@@ -228,6 +281,24 @@ public class RkjFiuuVtPlugin extends Plugin {
             RkjDevicePolicyPlugin.resumeKioskAfterSystemDialog(getActivity());
             call.reject("Aplikasi Fiuu VT tidak dapat dibuka.", "FIUU_VT_LAUNCH_FAILED");
         }
+    }
+
+    private JSObject vtPlusStatus() {
+        boolean installed = isPackageInstalled(FIUU_VT_PLUS_PACKAGE);
+        boolean trustedInstall = installed && isTrustedInstall(FIUU_VT_PLUS_PACKAGE);
+        boolean enabled = installed && isPackageEnabled(FIUU_VT_PLUS_PACKAGE);
+        boolean launchable = enabled && isPackageLaunchable(FIUU_VT_PLUS_PACKAGE);
+
+        JSObject result = new JSObject();
+        result.put("nativeAndroid", true);
+        result.put("packageName", FIUU_VT_PLUS_PACKAGE);
+        result.put("installed", installed);
+        result.put("trustedInstall", trustedInstall);
+        result.put("enabled", enabled);
+        result.put("launchable", launchable);
+        result.put("ready", installed && trustedInstall && enabled && launchable);
+        result.put("versionName", installed ? packageVersion(FIUU_VT_PLUS_PACKAGE) : "");
+        return result;
     }
 
     private boolean isPackageInstalled(String packageName) {
@@ -244,6 +315,34 @@ public class RkjFiuuVtPlugin extends Plugin {
         } catch (PackageManager.NameNotFoundException error) {
             return false;
         }
+    }
+
+    private boolean isPackageEnabled(String packageName) {
+        try {
+            PackageManager packageManager = getContext().getPackageManager();
+            ApplicationInfo applicationInfo;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                applicationInfo = packageManager.getApplicationInfo(
+                    packageName,
+                    PackageManager.ApplicationInfoFlags.of(0)
+                );
+            } else {
+                applicationInfo = packageManager.getApplicationInfo(packageName, 0);
+            }
+
+            int enabledSetting = packageManager.getApplicationEnabledSetting(packageName);
+            return applicationInfo.enabled
+                && enabledSetting != PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+                && enabledSetting != PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER
+                && enabledSetting != PackageManager.COMPONENT_ENABLED_STATE_DISABLED_UNTIL_USED;
+        } catch (PackageManager.NameNotFoundException error) {
+            return false;
+        }
+    }
+
+    private boolean isPackageLaunchable(String packageName) {
+        Intent intent = getContext().getPackageManager().getLaunchIntentForPackage(packageName);
+        return intent != null && intent.resolveActivity(getContext().getPackageManager()) != null;
     }
 
     @SuppressWarnings("deprecation")

@@ -6,11 +6,16 @@ import {
  createFiuuCloudEcrSale,
  ensureFiuuCloudEcrAuth,
  FIUU_CLOUDECR_DUITNOW_CHANNEL,
+ FIUU_CLOUDECR_TRANSACTION_TIMEOUT_MS,
  flattenFiuuCloudEcrValues,
  formatFiuuCloudEcrUtcTimestamp,
  getFiuuCloudEcrConfig,
  getFiuuCloudEcrLast,
+ isFiuuCloudEcrProviderError,
+ listFiuuCloudEcrEwalletChannels,
+ listFiuuCloudEcrTerminals,
  loginFiuuCloudEcr,
+ logoutFiuuCloudEcr,
  matchFiuuCloudEcrResponse,
  parseFiuuCloudEcrResponse,
  refreshFiuuCloudEcr,
@@ -97,6 +102,15 @@ describe('cloudECR configuration and identifiers', () => {
    requestTimeoutMs: 5000,
   });
   expect(() => getFiuuCloudEcrConfig({})).toThrow('Base URL');
+  expect(getFiuuCloudEcrConfig({
+   POS_FIUU_CLOUDECR_BASE_URL: TEST_ENV.POS_FIUU_CLOUDECR_BASE_URL,
+   POS_FIUU_CLOUDECR_POS_ID: TEST_ENV.POS_FIUU_CLOUDECR_POS_ID,
+   POS_FIUU_CLOUDECR_PASSWORD: TEST_ENV.POS_FIUU_CLOUDECR_PASSWORD,
+   POS_FIUU_CLOUDECR_MERCHANT_ID: TEST_ENV.POS_FIUU_CLOUDECR_MERCHANT_ID,
+   POS_FIUU_CLOUDECR_DEVICE_ID: TEST_ENV.POS_FIUU_CLOUDECR_DEVICE_ID,
+   POS_FIUU_CLOUDECR_TERMINAL_SN: TEST_ENV.POS_FIUU_CLOUDECR_TERMINAL_SN,
+   POS_FIUU_CLOUDECR_SECRET_KEY: TEST_ENV.POS_FIUU_CLOUDECR_SECRET_KEY,
+  }).requestTimeoutMs).toBe(FIUU_CLOUDECR_TRANSACTION_TIMEOUT_MS);
  });
 
  it('rejects unsafe endpoints and invalid timeout values', () => {
@@ -110,7 +124,7 @@ describe('cloudECR configuration and identifiers', () => {
   })).toThrow('hos rasmi Fiuu');
   expect(() => getFiuuCloudEcrConfig({
    ...TEST_ENV,
-   POS_FIUU_CLOUDECR_TIMEOUT_MS: '15001',
+   POS_FIUU_CLOUDECR_TIMEOUT_MS: '90001',
   })).toThrow('timeout');
   expect(() => getFiuuCloudEcrConfig({
    ...TEST_ENV,
@@ -202,6 +216,23 @@ describe('cloudECR authentication with injected fetch', () => {
   expect(init?.body).toBeUndefined();
  });
 
+ it('logs out a known session without requiring a response body', async () => {
+  const fetcher = vi.fn<FiuuCloudEcrFetch>().mockResolvedValue(new Response(null, {
+   status: 204,
+  }));
+  await expect(logoutFiuuCloudEcr(
+   config(),
+   'known-access-token',
+   fetcher,
+  )).resolves.toBeUndefined();
+
+  const [url, init] = fetcher.mock.calls[0];
+  expect(url).toBe('https://cloudecr.fiuu.com/auth/logout');
+  expect(init?.method).toBe('POST');
+  expect(init?.headers).toMatchObject({ Authorization: 'Bearer known-access-token' });
+  expect(init?.body).toBeUndefined();
+ });
+
  it('reuses access, then refreshes or logs in according to expiry', async () => {
   const current = tokenResponse();
   const noFetch = vi.fn<FiuuCloudEcrFetch>();
@@ -240,13 +271,25 @@ describe('cloudECR authentication with injected fetch', () => {
   expect(loginFetch.mock.calls[0][0]).toBe('https://cloudecr.fiuu.com/auth/login');
  });
 
- it('does not echo an upstream response body in HTTP errors', async () => {
-  const fetcher = vi.fn<FiuuCloudEcrFetch>().mockResolvedValue(jsonResponse({
-   error: 'test-secret-not-real',
-  }, 401));
+ it('preserves actionable provider details while redacting configured secrets', async () => {
+  const fetcher = vi.fn<FiuuCloudEcrFetch>().mockResolvedValue(new Response(JSON.stringify({
+   code: 40314,
+   message: 'Active session exists for test-secret-not-real',
+  }), {
+   status: 403,
+   headers: {
+    'Content-Type': 'application/json',
+    'Retry-After': '7',
+   },
+  }));
   const error = await loginFiuuCloudEcr(config(), fetcher).catch((value: unknown) => value);
-  expect(error).toBeInstanceOf(Error);
-  expect((error as Error).message).toContain('(401)');
+  expect(isFiuuCloudEcrProviderError(error)).toBe(true);
+  if (!isFiuuCloudEcrProviderError(error)) throw new Error('Expected provider error');
+  expect(error.status).toBe(403);
+  expect(error.code).toBe('40314');
+  expect(error.providerMessage).toBe('Active session exists for [REDACTED]');
+  expect(error.retryAfterSeconds).toBe(7);
+  expect(error.message).toContain('kod 40314');
   expect((error as Error).message).not.toContain('test-secret-not-real');
  });
 
@@ -255,7 +298,83 @@ describe('cloudECR authentication with injected fetch', () => {
    status: 401,
    headers: { 'Content-Type': 'text/html' },
   }));
-  await expect(loginFiuuCloudEcr(config(), fetcher)).rejects.toThrow('(401)');
+  await expect(loginFiuuCloudEcr(config(), fetcher)).rejects.toThrow('HTTP 401');
+ });
+});
+
+describe('cloudECR read-only preflight endpoints', () => {
+ it('lists terminal connectivity using an authenticated GET', async () => {
+  const fetcher = vi.fn<FiuuCloudEcrFetch>().mockResolvedValue(jsonResponse({
+   data: [{ terminalId: 'VT-TEST-001', connected: true, isVT: true }],
+  }));
+
+  await expect(listFiuuCloudEcrTerminals({
+   config: config(),
+   fetcher,
+   accessToken: 'access-token-for-test',
+  })).resolves.toEqual([
+   { terminalId: 'VT-TEST-001', connected: true, isVT: true },
+  ]);
+
+  const [url, init] = fetcher.mock.calls[0];
+  expect(url).toBe('https://cloudecr.fiuu.com/api/terminals');
+  expect(init?.method).toBe('GET');
+  expect(init?.headers).toMatchObject({ Authorization: 'Bearer access-token-for-test' });
+  expect(init?.body).toBeUndefined();
+ });
+
+ it('lists MYR e-wallet channels and normalizes documented status values', async () => {
+  const fetcher = vi.fn<FiuuCloudEcrFetch>().mockResolvedValue(jsonResponse({
+   data: [
+    {
+     name: FIUU_CLOUDECR_DUITNOW_CHANNEL,
+     status: 1,
+     currency: ['MYR'],
+     logoUrl3: 'https://example.test/duitnow.png',
+    },
+    {
+     name: 'inactiveChannel',
+     status: '0',
+     currency: ['myr'],
+     logoUrl3: null,
+    },
+   ],
+  }));
+
+  await expect(listFiuuCloudEcrEwalletChannels({
+   config: config(),
+   fetcher,
+   accessToken: 'access-token-for-test',
+  })).resolves.toEqual([
+   {
+    name: FIUU_CLOUDECR_DUITNOW_CHANNEL,
+    status: 1,
+    currency: ['MYR'],
+    logoUrl3: 'https://example.test/duitnow.png',
+   },
+   {
+    name: 'inactiveChannel',
+    status: 0,
+    currency: ['MYR'],
+    logoUrl3: null,
+   },
+  ]);
+
+  const [url, init] = fetcher.mock.calls[0];
+  expect(url).toBe('https://cloudecr.fiuu.com/api/ewallet-channels?currency=MYR');
+  expect(init?.method).toBe('GET');
+  expect(init?.body).toBeUndefined();
+ });
+
+ it('rejects malformed preflight records instead of assuming readiness', async () => {
+  const fetcher = vi.fn<FiuuCloudEcrFetch>().mockResolvedValue(jsonResponse({
+   data: [{ terminalId: 'VT-TEST-001', connected: 'yes', isVT: true }],
+  }));
+  await expect(listFiuuCloudEcrTerminals({
+   config: config(),
+   fetcher,
+   accessToken: 'access-token-for-test',
+  })).rejects.toThrow('status sambungan');
  });
 });
 
