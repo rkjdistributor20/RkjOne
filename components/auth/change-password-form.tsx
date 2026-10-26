@@ -18,7 +18,6 @@ import {
 
 export function ChangePasswordForm() {
  const router = useRouter();
- const [currentPassword, setCurrentPassword] = useState('');
  const [newPassword, setNewPassword] = useState('');
  const [confirmPassword, setConfirmPassword] = useState('');
  const [loading, setLoading] = useState(false);
@@ -39,7 +38,7 @@ export function ChangePasswordForm() {
  const res = await fetch('/api/auth/change-password', {
  method: 'POST',
  headers: { 'Content-Type': 'application/json' },
- body: JSON.stringify({ currentPassword, newPassword }),
+ body: JSON.stringify({ newPassword }),
  });
 
  const data = await res.json().catch(() => ({}));
@@ -75,17 +74,9 @@ export function ChangePasswordForm() {
  </CardHeader>
  <CardContent>
  <form onSubmit={handleSubmit} className="space-y-4">
- <div className="space-y-2">
- <Label htmlFor="current">Kata Laluan Semasa</Label>
- <Input
- id="current"
- type="password"
- autoComplete="current-password"
- value={currentPassword}
- onChange={(e) => setCurrentPassword(e.target.value)}
- required
- />
- </div>
+ <p className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-muted-foreground">
+ Sesi log masuk semasa telah disahkan. Tetapkan kata laluan baharu untuk meneruskan.
+ </p>
  <div className="space-y-2">
  <Label htmlFor="new">Kata Laluan Baharu</Label>
  <Input
