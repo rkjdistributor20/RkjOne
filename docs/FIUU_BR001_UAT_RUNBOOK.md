@@ -16,6 +16,29 @@ This runbook does not authorize a Production action. The safe default remains:
 - only `BR001` is in scope; `BR002` through `BR036` remain unchanged; and
 - secrets, credentials, activation links and all QR payloads stay out of Git, chat, screenshots and logs.
 
+## Read-only checkpoint — 2026-10-26
+
+The reviewed branch is `codex/fiuu-production-rollout` at commit `0752b1f`.
+Its Vercel Preview deployment is `Ready`, and the public `/api/health`
+endpoint reports `{"ok":true,"status":"ready"}`. That result confirms only
+basic application/database availability; it does **not** mean Fiuu OPA is
+configured or that a payable QR may be generated.
+
+The current Preview remains **NO-GO** for BR001 OPA UAT because the read-only
+configuration audit found no branch-scoped `POS_FIUU_APPLICATIONS_JSON`, no
+`POS_FIUU_OPA_BRANCHES`, and no `FIUU_RECONCILIATION_ENABLED` or
+`FIUU_RECONCILIATION_SECRET` for this branch. The payment-mode variable exists,
+but its secret value was deliberately not revealed. A read-only query against
+the staging migration history also returned zero rows for
+`20261026133000_add_fiuu_opa_inquiry_recovery.sql`.
+
+No Production setting, Production database, real payment, Fiuu portal setting,
+or BR002-BR036 branch was changed during this audit. The next controlled stage
+is staging/Preview only: apply the migration, add the BR001 sandbox mapping and
+allowlist, add the recovery-worker secret and flag, then redeploy and repeat the
+read-only preflight. Those changes still require an explicit action-time
+confirmation before execution.
+
 ## Transport decision table
 
 | Path | Hardware dependency | Verification | BR001 decision |
