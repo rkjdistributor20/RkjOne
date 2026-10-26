@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { ShieldCheck } from 'lucide-react';
 import { BRAND_COLORS } from '@/lib/brand/company';
 import { BrandLogo } from '@/components/brand/brand-logo';
@@ -17,7 +16,6 @@ import {
 } from '@/components/ui/card';
 
 export function ChangePasswordForm() {
- const router = useRouter();
  const [newPassword, setNewPassword] = useState('');
  const [confirmPassword, setConfirmPassword] = useState('');
  const [loading, setLoading] = useState(false);
@@ -49,8 +47,10 @@ export function ChangePasswordForm() {
  return;
  }
 
- router.replace('/dashboard');
- router.refresh();
+ // Force a full document navigation after the auth mutation. Capacitor's
+ // WebView can otherwise retain the stale forced-password route cache and
+ // render a blank screen while the profile flag has already been cleared.
+ window.location.replace('/dashboard');
  } catch {
  setError('Ralat rangkaian. Sila cuba lagi.');
  setLoading(false);
