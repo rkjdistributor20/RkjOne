@@ -16,27 +16,29 @@ This runbook does not authorize a Production action. The safe default remains:
 - only `BR001` is in scope; `BR002` through `BR036` remain unchanged; and
 - secrets, credentials, activation links and all QR payloads stay out of Git, chat, screenshots and logs.
 
-## Read-only checkpoint — 2026-10-27
+## Controlled checkpoint — 2026-10-27
 
 The reviewed branch is `codex/fiuu-production-rollout`. The official standard
-VT package `com.rms.mobile.razervt` is installed and reaches its activation
-screen on the BR001 Samsung. This confirms device compatibility only; it does
-**not** prove that the app is activated to `masterkayajunus01`, that the
-terminal settles to BR001, or that a payable QR may be generated.
+VT package `com.rms.mobile.razervt` is installed on the BR001 Samsung and was
+activated, with fresh owner confirmation, under the Fiuu portal account
+`masterkayajunus01`. The portal and the application both show the terminal as
+active. No activation code, terminal identifier, credential or QR payload is
+recorded in Git or this runbook.
 
-The current Preview remains **NO-GO** for a payable BR001 VT UAT until the
-provider supplies an activation code/QR explicitly mapped to
-`masterkayajunus01`, the intended BR001 terminal and BR001 settlement. An
-activation link found for the root merchant is not acceptable evidence for
-that mapping and must not be used. Activation material and QR payloads remain
-secret and must not be copied into Git, chat, screenshots or logs.
+RKJ One Staff `1.7.0` is also installed from Google Play. That store build is a
+Production wrapper whose Capacitor host is `https://rkj.one`; it must not be
+used for Preview UAT. The current Preview therefore remains **NO-GO** for a
+payable BR001 VT UAT until a Preview-bound `1.7.0-debug` build is installed and
+the remaining branch, device, shift and unresolved-payment checks pass.
 
-No Production setting, Production database, real payment, Fiuu portal setting,
-or BR002-BR036 branch was changed during this audit. The next controlled stage
-is staging/Preview only: deploy the BR001 server/database hard lock, activate
-the VT application with provider-approved BR001 material, enable the BR001-only
-Preview mode and repeat the preflight before a real payment. A real payment and
-every Production action require separate action-time confirmation.
+The Fiuu terminal activation was the only provider-side Production mutation
+completed in this stage. No RKJ Production environment, database, migration or
+deployment was changed, no real payment was made and BR002-BR036 remain
+unchanged. The next controlled stage is staging/Preview only: deploy the BR001
+server/database hard lock and live-terminal warning, install the Preview-bound
+native build, enable the BR001-only Preview mode and repeat the preflight. A
+real payment and every further Production action require separate action-time
+confirmation.
 
 ## Transport decision table
 

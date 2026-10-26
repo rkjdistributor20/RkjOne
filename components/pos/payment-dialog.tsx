@@ -984,7 +984,11 @@ export function PaymentDialog({
          ? 'Menunggu keputusan daripada aplikasi Fiuu VT'
          : 'Menunggu pengesahan selamat daripada Fiuu'}
       </div>
-      {qrPayment.environment === 'sandbox' && (
+      {qrPayment.integration === 'vt_app' ? (
+       <p className="mt-3 rounded-lg bg-rose-100 px-3 py-2 text-xs font-semibold text-rose-900">
+        Terminal Fiuu VT aktif — bayaran ini menggunakan transaksi sebenar
+       </p>
+      ) : qrPayment.environment === 'sandbox' && (
        <p className="mt-3 rounded-lg bg-sky-100 px-3 py-2 text-xs font-semibold text-sky-900">
         Mod ujian - tiada wang sebenar dipindahkan
        </p>
