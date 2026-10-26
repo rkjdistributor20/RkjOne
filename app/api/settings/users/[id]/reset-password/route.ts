@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { getCurrentProfile } from '@/lib/auth/session';
 import { isSettingsAdmin } from '@/lib/settings/admin-auth';
 import {
@@ -53,7 +54,7 @@ export async function POST(
  const seed = String(target.employee_code ?? target.email ?? 'RkjOne');
  const temporaryPassword = generateTemporaryPassword(seed);
  const resetAt = new Date().toISOString();
- const service = await createServiceClient();
+ const service = createAdminClient();
 
  const { error: authErr } = await service.auth.admin.updateUserById(id, {
  password: temporaryPassword,
