@@ -45,16 +45,26 @@ export type FiuuDynamicQrResult = {
 
 export class FiuuOpaPrecreateError extends Error {
   readonly definitiveRejection: boolean;
+  readonly httpStatus: number | null;
 
-  constructor(message: string, definitiveRejection: boolean) {
+  constructor(
+    message: string,
+    definitiveRejection: boolean,
+    httpStatus: number | null = null,
+  ) {
     super(message);
     this.name = 'FiuuOpaPrecreateError';
     this.definitiveRejection = definitiveRejection;
+    this.httpStatus = httpStatus;
   }
 }
 
 export function isFiuuOpaDefinitiveRejection(error: unknown): boolean {
   return error instanceof FiuuOpaPrecreateError && error.definitiveRejection;
+}
+
+export function isFiuuOpaApplicationUnavailable(error: unknown): boolean {
+  return error instanceof FiuuOpaPrecreateError && error.httpStatus === 404;
 }
 
 type FiuuResponse = Record<string, unknown> & {
@@ -468,6 +478,7 @@ export async function createFiuuDynamicQr(input: {
     throw new FiuuOpaPrecreateError(
       `Fiuu gagal menjana QR (${response.status})`,
       response.status >= 400 && response.status < 500 && !ambiguousHttpStatus,
+      response.status,
     );
   }
   let result: FiuuResponse;

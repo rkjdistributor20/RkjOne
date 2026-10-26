@@ -18,6 +18,7 @@ import {
  getFiuuEnvironment,
  getFiuuOpaConfig,
  getPosQrPaymentMode,
+  isFiuuOpaApplicationUnavailable,
  isFiuuOpaDefinitiveRejection,
  isFiuuReconciliationExpired,
  malaysiaBusinessDate,
@@ -825,6 +826,13 @@ export async function POST(request: Request) {
     paymentId: payment.id,
     reason: errorMessage(error).slice(0, 160),
    });
+    if (isFiuuOpaApplicationUnavailable(error)) {
+     return NextResponse.json({
+      error: 'Fiuu belum mengaktifkan Application Code OPA untuk cawangan ini. Tiada caj atau jualan dibuat; jangan cuba QR semula sehingga HQ mengesahkan UAT.',
+      code: 'FIUU_OPA_APPLICATION_NOT_PROVISIONED',
+      retryable: false,
+     }, { status: 503 });
+    }
    return NextResponse.json({ error: 'Fiuu tidak dapat menjana QR. Cuba semula.' }, { status: 502 });
   }
 

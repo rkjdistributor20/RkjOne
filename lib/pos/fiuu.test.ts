@@ -6,6 +6,7 @@ import {
  getFiuuEnvironment,
  getFiuuOpaConfig,
  getPosQrPaymentMode,
+  isFiuuOpaApplicationUnavailable,
  isFiuuOpaDefinitiveRejection,
  isFiuuReconciliationExpired,
  malaysiaBusinessDate,
@@ -141,6 +142,21 @@ describe('Fiuu pre-create outcome classification', () => {
   const error = await promise.catch((caught: unknown) => caught);
 
   expect(isFiuuOpaDefinitiveRejection(error)).toBe(true);
+  expect(isFiuuOpaApplicationUnavailable(error)).toBe(false);
+  });
+
+  it('identifies a pre-create 404 as unavailable OPA application provisioning', async () => {
+   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 404 })));
+   const promise = createFiuuDynamicQr({
+    config,
+    paymentId: 'PAYMENT-001',
+    amountRm: 12.5,
+    description: 'RKJ POS BR001',
+   });
+   const error = await promise.catch((caught: unknown) => caught);
+
+   expect(isFiuuOpaDefinitiveRejection(error)).toBe(true);
+   expect(isFiuuOpaApplicationUnavailable(error)).toBe(true);
  });
 
  it('keeps a transport exception as an unknown payment outcome', async () => {
@@ -154,6 +170,7 @@ describe('Fiuu pre-create outcome classification', () => {
   const error = await promise.catch((caught: unknown) => caught);
 
   expect(isFiuuOpaDefinitiveRejection(error)).toBe(false);
+  expect(isFiuuOpaApplicationUnavailable(error)).toBe(false);
  });
 });
 
