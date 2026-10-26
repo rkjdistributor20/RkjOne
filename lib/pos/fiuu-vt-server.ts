@@ -1,14 +1,21 @@
 import { getPosQrPaymentMode } from './fiuu';
 
+export const FIUU_VT_PILOT_BRANCH = 'BR001' as const;
+
 const BRANCH_CODE_PATTERN = /^BR\d{3}$/;
 
 export function getFiuuVtPilotBranches(): ReadonlySet<string> {
+ const configuredBranches = process.env.POS_FIUU_VT_BRANCHES;
+ if (!configuredBranches?.trim()) return new Set();
+
  const branches = new Set<string>();
- for (const raw of (process.env.POS_FIUU_VT_BRANCHES ?? '').split(',')) {
+ for (const raw of configuredBranches.split(',')) {
   const branchCode = raw.trim().toUpperCase();
-  if (!branchCode) continue;
-  if (!BRANCH_CODE_PATTERN.test(branchCode)) {
-   throw new Error(`Kod cawangan pilot Fiuu VT tidak sah: ${branchCode.slice(0, 12)}`);
+  if (!branchCode || !BRANCH_CODE_PATTERN.test(branchCode)) {
+   throw new Error(`Kod cawangan pilot Fiuu VT tidak sah: ${branchCode.slice(0, 12) || '(kosong)'}`);
+  }
+  if (branchCode !== FIUU_VT_PILOT_BRANCH) {
+   throw new Error(`Pilot Fiuu VT dikunci kepada ${FIUU_VT_PILOT_BRANCH}`);
   }
   branches.add(branchCode);
  }
@@ -16,8 +23,11 @@ export function getFiuuVtPilotBranches(): ReadonlySet<string> {
 }
 
 export function isFiuuVtEnabledForBranch(branchCode: string): boolean {
+ const normalizedBranchCode = branchCode.trim().toUpperCase();
+ if (!BRANCH_CODE_PATTERN.test(normalizedBranchCode)) return false;
+
  return getPosQrPaymentMode() === 'fiuu_vt'
-  && getFiuuVtPilotBranches().has(branchCode.trim().toUpperCase());
+  && getFiuuVtPilotBranches().has(normalizedBranchCode);
 }
 
 export function getFiuuVtValiditySeconds(): number {

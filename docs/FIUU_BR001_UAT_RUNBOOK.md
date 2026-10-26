@@ -1,54 +1,75 @@
-# Fiuu BR001 OPA Dynamic DuitNow QR UAT and rollback runbook
+# Fiuu BR001 Dynamic DuitNow QR UAT and rollback runbook
 
-Last updated: 2026-10-26
+Last updated: 2026-10-27
 
 ## Decision and authority
 
-The primary integration for the existing RKJ tablets is **Fiuu OPA Dynamic DuitNow QR**. It is server-to-server, uses signed requests and notifications, and does not depend on NFC, Android package compatibility, VT+ activation or terminal binding inside the tablet.
+The immediate BR001 UAT transport is the official **Fiuu VT App-to-App** application because it is now installed and opens on the physical Samsung `SM-X406B`. Signed **Fiuu OPA Dynamic DuitNow QR** remains the preferred architecture for wider rollout, but its dedicated Application Code and Secret Key have not been provisioned.
 
-Fiuu VT+ with cloudECR remains a prepared fallback. On the physical BR001 Samsung `SM-X406B`, the official Play installation is available but the application remains on its blue splash screen despite a working Fiuu HTTPS/network path. That provider-app runtime issue is not a reason to replace the tablet or weaken RKJ One verification.
+Fiuu VT+ with cloudECR remains a separate prepared fallback. Its package, activation and credentials are not interchangeable with the standard Fiuu VT application.
 
 This runbook does not authorize a Production action. The safe default remains:
 
 - Production `POS_QR_PAYMENT_MODE=manual`;
-- no Production OPA/cloudECR secrets, migration or deployment change without fresh owner confirmation immediately before the action;
+- no Production VT/OPA/cloudECR setting, secret, migration, terminal activation or deployment change without fresh owner confirmation immediately before the action;
 - no real payment without fresh owner confirmation immediately before the charge;
 - only `BR001` is in scope; `BR002` through `BR036` remain unchanged; and
 - secrets, credentials, activation links and all QR payloads stay out of Git, chat, screenshots and logs.
 
-## Read-only checkpoint — 2026-10-26
+## Read-only checkpoint — 2026-10-27
 
-The reviewed branch is `codex/fiuu-production-rollout` at commit `0752b1f`.
-Its Vercel Preview deployment is `Ready`, and the public `/api/health`
-endpoint reports `{"ok":true,"status":"ready"}`. That result confirms only
-basic application/database availability; it does **not** mean Fiuu OPA is
-configured or that a payable QR may be generated.
+The reviewed branch is `codex/fiuu-production-rollout`. The official standard
+VT package `com.rms.mobile.razervt` is installed and reaches its activation
+screen on the BR001 Samsung. This confirms device compatibility only; it does
+**not** prove that the app is activated to `masterkayajunus01`, that the
+terminal settles to BR001, or that a payable QR may be generated.
 
-The current Preview remains **NO-GO** for BR001 OPA UAT because the read-only
-configuration audit found no branch-scoped `POS_FIUU_APPLICATIONS_JSON`, no
-`POS_FIUU_OPA_BRANCHES`, and no `FIUU_RECONCILIATION_ENABLED` or
-`FIUU_RECONCILIATION_SECRET` for this branch. The payment-mode variable exists,
-but its secret value was deliberately not revealed. A read-only query against
-the staging migration history also returned zero rows for
-`20261026133000_add_fiuu_opa_inquiry_recovery.sql`.
+The current Preview remains **NO-GO** for a payable BR001 VT UAT until the
+provider supplies an activation code/QR explicitly mapped to
+`masterkayajunus01`, the intended BR001 terminal and BR001 settlement. An
+activation link found for the root merchant is not acceptable evidence for
+that mapping and must not be used. Activation material and QR payloads remain
+secret and must not be copied into Git, chat, screenshots or logs.
 
 No Production setting, Production database, real payment, Fiuu portal setting,
 or BR002-BR036 branch was changed during this audit. The next controlled stage
-is staging/Preview only: apply the migration, add the BR001 sandbox mapping and
-allowlist, add the recovery-worker secret and flag, then redeploy and repeat the
-read-only preflight. Those changes still require an explicit action-time
-confirmation before execution.
+is staging/Preview only: deploy the BR001 server/database hard lock, activate
+the VT application with provider-approved BR001 material, enable the BR001-only
+Preview mode and repeat the preflight before a real payment. A real payment and
+every Production action require separate action-time confirmation.
 
 ## Transport decision table
 
 | Path | Hardware dependency | Verification | BR001 decision |
 | --- | --- | --- | --- |
-| **OPA Dynamic DuitNow QR** | Browser/PWA and network only | HMAC-SHA256 request/response plus signed server notification | **Primary path** |
+| **OPA Dynamic DuitNow QR** | Browser/PWA and network only | HMAC-SHA256 request/response plus signed server notification | Preferred broad-rollout path; credentials unavailable |
 | **Fiuu VT+ + cloudECR** | Official `com.fiuu.cloudecrvt`, activation, secret and POS binding | HMAC-SHA256 server API | Prepared fallback; physical app currently splash-blocked |
-| **Legacy VT App-to-App** | Official `com.rms.mobile.razervt` | Unsigned Android deep-link SALE/STATUS | Not selected; unavailable on the registered tablets |
+| **VT App-to-App** | Official `com.rms.mobile.razervt`, provider activation and RKJ native app | Unsigned Android deep-link SALE followed by STATUS | **Selected BR001 UAT path; activation mapping pending** |
 | **Static branch QR** | Browser/PWA only | Cashier confirmation and Finance reconciliation | Operational fallback only; not automatic verification |
 
 Credentials and readiness evidence are not interchangeable between these paths.
+
+## VT App-to-App activation gate
+
+Before enabling `fiuu_vt` in Preview, all of the following must be true:
+
+- the Fiuu VT activation code or QR was issued for submerchant `masterkayajunus01` and the intended BR001 terminal;
+- Fiuu confirms the MID/TID or terminal identity and settlement belong to BR001;
+- the official tablet reports the standard VT package installed and trusted;
+- RKJ One native Android 1.7.0 is installed; Chrome/PWA is not used for App-to-App launch;
+- migration `20261027120000_harden_fiuu_vt_br001_pilot.sql` is applied to staging;
+- Preview contains exactly `POS_QR_PAYMENT_MODE=fiuu_vt`, `POS_FIUU_VT_BRANCHES=BR001` and `POS_FIUU_VT_VALIDITY_SECONDS=900`; and
+- there is no unresolved `PENDING` or `REPORTED` Fiuu payment for the BR001 shift/device.
+
+The VT activation screen's four fields are an activation code, not the Merchant
+ID, portal password, Verify Key, Secret Key, OPA Application Code or VT+ binding
+code. Never guess or substitute one of those values.
+
+Staging evidence on 2026-10-27: migration
+`20261027120000_harden_fiuu_vt_br001_pilot.sql` is applied to
+`rkj-one-staging-my`, linked migration history is synchronized and error-level
+schema lint is clean. The related code passes `168/168` tests, TypeScript,
+ESLint and the 163-page Next.js build. Production was not changed.
 
 ## OPA configuration gate
 

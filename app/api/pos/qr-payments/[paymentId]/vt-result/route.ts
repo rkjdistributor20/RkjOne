@@ -13,6 +13,7 @@ import {
  parseFiuuVtResult,
  type FiuuVtResult,
 } from '@/lib/pos/fiuu-vt';
+import { FIUU_VT_PILOT_BRANCH } from '@/lib/pos/fiuu-vt-server';
 import { enforceRateLimit } from '@/lib/security/rate-limit';
 import { createAdminClient } from '@/lib/supabase/admin';
 import type { Json } from '@/types/database';
@@ -84,7 +85,9 @@ export async function POST(
   await assertActivePosShiftMember(admin, profile, payment.shift_id, payment.branch_id);
   const salePayload = jsonRecord(payment.sale_payload);
   if (payment.created_by !== profile.id
-   || salePayload?.fiuu_device_code !== device.deviceCode) {
+   || salePayload?.fiuu_device_code !== device.deviceCode
+   || device.branchCode?.trim().toUpperCase() !== FIUU_VT_PILOT_BRANCH
+   || salePayload?.fiuu_branch_code !== FIUU_VT_PILOT_BRANCH) {
    return NextResponse.json({ error: 'Percubaan Fiuu VT bukan milik sesi tablet ini' }, { status: 403 });
   }
  } catch (accessError) {

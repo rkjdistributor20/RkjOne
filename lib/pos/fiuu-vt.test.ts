@@ -8,6 +8,7 @@ import {
  parseFiuuVtResult,
 } from './fiuu-vt';
 import {
+ FIUU_VT_PILOT_BRANCH,
  getFiuuVtPilotBranches,
  getFiuuVtValiditySeconds,
  isFiuuVtEnabledForBranch,
@@ -137,22 +138,44 @@ describe('Fiuu VT callback validation', () => {
 });
 
 describe('Fiuu VT pilot gate', () => {
- it('requires both the dedicated mode and an explicit branch allowlist', () => {
+ it('fails closed when the VT allowlist is not configured', () => {
   process.env.POS_QR_PAYMENT_MODE = 'fiuu_vt';
-  process.env.POS_FIUU_VT_BRANCHES = 'BR001, br007';
-  expect([...getFiuuVtPilotBranches()]).toEqual(['BR001', 'BR007']);
+  delete process.env.POS_FIUU_VT_BRANCHES;
+
+  expect([...getFiuuVtPilotBranches()]).toEqual([]);
+  expect(isFiuuVtEnabledForBranch(FIUU_VT_PILOT_BRANCH)).toBe(false);
+ });
+
+ it('allows only BR001 while the dedicated mode is active', () => {
+  process.env.POS_QR_PAYMENT_MODE = 'fiuu_vt';
+  process.env.POS_FIUU_VT_BRANCHES = ' br001 ';
+
+  expect([...getFiuuVtPilotBranches()]).toEqual(['BR001']);
   expect(isFiuuVtEnabledForBranch('br001')).toBe(true);
   expect(isFiuuVtEnabledForBranch('BR002')).toBe(false);
+  expect(isFiuuVtEnabledForBranch('not-a-branch')).toBe(false);
 
   process.env.POS_QR_PAYMENT_MODE = 'manual';
   expect(isFiuuVtEnabledForBranch('BR001')).toBe(false);
  });
 
- it('rejects malformed branch configuration and bounds validity', () => {
-  process.env.POS_QR_PAYMENT_MODE = 'fiuu_vt';
-  process.env.POS_FIUU_VT_BRANCHES = 'BR001,ALL';
-  expect(() => getFiuuVtPilotBranches()).toThrow('Kod cawangan pilot Fiuu VT tidak sah');
+ it.each(['*', 'ALL', 'BR01', 'BR0001', 'BR001,', ',BR001', 'BR001,,BR001'])(
+  'rejects wildcard or malformed allowlist value %s',
+  (allowlist) => {
+   process.env.POS_FIUU_VT_BRANCHES = allowlist;
+   expect(() => getFiuuVtPilotBranches()).toThrow('Kod cawangan pilot Fiuu VT tidak sah');
+  },
+ );
 
+ it.each(['BR002', 'BR001,BR002', 'BR007'])(
+  'rejects non-BR001 allowlist value %s',
+  (allowlist) => {
+   process.env.POS_FIUU_VT_BRANCHES = allowlist;
+   expect(() => getFiuuVtPilotBranches()).toThrow('dikunci kepada BR001');
+  },
+ );
+
+ it('bounds validity', () => {
   process.env.POS_FIUU_VT_VALIDITY_SECONDS = '30';
   expect(getFiuuVtValiditySeconds()).toBe(900);
   process.env.POS_FIUU_VT_VALIDITY_SECONDS = '1200';
