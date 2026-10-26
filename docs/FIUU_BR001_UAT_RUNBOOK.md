@@ -71,7 +71,27 @@ POS_FIUU_OPA_BRANCHES=BR001
 POS_FIUU_ENVIRONMENT=sandbox
 POS_FIUU_CHANNEL_ID=24
 POS_FIUU_QR_VALIDITY_SECONDS=180
+FIUU_RECONCILIATION_ENABLED=true
 ```
+
+`FIUU_RECONCILIATION_ENABLED` is a dedicated default-off gate; set it only in
+the intended Preview environment after the migration is applied. Also create a
+server-only `FIUU_RECONCILIATION_SECRET` containing at least 32
+random characters. Never expose it to the browser, repository, chat or
+screenshots. The protected recovery endpoint is:
+
+```text
+POST https://<preview-host>/api/internal/pos/fiuu-opa/reconcile
+Authorization: Bearer <server-only reconciliation secret>
+```
+
+No Production schedule is included in this change. In Preview, invoke the
+endpoint only after the BR001 QR expiry plus ten seconds. One authenticated
+invocation handles one BR001 payment and, while the provider keeps returning a
+signed pending status, performs at most six inquiries at +10, +20, +30, +40,
++50 and +60 seconds. It never performs a seventh inquiry or an automatic
+reversal. The route has a 180-second execution budget, so the selected hosting
+plan must support that duration before UAT.
 
 `POS_QR_PAYMENT_MODE=fiuu` alone does not expose dynamic QR. The server also requires the explicit OPA branch allowlist and currently hard-locks it to `BR001`; empty, wildcard, malformed or non-BR001 entries fail closed. The official DuitNow pre-create validity range is 60–180 seconds. RKJ One defaults to 180 and rejects/falls back from values outside that range.
 
@@ -128,6 +148,17 @@ Save only redacted evidence: timestamp, deployment, commit, non-secret branch/st
 - Catalogue price changed after QR creation: keep the payment `REPORTED` for Finance resolution; never issue a receipt whose totals differ from the paid, server-side pricing snapshot.
 - Reused idempotency key with different branch, shift, creator, amount or basket: reject.
 - Cross-branch user or device: reject.
+- Missing callback after expiry: invoke the authenticated BR001 recovery worker
+  once after `expires_at + 10 seconds`; confirm it accepts only a signed,
+  identity-matched inquiry response and preserves all six attempts in the
+  service-only audit table.
+- Signed inquiry status `01` or `11`: keep the intent locked and continue only
+  within the six-attempt cadence. Signed status `99`: mark the attempt failed
+  without creating a sale. Six unresolved attempts: move to
+  `AWAITING_REVERSAL`, block shift closure and require Finance review.
+- Transport error, malformed response, signature mismatch or incomplete
+  identity fields: treat the payment outcome as unknown; never create a sale,
+  never issue another payable QR and never auto-reverse.
 
 ## Settlement gate
 
@@ -147,6 +178,13 @@ Any unexplained variance is a stop condition. Store evidence only in an approved
 ## Production decision and rollback
 
 A BR001 Production package must identify the reviewed commit, migration list, intended environment-variable names, completed UAT/settlement evidence, rollback owner and monitoring window. It must explicitly state that `BR002-BR036` remain unchanged.
+
+The package must include migration
+`20261026133000_add_fiuu_opa_inquiry_recovery.sql`, a server-only recovery
+secret, and an approved scheduler/monitoring method. Applying the migration,
+adding the secret, enabling a schedule or changing the payment mode are all
+separate Production actions that require fresh confirmation at the moment of
+execution.
 
 Request fresh owner confirmation immediately before any Production migration, environment change, deployment or real charge.
 

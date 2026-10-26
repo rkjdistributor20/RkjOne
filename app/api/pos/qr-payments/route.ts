@@ -18,7 +18,9 @@ import {
  getFiuuEnvironment,
  getFiuuOpaConfig,
  getPosQrPaymentMode,
+ isFiuuOpaDefinitiveRejection,
  isFiuuReconciliationExpired,
+ malaysiaBusinessDate,
 } from '@/lib/pos/fiuu';
 import { isFiuuOpaEnabledForBranch } from '@/lib/pos/fiuu-opa-server';
 import {
@@ -445,6 +447,12 @@ export async function POST(request: Request) {
   ...(body.receipt_phone ? { receipt_phone: body.receipt_phone } : {}),
   fiuu_branch_code: branchCode || body.branchId,
   fiuu_device_code: device.deviceCode,
+  ...(config ? {
+   fiuu_application_code: config.applicationCode,
+   fiuu_store_id: config.storeId,
+   fiuu_terminal_id: config.terminalId,
+   fiuu_business_date: malaysiaBusinessDate(),
+  } : {}),
   ...(cloudEcrConfig ? {
    fiuu_cloudecr_pos_id: cloudEcrConfig.posId,
    fiuu_cloudecr_device_id: cloudEcrConfig.deviceId,
@@ -471,7 +479,7 @@ export async function POST(request: Request) {
   .eq('organization_id', profile.organization_id)
   .eq('branch_id', body.branchId)
   .eq('shift_id', body.shiftId)
-  .in('provider', ['fiuu', 'fiuu_vt', 'fiuu_cloudecr'])
+ .in('provider', ['fiuu_vt', 'fiuu_cloudecr'])
   .eq('status', 'PENDING')
   .lte('expires_at', reconciliationCutoff);
  if (expireError) {
@@ -767,8 +775,9 @@ export async function POST(request: Request) {
   });
  }
 
+ let generatedQr: Awaited<ReturnType<typeof createFiuuDynamicQr>> | null = null;
  try {
-  const qr = await createFiuuDynamicQr({
+  generatedQr = await createFiuuDynamicQr({
    config: config!,
    paymentId: payment.id,
    amountRm: qrAmount,
@@ -777,9 +786,13 @@ export async function POST(request: Request) {
   const { error: updateError } = await admin
    .from('pos_online_payments')
    .update({
-    gateway_ref: qr.gatewayReference,
-    checkout_url: qr.qrImageUrl,
-    expires_at: qr.expiresAt,
+    gateway_ref: generatedQr.gatewayReference,
+    checkout_url: generatedQr.qrImageUrl,
+    expires_at: generatedQr.expiresAt,
+   fiuu_opa_reconcile_state: 'WAITING_FOR_EXPIRY',
+   fiuu_opa_reconcile_next_at: new Date(
+    new Date(generatedQr.expiresAt).getTime() + 10_000,
+   ).toISOString(),
     updated_at: new Date().toISOString(),
    })
    .eq('id', payment.id)
@@ -792,8 +805,8 @@ export async function POST(request: Request) {
     status: 'PENDING',
     amount_rm: qrAmount,
     qr_image_url: `/api/pos/qr-payments/${encodeURIComponent(payment.id)}/image`,
-    gateway_ref: qr.gatewayReference,
-    expires_at: qr.expiresAt,
+    gateway_ref: generatedQr.gatewayReference,
+    expires_at: generatedQr.expiresAt,
     environment: transport.environment,
     integration: transport.integration,
     provider_order_id: null,
@@ -801,15 +814,68 @@ export async function POST(request: Request) {
    },
   });
  } catch (error) {
-  await admin
+  const checkedAt = new Date().toISOString();
+  if (isFiuuOpaDefinitiveRejection(error)) {
+   await admin
+    .from('pos_online_payments')
+    .update({ status: 'FAILED', failed_at: checkedAt, updated_at: checkedAt })
+    .eq('id', payment.id)
+    .eq('status', 'PENDING');
+   console.error('[pos-fiuu] qr_create_rejected', {
+    paymentId: payment.id,
+    reason: errorMessage(error).slice(0, 160),
+   });
+   return NextResponse.json({ error: 'Fiuu tidak dapat menjana QR. Cuba semula.' }, { status: 502 });
+  }
+
+  const uncertainUpdate = generatedQr ? {
+   gateway_ref: generatedQr.gatewayReference,
+   checkout_url: generatedQr.qrImageUrl,
+   expires_at: generatedQr.expiresAt,
+   fiuu_opa_reconcile_state: 'WAITING_FOR_EXPIRY',
+   fiuu_opa_reconcile_next_at: new Date(
+    new Date(generatedQr.expiresAt).getTime() + 10_000,
+   ).toISOString(),
+   provider_status_checked_at: checkedAt,
+   updated_at: checkedAt,
+  } : {
+   fiuu_opa_reconcile_state: 'WAITING_FOR_EXPIRY',
+   fiuu_opa_reconcile_next_at: new Date(
+    new Date(expiresAt).getTime() + 10_000,
+   ).toISOString(),
+   provider_status_checked_at: checkedAt,
+   updated_at: checkedAt,
+  };
+  const { error: uncertainUpdateError } = await admin
    .from('pos_online_payments')
-   .update({ status: 'FAILED', failed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+   .update(uncertainUpdate)
    .eq('id', payment.id)
    .eq('status', 'PENDING');
+  const recoverableQr = generatedQr && !uncertainUpdateError ? generatedQr : null;
   console.error('[pos-fiuu] qr_create_failed', {
    paymentId: payment.id,
    reason: errorMessage(error).slice(0, 160),
+   state: 'WAITING_FOR_EXPIRY',
+   recording: uncertainUpdateError?.message.slice(0, 160) ?? 'recorded',
   });
-  return NextResponse.json({ error: 'Fiuu tidak dapat menjana QR. Cuba semula.' }, { status: 502 });
+  return NextResponse.json({
+   payment: {
+    id: payment.id,
+    status: 'PENDING',
+    amount_rm: qrAmount,
+    qr_image_url: recoverableQr
+     ? `/api/pos/qr-payments/${encodeURIComponent(payment.id)}/image`
+     : null,
+    gateway_ref: recoverableQr?.gatewayReference ?? null,
+    expires_at: recoverableQr?.expiresAt ?? expiresAt,
+    environment: transport.environment,
+    integration: transport.integration,
+    provider_order_id: null,
+    reused: false,
+   },
+   warning: recoverableQr
+    ? 'QR dijana tetapi simpanan awal terganggu. RKJ One akan menyemak status tanpa menghantar permintaan QR kedua.'
+    : 'Keputusan Fiuu belum diketahui. RKJ One akan menyemak menggunakan rujukan asal tanpa menghantar permintaan QR kedua.',
+  }, { status: 202 });
  }
 }

@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
  createAdminClient: vi.fn(),
  enforceRateLimit: vi.fn(),
  getFiuuOpaConfig: vi.fn(),
+ parseVerifiedFiuuOpaJson: vi.fn(),
  verifyFiuuOpaSignature: vi.fn(),
  verifyPosBillplzSignature: vi.fn(),
 }));
@@ -18,6 +19,12 @@ vi.mock('@/lib/security/rate-limit', () => ({
 }));
 vi.mock('@/lib/pos/fiuu', () => ({
  getFiuuOpaConfig: mocks.getFiuuOpaConfig,
+ normalizeFiuuAmount: (value: unknown) => {
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'number' && Number.isFinite(value)) return value.toFixed(2);
+  return '';
+ },
+ parseVerifiedFiuuOpaJson: mocks.parseVerifiedFiuuOpaJson,
  verifyFiuuOpaSignature: mocks.verifyFiuuOpaSignature,
 }));
 vi.mock('@/lib/pos/fiuu-opa-server', () => ({
@@ -33,7 +40,7 @@ const PAYMENT_ID = '11111111-1111-4111-8111-111111111111';
 const BRANCH_ID = '33333333-3333-4333-8333-333333333333';
 const SIGNATURE = 'a'.repeat(64);
 
-function requestBody() {
+function requestBody(): Record<string, unknown> {
  return {
   applicationCode: 'APP001',
   referenceId: PAYMENT_ID,
@@ -106,6 +113,7 @@ beforeEach(() => {
   channelId: '24',
  });
  mocks.verifyFiuuOpaSignature.mockReturnValue(true);
+ mocks.parseVerifiedFiuuOpaJson.mockImplementation((raw: string) => JSON.parse(raw));
 });
 
 describe('Fiuu OPA webhook durability', () => {
@@ -119,7 +127,12 @@ describe('Fiuu OPA webhook durability', () => {
 
   expect(response.status).toBe(200);
   await expect(response.json()).resolves.toMatchObject({ ok: true, status: 'PAID' });
-  expect(rpc).toHaveBeenNthCalledWith(1, 'report_pos_fiuu_payment', {
+  expect(mocks.parseVerifiedFiuuOpaJson).toHaveBeenCalledWith(
+   expect.stringContaining(`\"referenceId\":\"${PAYMENT_ID}\"`),
+   'server-only-secret',
+  );
+  expect(mocks.verifyFiuuOpaSignature).not.toHaveBeenCalled();
+  expect(rpc).toHaveBeenNthCalledWith(1, 'report_pos_fiuu_payment_with_evidence', {
    p_payment_id: PAYMENT_ID,
    p_gateway_ref: 'TXN001',
    p_amount: 12.5,
@@ -136,6 +149,7 @@ describe('Fiuu OPA webhook durability', () => {
     statusCode: '00',
     signature: SIGNATURE,
    },
+   p_signed_response_raw: expect.stringContaining(`"referenceId":"${PAYMENT_ID}"`),
   });
   expect(rpc).toHaveBeenNthCalledWith(2, 'fulfill_pos_fiuu_payment', {
    p_payment_id: PAYMENT_ID,
@@ -183,7 +197,10 @@ describe('Fiuu OPA webhook durability', () => {
    replay: true,
   });
   expect(rpc).toHaveBeenCalledTimes(1);
-  expect(rpc).toHaveBeenCalledWith('report_pos_fiuu_payment', expect.any(Object));
+  expect(rpc).toHaveBeenCalledWith(
+   'report_pos_fiuu_payment_with_evidence',
+   expect.any(Object),
+  );
  });
 
  it('does not invoke fulfillment when the durable report fails', async () => {
@@ -197,6 +214,36 @@ describe('Fiuu OPA webhook durability', () => {
   await expect(response.json()).resolves.toEqual({ error: 'Fiuu payment report failed' });
   expect(rpc).toHaveBeenCalledTimes(1);
  });
+
+ it('accepts a signed JSON numeric amount using the documented two-decimal value', async () => {
+  const rpc = arrangeAdmin([
+   { data: { payment_id: PAYMENT_ID, status: 'REPORTED' }, error: null },
+   { data: { transaction_id: '22222222-2222-4222-8222-222222222222' }, error: null },
+  ]);
+
+  const response = await POST(webhookRequest({ ...requestBody(), amount: 12.5 }));
+
+  expect(response.status).toBe(200);
+  expect(rpc).toHaveBeenNthCalledWith(1, 'report_pos_fiuu_payment_with_evidence', expect.objectContaining({
+   p_amount: 12.5,
+   p_provider_result: expect.objectContaining({ amount: '12.50' }),
+  }));
+ });
+
+	it('atomically adopts a signed transaction ID when pre-create outcome was unknown', async () => {
+		const rpc = arrangeAdmin([
+			{ data: { payment_id: PAYMENT_ID, status: 'REPORTED' }, error: null },
+			{ data: { transaction_id: '22222222-2222-4222-8222-222222222222' }, error: null },
+		], { gateway_ref: null });
+
+		const response = await POST(webhookRequest());
+
+		expect(response.status).toBe(200);
+		expect(rpc).toHaveBeenNthCalledWith(1, 'report_pos_fiuu_payment_with_evidence', expect.objectContaining({
+			p_gateway_ref: 'TXN001',
+			p_status_code: '00',
+		}));
+	});
 
  it('rejects a callback for an intent outside the BR001 pilot boundary', async () => {
   const rpc = arrangeAdmin([], {

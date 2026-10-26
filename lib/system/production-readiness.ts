@@ -28,6 +28,7 @@ type ReadinessInput = {
  posPilotPassed: boolean;
  monitoringVerified: boolean;
  hasFiuuCredentials: boolean;
+ hasFiuuRecoveryWorker: boolean;
  hasFiuuVtPilot: boolean;
  hasFiuuCloudEcrPilot: boolean;
  hasFiuuSchema: boolean;
@@ -70,7 +71,9 @@ export function buildProductionReadiness(input: ReadinessInput): ProductionReadi
  const hasCompleteScope = input.activeProfilesMissingLegalEntity === 0;
  const hasCompleteAuth = input.activeProfilesWithoutAuthUser === 0;
  const hasCompletedFirstLogin = input.activeProfilesNeverSignedIn === 0;
- const fiuuRuntimeConfigured = (input.posQrPaymentMode === 'fiuu' && input.hasFiuuCredentials)
+ const fiuuRuntimeConfigured = (input.posQrPaymentMode === 'fiuu'
+  && input.hasFiuuCredentials
+  && input.hasFiuuRecoveryWorker)
   || (input.posQrPaymentMode === 'fiuu_vt' && input.hasFiuuVtPilot)
   || (input.posQrPaymentMode === 'fiuu_cloudecr' && input.hasFiuuCloudEcrPilot);
  const fiuuReady = fiuuRuntimeConfigured
@@ -150,6 +153,7 @@ export function buildProductionReadiness(input: ReadinessInput): ProductionReadi
  [
   `Mod QR POS: ${input.posQrPaymentMode}`,
   `Kredensial OPA: ${input.hasFiuuCredentials ? 'dikesan' : 'belum lengkap'}`,
+  `Worker pemulihan OPA: ${input.hasFiuuRecoveryWorker ? 'dikonfigurasi' : 'belum lengkap'}`,
   `Pilot VT: ${input.hasFiuuVtPilot ? 'dikonfigurasi' : 'tidak aktif'}`,
   `Pilot VT+ cloudECR: ${input.hasFiuuCloudEcrPilot ? 'dikonfigurasi' : 'tidak aktif'}`,
   `Skema Fiuu: ${input.hasFiuuSchema ? 'tersedia' : 'belum tersedia'}`,

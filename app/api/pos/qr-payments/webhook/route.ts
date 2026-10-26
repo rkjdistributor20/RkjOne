@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { verifyPosBillplzSignature } from '@/lib/pos/qr-gateway';
-import { getFiuuOpaConfig, verifyFiuuOpaSignature } from '@/lib/pos/fiuu';
+import {
+ getFiuuOpaConfig,
+ normalizeFiuuAmount,
+ parseVerifiedFiuuOpaJson,
+ verifyFiuuOpaSignature,
+} from '@/lib/pos/fiuu';
 import { FIUU_OPA_PILOT_BRANCH } from '@/lib/pos/fiuu-opa-server';
 import { enforceRateLimit } from '@/lib/security/rate-limit';
 import type { Json } from '@/types/database';
@@ -41,19 +46,6 @@ function cleanProviderValue(value: unknown, maxLength = 200): string {
  return typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
 }
 
-type ReportFiuuPaymentRpc = (
- functionName: 'report_pos_fiuu_payment',
- args: {
-  p_payment_id: string;
-  p_gateway_ref: string;
-  p_amount: number;
-  p_currency: string;
-  p_channel_id: string;
-  p_status_code: string;
-  p_provider_result: Json;
- },
-) => PromiseLike<{ data: Json | null; error: { message: string } | null }>;
-
 function parsePayload(raw: string, contentType: string): Record<string, unknown> | null {
  if (!contentType.includes('application/json')) {
   return Object.fromEntries(new URLSearchParams(raw));
@@ -68,10 +60,16 @@ function parsePayload(raw: string, contentType: string): Record<string, unknown>
  }
 }
 
-async function handleFiuuNotification(body: Record<string, unknown>, request: Request) {
- const applicationCode = cleanProviderValue(body.applicationCode, 32);
- const referenceId = cleanProviderValue(body.referenceId, 40);
- if (!applicationCode || !UUID_PATTERN.test(referenceId) || !cleanProviderValue(body.signature, 128)) {
+async function handleFiuuNotification(input: {
+ body: Record<string, unknown>;
+ raw: string;
+ contentType: string;
+ request: Request;
+}) {
+ const applicationCode = cleanProviderValue(input.body.applicationCode, 32);
+ const referenceId = cleanProviderValue(input.body.referenceId, 40);
+ if (!applicationCode || !UUID_PATTERN.test(referenceId)
+  || !cleanProviderValue(input.body.signature, 128)) {
   return NextResponse.json({ error: 'Invalid Fiuu notification' }, { status: 400 });
  }
 
@@ -105,15 +103,29 @@ async function handleFiuuNotification(body: Record<string, unknown>, request: Re
  if (!config || config.applicationCode !== applicationCode) {
   return NextResponse.json({ error: 'Fiuu application mismatch' }, { status: 401 });
  }
- const applicationLimited = enforceRateLimit(request, {
+ const applicationLimited = enforceRateLimit(input.request, {
   key: 'pos-fiuu-webhook-application',
   identity: config.applicationCode,
   limit: 600,
   windowMs: 60 * 1000,
  });
  if (applicationLimited) return applicationLimited;
- if (!verifyFiuuOpaSignature(body, config.secretKey)) {
+
+ let body: Record<string, unknown>;
+ try {
+  body = input.contentType.includes('application/json')
+   ? parseVerifiedFiuuOpaJson(input.raw, config.secretKey)
+   : input.body;
+ } catch {
   return NextResponse.json({ error: 'Invalid Fiuu signature' }, { status: 401 });
+ }
+ if (!input.contentType.includes('application/json')
+  && !verifyFiuuOpaSignature(body, config.secretKey)) {
+  return NextResponse.json({ error: 'Invalid Fiuu signature' }, { status: 401 });
+ }
+ if (cleanProviderValue(body.applicationCode, 32) !== applicationCode
+  || cleanProviderValue(body.referenceId, 40) !== referenceId) {
+  return NextResponse.json({ error: 'Fiuu notification mismatch' }, { status: 401 });
  }
 
  const statusCode = cleanProviderValue(body.statusCode, 8);
@@ -122,11 +134,12 @@ async function handleFiuuNotification(body: Record<string, unknown>, request: Re
  }
 
  const gatewayRef = cleanProviderValue(body.molTransactionId, 40);
+	const storedGatewayRef = cleanProviderValue(payment.gateway_ref, 40);
  const currency = cleanProviderValue(body.currencyCode, 3).toUpperCase();
  const channelId = cleanProviderValue(body.channelId, 4);
- const rawAmount = typeof body.amount === 'string' ? body.amount.trim() : '';
+ const rawAmount = normalizeFiuuAmount(body.amount);
  const amount = Number(rawAmount);
- if (!gatewayRef || gatewayRef !== payment.gateway_ref
+	if (!gatewayRef || (storedGatewayRef && gatewayRef !== storedGatewayRef)
   || currency !== 'MYR' || channelId !== config.channelId
   || !/^(?:0|[1-9]\d*)\.\d{2}$/.test(rawAmount)
   || !Number.isFinite(amount)
@@ -144,8 +157,7 @@ async function handleFiuuNotification(body: Record<string, unknown>, request: Re
   statusCode,
   signature: cleanProviderValue(body.signature, 64).toLowerCase(),
  };
- const reportRpc = admin.rpc.bind(admin) as unknown as ReportFiuuPaymentRpc;
- const { data: reportResult, error: reportError } = await reportRpc('report_pos_fiuu_payment', {
+ const { data: reportResult, error: reportError } = await admin.rpc('report_pos_fiuu_payment_with_evidence', {
   p_payment_id: payment.id,
   p_gateway_ref: gatewayRef,
   p_amount: amount,
@@ -153,6 +165,7 @@ async function handleFiuuNotification(body: Record<string, unknown>, request: Re
   p_channel_id: channelId,
   p_status_code: statusCode,
   p_provider_result: providerResult,
+  p_signed_response_raw: input.raw,
  });
  if (reportError) {
   console.error('[pos-fiuu] payment_report_failed', {
@@ -227,7 +240,8 @@ export async function POST(request: Request) {
   }
   return NextResponse.json({ error: 'Invalid payment payload' }, { status: 400 });
  }
- const body = parsePayload(raw, request.headers.get('content-type') ?? '');
+ const contentType = request.headers.get('content-type') ?? '';
+ const body = parsePayload(raw, contentType);
  if (!body) return NextResponse.json({ error: 'Invalid payment payload' }, { status: 400 });
 
  if (body.applicationCode || body.referenceId) {
@@ -237,7 +251,7 @@ export async function POST(request: Request) {
    windowMs: 60 * 1000,
   });
   if (providerIpLimited) return providerIpLimited;
-  return handleFiuuNotification(body, request);
+  return handleFiuuNotification({ body, raw, contentType, request });
  }
  const limited = enforceRateLimit(request, {
   key: 'pos-qr-webhook-billplz',

@@ -184,7 +184,8 @@ export async function GET(
   && providerResult?.status === '00';
  const payment = vtReported
   ? { ...data, status: 'REPORTED' }
-  : data.status === 'PENDING'
+  : data.provider !== 'fiuu'
+  && data.status === 'PENDING'
   && data.expires_at
   && isFiuuReconciliationExpired(data.expires_at)
   ? { ...data, status: 'EXPIRED' }

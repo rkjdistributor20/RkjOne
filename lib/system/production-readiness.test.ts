@@ -9,6 +9,7 @@ const BASE_INPUT = {
  posPilotPassed: false,
  monitoringVerified: false,
  hasFiuuCredentials: false,
+ hasFiuuRecoveryWorker: false,
  hasFiuuVtPilot: false,
  hasFiuuCloudEcrPilot: false,
  hasFiuuSchema: false,
@@ -50,6 +51,7 @@ describe('production readiness evidence', () => {
    posPilotPassed: true,
    monitoringVerified: true,
    hasFiuuCredentials: true,
+   hasFiuuRecoveryWorker: true,
    hasFiuuSchema: true,
    fiuuLiveUatPassed: true,
    posQrPaymentMode: 'fiuu',
@@ -65,6 +67,18 @@ describe('production readiness evidence', () => {
   expect(statusFor(snapshot, 'backup-restore')).toBe('READY');
   expect(statusFor(snapshot, 'pos-offline')).toBe('READY');
   expect(statusFor(snapshot, 'monitoring-alerts')).toBe('READY');
+ });
+
+ it('keeps OPA blocked until the authenticated recovery worker is configured', () => {
+  const snapshot = buildProductionReadiness({
+   ...BASE_INPUT,
+   hasFiuuCredentials: true,
+   hasFiuuSchema: true,
+   fiuuLiveUatPassed: true,
+   posQrPaymentMode: 'fiuu',
+  });
+
+  expect(statusFor(snapshot, 'payment-gateway')).toBe('NEEDS_ACTION');
  });
 
  it('keeps cloudECR blocked until schema and live UAT both pass', () => {

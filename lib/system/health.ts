@@ -175,13 +175,21 @@ async function loadAccessReadiness(supabase: DbClient) {
 }
 
 async function hasFiuuDatabaseSchema(supabase: DbClient) {
-  const { error } = await supabase
-    .from("pos_online_payments")
-    .select(
-      "expires_at, provider_order_id, provider_result, provider_status_checked_at, provider_reconcile_reference_id, provider_reconcile_claimed_at, provider_sale_reported_at, provider_transaction_id",
-      { count: "exact", head: true },
-    );
-  return !error;
+  const checks = await Promise.all([
+    supabase
+      .from("pos_online_payments")
+      .select(
+        "expires_at, provider_order_id, provider_result, provider_status_checked_at, provider_reconcile_reference_id, provider_reconcile_claimed_at, provider_sale_reported_at, provider_transaction_id, fiuu_opa_reconcile_state, fiuu_opa_reconcile_attempt_count, fiuu_opa_reconcile_next_at, fiuu_opa_reconcile_claim_token, fiuu_opa_reconcile_lease_expires_at",
+        { count: "exact", head: true },
+      ),
+    supabase
+      .from("pos_fiuu_opa_reconciliation_attempts")
+      .select("id", { count: "exact", head: true }),
+    supabase
+      .from("pos_fiuu_opa_signed_evidence")
+      .select("id", { count: "exact", head: true }),
+  ]);
+  return checks.every(({ error }) => !error);
 }
 
 function launchItem(
@@ -209,6 +217,7 @@ function launchItem(
 function buildLaunchControl(input: {
   hasSupabaseEnv: boolean;
   hasFiuuCredentials: boolean;
+  hasFiuuRecoveryWorker: boolean;
   hasFiuuVtPilot: boolean;
   hasFiuuCloudEcrPilot: boolean;
   hasFiuuSchema: boolean;
@@ -231,7 +240,9 @@ function buildLaunchControl(input: {
     input.activeProfilesMissingLegalEntity === 0 &&
     input.activeProfilesWithoutAuthUser === 0;
   const hasCompletedFirstLogin = input.activeProfilesNeverSignedIn === 0;
-  const hasFiuuRuntime = ((input.posQrPaymentMode === "fiuu" && input.hasFiuuCredentials) ||
+  const hasFiuuRuntime = ((input.posQrPaymentMode === "fiuu"
+    && input.hasFiuuCredentials
+    && input.hasFiuuRecoveryWorker) ||
     (input.posQrPaymentMode === "fiuu_vt" && input.hasFiuuVtPilot) ||
     (input.posQrPaymentMode === "fiuu_cloudecr" && input.hasFiuuCloudEcrPilot)) &&
     input.hasFiuuSchema;
@@ -347,6 +358,10 @@ export async function buildSystemHealthSnapshot(
   const hasFiuuCredentials = Boolean(process.env.POS_FIUU_APPLICATIONS_JSON) ||
     (Boolean(process.env.POS_FIUU_APPLICATION_CODE) &&
       Boolean(process.env.POS_FIUU_SECRET_KEY));
+  const fiuuRecoverySecret = (process.env.FIUU_RECONCILIATION_SECRET ?? "").trim();
+  const hasFiuuRecoveryWorker =
+    process.env.FIUU_RECONCILIATION_ENABLED?.trim().toLowerCase() === "true"
+    && fiuuRecoverySecret.length >= 32;
   const hasFiuuVtPilot = Boolean(process.env.POS_FIUU_VT_BRANCHES?.trim());
   const fiuuCloudEcrBaseUrl = process.env.POS_FIUU_CLOUDECR_BASE_URL?.trim()
     .replace(/\/$/, "");
@@ -374,6 +389,7 @@ export async function buildSystemHealthSnapshot(
     posPilotPassed: false,
     monitoringVerified: false,
     hasFiuuCredentials,
+    hasFiuuRecoveryWorker,
     hasFiuuVtPilot,
     hasFiuuCloudEcrPilot,
     hasFiuuSchema,
@@ -394,6 +410,7 @@ export async function buildSystemHealthSnapshot(
   const launchControl = buildLaunchControl({
     hasSupabaseEnv,
     hasFiuuCredentials,
+    hasFiuuRecoveryWorker,
     hasFiuuVtPilot,
     hasFiuuCloudEcrPilot,
     hasFiuuSchema,
@@ -571,7 +588,7 @@ export async function buildSystemHealthSnapshot(
           "payment-env",
           "Kesiapan Fiuu live",
           "WARN",
-          `Mod QR POS ${posQrPaymentMode}; kredensial OPA ${hasFiuuCredentials ? "dikesan" : "belum lengkap"}; pilot VT ${hasFiuuVtPilot ? "dikonfigurasi" : "tidak aktif"}; pilot VT+ cloudECR ${hasFiuuCloudEcrPilot ? "dikonfigurasi" : "tidak aktif"}; skema Fiuu ${hasFiuuSchema ? "tersedia" : "belum tersedia"}; UAT transaksi live belum direkodkan.`,
+          `Mod QR POS ${posQrPaymentMode}; kredensial OPA ${hasFiuuCredentials ? "dikesan" : "belum lengkap"}; worker pemulihan OPA ${hasFiuuRecoveryWorker ? "dikonfigurasi" : "belum lengkap"}; pilot VT ${hasFiuuVtPilot ? "dikonfigurasi" : "tidak aktif"}; pilot VT+ cloudECR ${hasFiuuCloudEcrPilot ? "dikonfigurasi" : "tidak aktif"}; skema Fiuu ${hasFiuuSchema ? "tersedia" : "belum tersedia"}; UAT transaksi live belum direkodkan.`,
           "Kekalkan QR statik/manual di luar pilot sehingga migrasi, bukti provider dan settlement disahkan.",
         ),
       ],

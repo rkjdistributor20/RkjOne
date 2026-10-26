@@ -3,6 +3,10 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 const FIUU_DUITNOW_QR_CHANNEL_ID = '24';
 const FIUU_SANDBOX_PRECREATE_URL = 'https://sandbox-payment.fiuu.com/RMS/API/MOLOPA/precreate.php';
 const FIUU_PRODUCTION_PRECREATE_URL = 'https://opa.fiuu.com/RMS/API/MOLOPA/precreate.php';
+const FIUU_SANDBOX_INQUIRY_URL = 'https://sandbox-api.fiuu.com/RMS/API/MOLOPA/inquiry.php';
+const FIUU_PRODUCTION_INQUIRY_URL = 'https://api.fiuu.com/RMS/API/MOLOPA/inquiry.php';
+const FIUU_SANDBOX_REVERSAL_URL = 'https://sandbox-api.fiuu.com/RMS/API/MOLOPA/reversal.php';
+const FIUU_PRODUCTION_REVERSAL_URL = 'https://api.fiuu.com/RMS/API/MOLOPA/reversal.php';
 export const FIUU_CALLBACK_GRACE_MS = 20 * 60 * 1000;
 
 export function isFiuuReconciliationExpired(expiresAt: string, nowMs = Date.now()): boolean {
@@ -27,6 +31,8 @@ export type FiuuOpaConfig = {
   channelId: '24';
   environment: FiuuEnvironment;
   precreateUrl: string;
+  inquiryUrl: string;
+  reversalUrl: string;
   validitySeconds: number;
 };
 
@@ -36,6 +42,20 @@ export type FiuuDynamicQrResult = {
   authorizationCode: string;
   expiresAt: string;
 };
+
+export class FiuuOpaPrecreateError extends Error {
+  readonly definitiveRejection: boolean;
+
+  constructor(message: string, definitiveRejection: boolean) {
+    super(message);
+    this.name = 'FiuuOpaPrecreateError';
+    this.definitiveRejection = definitiveRejection;
+  }
+}
+
+export function isFiuuOpaDefinitiveRejection(error: unknown): boolean {
+  return error instanceof FiuuOpaPrecreateError && error.definitiveRejection;
+}
 
 type FiuuResponse = Record<string, unknown> & {
   applicationCode?: unknown;
@@ -192,13 +212,33 @@ export function getFiuuOpaConfig(
       process.env.POS_FIUU_PRECREATE_URL?.trim() || defaultUrl,
       environment,
     ),
+    inquiryUrl: environment === 'production'
+      ? FIUU_PRODUCTION_INQUIRY_URL
+      : FIUU_SANDBOX_INQUIRY_URL,
+    reversalUrl: environment === 'production'
+      ? FIUU_PRODUCTION_REVERSAL_URL
+      : FIUU_SANDBOX_REVERSAL_URL,
     validitySeconds: parseValiditySeconds(),
   };
 }
-function signatureValue(value: unknown): string {
-  if (typeof value === 'string') return value;
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+const FIUU_TWO_DECIMAL_SIGNATURE_FIELDS = new Set(['amount', 'baseAmount']);
+
+function signatureValue(key: string, value: unknown): string {
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'number') {
+    if (FIUU_TWO_DECIMAL_SIGNATURE_FIELDS.has(key) && Number.isFinite(value)) {
+      return value.toFixed(2);
+    }
+    return String(value);
+  }
+  if (typeof value === 'boolean') return String(value);
   if (isRecord(value) || Array.isArray(value)) return JSON.stringify(value);
+  return '';
+}
+
+export function normalizeFiuuAmount(value: unknown): string {
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'number' && Number.isFinite(value)) return value.toFixed(2);
   return '';
 }
 
@@ -209,7 +249,7 @@ export function buildFiuuOpaSignature(
   const source = Object.keys(parameters)
     .filter((key) => key !== 'signature')
     .sort()
-    .map((key) => signatureValue(parameters[key]))
+    .map((key) => signatureValue(key, parameters[key]))
     .filter((value) => value !== '')
     .join('');
   return createHmac('sha256', secretKey).update(source, 'utf8').digest('hex');
@@ -228,6 +268,144 @@ export function verifyFiuuOpaSignature(
   const expectedBuffer = Buffer.from(expected, 'hex');
   return receivedBuffer.length === expectedBuffer.length
     && timingSafeEqual(receivedBuffer, expectedBuffer);
+}
+
+function jsonWhitespace(character: string | undefined): boolean {
+ return character === ' ' || character === '\n' || character === '\r' || character === '\t';
+}
+
+function skipJsonWhitespace(raw: string, start: number): number {
+ let index = start;
+ while (jsonWhitespace(raw[index])) index += 1;
+ return index;
+}
+
+function jsonStringEnd(raw: string, start: number): number {
+ if (raw[start] !== '"') throw new Error('Respons JSON Fiuu tidak sah');
+ let escaped = false;
+ for (let index = start + 1; index < raw.length; index += 1) {
+  const character = raw[index];
+  if (escaped) {
+   escaped = false;
+  } else if (character === '\\') {
+   escaped = true;
+  } else if (character === '"') {
+   return index + 1;
+  }
+ }
+ throw new Error('Respons JSON Fiuu tidak sah');
+}
+
+function jsonValueEnd(raw: string, start: number): number {
+ const first = raw[start];
+ if (first === '"') return jsonStringEnd(raw, start);
+ if (first === '{' || first === '[') {
+  const stack = [first];
+  let inString = false;
+  let escaped = false;
+  for (let index = start + 1; index < raw.length; index += 1) {
+   const character = raw[index];
+   if (inString) {
+    if (escaped) escaped = false;
+    else if (character === '\\') escaped = true;
+    else if (character === '"') inString = false;
+    continue;
+   }
+   if (character === '"') {
+    inString = true;
+   } else if (character === '{' || character === '[') {
+    stack.push(character);
+   } else if (character === '}' || character === ']') {
+    const expected = character === '}' ? '{' : '[';
+    if (stack.pop() !== expected) throw new Error('Respons JSON Fiuu tidak sah');
+    if (stack.length === 0) return index + 1;
+   }
+  }
+  throw new Error('Respons JSON Fiuu tidak sah');
+ }
+
+ let index = start;
+ while (index < raw.length && raw[index] !== ',' && raw[index] !== '}') index += 1;
+ return index;
+}
+
+function rawSignatureValue(token: string): string {
+ const normalized = token.trim();
+ if (normalized.startsWith('"')) {
+  const value: unknown = JSON.parse(normalized);
+  return typeof value === 'string' ? value.trim() : '';
+ }
+ if (normalized === 'null') return '';
+ return normalized;
+}
+
+function parseTopLevelJsonSignatureValues(raw: string): {
+ body: Record<string, unknown>;
+ values: Record<string, string>;
+} {
+ const parsed: unknown = JSON.parse(raw);
+ if (!isRecord(parsed)) throw new Error('Respons JSON Fiuu mesti objek');
+
+ const values: Record<string, string> = Object.create(null) as Record<string, string>;
+ let index = skipJsonWhitespace(raw, 0);
+ if (raw[index] !== '{') throw new Error('Respons JSON Fiuu mesti objek');
+ index = skipJsonWhitespace(raw, index + 1);
+ if (raw[index] === '}') return { body: parsed, values };
+
+ while (index < raw.length) {
+  const keyEnd = jsonStringEnd(raw, index);
+  const key: unknown = JSON.parse(raw.slice(index, keyEnd));
+  if (typeof key !== 'string' || Object.hasOwn(values, key)) {
+   throw new Error('Respons JSON Fiuu mempunyai parameter berulang');
+  }
+  index = skipJsonWhitespace(raw, keyEnd);
+  if (raw[index] !== ':') throw new Error('Respons JSON Fiuu tidak sah');
+  index = skipJsonWhitespace(raw, index + 1);
+  const valueEnd = jsonValueEnd(raw, index);
+  values[key] = rawSignatureValue(raw.slice(index, valueEnd));
+  index = skipJsonWhitespace(raw, valueEnd);
+  if (raw[index] === '}') {
+   index = skipJsonWhitespace(raw, index + 1);
+   if (index !== raw.length) throw new Error('Respons JSON Fiuu tidak sah');
+   return { body: parsed, values };
+  }
+  if (raw[index] !== ',') throw new Error('Respons JSON Fiuu tidak sah');
+  index = skipJsonWhitespace(raw, index + 1);
+ }
+ throw new Error('Respons JSON Fiuu tidak sah');
+}
+
+/**
+ * Verifies a Fiuu JSON response without losing decimal zeroes or reserializing
+ * nested values before HMAC calculation. The returned body is parsed only
+ * after the exact top-level lexical values have been retained for signing.
+ */
+export function parseVerifiedFiuuOpaJson(
+ raw: string,
+ secretKey: string,
+): Record<string, unknown> {
+ if (!raw || raw.length > 64 * 1024) throw new Error('Respons JSON Fiuu tidak sah');
+ const { body, values } = parseTopLevelJsonSignatureValues(raw);
+ const received = typeof body.signature === 'string'
+  ? body.signature.trim().toLowerCase()
+  : '';
+ if (!/^[a-f0-9]{64}$/.test(received)) {
+  throw new Error('Tandatangan respons Fiuu tidak sah');
+ }
+ const source = Object.keys(values)
+  .filter((key) => key !== 'signature')
+  .sort()
+  .map((key) => values[key])
+  .filter((value) => value !== '')
+  .join('');
+ const expected = createHmac('sha256', secretKey).update(source, 'utf8').digest('hex');
+ const receivedBuffer = Buffer.from(received, 'hex');
+ const expectedBuffer = Buffer.from(expected, 'hex');
+ if (receivedBuffer.length !== expectedBuffer.length
+  || !timingSafeEqual(receivedBuffer, expectedBuffer)) {
+  throw new Error('Tandatangan respons Fiuu tidak sah');
+ }
+ return body;
 }
 
 export function malaysiaBusinessDate(date = new Date()): string {
@@ -268,45 +446,84 @@ export async function createFiuuDynamicQr(input: {
   };
   parameters.signature = buildFiuuOpaSignature(parameters, input.config.secretKey);
 
-  const response = await fetch(input.config.precreateUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams(parameters),
-    cache: 'no-store',
-    signal: AbortSignal.timeout(15_000),
-  });
-
-  const body: unknown = await response.json().catch(() => null);
-  if (!response.ok || !isRecord(body)) {
-    throw new Error(`Fiuu gagal menjana QR (${response.status})`);
+  let response: Response;
+  try {
+    response = await fetch(input.config.precreateUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams(parameters),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch {
+    throw new FiuuOpaPrecreateError(
+      'Keputusan permintaan QR Fiuu tidak dapat disahkan',
+      false,
+    );
   }
-  const result: FiuuResponse = body;
 
-  if (!verifyFiuuOpaSignature(result, input.config.secretKey)) {
-    throw new Error('Tandatangan respons Fiuu tidak sah');
+  const rawBody = await response.text();
+  if (!response.ok) {
+    const ambiguousHttpStatus = [408, 409, 425, 429].includes(response.status);
+    throw new FiuuOpaPrecreateError(
+      `Fiuu gagal menjana QR (${response.status})`,
+      response.status >= 400 && response.status < 500 && !ambiguousHttpStatus,
+    );
+  }
+  let result: FiuuResponse;
+  try {
+    result = parseVerifiedFiuuOpaJson(
+      rawBody,
+      input.config.secretKey,
+    ) as FiuuResponse;
+  } catch {
+    throw new FiuuOpaPrecreateError(
+      'Keputusan respons QR Fiuu tidak dapat disahkan',
+      false,
+    );
   }
   if (String(result.applicationCode ?? '') !== input.config.applicationCode
     || String(result.referenceId ?? '') !== input.paymentId
     || Number(result.amount) !== Number(amount)
     || String(result.currencyCode ?? '') !== 'MYR'
     || String(result.channelId ?? '') !== input.config.channelId) {
-    throw new Error('Respons Fiuu tidak sepadan dengan permintaan POS');
+    throw new FiuuOpaPrecreateError(
+      'Respons Fiuu tidak sepadan dengan permintaan POS',
+      false,
+    );
   }
   if (String(result.statusCode ?? '') !== '00') {
     const errorCode = String(result.errorCode ?? 'UNKNOWN').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 32);
-    throw new Error(`Fiuu menolak permintaan QR (${errorCode})`);
+    throw new FiuuOpaPrecreateError(
+      `Fiuu menolak permintaan QR (${errorCode})`,
+      true,
+    );
   }
 
-  const imageUrl = requiredString(
-    result.customImageURL ?? result.ImageUrlBig ?? result.ImageUrl,
-    'URL imej QR',
-    500,
-  );
-  if (new URL(imageUrl).protocol !== 'https:') throw new Error('URL imej QR Fiuu tidak selamat');
+  let imageUrl: string;
+  let gatewayReference: string;
+  let authorizationCode: string;
+  try {
+    imageUrl = requiredString(
+      result.customImageURL ?? result.ImageUrlBig ?? result.ImageUrl,
+      'URL imej QR',
+      500,
+    );
+    if (new URL(imageUrl).protocol !== 'https:') {
+      throw new Error('URL imej QR Fiuu tidak selamat');
+    }
+    gatewayReference = requiredString(result.molTransactionId, 'Transaction ID', 40);
+    authorizationCode = requiredString(result.authorizationCode, 'Authorization Code', 500);
+  } catch {
+    throw new FiuuOpaPrecreateError(
+      'Respons kejayaan QR Fiuu tidak lengkap',
+      false,
+    );
+  }
 
   return {
-    gatewayReference: requiredString(result.molTransactionId, 'Transaction ID', 40),
-    authorizationCode: requiredString(result.authorizationCode, 'Authorization Code', 500),
+    gatewayReference,
+    authorizationCode,
     qrImageUrl: imageUrl,
     expiresAt: new Date(Date.now() + input.config.validitySeconds * 1000).toISOString(),
   };

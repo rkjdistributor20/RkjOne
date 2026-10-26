@@ -1,12 +1,16 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
  buildFiuuOpaSignature,
+ createFiuuDynamicQr,
  FIUU_CALLBACK_GRACE_MS,
  getFiuuEnvironment,
  getFiuuOpaConfig,
  getPosQrPaymentMode,
+ isFiuuOpaDefinitiveRejection,
  isFiuuReconciliationExpired,
  malaysiaBusinessDate,
+ normalizeFiuuAmount,
+ parseVerifiedFiuuOpaJson,
  verifyFiuuOpaSignature,
 } from './fiuu';
 
@@ -14,6 +18,7 @@ const ORIGINAL_ENV = { ...process.env };
 
 afterEach(() => {
  process.env = { ...ORIGINAL_ENV };
+ vi.unstubAllGlobals();
 });
 
 describe('Fiuu OPA signing', () => {
@@ -32,6 +37,75 @@ describe('Fiuu OPA signing', () => {
   expect(verifyFiuuOpaSignature({ ...parameters, signature }, 'test-secret')).toBe(true);
   expect(verifyFiuuOpaSignature({ ...parameters, amount: '12.51', signature }, 'test-secret')).toBe(false);
  });
+
+ it('trims string values, omits whitespace-only values and retains numeric zero', () => {
+  const canonical = {
+   applicationCode: 'RKJTEST',
+   amount: '0',
+   description: '',
+   referenceId: 'PAYMENT-001',
+  };
+  const padded = {
+   applicationCode: '  RKJTEST  ',
+   amount: ' 0 ',
+   description: '   ',
+   referenceId: ' PAYMENT-001 ',
+  };
+
+  expect(buildFiuuOpaSignature(padded, 'test-secret'))
+   .toBe(buildFiuuOpaSignature(canonical, 'test-secret'));
+ });
+
+ it('restores documented two-decimal amount fields after JSON number parsing', () => {
+  const lexicalResponse = {
+   amount: '10.00',
+   applicationCode: 'RKJTEST',
+   baseAmount: '16.64',
+   exchangeRate: '1.66',
+   referenceId: 'PAYMENT-001',
+  };
+  const parsedJsonResponse = {
+   ...lexicalResponse,
+   amount: 10,
+   baseAmount: 16.64,
+   exchangeRate: 1.66,
+  };
+
+  expect(buildFiuuOpaSignature(parsedJsonResponse, 'test-secret'))
+   .toBe(buildFiuuOpaSignature(lexicalResponse, 'test-secret'));
+  expect(normalizeFiuuAmount(10)).toBe('10.00');
+  expect(normalizeFiuuAmount(' 10.00 ')).toBe('10.00');
+ });
+
+ it('verifies exact decimal and nested JSON tokens before lossy parsing', () => {
+  const extraInfo = '{"issuer":"DuitNow","count":0}';
+  const parameters = {
+   amount: '10.00',
+   applicationCode: 'RKJTEST',
+   exchangeRate: '1.6600',
+   extraInfo,
+   referenceId: 'PAYMENT-001',
+   statusCode: '00',
+  };
+  const signature = buildFiuuOpaSignature(parameters, 'test-secret');
+  const raw = '{'
+   + '"amount":10.00,'
+   + '"applicationCode":"RKJTEST",'
+   + '"exchangeRate":1.6600,'
+   + `"extraInfo":${extraInfo},`
+   + '"referenceId":"PAYMENT-001",'
+   + '"statusCode":"00",'
+   + `"signature":"${signature}"`
+   + '}';
+
+  expect(parseVerifiedFiuuOpaJson(raw, 'test-secret')).toMatchObject({
+   amount: 10,
+   exchangeRate: 1.66,
+   extraInfo: { issuer: 'DuitNow', count: 0 },
+  });
+  expect(() => parseVerifiedFiuuOpaJson(raw.replace('1.6600', '1.66'), 'test-secret'))
+   .toThrow('Tandatangan respons Fiuu tidak sah');
+ });
 });
 
 describe('Malaysia business dates', () => {
@@ -39,6 +113,47 @@ describe('Malaysia business dates', () => {
   expect(malaysiaBusinessDate(new Date('2026-12-31T15:59:59.000Z'))).toBe('2026-12-31');
   expect(malaysiaBusinessDate(new Date('2026-12-31T16:00:00.000Z'))).toBe('2027-01-01');
   expect(malaysiaBusinessDate(new Date('2028-02-28T16:00:00.000Z'))).toBe('2028-02-29');
+ });
+});
+
+describe('Fiuu pre-create outcome classification', () => {
+ const config = {
+  applicationCode: 'APP001',
+  secretKey: 'test-secret',
+  storeId: 'STORE001',
+  terminalId: 'TERM001',
+  channelId: '24' as const,
+  environment: 'sandbox' as const,
+  precreateUrl: 'https://sandbox-payment.fiuu.com/RMS/API/MOLOPA/precreate.php',
+  inquiryUrl: 'https://sandbox-api.fiuu.com/RMS/API/MOLOPA/inquiry.php',
+  reversalUrl: 'https://sandbox-api.fiuu.com/RMS/API/MOLOPA/reversal.php',
+  validitySeconds: 180,
+ };
+
+ it('treats a provider 4xx as a definitive rejection', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 400 })));
+  const promise = createFiuuDynamicQr({
+   config,
+   paymentId: 'PAYMENT-001',
+   amountRm: 12.5,
+   description: 'RKJ POS BR001',
+  });
+  const error = await promise.catch((caught: unknown) => caught);
+
+  expect(isFiuuOpaDefinitiveRejection(error)).toBe(true);
+ });
+
+ it('keeps a transport exception as an unknown payment outcome', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network interrupted')));
+  const promise = createFiuuDynamicQr({
+   config,
+   paymentId: 'PAYMENT-001',
+   amountRm: 12.5,
+   description: 'RKJ POS BR001',
+  });
+  const error = await promise.catch((caught: unknown) => caught);
+
+  expect(isFiuuOpaDefinitiveRejection(error)).toBe(false);
  });
 });
 

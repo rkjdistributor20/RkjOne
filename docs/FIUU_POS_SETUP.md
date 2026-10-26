@@ -132,10 +132,12 @@ Merchant portal credentials shown on the portal home page must not be assumed to
 1. Retrieve the BR001 sandbox OPA Application Code and Secret Key from the authenticated Fiuu portal or an approved secure channel. Do not substitute the portal Merchant ID, Verify Key or cloudECR Secret Key.
 2. Record the provider-approved BR001 Store ID and Terminal ID. Production will remain fail-closed unless both are explicit in the branch mapping.
 3. Enter a `BR001`-only mapping directly into the Vercel Preview environment; never paste the real values into Git or chat.
-4. Configure the Preview notification URL:
+4. Add a separate server-only `FIUU_RECONCILIATION_SECRET` of at least 32 random characters to Preview. It authenticates the inquiry-recovery endpoint and must not be reused as an OPA or portal secret.
+5. Configure the Preview notification URL:
    `https://<vercel-preview-host>/api/pos/qr-payments/webhook`
-5. Complete a signed sandbox transaction using channel `24` and a validity of 60–180 seconds. Verify the callback, exact-once receipt, stock movement, shift update, late/duplicate handling and settlement.
-6. Keep every other branch on static QR/manual until BR001 passes, and request fresh confirmation immediately before any Production action.
+6. Complete a signed sandbox transaction using channel `24` and a validity of 60–180 seconds. Verify the callback, exact-once receipt, stock movement, shift update, late/duplicate handling and settlement.
+7. Exercise the authenticated BR001 recovery endpoint after QR expiry. Confirm exactly six inquiry attempts at ten-second intervals, signed identity matching, no seventh inquiry and no automatic reversal.
+8. Keep every other branch on static QR/manual until BR001 passes, and request fresh confirmation immediately before any Production action.
 
 ## cloudECR/VT+ fallback actions
 
@@ -165,7 +167,21 @@ Use Vercel server-only environment variables. `POS_FIUU_APPLICATIONS_JSON` is pr
 POS_QR_PAYMENT_MODE=fiuu
 POS_FIUU_OPA_BRANCHES=BR001
 POS_FIUU_ENVIRONMENT=sandbox
+FIUU_RECONCILIATION_ENABLED=true
+FIUU_RECONCILIATION_SECRET=<server-only-random-value-at-least-32-characters>
 ```
+
+`FIUU_RECONCILIATION_ENABLED` is a dedicated default-off gate and must not be
+enabled in Production before fresh approval. `FIUU_RECONCILIATION_SECRET` is
+not a Fiuu credential. It protects the internal
+`POST /api/internal/pos/fiuu-opa/reconcile` worker. No Production schedule is
+configured by this implementation. In Preview, call it once after
+`expires_at + 10 seconds`; it processes one BR001 payment and runs a maximum of
+six signed provider inquiries at ten-second intervals. Status `00` enters the
+same durable exact-once fulfilment flow as a callback, `01/11` remains pending,
+`99` becomes failed, and six unresolved attempts become `AWAITING_REVERSAL`.
+Automatic reversal is deliberately disabled until Fiuu's
+`paymentReferenceId` semantics are confirmed.
 
 The payment-mode selector is not sufficient by itself. OPA creation is also protected by `POS_FIUU_OPA_BRANCHES`, and the present pilot implementation fails closed unless the normalized allowlist contains exactly the hard-locked pilot branch `BR001`. Wildcards, malformed entries and `BR002`–`BR036` are rejected.
 
@@ -197,6 +213,8 @@ A valid signed `STATUS=00` notification is handled in two committed phases: firs
 - Cash, mixed payment, discount, change, shift totals and Malaysia business date reconcile.
 - Reloading or reopening the payment dialog restores the same unresolved payment and does not create a second payable QR.
 - A signed callback received during the bounded expiry grace creates at most one sale; after the grace ends, a new attempt can be created without accepting the old intent.
+- Missing callbacks are recovered only through the authenticated BR001 worker; unsigned, mismatched or malformed inquiry responses create no sale and release no second QR.
+- Six unresolved inquiry attempts produce `AWAITING_REVERSAL`, keep the shift locked and require Finance review; there is no seventh inquiry and no automatic reversal.
 
 ## Rollout and rollback
 
