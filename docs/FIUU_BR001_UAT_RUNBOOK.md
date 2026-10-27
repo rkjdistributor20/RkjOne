@@ -1,6 +1,6 @@
 # Fiuu BR001 Dynamic DuitNow QR UAT and rollback runbook
 
-Last updated: 2026-10-27
+Last updated: 2026-10-28
 
 ## Decision and authority
 
@@ -40,13 +40,50 @@ native build, enable the BR001-only Preview mode and repeat the preflight. A
 real payment and every further Production action require separate action-time
 confirmation.
 
+## Controlled payment checkpoint — 2026-10-28
+
+The owner completed one RM2.50 DuitNow QR payment for Preview order
+`RKJ_87553A4C0F034E158D4426A9D8616EBE`. Fiuu's official payment-success email
+matches merchant `RNR Juru Arah Selatan`, amount RM2.50, provider transaction
+`4140436862` and 28 October 2026 at 02:05 MYT. No second charge was initiated
+during reconciliation.
+
+The native VT SALE/STATUS return did not reach RKJ One, so this payment does
+**not** pass automatic App-to-App `STATUS=00` verification. After explicit
+action-time owner approval, the existing paid intent was reconciled once in
+staging using an atomic, fail-closed database transaction. The stored evidence
+is deliberately labelled `FIUU_PAYMENT_SUCCESS_EMAIL`,
+`MANUAL_RECONCILIATION` and `automaticVerification=false`; no synthetic native
+callback or `STATUS=00` evidence was created.
+
+Post-commit verification returned:
+
+- payment `PAID`, provider/gateway reference `4140436862`;
+- one completed sale `TX-20261028-00001` for RM2.50;
+- one receipt;
+- three BOM stock deductions and three stock movements;
+- shift totals RM32.50 gross, RM2.50 QR and three transactions; and
+- one occurrence only of the provider transaction reference.
+
+The earlier provider-paid transaction `4140386055` remains intentionally
+unlinked to a local sale: its local intent is still `EXPIRED`, with no local
+transaction or gateway reference. Finance must decide its separate
+reconciliation/refund treatment before settlement sign-off. Do not silently
+create a second sale or refund it without a separately approved provider
+workflow.
+
+The exact-once local sale/receipt/stock/shift path therefore passes under
+controlled manual recovery, while automatic VT confirmation and settlement
+remain **NO-GO**. Production, `BR002` through `BR036`, Production migrations,
+environment values and deployments remain unchanged.
+
 ## Transport decision table
 
 | Path | Hardware dependency | Verification | BR001 decision |
 | --- | --- | --- | --- |
 | **OPA Dynamic DuitNow QR** | Browser/PWA and network only | HMAC-SHA256 request/response plus signed server notification | Preferred broad-rollout path; credentials unavailable |
 | **Fiuu VT+ + cloudECR** | Official `com.fiuu.cloudecrvt`, activation, secret and POS binding | HMAC-SHA256 server API | Prepared fallback; physical app currently splash-blocked |
-| **VT App-to-App** | Official `com.rms.mobile.razervt`, provider activation and RKJ native app | Unsigned Android deep-link SALE followed by STATUS | **Selected BR001 UAT path; activation mapping pending** |
+| **VT App-to-App** | Official `com.rms.mobile.razervt`, provider activation and RKJ native app | Unsigned Android deep-link SALE followed by STATUS | **BR001 physical payment completed; native callback missing, so automatic verification did not pass** |
 | **Static branch QR** | Browser/PWA only | Cashier confirmation and Finance reconciliation | Operational fallback only; not automatic verification |
 
 Credentials and readiness evidence are not interchangeable between these paths.
