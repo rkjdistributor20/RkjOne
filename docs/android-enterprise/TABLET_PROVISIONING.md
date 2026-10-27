@@ -20,9 +20,9 @@ Kod aktivasi RKJ One tidak mempunyai kuasa untuk menjadikan aplikasi sebagai Dev
 
 1. Pilih penyedia EMM yang menyokong Android Enterprise dedicated devices, atau gunakan Android Management API dengan kelayakan organisasi yang sah.
 2. Daftar enterprise dan pautkan Managed Google Play.
-3. Terbitkan `com.rkjone.staff` kepada Managed Google Play bagi organisasi.
+3. Terbitkan `com.rkjone.staff` kepada Managed Google Play bagi organisasi dan luluskan aplikasi rasmi Fiuu VT `com.rms.mobile.razervt`.
 4. Cipta polisi kiosk berdasarkan `docs/android-enterprise/rkj-pos-policy.template.json`.
-5. Tetapkan Wi-Fi setiap cawangan dalam EMM. Jangan simpan kata laluan Wi-Fi dalam repo atau kod aplikasi.
+5. Pastikan polisi force-install Fiuu VT sebagai aplikasi berkait, sementara RKJ One kekal aplikasi kiosk utama. Tetapkan Wi-Fi setiap cawangan dalam EMM. Jangan simpan kata laluan Wi-Fi dalam repo atau kod aplikasi.
 6. Jana enrollment token dan QR khusus polisi POS.
 7. Simpan QR, akses EMM dan PIN pentadbir hanya dalam peti kata laluan HQ.
 
@@ -32,12 +32,14 @@ Kod aktivasi RKJ One tidak mempunyai kuasa untuk menjadikan aplikasi sebagai Dev
 2. Masukkan SIM syarikat dan uji data mudah alih jika tablet menggunakan sambungan sandaran.
 3. Hidupkan tablet baharu. Jika pernah digunakan, factory reset dahulu.
 4. Pada skrin Welcome Android, ketik skrin enam kali dan imbas QR Android Enterprise.
-5. Sambung Wi-Fi sementara dan tunggu sehingga Android Device Policy serta RKJ One siap dipasang.
+5. Sambung Wi-Fi sementara dan tunggu sehingga Android Device Policy, RKJ One serta Fiuu VT siap dipasang.
 6. Cipta PIN peranti sekurang-kurangnya enam digit apabila diminta. PIN ini milik HQ/AM dan tidak dikongsi dengan staf jualan.
 7. Buka RKJ One, login menggunakan akaun staf sebenar dan masuk ke POS.
 8. Di komputer HQ, pilih cawangan dan model rasmi, kemudian jana kod aktivasi 10 aksara.
 9. Masukkan kod pada tablet. Tablet akan terikat kepada cawangan dan meminta lock task Android.
 10. Semak dashboard sehingga semua status hijau: aplikasi Android, kunci skrin, Device Owner dan kiosk.
+11. Untuk cawangan pilot sahaja, aktifkan Fiuu VT menggunakan sub-account yang dipetakan oleh Fiuu. Jangan kongsi kelayakan aktivasi dengan staf atau cawangan lain.
+12. Jalankan UAT amaun kecil: SALE, STATUS, batal, tamat tempoh, resit, stok dan settlement. Kekalkan cawangan bukan pilot pada QR statik/manual.
 
 ## Akaun Google dan pemulihan peranti
 
@@ -68,6 +70,7 @@ Kod aktivasi RKJ One tidak mempunyai kuasa untuk menjadikan aplikasi sebagai Dev
 - PIN peranti aktif.
 - RKJ One dipasang daripada Managed Google Play.
 - `Device Owner`, `Lock task permitted` dan `Lock task active` dilaporkan benar.
-- Aplikasi lain, pemasangan APK, penambahan akaun dan Settings disekat.
+- Hanya RKJ One, Fiuu VT dan aplikasi sistem yang diperlukan dibenarkan; pemasangan APK, penambahan akaun dan Settings disekat.
 - Wi-Fi utama dan data mudah alih sandaran lulus ujian.
 - Tablet hanya memaparkan POS selepas staf login.
+- Handoff RKJ One → Fiuu VT → RKJ One berjaya tanpa keluar daripada persekitaran kiosk.

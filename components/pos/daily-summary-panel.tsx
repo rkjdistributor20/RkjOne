@@ -15,7 +15,11 @@ function formatTime(value?: string | null) {
  });
 }
 
-export function DailySummaryPanel() {
+export function DailySummaryPanel({
+ onShiftMembersChange,
+}: {
+ onShiftMembersChange?: () => void;
+}) {
  const summary = usePosStore((s) => s.dailySummary);
  const shift = usePosStore((s) => s.shift);
  const todayBusinessStartedAt =
@@ -136,7 +140,7 @@ export function DailySummaryPanel() {
  </Card>)}
 
  <div className="sm:col-span-2">
- <ShiftMembersPanel />
+ <ShiftMembersPanel onMembershipChange={onShiftMembersChange} />
  </div>
  </div>);
 }

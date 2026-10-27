@@ -2,6 +2,14 @@ import { NextResponse } from 'next/server';
 import { getCurrentProfile } from '@/lib/auth/session';
 import { assertCanAccessPosBranch, posAccessErrorStatus } from '@/lib/pos/access';
 import { getPosQrPaymentMode } from '@/lib/pos/fiuu';
+import { isFiuuOpaEnabledForBranch } from '@/lib/pos/fiuu-opa-server';
+import { getFiuuCloudEcrConfig } from '@/lib/pos/fiuu-cloudecr';
+import {
+ FIUU_CLOUDECR_APP_PACKAGE,
+ isFiuuCloudEcrEnabledForBranch,
+} from '@/lib/pos/fiuu-cloudecr-server';
+import { FIUU_VT_DUITNOW_CHANNEL, FIUU_VT_PACKAGE } from '@/lib/pos/fiuu-vt';
+import { isFiuuVtEnabledForBranch } from '@/lib/pos/fiuu-vt-server';
 import { getFiuuStaticQrConfig } from '@/lib/pos/fiuu-static';
 import { enforceRateLimit } from '@/lib/security/rate-limit';
 import { createClient } from '@/lib/supabase/server';
@@ -43,22 +51,69 @@ export async function GET(request: Request) {
  if (!branch) return NextResponse.json({ error: 'Cawangan tidak dijumpai' }, { status: 404 });
 
  const staticQr = getFiuuStaticQrConfig(branch.branch_code);
- const dynamic = getPosQrPaymentMode() === 'fiuu';
+ const paymentMode = getPosQrPaymentMode();
+ let dynamicEnabled = false;
+ let vtEnabled = false;
+ let cloudEcrEnabled = false;
+ try {
+  dynamicEnabled = paymentMode === 'fiuu'
+   && isFiuuOpaEnabledForBranch(branch.branch_code);
+ } catch (configurationError) {
+  console.error('[pos-fiuu-opa] invalid_branch_configuration', {
+   reason: configurationError instanceof Error ? configurationError.message : 'unknown',
+  });
+ }
+ try {
+  vtEnabled = paymentMode === 'fiuu_vt' && isFiuuVtEnabledForBranch(branch.branch_code);
+ } catch (configurationError) {
+  console.error('[pos-fiuu-vt] invalid_branch_configuration', {
+   reason: configurationError instanceof Error ? configurationError.message : 'unknown',
+  });
+ }
+ try {
+  cloudEcrEnabled = paymentMode === 'fiuu_cloudecr'
+   && isFiuuCloudEcrEnabledForBranch(branch.branch_code);
+  if (cloudEcrEnabled) getFiuuCloudEcrConfig();
+ } catch (configurationError) {
+  cloudEcrEnabled = false;
+  console.error('[pos-fiuu-cloudecr] invalid_branch_configuration', {
+   reason: configurationError instanceof Error ? configurationError.message : 'unknown',
+  });
+ }
 
  return NextResponse.json(
   {
-   mode: dynamic ? 'FIUU_DYNAMIC' : 'FIUU_STATIC_MANUAL',
+   mode: dynamicEnabled
+    ? 'FIUU_DYNAMIC'
+    : cloudEcrEnabled
+     ? 'FIUU_CLOUDECR'
+     : vtEnabled
+      ? 'FIUU_VT_APP'
+      : 'FIUU_STATIC_MANUAL',
    branch: {
     id: branch.id,
     code: branch.branch_code,
     name: branch.branch_name,
    },
    staticQr,
-   configured: dynamic || Boolean(staticQr),
+   vt: vtEnabled ? {
+    packageName: FIUU_VT_PACKAGE,
+    channel: FIUU_VT_DUITNOW_CHANNEL,
+    pilot: true,
+   } : null,
+   cloudEcr: cloudEcrEnabled ? {
+    appPackageName: FIUU_CLOUDECR_APP_PACKAGE,
+    pilot: true,
+   } : null,
+   configured: dynamicEnabled || cloudEcrEnabled || vtEnabled || Boolean(staticQr),
   },
   {
    headers: {
-    'Cache-Control': 'private, max-age=300, stale-while-revalidate=600',
+    'Cache-Control': paymentMode === 'fiuu'
+     || paymentMode === 'fiuu_vt'
+     || paymentMode === 'fiuu_cloudecr'
+     ? 'private, no-store'
+     : 'private, max-age=300, stale-while-revalidate=600',
    },
   },
  );

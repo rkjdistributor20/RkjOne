@@ -4,7 +4,7 @@
 
 `GET /api/pos/qr-config?branch_id=<uuid>` requires an authenticated RKJ One profile and applies the standard POS branch-scope check. It returns the active QR mode, selected branch identity, and the versioned static Fiuu QR descriptor where configured. No Fiuu secret or server credential is returned.
 
-Last updated: 2026-07-10
+Last updated: 2026-10-26
 
 Base URL:
 
@@ -21,17 +21,17 @@ Authentication:
 
 ## POS Fiuu DuitNow QR API
 
-The POS creates a sale only after a signed Fiuu Offline Payment API notification is verified. The default remains manual mode until merchant channel activation and sandbox UAT are complete.
+The signed OPA transport creates a sale only after a valid Fiuu Offline Payment API notification and is the primary BR001 route for the existing tablets. It is server-to-server and does not depend on NFC or a native Fiuu terminal application. Fiuu VT+ through cloudECR remains a prepared BR001-only fallback: credentials and tokens remain server-side, every request and response uses HMAC-SHA256, and a provider success is stored durably as `REPORTED` before receipt and stock fulfilment. The legacy VT App-to-App route remains unavailable on the registered tablets. The default remains manual mode until the selected transport passes physical UAT and Finance settlement reconciliation.
 
 ### POST `/api/pos/qr-payments`
 
-Creates a pending Fiuu DuitNow QR payment for an authenticated, authorized POS shift member on an official branch device. Product prices, quantities, discount and payment split are recalculated on the server. The returned QR image URL is an authenticated RKJ One proxy; the provider image URL and credentials are not returned to the browser.
+Creates a pending Fiuu DuitNow QR payment for an authenticated, authorized POS shift member on an official branch device. Product prices, quantities, discount and payment split are recalculated on the server. OPA returns an authenticated RKJ One QR image proxy. OPA creation additionally requires an explicit `POS_FIUU_OPA_BRANCHES` allowlist and is currently hard-locked to `BR001`; wildcard, malformed and non-BR001 configuration fails closed before any payment row or provider request is created. Legacy VT returns a provider order ID for the native handoff. In BR001 cloudECR mode, the server sends one signed SALE to the configured POS account and stores the expected POS ID, Device ID and Terminal SN with the intent; no credential, token or Secret Key is returned to the client.
 
 The request must include an opaque `idempotency_key` of 16-64 letters, numbers, underscores or hyphens. Retrying the same organization, branch, shift, creator, amount and sale payload returns the existing intent. Reusing the key for different intent data returns `409` and never creates another payment.
 
 ### GET `/api/pos/qr-payments/[paymentId]`
 
-Returns branch-scoped payment status. A receipt is returned only after the payment is atomically fulfilled. Polling never mutates a pending database row. After the displayed QR expires, the response remains pending during the bounded late-callback reconciliation window and becomes expired only when that window has ended.
+Returns branch-scoped payment status. A receipt is returned only after the payment is atomically fulfilled. For OPA, an authenticated read of a durable `REPORTED` payment retries the idempotent fulfilment RPC, providing recovery even after Fiuu has stopped callback retries. For cloudECR, the route may acquire a database reconciliation lease and issue `getLast`; each query uses a new reference, while the signed response must carry the original SALE reference in metadata and match the exact POS ID, Device ID, Terminal SN, amount, `MYR`, DuitNow channel and numeric Fiuu Transaction ID. The lease permits at most one provider reconciliation attempt per 180 seconds across concurrent tabs. A `getLast` failure never marks the original SALE failed. A successful response is stored as `REPORTED` before idempotent fulfilment is attempted or retried. The stored evidence includes the exact HMAC-verified response payload. Fulfilment also requires the server-side pricing snapshot to still match locked active catalogue rows; a mismatch remains `REPORTED` for Finance resolution rather than issuing a receipt for a different amount. After the payment validity period, the intent remains locked during the bounded reconciliation grace and becomes expired only after that window ends.
 
 ### GET `/api/pos/qr-payments/[paymentId]/image`
 
@@ -39,7 +39,15 @@ Returns the provider QR image through an authenticated, branch-scoped, no-store 
 
 ### POST `/api/pos/qr-payments/webhook`
 
-Public provider callback endpoint. Request bodies are capped at 64 KiB. Fiuu callbacks require a valid HMAC-SHA256 signature and must match the stored application, reference, provider transaction ID, amount, MYR currency and DuitNow channel `24`. Fulfilment, stock deduction, receipt creation and payment completion occur in one database transaction. Invalid callbacks do not create a sale. Callback credentials remain available for already-issued intents when new QR creation is rolled back to manual mode.
+Public provider callback endpoint. Request bodies are capped at 64 KiB. Fiuu callbacks require a valid HMAC-SHA256 signature, the hard-locked `BR001` branch identity at both API and database boundaries, canonical two-decimal MYR amount, and exact matches for the stored application, reference, provider transaction ID and DuitNow channel `24`. A verified success is processed in two committed database phases: sanitized provider evidence is first stored durably as `REPORTED`, then sale, stock deduction, receipt creation and payment completion are fulfilled idempotently in a separate transaction. If fulfilment fails, the `REPORTED` evidence remains and either a duplicate valid callback or authenticated status polling can retry without a second charge. Existing `PAID` callbacks return the existing result. Invalid callbacks do not create a sale. Callback credentials remain available for already-issued intents when new QR creation is rolled back to manual mode.
+
+### POST `/api/pos/qr-payments/[paymentId]/vt-result`
+
+Accepts only a normalized transaction result captured by the native RKJ One bridge on the same official device, user, branch and shift that created the intent. SALE never fulfills a transaction and always leads to a STATUS request. STATUS `22`, `33`, `45` and `55` remain locked pending during the bounded reconciliation window; `11` and `44` close the attempt. Unsigned STATUS `00` records the durable database state `REPORTED` and directs the client to invoke automatic fulfillment. The official VT error callback contains only `errorCode` and `errorMsg`; the native bridge associates it with the current pending order, keeps it local, and asks the authenticated RKJ status endpoint to reconcile the durable attempt. An error callback alone never creates a sale, receipt, stock movement or paid status.
+
+### POST `/api/pos/qr-payments/[paymentId]/vt-confirm`
+
+Requires the same authenticated official device and a fresh matching STATUS `00` result. The client invokes it automatically; a visible retry remains available only for interrupted recovery. It invokes a service-role-only, row-locked RPC that creates at most one sale, receipt and stock movement. This is automatic operational confirmation, not cryptographic proof from Fiuu.
 
 Response convention:
 

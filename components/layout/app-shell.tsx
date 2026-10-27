@@ -305,7 +305,7 @@ export function AppShell({ children, posDeviceContext, kioskBypassed }: AppShell
  </Avatar>
  <div className="min-w-0">
  <p className="max-w-40 truncate text-xs font-semibold">{profile?.full_name}</p>
- <p className="text-[11px] text-white/55">Sedang bertugas</p>
+ <p className="text-[11px] text-white/55">Sesi pengguna aktif</p>
  </div>
  </div>
  <LanguageSwitcher compact />

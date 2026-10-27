@@ -14,7 +14,7 @@ export const POS_OFFICIAL_TABLETS: Record<PosOfficialHardwareProfile, {
   connectivity: '5G',
   storage: '128GB',
   manufacturerTokens: ['samsung'],
-  modelTokens: ['tab s10 lite', 's10 lite'],
+  modelTokens: ['sm-x406b', 'tab s10 lite', 's10 lite'],
  },
  HONOR_PAD_X8B_LTE_256: {
   label: 'HONOR Pad X8b LTE 256GB',

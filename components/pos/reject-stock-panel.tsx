@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { fetchStockItems as fetchInventoryStockItems } from '@/lib/inventory/api';
 import { submitPosRejectStock } from '@/lib/pos/api';
 import type { StockItemOption } from '@/lib/inventory/types';
@@ -15,6 +15,7 @@ import { ROTI_SHELF_LIFE_DAYS } from '@/lib/stock/expiry';
 import { StockLineForm } from '@/components/inventory/stock-line-form';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 
 const REJECT_REASONS = [
  'Tamat tempoh melebihi 5 hari',
@@ -33,17 +34,71 @@ interface RejectStockPanelProps {
  prefill?: ExpiredRejectPrefill[];
 }
 
+function rejectStockLoadErrorMessage(error: unknown) {
+ const fallback = 'Senarai item stok tidak dapat dimuatkan.';
+ const detail = error instanceof Error ? error.message.trim() : '';
+ if (!detail) return fallback;
+ return `${fallback} ${detail}`;
+}
+
+function RejectStockLoadError({
+ message,
+ onRetry,
+ retrying = false,
+}: {
+ message: string;
+ onRetry: () => void;
+ retrying?: boolean;
+}) {
+ return (
+ <div
+ role="alert"
+ aria-live="assertive"
+ className="space-y-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-950"
+ >
+ <div className="flex gap-3">
+ <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" aria-hidden="true" />
+ <div>
+ <p className="font-semibold">Senarai stok gagal dimuatkan</p>
+ <p className="mt-1 text-red-900/90">{message}</p>
+ <p className="mt-1 text-xs text-red-800">
+ Borang reject dikunci sehingga senarai stok berjaya dimuatkan semula.
+ </p>
+ </div>
+ </div>
+ <Button type="button" variant="outline" size="sm" onClick={onRetry} disabled={retrying}>
+ <RefreshCw className={`mr-2 h-4 w-4 ${retrying ? 'animate-spin' : ''}`} aria-hidden="true" />
+ {retrying ? 'Mencuba semula...' : 'Cuba semula'}
+ </Button>
+ </div>);
+}
+
 export function RejectStockPanel({ branchId, onSuccess, prefill }: RejectStockPanelProps) {
  const [stockItems, setStockItems] = useState<StockItemOption[]>([]);
  const [loading, setLoading] = useState(true);
+ const [loadError, setLoadError] = useState<string | null>(null);
  const [presetReason, setPresetReason] = useState<string>(prefill?.[0]?.reason ?? '');
 
- useEffect(() => {
- fetchInventoryStockItems().then(({ items }) => {
+ const loadStockItems = useCallback(async () => {
+ setLoading(true);
+ setLoadError(null);
+ try {
+ const { items } = await fetchInventoryStockItems();
  const codes = new Set<string>(HQ_STOCK_ITEM_CODES);
- setStockItems(items.filter((i) => codes.has(i.item_code)));
- }).catch(() => toast.error('Gagal memuatkan senarai stok')).finally(() => setLoading(false));
+ setStockItems(items.filter((item) => codes.has(item.item_code)));
+ } catch (error) {
+ const message = rejectStockLoadErrorMessage(error);
+ setStockItems([]);
+ setLoadError(message);
+ toast.error(message);
+ } finally {
+ setLoading(false);
+ }
  }, []);
+
+ useEffect(() => {
+ void loadStockItems();
+ }, [loadStockItems]);
 
  useEffect(() => {
  if (prefill?.[0]?.reason) setPresetReason(prefill[0].reason);
@@ -123,7 +178,12 @@ export function RejectStockPanel({ branchId, onSuccess, prefill }: RejectStockPa
  </CardHeader>
  <CardContent>
  {loading ? (
- <p className="text-sm text-muted-foreground">Memuatkan item stok...</p>) : stockItems.length === 0 ? (
+ <p className="text-sm text-muted-foreground" aria-live="polite">Memuatkan item stok...</p>) : loadError ? (
+ <RejectStockLoadError
+ message={loadError}
+ onRetry={() => void loadStockItems()}
+ retrying={loading}
+ />) : stockItems.length === 0 ? (
  <p className="text-sm text-muted-foreground">Tiada item stok dijumpai.</p>) : (
  <>
  <div className="mb-4 space-y-2">

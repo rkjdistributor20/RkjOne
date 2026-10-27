@@ -408,6 +408,45 @@ function equipmentName(item?: KioskEquipmentItem | null) {
  return `${item.code} - ${item.name}`;
 }
 
+function posStockSopLoadErrorMessage(error: unknown) {
+ const fallback = 'Data SOP stok POS tidak dapat dimuatkan.';
+ const detail = error instanceof Error ? error.message.trim() : '';
+ if (!detail) return fallback;
+ return `${fallback} ${detail}`;
+}
+
+function PosStockSopLoadError({
+ message,
+ onRetry,
+ retrying = false,
+}: {
+ message: string;
+ onRetry: () => void;
+ retrying?: boolean;
+}) {
+ return (
+ <div
+ role="alert"
+ aria-live="assertive"
+ className="space-y-3 rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-950 shadow-sm"
+ >
+ <div className="flex gap-3">
+ <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" aria-hidden="true" />
+ <div>
+ <p className="font-semibold">SOP stok POS gagal dimuatkan</p>
+ <p className="mt-1 text-red-900/90">{message}</p>
+ <p className="mt-1 text-xs text-red-800">
+ Status syif dan data stok tidak dapat disahkan. Tiada tindakan stok dipaparkan sehingga data berjaya dimuatkan semula.
+ </p>
+ </div>
+ </div>
+ <Button type="button" variant="outline" size="sm" onClick={onRetry} disabled={retrying}>
+ <RefreshCw className={`mr-2 h-4 w-4 ${retrying ? 'animate-spin' : ''}`} aria-hidden="true" />
+ {retrying ? 'Mencuba semula...' : 'Cuba semula'}
+ </Button>
+ </div>);
+}
+
 export function PosStockSopPanel({
  branchId,
  onSuccess,
@@ -421,6 +460,7 @@ export function PosStockSopPanel({
  const [data, setData] = useState<PosStockSopResponse | null>(null);
  const [stockItems, setStockItems] = useState<StockItemOption[]>([]);
  const [loading, setLoading] = useState(true);
+ const [loadError, setLoadError] = useState<string | null>(null);
  const [savingId, setSavingId] = useState<string | null>(null);
  const [receiptQty, setReceiptQty] = useState<Record<string, Record<string, string>>>({});
  const [receiptNotes, setReceiptNotes] = useState<Record<string, string>>({});
@@ -468,6 +508,7 @@ export function PosStockSopPanel({
 
  const loadData = useCallback(async () => {
  setLoading(true);
+ setLoadError(null);
  try {
  const [sop, items] = await Promise.all([
  fetchPosStockSop(branchId),
@@ -494,7 +535,12 @@ export function PosStockSopPanel({
  }
  setRequestLines((rows) => rows.length ? rows : [emptyRequestLine()]);
  } catch (err) {
- toast.error(err instanceof Error ? err.message : 'Gagal memuatkan SOP stok POS');
+ const message = posStockSopLoadErrorMessage(err);
+ setData(null);
+ setStockItems([]);
+ setReceiptQty({});
+ setLoadError(message);
+ toast.error(message);
  } finally {
  setLoading(false);
  }
@@ -864,7 +910,23 @@ export function PosStockSopPanel({
  }
  }
 
- const receipts = data?.receipts ?? [];
+ if (loading) {
+ return (
+ <div className="rounded-2xl border bg-card p-6 text-sm text-muted-foreground" aria-live="polite">
+ Memuatkan SOP stok POS...
+ </div>);
+ }
+
+ if (loadError || !data) {
+ return (
+ <PosStockSopLoadError
+ message={loadError ?? 'Data SOP stok POS tidak tersedia.'}
+ onRetry={() => void loadData()}
+ retrying={loading}
+ />);
+ }
+
+ const receipts = data.receipts ?? [];
  const activeReceipts = receipts.filter((r) => r.status === 'DRIVER_DROPPED' || r.status === 'DISCREPANCY_PENDING_APPROVAL');
  const selectedPresenceReason = PRESENCE_REASONS.find((reason) => reason.value === presenceReason);
  const shiftIsOpen = Boolean(sopStatus?.shift_id);
@@ -901,13 +963,6 @@ export function PosStockSopPanel({
  ? 'SOP sebenar: staf perlu kira stok fizikal ikut production date. Dalam mode testing Pentadbir Utama, sistem hanya beri makluman dan benarkan tuan teruskan.'
  : 'Kira stok roti, kaya dan butter secara fizikal ikut production date. AI boleh bantu anggaran, tetapi staf wajib confirm jumlah sebenar.'
  : 'Tiada tugasan wajib. Fokus kepada jualan. Guna Tindakan tambahan hanya jika perlu keluar kiosk atau request barang.';
-
- if (loading) {
- return (
- <div className="rounded-2xl border bg-card p-6 text-sm text-muted-foreground">
- Memuatkan SOP stok POS...
- </div>);
- }
 
  return (
  <div className="space-y-4">

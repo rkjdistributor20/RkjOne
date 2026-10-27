@@ -10,8 +10,24 @@ type CacheEntry = {
  data: unknown;
 };
 
+type JsonObject = Record<string, unknown>;
+
+export const SESSION_EXPIRED_MESSAGE = 'Sesi tamat. Sila log masuk semula.';
+
+export class ClientJsonError extends Error {
+ constructor(
+  message: string,
+  readonly status: number,
+  readonly data: unknown = null,
+ ) {
+  super(message);
+  this.name = 'ClientJsonError';
+ }
+}
+
 const responseCache = new Map<string, CacheEntry>();
 const inflightRequests = new Map<string, Promise<unknown>>();
+let sessionExpiryRedirectStarted = false;
 
 function getMethod(init?: RequestInit) {
  return (init?.method ?? 'GET').toUpperCase();
@@ -37,18 +53,70 @@ function buildHeaders(init?: RequestInit) {
  return headers;
 }
 
+function isJsonObject(value: unknown): value is JsonObject {
+ return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function parseResponseBody(text: string): { data: unknown; isJson: boolean } {
+ if (!text) return { data: {}, isJson: true };
+
+ try {
+  return { data: JSON.parse(text) as unknown, isJson: true };
+ } catch {
+  return { data: null, isJson: false };
+ }
+}
+
+function getResponseErrorMessage(data: unknown, status: number) {
+ if (isJsonObject(data)) {
+  if (typeof data.error === 'string' && data.error.trim()) return data.error;
+  if (typeof data.message === 'string' && data.message.trim()) return data.message;
+ }
+
+ return `Request failed (${status})`;
+}
+
+function redirectToLoginAfterSessionExpiry() {
+ if (typeof window === 'undefined') return;
+
+ const { pathname, search, hash } = window.location;
+ if (pathname === '/login' || pathname.startsWith('/login/')) return;
+ if (sessionExpiryRedirectStarted) return;
+
+ sessionExpiryRedirectStarted = true;
+ const redirect = `${pathname || '/'}${search || ''}${hash || ''}`;
+ const params = new URLSearchParams({ redirect, error: 'session_expired' });
+
+ try {
+  window.location.replace(`/login?${params.toString()}`);
+ } catch {
+  // Navigation may be unavailable in tests or an embedded webview. The caller
+  // still receives the stable session-expired error and can render it safely.
+ }
+}
+
 async function parseJsonResponse<T>(response: Response): Promise<T> {
  const text = await response.text();
- const data = text ? JSON.parse(text) : {};
+ const { data, isJson } = parseResponseBody(text);
+
+ if (response.status === 401) {
+  redirectToLoginAfterSessionExpiry();
+  throw new ClientJsonError(SESSION_EXPIRED_MESSAGE, response.status);
+ }
 
  if (!response.ok) {
- const message =
- typeof data?.error === 'string'
- ? data.error
- : typeof data?.message === 'string'
- ? data.message
- : `Request failed (${response.status})`;
- throw new Error(message);
+  throw new ClientJsonError(
+   getResponseErrorMessage(data, response.status),
+   response.status,
+   isJson ? data : null,
+  );
+ }
+
+ if (!isJson) {
+  throw new ClientJsonError(
+   'Respons pelayan tidak sah. Sila cuba semula.',
+   response.status,
+  );
  }
 
  return data as T;
@@ -68,8 +136,8 @@ async function executeFetch<T>(
 
  try {
  const response = await fetch(url, {
- credentials: 'same-origin',
  ...init,
+ credentials: 'same-origin',
  headers: buildHeaders(init),
  signal: controller.signal,
  });

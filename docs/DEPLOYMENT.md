@@ -53,6 +53,16 @@ Do not set `ALLOW_UNSIGNED_PAYMENT_WEBHOOKS=true` in staging or production.
 
 Fiuu Agent Payment is a separate merchant integration from POS Fiuu DuitNow QR.
 Use Preview/staging credentials only with `SALES_AGENT_FIUU_ENVIRONMENT=sandbox`.
+The adapter submits payment details to Fiuu Hosted Payment Page; RKJ One does not
+render or maintain the FPX issuer-bank list. Under Fiuu's 2026-10-16 compliance
+notice, issuer-list/KFH maintenance remains Fiuu's responsibility for this flow.
+Reassess the 2026-12-31 compliance deadline if a direct or seamless FPX interface
+is introduced.
+
+Fiuu notified `rotikayajunus` and `rkjdistributors` on 2026-10-09 that card
+payment channel services were temporarily suspended. Do not enable Fiuu card or
+debit options until written reinstatement is received; this restriction is
+separate from the Roti Kaya Junus DuitNow QR/VT pilot.
 The provider Notification and Callback URL is
 `/api/sales-agent/payments/fiuu/webhook`; the browser Return URL is
 `/api/sales-agent/payments/fiuu/return` and never finalizes a payment.
@@ -66,17 +76,20 @@ POS Fiuu DuitNow QR variables:
 
 | Variable | Required | Scope |
 |----------|----------|-------|
-| `POS_QR_PAYMENT_MODE` | Yes | Server; use `manual` until Fiuu UAT passes, then `fiuu` |
+| `POS_QR_PAYMENT_MODE` | Yes | Server; `manual`, signed OPA `fiuu`, branch-gated app-to-app `fiuu_vt`, or prepared cloudECR fallback `fiuu_cloudecr` |
 | `POS_FIUU_ENVIRONMENT` | When Fiuu enabled | Server; `sandbox` or `production` |
-| `POS_FIUU_APPLICATIONS_JSON` | Preferred when Fiuu enabled | Server secret; Application Code/Secret Key mapping by branch code |
+| `POS_FIUU_APPLICATIONS_JSON` | Required for Production OPA | Server secret; Application Code, Secret Key, Store ID and Terminal ID mapping by branch code |
 | `POS_FIUU_APPLICATION_CODE` | Optional pilot fallback | Server secret |
 | `POS_FIUU_SECRET_KEY` | Optional pilot fallback | Server secret |
 | `POS_FIUU_STORE_ID` | Optional pilot fallback | Server |
+| `POS_FIUU_TERMINAL_ID` | Optional sandbox/pilot fallback | Server; Production uses the explicit branch mapping instead |
 | `POS_FIUU_CHANNEL_ID` | Yes when Fiuu enabled | Server; must remain `24` for DuitNow QR Offline |
-| `POS_FIUU_QR_VALIDITY_SECONDS` | Optional | Server; 60-999 seconds, default 600 |
+| `POS_FIUU_QR_VALIDITY_SECONDS` | Optional | Server; 60-180 seconds, default 180 |
 | `POS_FIUU_PRECREATE_URL` | Optional | Server; official endpoint override only |
+| `POS_FIUU_VT_BRANCHES` | When VT pilot enabled | Server; explicit comma-separated pilot codes, initially `BR001` only |
+| `POS_FIUU_VT_VALIDITY_SECONDS` | Optional | Server; 60-3600 seconds, default 900 |
 
-Never expose Fiuu Application Secret Keys as `NEXT_PUBLIC_*`. Configure the signed payment notification URL as `/api/pos/qr-payments/webhook`. Follow `docs/FIUU_POS_SETUP.md` before changing `POS_QR_PAYMENT_MODE` to `fiuu`.
+Never expose Fiuu Application Secret Keys as `NEXT_PUBLIC_*`. Configure the signed OPA payment notification URL as `/api/pos/qr-payments/webhook`. Fiuu VT deep-link results are not signed: they require SALE plus a fresh exact STATUS recheck on the same enrolled device before automatic idempotent fulfillment, and must not be treated as equivalent to the signed OPA webhook. Follow `docs/FIUU_POS_SETUP.md` before changing the mode.
 
 ## Local Setup
 

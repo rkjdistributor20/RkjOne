@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { getCurrentProfile } from '@/lib/auth/session';
 import { isSettingsAdmin } from '@/lib/settings/admin-auth';
 import {
@@ -33,7 +34,7 @@ export async function POST(
 
  const { data: targetRow } = await supabase
  .from('profiles')
- .select('id, email, full_name, employee_code')
+ .select('id, email, full_name, employee_code, metadata')
  .eq('id', id)
  .eq('organization_id', profile.organization_id)
  .maybeSingle();
@@ -43,6 +44,7 @@ export async function POST(
  email: string | null;
  full_name: string | null;
  employee_code: string | null;
+ metadata: Record<string, unknown> | null;
  } | null;
 
  if (!target?.email) {
@@ -51,7 +53,8 @@ export async function POST(
 
  const seed = String(target.employee_code ?? target.email ?? 'RkjOne');
  const temporaryPassword = generateTemporaryPassword(seed);
- const service = await createServiceClient();
+ const resetAt = new Date().toISOString();
+ const service = createAdminClient();
 
  const { error: authErr } = await service.auth.admin.updateUserById(id, {
  password: temporaryPassword,
@@ -62,7 +65,11 @@ export async function POST(
  .from('profiles')
  .update({
   must_change_password: true,
-  updated_at: new Date().toISOString(),
+  updated_at: resetAt,
+  metadata: {
+   ...(target.metadata ?? {}),
+   password_reset_at: resetAt,
+  },
  })
  .eq('id', id)
  .eq('organization_id', profile.organization_id);

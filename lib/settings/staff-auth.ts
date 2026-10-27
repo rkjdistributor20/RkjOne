@@ -159,7 +159,10 @@ export async function resetStaffPortalPassword(
  staffId: string,
  staffCode: string,
  updatedBy: string): Promise<{ login_email: string; portal_password: string }> {
- const { data: cred } = await service.from('staff_portal_credentials').select('login_email').eq('staff_id', staffId).maybeSingle();
+  const [{ data: cred }, { data: staffRow }] = await Promise.all([
+  service.from('staff_portal_credentials').select('login_email').eq('staff_id', staffId).maybeSingle(),
+  service.from('staff').select('profile_id').eq('id', staffId).single(),
+  ]);
 
  if (!cred?.login_email) {
  throw new Error('Staf tiada akaun portal - cipta akaun dahulu');
@@ -167,11 +170,16 @@ export async function resetStaffPortalPassword(
 
  const password = generateStaffPortalPassword(staffCode);
 
- const { data: staffRow } = await service.from('staff').select('profile_id').eq('id', staffId).single();
-
  if (!staffRow?.profile_id) {
  throw new Error('Profil login staf tidak dijumpai');
  }
+
+  const { data: profileRow } = await service
+  .from('profiles')
+  .select('email')
+  .eq('id', staffRow.profile_id)
+  .maybeSingle();
+  const loginEmail = profileRow?.email?.trim() || cred.login_email;
 
  const { error: authErr } = await service.auth.admin.updateUserById(staffRow.profile_id, {
  password,
@@ -181,6 +189,7 @@ export async function resetStaffPortalPassword(
  await service.from('profiles').update({ must_change_password: true }).eq('id', staffRow.profile_id);
 
  const { error: credErr } = await service.from('staff_portal_credentials').update({
+  login_email: loginEmail,
  portal_password: REDACTED_STAFF_PASSWORD,
  updated_by: updatedBy,
  updated_at: new Date().toISOString(),
@@ -188,7 +197,7 @@ export async function resetStaffPortalPassword(
 
  if (credErr) throw new Error(credErr.message);
 
- return { login_email: cred.login_email, portal_password: password };
+  return { login_email: loginEmail, portal_password: password };
 }
 
 export async function loadStaffPortalCredentials(

@@ -126,7 +126,7 @@ async function main() {
  if (current === target) {
  processedProfiles.add(profile.id);
  if (APPLY) {
- await admin.from('staff_portal_credentials').upsert(
+ const { error: credErr } = await admin.from('staff_portal_credentials').upsert(
  {
  staff_id: row.id,
  organization_id: org.id,
@@ -135,6 +135,17 @@ async function main() {
  },
  { onConflict: 'staff_id', ignoreDuplicates: false }
  );
+ if (credErr) {
+ results.push({
+ staff_code: row.staff_code,
+ status: 'error',
+ note: `credential sync: ${credErr.message}`,
+ });
+ csvLines.push(
+ [row.staff_code, row.full_name, profile.email, target, 'ERROR', credErr.message].join(',')
+ );
+ continue;
+ }
  }
  results.push({ staff_code: row.staff_code, status: 'ok', note: 'sudah @rkj.com' });
  csvLines.push([row.staff_code, row.full_name, profile.email, target, 'OK', ''].join(','));
@@ -184,7 +195,7 @@ async function main() {
  continue;
  }
 
- await admin.from('staff_portal_credentials').upsert(
+ const { error: credErr } = await admin.from('staff_portal_credentials').upsert(
  {
  staff_id: row.id,
  organization_id: org.id,
@@ -193,6 +204,17 @@ async function main() {
  },
  { onConflict: 'staff_id' }
  );
+ if (credErr) {
+ results.push({
+ staff_code: row.staff_code,
+ status: 'error',
+ note: `credential sync: ${credErr.message}`,
+ });
+ csvLines.push(
+ [row.staff_code, row.full_name, profile.email, target, 'ERROR', credErr.message].join(',')
+ );
+ continue;
+ }
 
  authByEmail.delete(current);
  authByEmail.set(target, { id: profile.id, email: target });

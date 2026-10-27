@@ -13,7 +13,7 @@ The photographed branch unit is labelled:
 
 The manufacturer, Bluetooth service specification, pairing PIN, iOS MFi status and official SDK are **To be confirmed**. RKJ One therefore uses the common Bluetooth Serial Port Profile and ESC/POS text commands on Android only. Every physical printer batch must pass the test-page check before branch rollout.
 
-## Staff Setup (Android App 1.6.9)
+## Staff Setup (Android App 1.6.9 or later)
 
 1. Switch on the printer and confirm paper is loaded with the thermal side facing the print head.
 2. On the official POS tablet, open POS and select **Tetapan printer** in the header.
@@ -68,4 +68,4 @@ If direct printing fails, staff must keep the sale result on screen and use **Ce
 - Confirm paper width, alignment and manual tear on the exact `POS-5890U-L` unit.
 - Confirm browser system-print fallback and Android accessibility labels.
 
-The printer, auto-print and cash-drawer sequence has passed an earlier physical tablet test. The consolidated 1.6.9 candidate must repeat that same pilot test from the exact Play-delivered bundle before Production promotion.
+The printer, auto-print and cash-drawer sequence has passed an earlier physical tablet test. Android 1.7.0 must repeat that same pilot test from the exact Play-delivered bundle before Production promotion.

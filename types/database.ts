@@ -6769,6 +6769,118 @@ export type Database = {
           },
         ]
       }
+      pos_fiuu_opa_reconciliation_attempts: {
+        Row: {
+          attempt_no: number
+          claim_token: string
+          claimed_at: string
+          completed_at: string | null
+          created_at: string
+          failure_code: string | null
+          id: string
+          lease_expires_at: string
+          operation: string
+          payment_id: string
+          payment_reference_id: string | null
+          provider_result: Json | null
+          provider_status_code: string | null
+          provider_transaction_id: string | null
+          request_reference_id: string
+          state: string
+          updated_at: string
+        }
+        Insert: {
+          attempt_no: number
+          claim_token: string
+          claimed_at?: string
+          completed_at?: string | null
+          created_at?: string
+          failure_code?: string | null
+          id?: string
+          lease_expires_at: string
+          operation?: string
+          payment_id: string
+          payment_reference_id?: string | null
+          provider_result?: Json | null
+          provider_status_code?: string | null
+          provider_transaction_id?: string | null
+          request_reference_id: string
+          state?: string
+          updated_at?: string
+        }
+        Update: {
+          attempt_no?: number
+          claim_token?: string
+          claimed_at?: string
+          completed_at?: string | null
+          created_at?: string
+          failure_code?: string | null
+          id?: string
+          lease_expires_at?: string
+          operation?: string
+          payment_id?: string
+          payment_reference_id?: string | null
+          provider_result?: Json | null
+          provider_status_code?: string | null
+          provider_transaction_id?: string | null
+          request_reference_id?: string
+          state?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_fiuu_opa_reconciliation_attempts_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "pos_online_payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pos_fiuu_opa_signed_evidence: {
+        Row: {
+          claim_token: string | null
+          created_at: string
+          id: string
+          last_seen_at: string
+          payment_id: string
+          provider_transaction_id: string
+          signed_response_raw: string
+          source: string
+          status_code: string
+        }
+        Insert: {
+          claim_token?: string | null
+          created_at?: string
+          id?: string
+          last_seen_at?: string
+          payment_id: string
+          provider_transaction_id: string
+          signed_response_raw: string
+          source: string
+          status_code: string
+        }
+        Update: {
+          claim_token?: string | null
+          created_at?: string
+          id?: string
+          last_seen_at?: string
+          payment_id?: string
+          provider_transaction_id?: string
+          signed_response_raw?: string
+          source?: string
+          status_code?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_fiuu_opa_signed_evidence_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "pos_online_payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pos_online_payments: {
         Row: {
           amount_rm: number
@@ -6778,12 +6890,29 @@ export type Database = {
           created_by: string | null
           expires_at: string | null
           failed_at: string | null
+          fiuu_opa_reconcile_attempt_count: number
+          fiuu_opa_reconcile_claim_token: string | null
+          fiuu_opa_reconcile_lease_expires_at: string | null
+          fiuu_opa_reconcile_next_at: string | null
+          fiuu_opa_reconcile_started_at: string | null
+          fiuu_opa_reconcile_state: string | null
+          fiuu_opa_reversal_reference_id: string | null
+          fiuu_opa_reversed_at: string | null
           gateway_ref: string | null
           id: string
           idempotency_key: string | null
           organization_id: string
           paid_at: string | null
           provider: string
+          provider_confirmed_at: string | null
+          provider_confirmed_by: string | null
+          provider_order_id: string | null
+          provider_reconcile_claimed_at: string | null
+          provider_reconcile_reference_id: string | null
+          provider_result: Json | null
+          provider_sale_reported_at: string | null
+          provider_status_checked_at: string | null
+          provider_transaction_id: string | null
           sale_payload: Json
           shift_id: string
           status: string
@@ -6798,12 +6927,29 @@ export type Database = {
           created_by?: string | null
           expires_at?: string | null
           failed_at?: string | null
+          fiuu_opa_reconcile_attempt_count?: number
+          fiuu_opa_reconcile_claim_token?: string | null
+          fiuu_opa_reconcile_lease_expires_at?: string | null
+          fiuu_opa_reconcile_next_at?: string | null
+          fiuu_opa_reconcile_started_at?: string | null
+          fiuu_opa_reconcile_state?: string | null
+          fiuu_opa_reversal_reference_id?: string | null
+          fiuu_opa_reversed_at?: string | null
           gateway_ref?: string | null
           id?: string
           idempotency_key?: string | null
           organization_id: string
           paid_at?: string | null
           provider?: string
+          provider_confirmed_at?: string | null
+          provider_confirmed_by?: string | null
+          provider_order_id?: string | null
+          provider_reconcile_claimed_at?: string | null
+          provider_reconcile_reference_id?: string | null
+          provider_result?: Json | null
+          provider_sale_reported_at?: string | null
+          provider_status_checked_at?: string | null
+          provider_transaction_id?: string | null
           sale_payload: Json
           shift_id: string
           status?: string
@@ -6818,12 +6964,29 @@ export type Database = {
           created_by?: string | null
           expires_at?: string | null
           failed_at?: string | null
+          fiuu_opa_reconcile_attempt_count?: number
+          fiuu_opa_reconcile_claim_token?: string | null
+          fiuu_opa_reconcile_lease_expires_at?: string | null
+          fiuu_opa_reconcile_next_at?: string | null
+          fiuu_opa_reconcile_started_at?: string | null
+          fiuu_opa_reconcile_state?: string | null
+          fiuu_opa_reversal_reference_id?: string | null
+          fiuu_opa_reversed_at?: string | null
           gateway_ref?: string | null
           id?: string
           idempotency_key?: string | null
           organization_id?: string
           paid_at?: string | null
           provider?: string
+          provider_confirmed_at?: string | null
+          provider_confirmed_by?: string | null
+          provider_order_id?: string | null
+          provider_reconcile_claimed_at?: string | null
+          provider_reconcile_reference_id?: string | null
+          provider_result?: Json | null
+          provider_sale_reported_at?: string | null
+          provider_status_checked_at?: string | null
+          provider_transaction_id?: string | null
           sale_payload?: Json
           shift_id?: string
           status?: string
@@ -6841,6 +7004,13 @@ export type Database = {
           {
             foreignKeyName: "pos_online_payments_created_by_fkey"
             columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_online_payments_provider_confirmed_by_fkey"
+            columns: ["provider_confirmed_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -10689,6 +10859,33 @@ export type Database = {
         Returns: Json
       }
       clock_out_staff: { Args: { p_staff_id: string }; Returns: Json }
+      claim_pos_fiuu_cloudecr_reconciliation: {
+        Args: {
+          p_min_interval_seconds?: number
+          p_payment_id: string
+          p_query_reference_id: string
+        }
+        Returns: boolean
+      }
+      claim_pos_fiuu_opa_inquiry: {
+        Args: {
+          p_claim_token: string
+          p_lease_seconds?: number
+          p_payment_id: string
+        }
+        Returns: Json
+      }
+      complete_pos_fiuu_opa_inquiry: {
+        Args: {
+          p_claim_token: string
+          p_failure_code?: string | null
+          p_outcome: string
+          p_payment_id: string
+          p_provider_result?: Json
+          p_status_code?: string | null
+        }
+        Returns: Json
+      }
       close_expired_production_order_windows: { Args: never; Returns: number }
       close_pos_shift: {
         Args: { p_closing_cash: number; p_notes?: string; p_shift_id: string }
@@ -10857,6 +11054,23 @@ export type Database = {
           p_currency: string
           p_gateway_ref: string
           p_payment_id: string
+        }
+        Returns: Json
+      }
+      fulfill_pos_fiuu_cloudecr_payment: {
+        Args: { p_payment_id: string }
+        Returns: Json
+      }
+      fulfill_pos_fiuu_vt_payment: {
+        Args: {
+          p_amount: number
+          p_channel: string
+          p_confirmed_by: string
+          p_currency: string
+          p_payment_id: string
+          p_provider_order_id: string
+          p_provider_result: Json
+          p_provider_transaction_id: string
         }
         Returns: Json
       }
@@ -11060,6 +11274,49 @@ export type Database = {
           p_receipt_email?: string
           p_receipt_phone?: string
           p_shift_id: string
+        }
+        Returns: Json
+      }
+      report_pos_fiuu_cloudecr_payment: {
+        Args: { p_payment_id: string; p_provider_result: Json }
+        Returns: Json
+      }
+      report_pos_fiuu_opa_inquiry_success: {
+        Args: {
+          p_amount: number
+          p_audit_result: Json
+          p_channel_id: string
+          p_claim_token: string
+          p_currency: string
+          p_gateway_ref: string
+          p_payment_id: string
+          p_provider_result: Json
+          p_status_code: string
+        }
+        Returns: Json
+      }
+      report_pos_fiuu_payment: {
+        Args: {
+          p_amount: number
+          p_channel_id: string
+          p_currency: string
+          p_gateway_ref: string
+          p_payment_id: string
+          p_provider_result: Json
+          p_status_code: string
+        }
+        Returns: Json
+      }
+      report_pos_fiuu_payment_with_evidence: {
+        Args: {
+          p_amount: number
+          p_channel_id: string
+          p_currency: string
+          p_gateway_ref: string
+          p_payment_id: string
+          p_provider_result: Json
+          p_signed_response_raw: string
+          p_status_code: string
         }
         Returns: Json
       }

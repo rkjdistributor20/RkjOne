@@ -87,7 +87,11 @@ function isOpenMember(member: PosShiftStaffMember) {
   return member.status === 'ACTIVE' || member.status === 'PENDING_APPROVAL';
 }
 
-export function ShiftMembersPanel() {
+export function ShiftMembersPanel({
+  onMembershipChange,
+}: {
+  onMembershipChange?: () => void;
+}) {
   const profile = useAuthStore((s) => s.profile);
   const branchId = usePosStore((s) => s.branchId);
   const shift = usePosStore((s) => s.shift);
@@ -200,6 +204,7 @@ export function ShiftMembersPanel() {
       });
       showJoinToast(res);
       await loadMembers();
+      onMembershipChange?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Gagal rekod masuk syif');
     } finally {
@@ -227,6 +232,7 @@ export function ShiftMembersPanel() {
       });
       showJoinToast(res);
       await loadMembers();
+      onMembershipChange?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Gagal tambah staf syif');
     } finally {
@@ -243,6 +249,7 @@ export function ShiftMembersPanel() {
       });
       toast.success(`${member.full_name} disahkan sebagai staf syif POS`);
       await loadMembers();
+      onMembershipChange?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Gagal sahkan staf syif');
     } finally {
@@ -259,6 +266,7 @@ export function ShiftMembersPanel() {
       });
       toast.success(`Permohonan ${member.full_name} ditolak`);
       await loadMembers();
+      onMembershipChange?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Gagal tolak staf syif');
     } finally {
@@ -275,6 +283,7 @@ export function ShiftMembersPanel() {
       });
       toast.success(`Tamat tugas direkod untuk ${member.full_name}`);
       await loadMembers();
+      onMembershipChange?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Gagal tamatkan tugas staf');
     } finally {

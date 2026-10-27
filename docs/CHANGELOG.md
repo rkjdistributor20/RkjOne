@@ -1,5 +1,58 @@
 # Changelog
 
+## 2026-10-25 - Select signed OPA for the existing BR001 tablet
+
+- Selected Fiuu OPA Dynamic DuitNow QR as the primary BR001 automatic-verification path because it is server-to-server and does not depend on tablet NFC, legacy VT compatibility or the VT+ application runtime.
+- Recorded that the official VT+ package is Play-installed on the BR001 Samsung but remains on its blue splash screen while direct HTTPS access to the Fiuu cloudECR host succeeds; cloudECR stays prepared as a fallback.
+- Required explicit provider-approved Store ID and Terminal ID in every Production OPA branch mapping; Production no longer derives a terminal identifier from the RKJ device code.
+- Corrected the DuitNow pre-create validity guard to the documented 60-180 second range with a 180-second default.
+- Replaced the BR001 runbook with an OPA-first, signed-callback, exact-once receipt/stock and settlement gate while preserving manual rollback and the BR001-only scope.
+- No Production migration, environment value, deployment, payment or `BR002-BR036` change was made.
+
+## 2026-10-24 - Fiuu device inventory and BR001 cloudECR/VT+ preparation
+
+- Recorded Phone Link metadata for the connected BR001 tablet: Samsung `SM-X406B` running Android 16.
+- Recorded the Google Play device inventory under `rkjdistributor20@gmail.com`: Samsung `SM-X406B` and HONOR `ELN2-L29`, identified as HONOR Pad X9a rather than `NDL2-L09`/X8b.
+- Confirmed that the standard Fiuu VT listing is unavailable for both registered devices, while Fiuu VT+ is available to all devices on the account.
+- Documented professionally that the earlier Android 10/X8b support diagnosis does not match the verified current inventory and should be revisited using the exact model/OS evidence.
+- Added a fail-closed `fiuu_cloudecr` transport for a BR001-only allowlist, server-side token handling, HMAC request/response verification, unique 20-character references, signed SALE and safe `getLast` recovery.
+- Added an additive migration and atomic fulfillment RPC that accepts only an exact successful response for the expected POS, device, reference, amount, currency and DuitNow channel before issuing one receipt and stock movement.
+- Hardened recovery so every `getLast` has a new reference, must return the original SALE reference in signed metadata, and must match the configured Terminal SN. A 180-second database lease exceeds the server request window and prevents overlapping provider calls across tabs.
+- Locked unresolved cloudECR transactions globally by POS ID, Device ID and Terminal SN; preserved the exact HMAC-verified payload; restricted the API origin to `https://cloudecr.fiuu.com`; and stored a server pricing snapshot before SALE.
+- Persisted each validated `00/00` success as durable `REPORTED` evidence before idempotent receipt/stock fulfillment; ambiguous `getLast` responses remain pending rather than reopening a payable attempt.
+- Added POS UI/readiness wiring and automated tests. Provisioned POS/VT+ accounts, secure credentials, binding, per-submerchant mapping, physical UAT and Finance settlement remain mandatory gates.
+- No migration, environment value, deployment, merchant configuration or BR002-BR036 rollout was applied to Production.
+
+## 2026-10-22 - Fiuu VT automatic operational confirmation
+
+- Changed the BR001 VT flow so a fresh matching Fiuu `STATUS=00` automatically invokes the existing service-role-only fulfillment RPC; no cashier confirmation click is required.
+- Retained the durable `REPORTED` intermediate state, same-user/device/branch/shift checks, exact order/Transaction ID/amount/MYR/channel matching, five-minute STATUS freshness, row locks and idempotent receipt/stock fulfillment.
+- Retained a manual retry control only as recovery after network or app interruption; it cannot create a second sale.
+- Clarified that this is automatic operational confirmation from the official Fiuu VT app, not cryptographic provider proof. Signed OPA or cloudECR remains the preferred server-verifiable path for broad rollout.
+- Rechecked Play eligibility on the physical BR001 device. Fiuu's public listing advertises tablet/non-EMV support generally, but the native Play Store on Samsung SM-X406B reports `Your device isn't compatible with this version`; BR001 therefore still needs a Fiuu-approved managed build or confirmed compatible device before VT UAT.
+- Local validation passed: 63 tests, targeted ESLint and the Next.js Production build. Production database, environment and deployment remain unchanged pending the BR001 action gate.
+
+## 2026-10-20 - Fiuu operational evidence review
+
+- Reconciled both registered merchant inboxes and the Pn Aida WhatsApp thread against the implemented BR001 VT pilot.
+- Recorded that all 36 add-on stores/static QR registrations are ready and that Fiuu activated VT App-to-App, while authenticated server confirmation remains pending with Fiuu technical.
+- Marked the older unsent OPA email draft as obsolete for the current VT track.
+- Recorded the separate temporary card-channel suspensions for `rotikayajunus` and `rkjdistributors` and kept DuitNow QR/VT scope distinct.
+- Verified that the Fiuu Agent Payment adapter uses Hosted Payment Page, so the 2026-12-31 FPX issuer-list/KFH maintenance notice does not require an RKJ checkout change unless a direct/seamless FPX flow is introduced.
+- Confirmed the BR001 Fiuu settings remain Preview-only; no Production payment mode, credential or rollout was changed.
+- Recorded owner authorization for an eventual all-outlet rollout while retaining the technical safety gates.
+- Added a read-only Production readiness audit: 35 active branch records with `BR012` missing/inactive, 6 active and 29 pending official tablets, only 1 tablet seen in seven days, 4 native-app installations and no Device Owner/kiosk-compliant tablets.
+- Kept bulk activation blocked; rollout must proceed from BR001 UAT to the remaining enrolled tablets and then individually enrolled pending devices, with static QR/manual fallback throughout.
+
+## 2026-10-15 - BR001 Fiuu VT App-to-App pilot
+
+- Added Android 1.7.0 native handoff to the Managed Google Play Fiuu VT app with package-specific callback routing.
+- Added a BR001-only server allowlist while preserving static QR/manual processing for BR002-BR036 and older Android/PWA clients.
+- Added durable payment intent recovery, SALE-to-STATUS validation, unique order/Transaction IDs, one-active-device guards and an atomic service-role fulfillment RPC.
+- Kept unsigned VT `STATUS=00` as `REPORTED` until a cashier explicitly confirms the successful Fiuu screen; fully automatic rollout remains blocked pending signed server proof from Fiuu.
+- Added the Fiuu VT linked-app Android Enterprise policy, provisioning/UAT documentation and 1.7.0 Internal Testing release checklist.
+- Local validation passed: 51 tests, TypeScript, ESLint, Next.js Production build, system hardening audit and Android debug APK build. No Production database, environment, Play track or branch was changed.
+
 ## 2026-10-06 - 36 Fiuu static DuitNow QR in RKJ One POS
 
 - Added the verified branch-specific Fiuu DuitNow QR assets for `BR001` through `BR036` to the RKJ One deployment.

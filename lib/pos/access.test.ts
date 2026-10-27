@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canRefundPosTransaction, canVoidPosTransaction } from './access';
+import { canRefundPosTransaction, canVoidPosTransaction, requiresActivePosShiftMember } from './access';
 
 describe('POS transaction adjustment permissions', () => {
  it('allows operational management to void but not record provider refunds', () => {
@@ -20,5 +20,18 @@ describe('POS transaction adjustment permissions', () => {
    expect(canVoidPosTransaction(role)).toBe(false);
    expect(canRefundPosTransaction(role)).toBe(false);
   }
+ });
+});
+
+describe('requiresActivePosShiftMember', () => {
+ it('requires active membership for branch staff and area managers', () => {
+  expect(requiresActivePosShiftMember('STAFF')).toBe(true);
+  expect(requiresActivePosShiftMember('AREA_MANAGER')).toBe(true);
+ });
+
+ it('keeps the server management bypass roles aligned', () => {
+  expect(requiresActivePosShiftMember('SUPER_ADMIN')).toBe(false);
+  expect(requiresActivePosShiftMember('ADMIN')).toBe(false);
+  expect(requiresActivePosShiftMember('OPERATION_MANAGER')).toBe(false);
  });
 });

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Ban, CheckCircle2, CircleAlert, Clock3, Copy, KeyRound, Layers3, Plus, ShieldCheck, TabletSmartphone } from 'lucide-react';
+import { Ban, CheckCircle2, CircleAlert, Clock3, Copy, KeyRound, Layers3, Plus, RotateCcw, ShieldCheck, TabletSmartphone } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -75,6 +75,7 @@ export function PosDevicesPanel() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [bulkSaving, setBulkSaving] = useState(false);
+  const [reenrollingId, setReenrollingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -214,6 +215,30 @@ export function PosDevicesPanel() {
       await load();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Gagal membatalkan tablet');
+    }
+  }
+
+  async function reenrollDevice(device: Device) {
+    if (!window.confirm(
+      `Jana semula kod untuk ${device.device_name}? Akses pendaftaran lama akan ditamatkan, tetapi rekod aset tablet dikekalkan.`,
+    )) return;
+    setReenrollingId(device.id);
+    try {
+      const data = await requestJson<{
+        enrollment_code: string;
+        device: { enrollment_expires_at: string | null };
+      }>(`/api/settings/pos-devices/${encodeURIComponent(device.id)}/reenroll`, {
+        method: 'POST',
+      });
+      setEnrollmentCode(data.enrollment_code);
+      setExpiresAt(data.device.enrollment_expires_at);
+      toast.success('Kod pendaftaran baharu dijana. Rekod aset tablet dikekalkan.');
+      await load();
+      document.getElementById('pos-device-activation')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Gagal menjana semula kod tablet');
+    } finally {
+      setReenrollingId(null);
     }
   }
 
@@ -432,12 +457,30 @@ export function PosDevicesPanel() {
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
+                    {device.status === 'ACTIVE' && branch?.branch_code === 'BR001' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => reenrollDevice(device)}
+                        disabled={saving || reenrollingId !== null}
+                      >
+                        <RotateCcw className="h-4 w-4" />
+                        {reenrollingId === device.id ? 'Menjana...' : 'Jana Semula Kod'}
+                      </Button>
+                    )}
                     {device.status === 'PENDING' && (
-                      <Button size="sm" className="gap-2" onClick={() => prepareDevice(device)} disabled={saving}>
+                      <Button size="sm" className="gap-2" onClick={() => prepareDevice(device)} disabled={saving || reenrollingId !== null}>
                         <KeyRound className="h-4 w-4" /> {device.asset_verified_at ? 'Kemaskini Aset / Jana Kod' : 'Lengkapkan Aset'}
                       </Button>
                     )}
-                    <Button variant="outline" size="sm" className="gap-2 text-red-700" onClick={() => cancelDevice(device)}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 text-red-700"
+                      onClick={() => cancelDevice(device)}
+                      disabled={saving || reenrollingId !== null}
+                    >
                       <Ban className="h-4 w-4" /> Batalkan
                     </Button>
                   </div>
