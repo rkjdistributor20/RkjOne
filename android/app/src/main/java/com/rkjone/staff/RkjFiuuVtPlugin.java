@@ -40,6 +40,9 @@ public class RkjFiuuVtPlugin extends Plugin {
     private static final String PENDING_OPERATION = "pending_operation";
     private static final String LAST_RESULT = "last_result";
     private static final String LAST_RESULT_AT = "last_result_at";
+    private static final String LAST_LAUNCH_AT = "last_launch_at";
+    private static final String LAST_LAUNCH_OPERATION = "last_launch_operation";
+    private static final long MIN_LAUNCH_INTERVAL_MS = 3000L;
     private static final Pattern ORDER_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{4,64}$");
     private static final Pattern TRANSACTION_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{1,80}$");
     private static final Pattern ERROR_CODE_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{1,32}$");
@@ -57,8 +60,11 @@ public class RkjFiuuVtPlugin extends Plugin {
         result.put("packageName", LEGACY_FIUU_PACKAGE);
         result.put("versionName", packageVersion(LEGACY_FIUU_PACKAGE));
         result.put("pendingOrderId", emptyToNull(preferences.getString(PENDING_ORDER, "")));
+        result.put("pendingAmount", emptyToNull(preferences.getString(PENDING_AMOUNT, "")));
         result.put("pendingOperation", emptyToNull(preferences.getString(PENDING_OPERATION, "")));
         result.put("resultAvailable", !preferences.getString(LAST_RESULT, "").isEmpty());
+        long resultReceivedAt = preferences.getLong(LAST_RESULT_AT, 0L);
+        result.put("resultReceivedAt", resultReceivedAt > 0L ? resultReceivedAt : JSONObject.NULL);
         call.resolve(result);
     }
 
@@ -122,13 +128,11 @@ public class RkjFiuuVtPlugin extends Plugin {
             return;
         }
 
-        preferences().edit()
-            .putString(PENDING_ORDER, orderId)
-            .putString(PENDING_AMOUNT, amount.toPlainString())
-            .putString(PENDING_OPERATION, "SALE")
-            .remove(LAST_RESULT)
-            .remove(LAST_RESULT_AT)
-            .apply();
+        SharedPreferences preferences = preferences();
+        if (!preferences.getString(PENDING_ORDER, "").isEmpty()) {
+            call.reject("Percubaan Fiuu VT terdahulu masih perlu direkonsiliasi.", "FIUU_ACTIVE_ATTEMPT_EXISTS");
+            return;
+        }
 
         Uri uri = new Uri.Builder()
             .scheme(FIUU_SCHEME)
@@ -142,7 +146,27 @@ public class RkjFiuuVtPlugin extends Plugin {
             .appendQueryParameter("channel", CHANNEL)
             .appendQueryParameter("payType", "2")
             .build();
-        launchFiuu(call, uri);
+        launchFiuu(
+            call,
+            uri,
+            "SALE",
+            () -> preferences.edit()
+                .putString(PENDING_ORDER, orderId)
+                .putString(PENDING_AMOUNT, amount.toPlainString())
+                .putString(PENDING_OPERATION, "SALE")
+                .remove(LAST_RESULT)
+                .remove(LAST_RESULT_AT)
+                .apply(),
+            () -> {
+                if (orderId.equals(preferences.getString(PENDING_ORDER, ""))) {
+                    preferences.edit()
+                        .remove(PENDING_ORDER)
+                        .remove(PENDING_AMOUNT)
+                        .remove(PENDING_OPERATION)
+                        .apply();
+                }
+            }
+        );
     }
 
     @PluginMethod
@@ -155,8 +179,26 @@ public class RkjFiuuVtPlugin extends Plugin {
             call.reject("Percubaan Fiuu VT tidak sepadan dengan transaksi aktif.", "FIUU_ATTEMPT_MISMATCH");
             return;
         }
+        String storedResult = preferences.getString(LAST_RESULT, "");
+        long storedResultAt = preferences.getLong(LAST_RESULT_AT, 0L);
+        boolean consumeAcceptedSaleResult = false;
+        if (!storedResult.isEmpty()) {
+            try {
+                JSONObject value = new JSONObject(storedResult);
+                consumeAcceptedSaleResult = "SALE".equals(value.optString("opType"))
+                    && orderId.equals(value.optString("orderId"))
+                    && !"ERROR".equals(value.optString("kind"));
+            } catch (JSONException ignored) {
+                consumeAcceptedSaleResult = false;
+            }
+            if (!consumeAcceptedSaleResult) {
+                call.reject("Keputusan Fiuu VT tersimpan mesti diproses sebelum semakan STATUS.", "FIUU_RESULT_PENDING");
+                return;
+            }
+        }
 
-        preferences.edit().putString(PENDING_OPERATION, "STATUS").apply();
+        String previousOperation = preferences.getString(PENDING_OPERATION, "SALE");
+        boolean shouldConsumeSaleResult = consumeAcceptedSaleResult;
         Uri uri = new Uri.Builder()
             .scheme(FIUU_SCHEME)
             .authority(FIUU_HOST)
@@ -165,7 +207,28 @@ public class RkjFiuuVtPlugin extends Plugin {
             .appendQueryParameter("opType", "STATUS")
             .appendQueryParameter("orderId", orderId)
             .build();
-        launchFiuu(call, uri);
+        launchFiuu(
+            call,
+            uri,
+            "STATUS",
+            () -> {
+                SharedPreferences.Editor editor = preferences.edit()
+                    .putString(PENDING_OPERATION, "STATUS");
+                if (shouldConsumeSaleResult) {
+                    editor.remove(LAST_RESULT).remove(LAST_RESULT_AT);
+                }
+                editor.apply();
+            },
+            () -> {
+                SharedPreferences.Editor editor = preferences.edit()
+                    .putString(PENDING_OPERATION, previousOperation);
+                if (shouldConsumeSaleResult) {
+                    editor.putString(LAST_RESULT, storedResult);
+                    if (storedResultAt > 0L) editor.putLong(LAST_RESULT_AT, storedResultAt);
+                }
+                editor.apply();
+            }
+        );
     }
 
     @PluginMethod
@@ -201,6 +264,8 @@ public class RkjFiuuVtPlugin extends Plugin {
             .remove(PENDING_OPERATION)
             .remove(LAST_RESULT)
             .remove(LAST_RESULT_AT)
+            .remove(LAST_LAUNCH_AT)
+            .remove(LAST_LAUNCH_OPERATION)
             .apply();
         call.resolve();
     }
@@ -295,7 +360,13 @@ public class RkjFiuuVtPlugin extends Plugin {
         return true;
     }
 
-    private void launchFiuu(PluginCall call, Uri uri) {
+    private void launchFiuu(
+        PluginCall call,
+        Uri uri,
+        String operation,
+        Runnable prepare,
+        Runnable rollback
+    ) {
         if (!isPackageInstalled(LEGACY_FIUU_PACKAGE)) {
             call.reject("Aplikasi Fiuu VT belum dipasang pada tablet ini.", "FIUU_VT_NOT_INSTALLED");
             return;
@@ -304,14 +375,28 @@ public class RkjFiuuVtPlugin extends Plugin {
             call.reject("Fiuu VT mesti dipasang melalui Managed Google Play.", "FIUU_VT_UNTRUSTED_INSTALL");
             return;
         }
+        SharedPreferences preferences = preferences();
+        long now = System.currentTimeMillis();
+        long lastLaunchAt = preferences.getLong(LAST_LAUNCH_AT, 0L);
+        if (lastLaunchAt > 0L && now - lastLaunchAt < MIN_LAUNCH_INTERVAL_MS) {
+            call.reject("Fiuu VT sedang dibuka. Tunggu sebentar sebelum cuba semula.", "FIUU_VT_LAUNCH_IN_PROGRESS");
+            return;
+        }
         Intent intent = new Intent(Intent.ACTION_VIEW, uri);
         intent.setPackage(LEGACY_FIUU_PACKAGE);
         try {
+            prepare.run();
+            preferences.edit()
+                .putLong(LAST_LAUNCH_AT, now)
+                .putString(LAST_LAUNCH_OPERATION, operation)
+                .apply();
             RkjDevicePolicyPlugin.runWithSystemDialogGuard(getActivity(), () -> getActivity().startActivity(intent));
             JSObject result = new JSObject();
             result.put("launched", true);
             call.resolve(result);
         } catch (RuntimeException error) {
+            rollback.run();
+            preferences.edit().remove(LAST_LAUNCH_AT).remove(LAST_LAUNCH_OPERATION).apply();
             RkjDevicePolicyPlugin.resumeKioskAfterSystemDialog(getActivity());
             call.reject("Aplikasi Fiuu VT tidak dapat dibuka.", "FIUU_VT_LAUNCH_FAILED");
         }

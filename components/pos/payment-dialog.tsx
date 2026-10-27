@@ -44,6 +44,7 @@ import {
 } from '@/lib/pos/fiuu-vt-client';
 import {
  isFiuuVtErrorResult,
+ paymentIdFromFiuuVtOrderId,
  shouldLaunchFiuuVtStatusAfterReconcile,
  type FiuuVtCallbackResult,
 } from '@/lib/pos/fiuu-vt';
@@ -221,6 +222,7 @@ export function PaymentDialog({
  const qrAttemptKeyRef = useRef<string | null>(null);
 	const vtResultFingerprintRef = useRef<string | null>(null);
  const vtAutoConfirmAttemptRef = useRef<string | null>(null);
+ const vtRecoveryOrderRef = useRef<string | null>(null);
 	const [qrPollError, setQrPollError] = useState<string | null>(null);
 	const [checkingQrStatus, setCheckingQrStatus] = useState(false);
 	const [qrImageError, setQrImageError] = useState(false);
@@ -327,6 +329,7 @@ export function PaymentDialog({
 	qrAttemptKeyRef.current = null;
 	vtResultFingerprintRef.current = null;
  vtAutoConfirmAttemptRef.current = null;
+	vtRecoveryOrderRef.current = null;
 	}, []);
 
 	const storageKey = shift ? activeQrStorageKey(branchId, shift.id) : null;
@@ -415,6 +418,88 @@ export function PaymentDialog({
    cancelled = true;
   };
  }, [open, qrConfig?.mode, trainingMode]);
+
+ const recoverFiuuVtPayment = useCallback(async (nativeStatus: FiuuVtNativeStatus) => {
+  const orderId = nativeStatus.pendingOrderId;
+  const currentShift = shift;
+  if (!open || qrPayment || !currentShift || !storageKey || !orderId) return;
+  if (vtRecoveryOrderRef.current === orderId) return;
+
+  const paymentId = paymentIdFromFiuuVtOrderId(orderId);
+  if (!paymentId) {
+   setQrPollError('Rekod native Fiuu VT tidak sepadan dengan format transaksi RKJ One. Jangan jana SALE baharu.');
+   return;
+  }
+
+  vtRecoveryOrderRef.current = orderId;
+  setCheckingQrStatus(true);
+  try {
+   const response = await fetchPosQrPayment(paymentId);
+   const payment = response.payment;
+   if (payment.provider !== 'fiuu_vt'
+    || payment.provider_order_id !== orderId
+    || payment.branch_id !== branchId
+    || payment.shift_id !== currentShift.id) {
+    throw new Error('Transaksi native Fiuu VT bukan milik sesi BR001 yang aktif.');
+   }
+   if (!['PENDING', 'REPORTED', 'PAID'].includes(payment.status)) {
+    throw new Error(`Transaksi Fiuu VT sudah ${payment.status}. Jangan jana SALE baharu.`);
+   }
+   if (Math.round(payment.amount_rm * 100) !== Math.round(total * 100)) {
+    throw new Error('Amaun transaksi Fiuu VT tidak sepadan dengan troli semasa. Jangan jana SALE baharu.');
+   }
+
+   const fingerprint = paymentFingerprint({
+    branchId,
+    shiftId: currentShift.id,
+    items: cart.map((item) => ({ product_id: item.productId, quantity: item.quantity })),
+    payment_method: 'QR',
+    cash_amount: 0,
+    qr_amount: payment.amount_rm,
+   });
+   const activePayment: ActiveQrPayment = {
+    id: payment.id,
+    imageUrl: null,
+    amountRm: payment.amount_rm,
+    expiresAt: payment.expires_at ?? new Date().toISOString(),
+    environment: 'production',
+    integration: 'vt_app',
+    providerOrderId: orderId,
+    cartFingerprint: fingerprint,
+   };
+   const idempotencyKey = createPosPaymentIdempotencyKey();
+   qrAttemptKeyRef.current = idempotencyKey;
+   setMethod('QR');
+   setCashTenderedOverride(null);
+   setQrAmountOverride(payment.amount_rm.toFixed(2));
+   setQrPayment(activePayment);
+   setQrStatus(payment.status === 'PAID' ? 'REPORTED' : payment.status);
+   setQrSecondsRemaining(Math.max(
+    0,
+    Math.ceil((new Date(activePayment.expiresAt).getTime() - Date.now()) / 1000),
+   ));
+   setQrPollError(payment.reconciliation_expired
+    ? 'Transaksi berbayar lama dipulihkan untuk rekonsiliasi BR001. Jangan jana QR atau SALE baharu.'
+    : 'Transaksi Fiuu VT aktif dipulihkan daripada tablet. Menyemak keputusan yang sama...');
+   try {
+    window.localStorage.setItem(storageKey, JSON.stringify({ payment: activePayment, idempotencyKey }));
+   } catch {
+    // In-memory recovery remains usable when the managed WebView blocks storage.
+   }
+  } catch (error) {
+   setQrPollError(error instanceof Error
+    ? `Transaksi Fiuu VT tidak dapat dipulihkan: ${error.message}`
+    : 'Transaksi Fiuu VT tidak dapat dipulihkan. Jangan jana SALE baharu.');
+  } finally {
+   setCheckingQrStatus(false);
+  }
+ }, [branchId, cart, open, qrPayment, shift, storageKey, total]);
+
+ useEffect(() => {
+  if (!vtNativeStatus?.nativeAndroid || !vtNativeStatus.pendingOrderId || qrPayment) return;
+  void recoverFiuuVtPayment(vtNativeStatus);
+ }, [qrPayment, recoverFiuuVtPayment, vtNativeStatus]);
+
  const handleDialogOpenChange = useCallback((nextOpen: boolean) => {
  if (!nextOpen && qrPayment && (qrStatus === 'PENDING' || qrStatus === 'REPORTED' || qrStatus === 'PAID')) {
   toast.info('Tunggu keputusan QR atau tamat tempoh sebelum menutup bayaran.');
@@ -562,6 +647,16 @@ export function PaymentDialog({
    vtAutoConfirmAttemptRef.current = null;
    setQrStatus('PENDING');
    try {
+     const pendingResult = await readPendingFiuuVtResult();
+     if (pendingResult) {
+      await processFiuuVtResult(pendingResult);
+      return;
+     }
+     const nativeStatus = await readFiuuVtStatus();
+     if (nativeStatus.pendingOperation === 'SALE') {
+      setQrPollError('RKJ One masih menunggu keputusan SALE asal daripada Fiuu VT. Jangan buka STATUS atau SALE baharu.');
+      return;
+     }
     const serverStatus = await reconcileQrPayment(qrPayment);
     if (!shouldLaunchFiuuVtStatusAfterReconcile(serverStatus)) return;
     await launchFiuuVtStatus(qrPayment.providerOrderId);
@@ -573,7 +668,7 @@ export function PaymentDialog({
    return;
   }
   await reconcileQrPayment(qrPayment, true);
- }, [qrPayment, reconcileQrPayment]);
+  }, [processFiuuVtResult, qrPayment, reconcileQrPayment]);
 
  const confirmReportedFiuuVt = useCallback(async () => {
   if (!qrPayment || qrPayment.integration !== 'vt_app' || !qrPayment.providerOrderId) return;

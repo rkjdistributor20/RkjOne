@@ -329,10 +329,15 @@ export async function fetchPosQrPayment(paymentId: string) {
  return fetchJson<{
  payment: {
  id: string;
+  branch_id: string;
+  shift_id: string;
+  provider: 'fiuu' | 'fiuu_vt' | 'fiuu_cloudecr';
+  provider_order_id: string | null;
   status: 'PENDING' | 'REPORTED' | 'PAID' | 'FAILED' | 'EXPIRED' | 'CANCELLED';
  amount_rm: number;
  transaction_id: string | null;
  expires_at: string | null;
+  reconciliation_expired: boolean;
  };
  result: SaleResult | null;
  }>('/api/pos/qr-payments/' + encodeURIComponent(paymentId));

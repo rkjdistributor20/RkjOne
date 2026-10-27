@@ -8,10 +8,12 @@ import {
  isFiuuVtPendingStatus,
  parseFiuuVtCallbackResult,
  parseFiuuVtResult,
+ paymentIdFromFiuuVtOrderId,
  shouldLaunchFiuuVtStatusAfterReconcile,
 } from './fiuu-vt';
 import {
  FIUU_VT_PILOT_BRANCH,
+ getFiuuVtLateRecoveryMs,
  getFiuuVtPilotBranches,
  getFiuuVtValiditySeconds,
  isFiuuVtEnabledForBranch,
@@ -67,6 +69,13 @@ describe('Fiuu VT request contract', () => {
    orderId: 'RKJ_ORDER_001',
    amountRm: Number.NaN,
   })).toThrow('Amaun Fiuu VT tidak sah');
+ });
+
+ it('recovers the UUID only from RKJ order IDs created by this integration', () => {
+  const paymentId = '3f342adb-5867-4e12-b872-e8a776ce1b67';
+  expect(paymentIdFromFiuuVtOrderId(buildFiuuVtOrderId(paymentId))).toBe(paymentId);
+  expect(paymentIdFromFiuuVtOrderId('RKJ_ORDER_001')).toBeNull();
+  expect(paymentIdFromFiuuVtOrderId('RKJ_3F342ADB58674E12B872E8A776CE1B6Z')).toBeNull();
  });
 });
 
@@ -172,9 +181,9 @@ describe('Fiuu VT callback validation', () => {
 });
 
 describe('Fiuu VT STATUS recovery', () => {
- it('launches provider STATUS when RKJ reconciliation is pending or temporarily unavailable', () => {
+ it('launches provider STATUS only after RKJ authoritatively remains pending', () => {
   expect(shouldLaunchFiuuVtStatusAfterReconcile('PENDING')).toBe(true);
-  expect(shouldLaunchFiuuVtStatusAfterReconcile(null)).toBe(true);
+  expect(shouldLaunchFiuuVtStatusAfterReconcile(null)).toBe(false);
  });
 
  it.each(['REPORTED', 'PAID', 'FAILED', 'EXPIRED', 'CANCELLED'] as const)(
@@ -186,6 +195,15 @@ describe('Fiuu VT STATUS recovery', () => {
 });
 
 describe('Fiuu VT pilot gate', () => {
+ it('allows the bounded late-recovery exception on Preview only', () => {
+  process.env.VERCEL_ENV = 'preview';
+  expect(getFiuuVtLateRecoveryMs()).toBe(24 * 60 * 60 * 1000);
+  process.env.VERCEL_ENV = 'production';
+  expect(getFiuuVtLateRecoveryMs()).toBe(0);
+  delete process.env.VERCEL_ENV;
+  expect(getFiuuVtLateRecoveryMs()).toBe(0);
+ });
+
  it('fails closed when the VT allowlist is not configured', () => {
   process.env.POS_QR_PAYMENT_MODE = 'fiuu_vt';
   delete process.env.POS_FIUU_VT_BRANCHES;

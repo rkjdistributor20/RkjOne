@@ -6,7 +6,8 @@ import {
  assertCanAccessPosBranch,
  posAccessErrorStatus,
 } from '@/lib/pos/access';
-import { isFiuuReconciliationExpired } from '@/lib/pos/fiuu';
+import { FIUU_CALLBACK_GRACE_MS, isFiuuReconciliationExpired } from '@/lib/pos/fiuu';
+import { getFiuuVtLateRecoveryMs } from '@/lib/pos/fiuu-vt-server';
 import {
  buildFiuuCloudEcrReferenceId,
  type FiuuCloudEcrResponse,
@@ -182,9 +183,20 @@ export async function GET(
   && data.status === 'PENDING'
   && providerResult?.opType === 'STATUS'
   && providerResult?.status === '00';
+ const reconciliationExpired = data.provider === 'fiuu_vt'
+  && data.status === 'PENDING'
+  && Boolean(data.expires_at && isFiuuReconciliationExpired(data.expires_at));
+ const vtLateRecoveryExpired = reconciliationExpired
+  && Boolean(data.expires_at
+   && Date.now() > new Date(data.expires_at).getTime()
+    + FIUU_CALLBACK_GRACE_MS
+    + getFiuuVtLateRecoveryMs());
  const payment = vtReported
   ? { ...data, status: 'REPORTED' }
+  : data.provider === 'fiuu_vt' && vtLateRecoveryExpired
+   ? { ...data, status: 'EXPIRED' }
   : data.provider !== 'fiuu'
+  && data.provider !== 'fiuu_vt'
   && data.status === 'PENDING'
   && data.expires_at
   && isFiuuReconciliationExpired(data.expires_at)
@@ -206,12 +218,15 @@ export async function GET(
    id: payment.id,
    branch_id: payment.branch_id,
    shift_id: payment.shift_id,
+   provider: payment.provider,
+   provider_order_id: payment.provider_order_id,
    amount_rm: payment.amount_rm,
    status: payment.status,
    gateway_ref: payment.gateway_ref,
    paid_at: payment.paid_at,
    transaction_id: payment.transaction_id,
    expires_at: payment.expires_at,
+   reconciliation_expired: reconciliationExpired,
   },
   result,
  });

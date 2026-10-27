@@ -17,8 +17,10 @@ export type FiuuVtNativeStatus = {
  packageName: string;
  versionName: string;
  pendingOrderId: string | null;
+ pendingAmount?: string | null;
  pendingOperation: 'SALE' | 'STATUS' | null;
  resultAvailable: boolean;
+ resultReceivedAt?: number | null;
 };
 
 type FiuuVtPlugin = {
@@ -50,8 +52,10 @@ export async function readFiuuVtStatus(): Promise<FiuuVtNativeStatus> {
    packageName: 'com.rms.mobile.razervt',
    versionName: '',
    pendingOrderId: null,
+    pendingAmount: null,
    pendingOperation: null,
    resultAvailable: false,
+    resultReceivedAt: null,
   };
  }
  return NativeFiuuVt.getStatus();

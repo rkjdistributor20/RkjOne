@@ -37,9 +37,11 @@ export type FiuuVtStatusDisposition = 'REPORTED' | 'PENDING' | 'FAILED' | 'CANCE
 export function shouldLaunchFiuuVtStatusAfterReconcile(
  serverStatus: 'PENDING' | 'REPORTED' | 'PAID' | 'FAILED' | 'EXPIRED' | 'CANCELLED' | null,
 ): boolean {
- // A transient RKJ API failure must not block the provider's read-only STATUS flow.
- // Terminal server states remain authoritative and must never reopen Fiuu VT.
- return serverStatus === null || serverStatus === 'PENDING';
+ // STATUS may only follow an authoritative RKJ PENDING response. A failed RKJ
+ // request is ambiguous (auth, ownership and terminal-state failures all reach
+ // the client as errors), so fail closed instead of switching the native
+ // operation away from a possibly unconsumed SALE callback.
+ return serverStatus === 'PENDING';
 }
 
 const ORDER_ID_PATTERN = /^[A-Za-z0-9_-]{4,64}$/;
@@ -79,6 +81,19 @@ export function buildFiuuVtOrderId(paymentId: string): string {
  const orderId = `RKJ_${normalized}`.slice(0, 64);
  if (!ORDER_ID_PATTERN.test(orderId)) throw new Error('ID pesanan Fiuu VT tidak sah');
  return orderId;
+}
+
+export function paymentIdFromFiuuVtOrderId(orderId: string): string | null {
+ const match = /^RKJ_([A-F0-9]{32})$/.exec(orderId.trim().toUpperCase());
+ if (!match) return null;
+ const value = match[1];
+ return [
+  value.slice(0, 8),
+  value.slice(8, 12),
+  value.slice(12, 16),
+  value.slice(16, 20),
+  value.slice(20),
+ ].join('-').toLowerCase();
 }
 
 export function buildFiuuVtRequestUrl(input: {

@@ -19,7 +19,11 @@ vi.mock('@/lib/pos/access', () => ({
  posAccessErrorStatus: mocks.posAccessErrorStatus,
 }));
 vi.mock('@/lib/pos/fiuu', () => ({
+ FIUU_CALLBACK_GRACE_MS: 20 * 60 * 1000,
  isFiuuReconciliationExpired: mocks.isFiuuReconciliationExpired,
+}));
+vi.mock('@/lib/pos/fiuu-vt-server', () => ({
+ getFiuuVtLateRecoveryMs: () => 0,
 }));
 vi.mock('@/lib/pos/fiuu-cloudecr', () => ({
  buildFiuuCloudEcrReferenceId: vi.fn(),

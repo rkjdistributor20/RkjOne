@@ -13,7 +13,10 @@ import {
  parseFiuuVtResult,
  type FiuuVtResult,
 } from '@/lib/pos/fiuu-vt';
-import { FIUU_VT_PILOT_BRANCH } from '@/lib/pos/fiuu-vt-server';
+import {
+ FIUU_VT_PILOT_BRANCH,
+ getFiuuVtLateRecoveryMs,
+} from '@/lib/pos/fiuu-vt-server';
 import { enforceRateLimit } from '@/lib/security/rate-limit';
 import { createAdminClient } from '@/lib/supabase/admin';
 import type { Json } from '@/types/database';
@@ -106,8 +109,24 @@ export async function POST(
    { status: 409 },
   );
  }
- if (payment.status === 'PENDING' && payment.expires_at
-  && Date.now() > new Date(payment.expires_at).getTime() + FIUU_CALLBACK_GRACE_MS) {
+ const expiresAtMs = payment.expires_at ? new Date(payment.expires_at).getTime() : Number.NaN;
+ const normalReconciliationDeadline = expiresAtMs + FIUU_CALLBACK_GRACE_MS;
+ const lateRecoveryDeadline = normalReconciliationDeadline + getFiuuVtLateRecoveryMs();
+ const normalGraceExpired = payment.status === 'PENDING'
+  && Number.isFinite(normalReconciliationDeadline)
+  && Date.now() > normalReconciliationDeadline;
+ const previewLateSaleRecovery = normalGraceExpired
+  && Date.now() <= lateRecoveryDeadline
+  && result.opType === 'SALE'
+  && result.status === '00'
+  && !payment.provider_sale_reported_at
+  && !payment.provider_transaction_id;
+ const previewLateStatusRecovery = normalGraceExpired
+  && Date.now() <= lateRecoveryDeadline
+  && result.opType === 'STATUS'
+  && Boolean(payment.provider_sale_reported_at)
+  && payment.provider_transaction_id === result.transactionId;
+ if (normalGraceExpired && !previewLateSaleRecovery && !previewLateStatusRecovery) {
   return NextResponse.json(
    { error: 'Tempoh rekonsiliasi Fiuu VT telah tamat', mode: 'FIUU_ATTEMPT_TERMINAL' },
    { status: 409 },
