@@ -34,6 +34,14 @@ export type FiuuVtCallbackResult = FiuuVtResult | FiuuVtErrorResult;
 
 export type FiuuVtStatusDisposition = 'REPORTED' | 'PENDING' | 'FAILED' | 'CANCELLED';
 
+export function shouldLaunchFiuuVtStatusAfterReconcile(
+ serverStatus: 'PENDING' | 'REPORTED' | 'PAID' | 'FAILED' | 'EXPIRED' | 'CANCELLED' | null,
+): boolean {
+ // A transient RKJ API failure must not block the provider's read-only STATUS flow.
+ // Terminal server states remain authoritative and must never reopen Fiuu VT.
+ return serverStatus === null || serverStatus === 'PENDING';
+}
+
 const ORDER_ID_PATTERN = /^[A-Za-z0-9_-]{4,64}$/;
 const TRANSACTION_ID_PATTERN = /^[A-Za-z0-9_-]{1,80}$/;
 const PAY_DATE_PATTERN = /^[0-9T:+.\-/ ]{6,40}$/;

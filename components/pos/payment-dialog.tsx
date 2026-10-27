@@ -44,6 +44,7 @@ import {
 } from '@/lib/pos/fiuu-vt-client';
 import {
  isFiuuVtErrorResult,
+ shouldLaunchFiuuVtStatusAfterReconcile,
  type FiuuVtCallbackResult,
 } from '@/lib/pos/fiuu-vt';
 
@@ -562,7 +563,7 @@ export function PaymentDialog({
    setQrStatus('PENDING');
    try {
     const serverStatus = await reconcileQrPayment(qrPayment);
-    if (!serverStatus || serverStatus !== 'PENDING') return;
+    if (!shouldLaunchFiuuVtStatusAfterReconcile(serverStatus)) return;
     await launchFiuuVtStatus(qrPayment.providerOrderId);
    } catch (error) {
     setQrPollError(error instanceof Error ? error.message : 'Fiuu VT tidak dapat dibuka.');

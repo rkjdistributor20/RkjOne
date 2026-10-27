@@ -8,6 +8,7 @@ import {
  isFiuuVtPendingStatus,
  parseFiuuVtCallbackResult,
  parseFiuuVtResult,
+ shouldLaunchFiuuVtStatusAfterReconcile,
 } from './fiuu-vt';
 import {
  FIUU_VT_PILOT_BRANCH,
@@ -168,6 +169,20 @@ describe('Fiuu VT callback validation', () => {
   expect(getFiuuVtStatusDisposition('44')).toBe('CANCELLED');
   expect(getFiuuVtStatusDisposition('55')).toBe('PENDING');
  });
+});
+
+describe('Fiuu VT STATUS recovery', () => {
+ it('launches provider STATUS when RKJ reconciliation is pending or temporarily unavailable', () => {
+  expect(shouldLaunchFiuuVtStatusAfterReconcile('PENDING')).toBe(true);
+  expect(shouldLaunchFiuuVtStatusAfterReconcile(null)).toBe(true);
+ });
+
+ it.each(['REPORTED', 'PAID', 'FAILED', 'EXPIRED', 'CANCELLED'] as const)(
+  'does not relaunch provider STATUS after RKJ reaches %s',
+  (status) => {
+   expect(shouldLaunchFiuuVtStatusAfterReconcile(status)).toBe(false);
+  },
+ );
 });
 
 describe('Fiuu VT pilot gate', () => {
