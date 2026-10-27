@@ -85,7 +85,7 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 
 - [x] Phone Link identifies the connected BR001 tablet as Samsung `SM-X406B` running Android 16.
 - [x] Google Play account `rkjdistributor20@gmail.com` registers Samsung `SM-X406B` and HONOR `ELN2-L29`/HONOR Pad X9a; the HONOR is not `NDL2-L09`/X8b.
-- [x] Standard Fiuu VT availability was checked and is unavailable on both registered devices.
+- [x] Standard Fiuu VT availability was rechecked; the earlier incompatibility result is superseded because the official app is now installed on the BR001 Samsung and reaches its provider flow.
 - [x] Fiuu VT+ availability was checked and is offered to all devices registered on the account.
 - [x] The earlier Android 10/X8b support diagnosis is recorded as a non-matching device profile, without attributing fault; future troubleshooting uses the verified inventory.
 - [x] The evidence review made no Production database, environment, deployment, merchant-portal or outlet change.
@@ -104,6 +104,8 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [x] Local code requires exact POS ID, Device ID and Terminal SN; `getLast` uses a unique query reference plus the original SALE reference in signed metadata.
 - [x] Local code uses a 180-second database claim/lease—longer than the server request window—to permit at most one `getLast` call per payment across concurrent tabs and stores signed success as `REPORTED` before receipt/stock fulfilment.
 - [x] Local code permits only one unresolved SALE for the exact cloudECR POS ID, Device ID and Terminal SN across RKJ tablets, stores the exact HMAC-verified payload, and preserves a server-side pricing snapshot.
+- [x] The BR001 native bridge recognizes the documented VT `errorCode`/`errorMsg` callback separately from a transaction result, preserves the pending attempt, and cannot create a receipt or stock movement from that error callback.
+- [ ] The updated BR001 UAT APK proves on the physical Samsung that an official VT error callback returns to RKJ One, shows a bounded recovery state and permits a deliberate new attempt only after the server reconciliation window.
 - [ ] BR001 proves that successful Fiuu `getLast` returns the original SALE reference in signed metadata; absent metadata must remain fail-closed and be escalated to Fiuu.
 - [ ] BR001 validates uncertain-result recovery through `getLast`: each inquiry uses a new query reference, signed metadata contains the original SALE reference, and network/duplicate recovery creates no duplicate sale, receipt or stock movement.
 - [ ] Finance reconciles the physical BR001 payment against the provider transaction, RKJ receipt, stock, shift, Fiuu settlement report and bank credit.
@@ -118,7 +120,7 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [ ] Every active real-user profile has an Auth user and completes role-based first-login UAT.
 - [ ] Fiuu remains static/manual in Production and outside the explicit BR001 pilot until OPA signed-callback UAT, idempotency and settlement reconciliation pass.
 - [ ] Fiuu POS reload, duplicate-create, QR expiry, late callback, callback replay and shift-close grace cases pass against the staging OPA application.
-- [ ] The legacy standard Fiuu VT path is not promoted to the Play-incompatible Samsung `SM-X406B` or HONOR `ELN2-L29`; use it only if Fiuu later supplies an approved compatible route.
+- [ ] The standard Fiuu VT path remains limited to the compatible, enrolled BR001 Samsung until its physical payment, receipt, stock and settlement gates pass; do not promote it to BR002-BR036.
 - [ ] BR001 cloudECR/VT+ passes activation/binding, sale, signed final response, failure, timeout/Get Last, pending inquiry, app-kill/reopen and mixed-payment tests.
 - [ ] A valid signed OPA success first commits `REPORTED` evidence and then invokes one atomic receipt/stock fulfilment; pending, invalid-signature, mismatched or ambiguous results create no sale.
 - [ ] Dynamic and static/manual mixed payment reject cash over-tender; the exact cash and QR split reconciles to sale total and expected drawer cash.

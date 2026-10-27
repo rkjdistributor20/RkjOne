@@ -4,7 +4,9 @@ import {
  buildFiuuVtRequestUrl,
  FIUU_VT_DUITNOW_CHANNEL,
  getFiuuVtStatusDisposition,
+ isFiuuVtErrorResult,
  isFiuuVtPendingStatus,
+ parseFiuuVtCallbackResult,
  parseFiuuVtResult,
 } from './fiuu-vt';
 import {
@@ -108,6 +110,37 @@ describe('Fiuu VT callback validation', () => {
    amountRm: 12.5,
    status: '00',
   });
+ });
+
+ it('normalizes the documented error callback using the pending attempt context', () => {
+  const result = parseFiuuVtCallbackResult({
+   kind: 'ERROR',
+   opType: 'STATUS',
+   orderId: 'RKJ_ORDER_001',
+   errorCode: '310',
+   errorMessage: 'Time out',
+  });
+
+  expect(isFiuuVtErrorResult(result)).toBe(true);
+  expect(result).toEqual({
+   kind: 'ERROR',
+   opType: 'STATUS',
+   orderId: 'RKJ_ORDER_001',
+   errorCode: '310',
+   errorMessage: 'Time out',
+  });
+ });
+
+ it.each([
+  { opType: 'STATUS', orderId: 'RKJ_ORDER_001', errorCode: '', errorMessage: 'Time out' },
+  { opType: 'STATUS', orderId: 'bad order', errorCode: '310', errorMessage: 'Time out' },
+  { opType: 'STATUS', orderId: 'RKJ_ORDER_001', errorCode: '310', errorMessage: 'Bad\nmessage' },
+  {
+   opType: 'STATUS', orderId: 'RKJ_ORDER_001', errorCode: '310', errorMessage: 'Time out',
+   status: '00',
+  },
+ ])('rejects a malformed error callback %#', (value) => {
+  expect(() => parseFiuuVtCallbackResult(value)).toThrow();
  });
 
  it.each([

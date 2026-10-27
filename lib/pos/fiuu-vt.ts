@@ -22,11 +22,23 @@ export type FiuuVtResult = {
  payDate: string | null;
 };
 
+export type FiuuVtErrorResult = {
+ kind: 'ERROR';
+ opType: FiuuVtOperation;
+ orderId: string;
+ errorCode: string;
+ errorMessage: string;
+};
+
+export type FiuuVtCallbackResult = FiuuVtResult | FiuuVtErrorResult;
+
 export type FiuuVtStatusDisposition = 'REPORTED' | 'PENDING' | 'FAILED' | 'CANCELLED';
 
 const ORDER_ID_PATTERN = /^[A-Za-z0-9_-]{4,64}$/;
 const TRANSACTION_ID_PATTERN = /^[A-Za-z0-9_-]{1,80}$/;
 const PAY_DATE_PATTERN = /^[0-9T:+.\-/ ]{6,40}$/;
+const ERROR_CODE_PATTERN = /^[A-Za-z0-9_-]{1,32}$/;
+const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001F\u007F]/;
 const STATUS_CODES = new Set<FiuuVtStatusCode>([
  '00', '11', '22', '33', '44', '45', '55',
 ]);
@@ -129,6 +141,54 @@ export function parseFiuuVtResult(input: unknown): FiuuVtResult {
   channel: FIUU_VT_DUITNOW_CHANNEL,
   payDate,
  };
+}
+
+export function parseFiuuVtCallbackResult(input: unknown): FiuuVtCallbackResult {
+ if (!input || typeof input !== 'object' || Array.isArray(input)) {
+  throw new Error('Keputusan Fiuu VT tidak sah');
+ }
+ const value = input as Record<string, unknown>;
+ const hasErrorResponse = Object.prototype.hasOwnProperty.call(value, 'errorCode')
+  || Object.prototype.hasOwnProperty.call(value, 'errorMsg')
+  || Object.prototype.hasOwnProperty.call(value, 'errorMessage');
+ if (!hasErrorResponse) return parseFiuuVtResult(input);
+ const hasTransactionResponse = [
+  'status', 'tranID', 'tranId', 'transactionId', 'amount', 'amountRm',
+  'currency', 'channel', 'payDate', 'paydate',
+ ].some((key) => Object.prototype.hasOwnProperty.call(value, key));
+ if (hasTransactionResponse) throw new Error('Respons Fiuu VT bercampur tidak sah');
+
+ const opType = requiredString(recordValue(value, 'opType', 'optype'), 'operasi', 16).toUpperCase();
+ if (opType !== 'SALE' && opType !== 'STATUS') throw new Error('Operasi Fiuu VT tidak disokong');
+
+ const orderId = requiredString(recordValue(value, 'orderId', 'orderid'), 'Order ID', 64);
+ if (!ORDER_ID_PATTERN.test(orderId)) throw new Error('Order ID Fiuu VT tidak sah');
+
+ const errorCode = requiredString(recordValue(value, 'errorCode'), 'kod ralat', 32);
+ if (!ERROR_CODE_PATTERN.test(errorCode)) throw new Error('Kod ralat Fiuu VT tidak sah');
+
+ const errorMessage = requiredString(
+  recordValue(value, 'errorMsg', 'errorMessage'),
+  'mesej ralat',
+  160,
+ );
+ if (CONTROL_CHARACTER_PATTERN.test(errorMessage)) {
+  throw new Error('Mesej ralat Fiuu VT tidak sah');
+ }
+
+ return {
+  kind: 'ERROR',
+  opType,
+  orderId,
+  errorCode,
+  errorMessage,
+ };
+}
+
+export function isFiuuVtErrorResult(
+ result: FiuuVtCallbackResult,
+): result is FiuuVtErrorResult {
+ return 'kind' in result && result.kind === 'ERROR';
 }
 
 export function isFiuuVtPendingStatus(status: FiuuVtStatusCode): boolean {

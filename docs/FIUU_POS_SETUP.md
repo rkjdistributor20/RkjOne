@@ -1,6 +1,6 @@
 # RKJ One Fiuu DuitNow QR POS Setup
 
-Last updated: 2026-10-27
+Last updated: 2026-10-28
 
 ## Authoritative BR001 operating runbook
 
@@ -236,6 +236,8 @@ Validation on 2026-08-26: all `171` repository migrations, including the new cal
 Validation on 2026-10-26: the BR001 OPA allowlist and durable two-phase notification implementation pass all repository tests (`116/116`), TypeScript, error-only ESLint and the Next.js Production build (`162` pages). Migrations `20261024120000_add_fiuu_cloudecr_br001_pilot.sql` and `20261026120000_durable_fiuu_opa_notification.sql` are applied to the isolated `rkj-one-staging-my` Supabase project, and linked migration history is synchronized through `20261026120000`. Linked schema lint completes with unrelated pre-existing warnings only and reports no issue in the new Fiuu functions. A fresh local replay could not be run because the Docker engine was unavailable. Neither migration has been applied to Production, and no Production environment, credential, provider or outlet setting was changed.
 
 Validation on 2026-10-27: the standard VT BR001 server/database hard lock passes all repository tests (`168/168`), TypeScript, ESLint and the Next.js Production build (`163` pages). Migration `20261027120000_harden_fiuu_vt_br001_pilot.sql` is applied only to the isolated `rkj-one-staging-my` project; linked migration history is synchronized and error-level schema lint is clean. Production remains unchanged. The physical VT application is installed but deliberately remains unactivated until Fiuu supplies or confirms activation material mapped to `masterkayajunus01`, the intended BR001 terminal and BR001 settlement.
+
+Validation on 2026-10-28: the official VT app is available on the BR001 Samsung and has entered the provider payment flow. The first physical attempt exposed a documented error-only callback shape (`errorCode` and `errorMsg`) that was not a transaction result and therefore did not create a sale, receipt or stock movement. The BR001 bridge and client now handle that callback separately, preserve the durable pending attempt, reconcile through the authenticated RKJ status endpoint and present a bounded-expiry warning without treating the error as payment success. All repository tests (`184/184`), TypeScript, targeted ESLint, the Next.js Production build (`163` pages) and Android Java compilation pass locally. This is Preview-only code validation; the updated APK still requires physical BR001 installation and UAT. Production, Production credentials and BR002-BR036 remain unchanged.
 
 ## Play Store
 

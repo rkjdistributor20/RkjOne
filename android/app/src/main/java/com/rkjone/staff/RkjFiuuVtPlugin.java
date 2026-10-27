@@ -42,6 +42,7 @@ public class RkjFiuuVtPlugin extends Plugin {
     private static final String LAST_RESULT_AT = "last_result_at";
     private static final Pattern ORDER_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{4,64}$");
     private static final Pattern TRANSACTION_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{1,80}$");
+    private static final Pattern ERROR_CODE_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{1,32}$");
     private static final Set<String> STATUS_CODES = new HashSet<>(
         Arrays.asList("00", "11", "22", "33", "44", "45", "55")
     );
@@ -213,6 +214,39 @@ public class RkjFiuuVtPlugin extends Plugin {
         }
 
         SharedPreferences preferences = preferences();
+        String pendingOperation = preferences.getString(PENDING_OPERATION, "");
+        String pendingOrder = preferences.getString(PENDING_ORDER, "");
+        String errorCode = safe(uri.getQueryParameter("errorCode"));
+        String rawErrorMessage = safe(first(uri, "errorMsg", "errorMessage"));
+        String errorMessage = normalizedErrorMessage(rawErrorMessage);
+        if (!errorCode.isEmpty() || !rawErrorMessage.isEmpty()) {
+            boolean validError = ("SALE".equals(pendingOperation) || "STATUS".equals(pendingOperation))
+                && ORDER_PATTERN.matcher(pendingOrder).matches()
+                && hasExactlyOne(uri, "errorCode")
+                && hasExactlyOne(uri, "errorMsg", "errorMessage")
+                && hasNone(
+                    uri,
+                    "opType", "orderId", "orderid", "tranID", "tranId", "transactionId",
+                    "status", "amount", "currency", "channel", "payDate", "paydate"
+                )
+                && ERROR_CODE_PATTERN.matcher(errorCode).matches()
+                && errorMessage != null;
+            if (!validError) return true;
+
+            JSObject errorResult = new JSObject();
+            errorResult.put("kind", "ERROR");
+            errorResult.put("opType", pendingOperation);
+            errorResult.put("orderId", pendingOrder);
+            errorResult.put("errorCode", errorCode);
+            errorResult.put("errorMessage", errorMessage);
+            preferences.edit()
+                .putString(LAST_RESULT, errorResult.toString())
+                .putLong(LAST_RESULT_AT, System.currentTimeMillis())
+                .apply();
+            notifyListeners("fiuuVtResult", errorResult, true);
+            return true;
+        }
+
         String opType = safe(uri.getQueryParameter("opType")).toUpperCase(Locale.ROOT);
         String orderId = safe(first(uri, "orderId", "orderid"));
         String transactionId = safe(first(uri, "tranID", "tranId", "transactionId"));
@@ -418,8 +452,21 @@ public class RkjFiuuVtPlugin extends Plugin {
         return count <= 1;
     }
 
+    private static boolean hasNone(Uri uri, String... keys) {
+        for (String key : keys) {
+            if (!uri.getQueryParameters(key).isEmpty()) return false;
+        }
+        return true;
+    }
+
     private static String safe(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private static String normalizedErrorMessage(String value) {
+        String normalized = safe(value).replaceAll("[\\p{Cntrl}]", " ").replaceAll("\\s+", " ").trim();
+        if (normalized.isEmpty() || normalized.length() > 160) return null;
+        return normalized;
     }
 
     private static Object emptyToNull(String value) {

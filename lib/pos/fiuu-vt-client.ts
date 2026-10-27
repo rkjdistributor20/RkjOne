@@ -5,7 +5,10 @@ import {
  registerPlugin,
  type PluginListenerHandle,
 } from '@capacitor/core';
-import { parseFiuuVtResult, type FiuuVtResult } from '@/lib/pos/fiuu-vt';
+import {
+ parseFiuuVtCallbackResult,
+ type FiuuVtCallbackResult,
+} from '@/lib/pos/fiuu-vt';
 
 export type FiuuVtNativeStatus = {
  nativeAndroid: boolean;
@@ -62,10 +65,10 @@ export async function launchFiuuVtStatus(orderId: string) {
  return NativeFiuuVt.checkStatus({ orderId });
 }
 
-export async function readPendingFiuuVtResult(): Promise<FiuuVtResult | null> {
+export async function readPendingFiuuVtResult(): Promise<FiuuVtCallbackResult | null> {
  if (!supportsFiuuVtApp()) return null;
  const { result } = await NativeFiuuVt.getPendingResult();
- return result ? parseFiuuVtResult(result) : null;
+ return result ? parseFiuuVtCallbackResult(result) : null;
 }
 
 export async function clearPendingFiuuVtResult(orderId: string) {
@@ -73,12 +76,12 @@ export async function clearPendingFiuuVtResult(orderId: string) {
 }
 
 export async function listenForFiuuVtResult(
- listener: (result: FiuuVtResult) => void,
+ listener: (result: FiuuVtCallbackResult) => void,
 ): Promise<PluginListenerHandle | null> {
  if (!supportsFiuuVtApp()) return null;
  return NativeFiuuVt.addListener('fiuuVtResult', (result) => {
   try {
-   listener(parseFiuuVtResult(result));
+   listener(parseFiuuVtCallbackResult(result));
   } catch {
    // Native validation already rejected malformed callbacks. Ignore stale data.
   }

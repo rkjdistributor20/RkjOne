@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
  createAdminClient: vi.fn(),
  assertCanAccessPosBranch: vi.fn(),
  posAccessErrorStatus: vi.fn(),
+ isFiuuReconciliationExpired: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/session', () => ({
@@ -18,7 +19,7 @@ vi.mock('@/lib/pos/access', () => ({
  posAccessErrorStatus: mocks.posAccessErrorStatus,
 }));
 vi.mock('@/lib/pos/fiuu', () => ({
- isFiuuReconciliationExpired: vi.fn().mockReturnValue(false),
+ isFiuuReconciliationExpired: mocks.isFiuuReconciliationExpired,
 }));
 vi.mock('@/lib/pos/fiuu-cloudecr', () => ({
  buildFiuuCloudEcrReferenceId: vi.fn(),
@@ -34,20 +35,23 @@ const BRANCH_ID = '33333333-3333-4333-8333-333333333333';
 const SHIFT_ID = '44444444-4444-4444-8444-444444444444';
 const TRANSACTION_ID = '22222222-2222-4222-8222-222222222222';
 
-function payment(status: 'PENDING' | 'REPORTED' | 'PAID') {
+function payment(
+ status: 'PENDING' | 'REPORTED' | 'PAID',
+ provider: 'fiuu' | 'fiuu_vt' = 'fiuu',
+) {
  return {
   id: PAYMENT_ID,
   branch_id: BRANCH_ID,
   shift_id: SHIFT_ID,
   amount_rm: 12.5,
   status,
-  provider: 'fiuu',
+  provider,
   gateway_ref: 'TXN001',
   paid_at: status === 'PAID' ? '2026-10-26T01:00:00.000Z' : null,
   transaction_id: status === 'PAID' ? TRANSACTION_ID : null,
   expires_at: '2026-10-26T01:03:00.000Z',
   provider_result: status === 'PENDING' ? null : { statusCode: '00' },
-  provider_order_id: null,
+  provider_order_id: provider === 'fiuu_vt' ? 'RKJ_ORDER_001' : null,
   provider_status_checked_at: '2026-10-26T01:00:00.000Z',
  };
 }
@@ -61,6 +65,7 @@ beforeEach(() => {
  });
  mocks.assertCanAccessPosBranch.mockResolvedValue(undefined);
  mocks.posAccessErrorStatus.mockReturnValue(403);
+ mocks.isFiuuReconciliationExpired.mockReturnValue(false);
 });
 
 describe('Fiuu OPA reported recovery', () => {
@@ -88,6 +93,31 @@ describe('Fiuu OPA reported recovery', () => {
    payment: { id: PAYMENT_ID, status: 'PENDING' },
   });
   expect(rpc).not.toHaveBeenCalled();
+ });
+
+ it('reports an unconfirmed Fiuu VT attempt as expired after the bounded reconciliation grace', async () => {
+  mocks.isFiuuReconciliationExpired.mockReturnValue(true);
+  const query = {
+   select: vi.fn(),
+   eq: vi.fn(),
+   maybeSingle: vi.fn().mockResolvedValue({ data: payment('PENDING', 'fiuu_vt'), error: null }),
+  };
+  query.select.mockReturnValue(query);
+  query.eq.mockReturnValue(query);
+  mocks.createAdminClient.mockReturnValue({
+   from: vi.fn().mockReturnValue(query),
+   rpc: vi.fn(),
+  });
+
+  const response = await GET(
+   new Request(`http://localhost/api/pos/qr-payments/${PAYMENT_ID}`),
+   { params: Promise.resolve({ paymentId: PAYMENT_ID }) },
+  );
+
+  expect(response.status).toBe(200);
+  await expect(response.json()).resolves.toMatchObject({
+   payment: { id: PAYMENT_ID, status: 'EXPIRED' },
+  });
  });
 
  it('retries idempotent fulfillment and returns the paid receipt', async () => {

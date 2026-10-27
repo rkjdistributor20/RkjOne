@@ -42,7 +42,10 @@ import {
  readPendingFiuuVtResult,
  type FiuuVtNativeStatus,
 } from '@/lib/pos/fiuu-vt-client';
-import type { FiuuVtResult } from '@/lib/pos/fiuu-vt';
+import {
+ isFiuuVtErrorResult,
+ type FiuuVtCallbackResult,
+} from '@/lib/pos/fiuu-vt';
 
 interface PaymentDialogProps {
  open: boolean;
@@ -420,15 +423,80 @@ export function PaymentDialog({
  onOpenChange(nextOpen);
  }, [onOpenChange, qrPayment, qrStatus, resetPaymentForm]);
 
- const processFiuuVtResult = useCallback(async (result: FiuuVtResult) => {
+ const reconcileQrPayment = useCallback(async (activePayment: ActiveQrPayment, manual = false) => {
+  if (manual) setCheckingQrStatus(true);
+  try {
+   const response = await fetchPosQrPayment(activePayment.id);
+   const status = response.payment.status;
+   setQrPollError(null);
+    if (status === 'REPORTED') {
+     setQrStatus('REPORTED');
+     setQrPollError('Fiuu VT melaporkan bayaran berjaya. RKJ One sedang memuktamadkan jualan secara automatik.');
+     return status;
+    }
+   if (status === 'PAID') {
+    setQrStatus('PAID');
+    if (!response.result) {
+     setQrPollError('Bayaran telah diterima tetapi resit belum tersedia. Semak status semula; jangan jana QR baharu.');
+     return status;
+    }
+    if (activePayment.integration === 'vt_app' && activePayment.providerOrderId) {
+     await clearPendingFiuuVtResult(activePayment.providerOrderId).catch(() => undefined);
+    }
+    removeStoredQrPayment();
+    if (currentPaymentFingerprint === activePayment.cartFingerprint) {
+     clearCart();
+    }
+    toast.success('Bayaran DuitNow QR disahkan oleh Fiuu.');
+    resetPaymentForm();
+    onOpenChange(false);
+    onSuccess(response.result);
+    return status;
+   }
+   if (status === 'EXPIRED') {
+    setQrStatus('EXPIRED');
+    return status;
+   }
+   if (status === 'FAILED' || status === 'CANCELLED') {
+    setQrStatus(status);
+    if (activePayment.integration === 'vt_app' && activePayment.providerOrderId) {
+     await clearPendingFiuuVtResult(activePayment.providerOrderId).catch(() => undefined);
+    }
+    removeStoredQrPayment();
+   }
+   return status;
+  } catch (error) {
+   setQrPollError(error instanceof Error
+    ? `Status bayaran tidak dapat disemak: ${error.message}`
+    : 'Status bayaran tidak dapat disemak. Semak sambungan dan cuba lagi.');
+   return null;
+  } finally {
+   if (manual) setCheckingQrStatus(false);
+  }
+ }, [clearCart, currentPaymentFingerprint, onOpenChange, onSuccess, removeStoredQrPayment, resetPaymentForm]);
+
+ const processFiuuVtResult = useCallback(async (result: FiuuVtCallbackResult) => {
   const activePayment = qrPayment;
   if (!activePayment || activePayment.integration !== 'vt_app'
    || activePayment.providerOrderId !== result.orderId) return;
-  const fingerprint = [result.opType, result.orderId, result.transactionId, result.status, result.amountRm].join(':');
+  const fingerprint = isFiuuVtErrorResult(result)
+   ? [result.kind, result.opType, result.orderId, result.errorCode].join(':')
+   : [result.opType, result.orderId, result.transactionId, result.status, result.amountRm].join(':');
   if (vtResultFingerprintRef.current === fingerprint) return;
   vtResultFingerprintRef.current = fingerprint;
   setCheckingQrStatus(true);
   try {
+   if (isFiuuVtErrorResult(result)) {
+    const serverStatus = await reconcileQrPayment(activePayment);
+    if (serverStatus === 'PENDING') {
+     setQrPollError(
+      `Fiuu VT tidak dapat melengkapkan semakan (kod ${result.errorCode}). `
+      + 'RKJ One akan terus menyemak sehingga tempoh rekonsiliasi tamat.',
+     );
+    }
+    return;
+   }
+
    const response = await submitFiuuVtResult(activePayment.id, result);
    setQrPollError(response.warning ?? null);
    if (response.next_action === 'CHECK_STATUS') {
@@ -461,7 +529,7 @@ export function PaymentDialog({
   } finally {
    setCheckingQrStatus(false);
   }
- }, [qrPayment, removeStoredQrPayment]);
+ }, [qrPayment, reconcileQrPayment, removeStoredQrPayment]);
 
  useEffect(() => {
   if (!open || !qrPayment || qrPayment.integration !== 'vt_app') return;
@@ -483,50 +551,6 @@ export function PaymentDialog({
   };
  }, [open, processFiuuVtResult, qrPayment]);
 
- const reconcileQrPayment = useCallback(async (activePayment: ActiveQrPayment, manual = false) => {
-  if (manual) setCheckingQrStatus(true);
-  try {
-   const response = await fetchPosQrPayment(activePayment.id);
-   setQrPollError(null);
-    if (response.payment.status === 'REPORTED') {
-     setQrStatus('REPORTED');
-     setQrPollError('Fiuu VT melaporkan bayaran berjaya. RKJ One sedang memuktamadkan jualan secara automatik.');
-     return;
-    }
-   if (response.payment.status === 'PAID') {
-    setQrStatus('PAID');
-    if (!response.result) {
-     setQrPollError('Bayaran telah diterima tetapi resit belum tersedia. Semak status semula; jangan jana QR baharu.');
-     return;
-    }
-    removeStoredQrPayment();
-    if (currentPaymentFingerprint === activePayment.cartFingerprint) {
-     clearCart();
-    }
-    toast.success('Bayaran DuitNow QR disahkan oleh Fiuu.');
-    resetPaymentForm();
-    onOpenChange(false);
-    onSuccess(response.result);
-    return;
-   }
-   if (response.payment.status === 'EXPIRED') {
-    setQrStatus('EXPIRED');
-    removeStoredQrPayment();
-    return;
-   }
-   if (response.payment.status === 'FAILED' || response.payment.status === 'CANCELLED') {
-    setQrStatus(response.payment.status);
-    removeStoredQrPayment();
-   }
-  } catch (error) {
-   setQrPollError(error instanceof Error
-    ? `Status bayaran tidak dapat disemak: ${error.message}`
-    : 'Status bayaran tidak dapat disemak. Semak sambungan dan cuba lagi.');
-  } finally {
-   if (manual) setCheckingQrStatus(false);
-  }
- }, [clearCart, currentPaymentFingerprint, onOpenChange, onSuccess, removeStoredQrPayment, resetPaymentForm]);
-
  const checkActiveQrStatus = useCallback(async () => {
   if (!qrPayment) return;
   if (qrPayment.integration === 'vt_app') {
@@ -537,10 +561,12 @@ export function PaymentDialog({
    vtAutoConfirmAttemptRef.current = null;
    setQrStatus('PENDING');
    try {
+    const serverStatus = await reconcileQrPayment(qrPayment);
+    if (!serverStatus || serverStatus !== 'PENDING') return;
     await launchFiuuVtStatus(qrPayment.providerOrderId);
-    setCheckingQrStatus(false);
    } catch (error) {
     setQrPollError(error instanceof Error ? error.message : 'Fiuu VT tidak dapat dibuka.');
+   } finally {
     setCheckingQrStatus(false);
    }
    return;
@@ -1009,7 +1035,9 @@ export function PaymentDialog({
       <p className="mt-1 text-sm text-muted-foreground">
        {qrStatus === 'PAID'
         ? 'Semak status semula. Jangan jana QR baharu untuk jualan ini.'
-        : qrDisplayExpired || qrStatus === 'EXPIRED'
+        : qrStatus === 'EXPIRED'
+        ? 'Tiada STATUS=00 diterima dalam tempoh rekonsiliasi. Jana QR baharu hanya jika pelanggan tidak didebit; jika ada debit, hubungi HQ.'
+        : qrDisplayExpired
         ? 'Callback lewat masih direkonsiliasi. Jangan jana QR baharu untuk jualan ini.'
         : 'Jana kod baharu. Jangan serahkan resit atau stok sebelum status Dibayar.'}
       </p>
