@@ -49,6 +49,7 @@ export async function GET() {
   return jsonError('Akses pentadbir utama sahaja', 403);
  }
 
+ let failureStage = 'environment';
  try {
   if (!isExpectedStagingProject()) {
    return jsonError('Projek staging Fiuu OPA tidak sah', 503);
@@ -57,6 +58,7 @@ export async function GET() {
    return jsonError('Fiuu OPA Preview belum dikonfigurasi', 503);
   }
 
+  failureStage = 'target-configuration';
   const targets = getFiuuOpaConfiguredTargets();
   if (targets.length !== 1 || targets[0]?.branchCode !== 'BR001') {
    return jsonError('Skop Fiuu OPA Preview tidak sah', 503);
@@ -72,6 +74,7 @@ export async function GET() {
    return jsonError('Konfigurasi sandbox Fiuu OPA tidak sah', 503);
   }
 
+  failureStage = 'staging-database';
   const service = createAdminClient();
   const { data: branch, error: branchError } = await service
    .from('branches')
@@ -88,6 +91,7 @@ export async function GET() {
    return jsonError('Identiti BR001 staging tidak sah', 503);
   }
 
+  failureStage = 'rollout-readiness';
   const rolloutProbe = service as unknown as {
    rpc: (
     functionName:
@@ -119,12 +123,14 @@ export async function GET() {
    return jsonError('Status rollout Fiuu OPA tidak dapat disahkan', 503);
   }
 
+  failureStage = 'fingerprint';
   return NextResponse.json({
    configurationSha256: getFiuuOpaConfigurationFingerprint(config),
    rolloutControlReady: true,
    active,
   }, { headers: NO_STORE_HEADERS });
  } catch {
+  console.error(`[fiuu-opa-preflight] failed at ${failureStage}`);
   return jsonError('Preflight Fiuu OPA gagal secara selamat', 503);
  }
 }
