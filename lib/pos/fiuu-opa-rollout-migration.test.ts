@@ -107,6 +107,14 @@ function expectFullStoredConfiguration(sql: string, context: string) {
 }
 
 describe('Fiuu OPA branch rollout migration contract', () => {
+ it('runs the payment lock and every schema change in one explicit transaction', () => {
+  expect(executableSql.trimStart()).toMatch(/^BEGIN\s*;/i);
+  expect(executableSql.trimEnd()).toMatch(/COMMIT\s*;$/i);
+  expect(executableSql.indexOf('BEGIN;')).toBeLessThan(
+   executableSql.indexOf('LOCK TABLE public.pos_online_payments'),
+  );
+ });
+
  it('is fail-closed and does not seed or activate any rollout row', () => {
   expect(executableSql).toMatch(
    /status\s+TEXT\s+NOT\s+NULL\s+DEFAULT\s+'DRAFT'/i,

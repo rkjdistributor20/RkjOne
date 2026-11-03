@@ -77,11 +77,41 @@ add-on-store workflow before a store can be provisioned.
 The staging rollout table was then rechecked with a read-only query. It returned
 `migration_installed=true`, `br001_rollout_rows=0`, `br001_active_rows=0`,
 `br002_36_rollout_rows=0`, `br002_36_active_rows=0` and `all_active_rows=0`.
-The targeted OPA migration, server-mapping and preflight suites pass `48/48`,
-and TypeScript passes with no diagnostics. No placeholder fingerprint was
+The targeted OPA migration, hardening, server-mapping and preflight suites pass
+`53/53`, and TypeScript and targeted ESLint pass with no diagnostics. No
+placeholder fingerprint was
 inserted: activation remains blocked until Fiuu supplies one internally
 consistent BR001 sandbox Application Code, Secret Key, Store ID and Terminal ID.
 Production and `BR002`-`BR036` remain unchanged.
+
+A follow-up migration then closed a database-level organization-status gap
+without creating or transitioning rollout data. The rollout trigger now locks
+the branch and its owning organization and refuses `ACTIVE` unless both remain
+active. The runtime activation RPC independently requires an `ACTIVE` rollout,
+branch and organization on every new-payment check. The issued-intent
+generation matcher was deliberately left unchanged so already-issued payments
+can still drain and reconcile after creation is disabled.
+
+The linked CLI was verified as staging project `rkj-one-staging-my`
+(`lktggxwgaormnzfwcogx`), not Production. The base migration was wrapped in an
+explicit transaction so its fail-closed payment lock works through the
+Supabase migration runner. Both migration versions `20261103120000` and
+`20261103123000` were then recorded successfully in staging. A fresh independent
+post-migration query returned `control_ready=true`,
+`base_migration_recorded=true`, `organization_gate_recorded=true`,
+`runtime_requires_active_organization=true`, `all_rollout_rows=0`,
+`all_active_rows=0`, `br001_rollout_rows=0`, `br002_36_rollout_rows=0` and
+`br002_36_active_rows=0`. Production was not opened or changed.
+
+A staging-only transactional dry-run then exercised the organization gate with
+temporary synthetic organization, region, branch and rollout records. The
+trigger rejected activation while the organization was suspended, the runtime
+gate returned true only while the organization, branch and rollout were all
+active, and returned false again after the organization was suspended. The
+transaction ended with `ROLLBACK`. A separate post-rollback query confirmed
+`synthetic_organization_rows=0`, every rollout count still `0`, both migrations
+still recorded and the runtime organization gate still present. A final linked
+CLI dry-run reported the staging database up to date with no pending migration.
 
 ## Live read-only audit
 

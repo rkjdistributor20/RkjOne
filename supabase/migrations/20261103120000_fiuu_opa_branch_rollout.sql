@@ -4,6 +4,8 @@
 -- cloudECR keep their existing BR001-only boundaries. Only provider = 'fiuu'
 -- (OPA Dynamic DuitNow QR) is generalized below.
 
+BEGIN;
+
 -- Serialize against payment creation and fail before any schema change when an
 -- OPA payment can still receive a callback. The rollout table starts empty, so
 -- installing its ACTIVE checks while such a payment exists would strand it.
@@ -2590,3 +2592,5 @@ GRANT EXECUTE ON FUNCTION public.is_pos_fiuu_opa_rollout_control_ready()
 
 COMMENT ON FUNCTION public.is_pos_fiuu_opa_rollout_control_ready() IS
   'Fail-closed readiness probe for the Fiuu OPA rollout table, generation gates and required enabled triggers.';
+
+COMMIT;
