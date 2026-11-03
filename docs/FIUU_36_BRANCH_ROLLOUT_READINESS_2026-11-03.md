@@ -42,22 +42,32 @@ The final verification on 3 November 2026 passed:
 - Next.js production build: all `163` pages generated; and
 - `git diff --check`.
 
-The complete migration also passed a real PostgreSQL transactional replay in
+The complete migration first passed a real PostgreSQL transactional replay in
 the linked staging project after the final trigger-readiness hardening. It was
 executed as `BEGIN; <migration>; assertions; ROLLBACK;` and returned
 `dry_run=passed`, `rollout_control_ready=true`, `rollout_rows=0` and
 `persistent_change=false`. A separate follow-up probe returned
 `rollback_verified=true`, `rollout_table_exists=false` and
-`readiness_rpc_exists=false`. This proves the migration parsed and completed
-against the staging schema and that the transaction left neither its rollout
-table nor readiness RPC behind. It does not authorize or perform a persistent
-staging/Production migration, deploy an environment change, or provision an
-`ACTIVE` rollout row.
+`readiness_rpc_exists=false`.
+
+After separate explicit staging-only approval on 3 November 2026, the same
+reviewed migration was applied persistently to `rkj-one-staging-my`. The
+post-commit result returned `staging_apply=passed`,
+`rollout_table_exists=true`, `readiness_rpc_exists=true`,
+`rollout_control_ready=true`, `rollout_rows=0` and `active_rows=0`. A fresh
+independent query then returned `persistent_install=true`,
+`all_branches_locked=true`, `rollout_control_ready=true`, `rollout_rows=0` and
+`active_rows=0`. The current Preview `/api/health` response remained
+`{"ok":true,"status":"ready"}`. No mapping, environment value or rollout row
+was added, so BR001 and BR002-BR036 remain inactive. Production was not opened,
+migrated, configured or deployed by this staging operation.
 
 ## Live read-only audit
 
-The following counts were read from the linked projects on 3 November 2026. No
-row, environment value, deployment or provider setting was changed.
+The following operational counts were read from the linked projects on 3
+November 2026. The subsequent staging-only schema installation described above
+created no rollout row and changed no environment value, deployment or provider
+setting.
 
 | Gate | Staging | Production | Required before activation |
 | --- | ---: | ---: | --- |
@@ -131,15 +141,14 @@ create a sale or issue a refund without a specifically approved workflow.
    tablet.
 6. Complete asset, native-app, screen-lock, Device Owner and kiosk attestation
    for every tablet in the intended rollout batch.
-7. Apply the reviewed forward-only migration persistently in staging during an
-   approved rollout window, then pass signed callback, cross-branch,
-   cross-tenant, duplicate-callback, timeout, expiry and recovery UAT. The
-   non-persistent transactional staging replay is already complete.
-8. Confirm `is_pos_fiuu_opa_rollout_control_ready()` returns `true`, verify the
-   BR001 `ACTIVE` RPC gate, and preserve evidence that a real scheduler invoked
+7. Pass signed callback, cross-branch, cross-tenant, duplicate-callback,
+   timeout, expiry and recovery UAT in staging. The persistent staging schema
+   installation is complete and its empty registry keeps every branch locked.
+8. Provision and verify a BR001 staging-only rollout mapping before testing the
+   `ACTIVE` RPC gate, and preserve evidence that a real scheduler invoked
    the authenticated reconciliation worker and produced monitored bounded-retry
-   results. Environment flags and a stored worker secret are not scheduler
-   proof.
+   results. The readiness RPC already returns `true`; environment flags and a
+   stored worker secret are not scheduler proof.
 9. Create a current Production recovery point and name the rollback owner and
    monitoring window.
 10. Obtain fresh owner confirmation immediately before each Production
