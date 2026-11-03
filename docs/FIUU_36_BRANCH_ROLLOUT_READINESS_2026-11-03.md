@@ -62,6 +62,27 @@ independent query then returned `persistent_install=true`,
 was added, so BR001 and BR002-BR036 remain inactive. Production was not opened,
 migrated, configured or deployed by this staging operation.
 
+### 3 November continuation evidence
+
+A fresh authenticated Preview preflight reached the branch-target mapping gate
+and failed closed at `target-mapping-identifiers`. The branch-scoped Vercel
+Secret is write-only and cannot be safely corrected without the complete
+provider-issued sandbox tuple. The authenticated Fiuu Store Management view
+contained no store/application record, and a focused search of the registered
+merchant mailbox found the Application `121582` OPA ticket but no supplied
+Application Code/Secret Key pair. The provider reply in that thread states that
+Application `121582` did not have submitted store information and requests the
+add-on-store workflow before a store can be provisioned.
+
+The staging rollout table was then rechecked with a read-only query. It returned
+`migration_installed=true`, `br001_rollout_rows=0`, `br001_active_rows=0`,
+`br002_36_rollout_rows=0`, `br002_36_active_rows=0` and `all_active_rows=0`.
+The targeted OPA migration, server-mapping and preflight suites pass `48/48`,
+and TypeScript passes with no diagnostics. No placeholder fingerprint was
+inserted: activation remains blocked until Fiuu supplies one internally
+consistent BR001 sandbox Application Code, Secret Key, Store ID and Terminal ID.
+Production and `BR002`-`BR036` remain unchanged.
+
 ## Live read-only audit
 
 The following operational counts were read from the linked projects on 3
