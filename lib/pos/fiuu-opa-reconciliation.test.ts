@@ -39,6 +39,7 @@ beforeEach(() => {
   secretKey: 'server-only-secret',
   storeId: 'STORE001',
   terminalId: 'TERM001',
+  credentialVersion: 'v1-test',
   channelId: '24',
  });
 });
@@ -54,6 +55,7 @@ describe('reconcileFiuuOpaPayment', () => {
    secretKey: 'server-only-secret',
    storeId: 'STORE036',
    terminalId: 'TERM036',
+   credentialVersion: 'v1-test',
    channelId: '24',
   });
   const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => {
@@ -146,6 +148,7 @@ describe('reconcileFiuuOpaPayment', () => {
    secretKey: 'server-only-secret',
    storeId: 'STORE036',
    terminalId: 'TERM036',
+   credentialVersion: 'v1-test',
    channelId: '24',
   });
   const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => {

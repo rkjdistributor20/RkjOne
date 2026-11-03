@@ -16,6 +16,7 @@ import {
  createFiuuDynamicQr,
  FIUU_CALLBACK_GRACE_MS,
  getFiuuEnvironment,
+ getFiuuOpaConfigurationFingerprint,
  getFiuuOpaConfig,
  getPosQrPaymentMode,
   isFiuuOpaApplicationUnavailable,
@@ -23,7 +24,10 @@ import {
  isFiuuReconciliationExpired,
  malaysiaBusinessDate,
 } from '@/lib/pos/fiuu';
-import { isFiuuOpaEnabledForBranch } from '@/lib/pos/fiuu-opa-server';
+import {
+ isFiuuOpaEnabledForBranch,
+ isFiuuOpaRolloutActive,
+} from '@/lib/pos/fiuu-opa-server';
 import {
  buildFiuuCloudEcrReferenceId,
  getFiuuCloudEcrConfig,
@@ -457,9 +461,12 @@ export async function POST(request: Request) {
   fiuu_branch_code: branchCode || body.branchId,
   fiuu_device_code: device.deviceCode,
   ...(config ? {
+   fiuu_environment: config.environment,
    fiuu_application_code: config.applicationCode,
    fiuu_store_id: config.storeId,
    fiuu_terminal_id: config.terminalId,
+   fiuu_credential_version: config.credentialVersion,
+   fiuu_configuration_sha256: getFiuuOpaConfigurationFingerprint(config),
    fiuu_business_date: malaysiaBusinessDate(),
   } : {}),
   ...(cloudEcrConfig ? {
@@ -561,6 +568,24 @@ export async function POST(request: Request) {
    transport,
    'FIUU_ACTIVE_ATTEMPT_EXISTS',
   );
+ }
+
+ if (transport.integration === 'opa') {
+  const rolloutScope = {
+   organizationId: profile.organization_id,
+   branchId: body.branchId,
+   branchCode,
+  };
+  const rolloutActive = await isFiuuOpaRolloutActive(admin, rolloutScope, config!);
+  if (!rolloutActive) {
+   return NextResponse.json(
+    {
+     error: 'Rollout Fiuu OPA belum aktif untuk konfigurasi cawangan ini.',
+     mode: 'FIUU_OPA_ROLLOUT_NOT_ACTIVE',
+    },
+    { status: 409 },
+   );
+  }
  }
 
  const paymentId = randomUUID();

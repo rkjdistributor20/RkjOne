@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getCurrentProfile } from '@/lib/auth/session';
 import { assertCanAccessPosBranch, posAccessErrorStatus } from '@/lib/pos/access';
-import { getPosQrPaymentMode } from '@/lib/pos/fiuu';
-import { isFiuuOpaEnabledForBranch } from '@/lib/pos/fiuu-opa-server';
+import { getFiuuOpaConfig, getPosQrPaymentMode } from '@/lib/pos/fiuu';
+import {
+ isFiuuOpaEnabledForBranch,
+ isFiuuOpaRolloutActive,
+} from '@/lib/pos/fiuu-opa-server';
 import { getFiuuCloudEcrConfig } from '@/lib/pos/fiuu-cloudecr';
 import {
  FIUU_CLOUDECR_APP_PACKAGE,
@@ -13,6 +16,7 @@ import { isFiuuVtEnabledForBranch } from '@/lib/pos/fiuu-vt-server';
 import { getFiuuStaticQrConfig } from '@/lib/pos/fiuu-static';
 import { enforceRateLimit } from '@/lib/security/rate-limit';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 export async function GET(request: Request) {
  const limited = enforceRateLimit(request, {
@@ -56,12 +60,16 @@ export async function GET(request: Request) {
  let vtEnabled = false;
  let cloudEcrEnabled = false;
  try {
-  dynamicEnabled = paymentMode === 'fiuu'
-   && isFiuuOpaEnabledForBranch({
+  const scope = {
     organizationId: profile.organization_id,
     branchId: branch.id,
     branchCode: branch.branch_code,
-   });
+   };
+  if (paymentMode === 'fiuu' && isFiuuOpaEnabledForBranch(scope)) {
+   const config = getFiuuOpaConfig(scope);
+   dynamicEnabled = Boolean(config)
+    && await isFiuuOpaRolloutActive(createAdminClient(), scope, config!);
+  }
  } catch (configurationError) {
   console.error('[pos-fiuu-opa] invalid_branch_configuration', {
    reason: configurationError instanceof Error ? configurationError.message : 'unknown',

@@ -77,11 +77,14 @@ POS Fiuu DuitNow QR variables:
 | Variable | Required | Scope |
 |----------|----------|-------|
 | `POS_QR_PAYMENT_MODE` | Yes | Server; `manual`, signed OPA `fiuu`, branch-gated app-to-app `fiuu_vt`, or prepared cloudECR fallback `fiuu_cloudecr` |
+| `POS_FIUU_OPA_BRANCHES` | When OPA is enabled | Server; explicit canonical branch allowlist, no wildcard; keep empty in Production pending action-time approval |
 | `POS_FIUU_ENVIRONMENT` | When Fiuu enabled | Server; `sandbox` or `production` |
-| `POS_FIUU_APPLICATIONS_JSON` | Required for every OPA environment | Server secret; each branch entry requires `organizationId`, `branchId`, `applicationCode`, `secretKey`, `storeId` and `terminalId` |
+| `POS_FIUU_APPLICATIONS_JSON` | Required for every OPA environment | Server secret; each branch entry requires seven fields: `organizationId`, `branchId`, `applicationCode`, `secretKey`, `storeId`, `terminalId` and non-secret `credentialVersion` |
 | `POS_FIUU_CHANNEL_ID` | Yes when Fiuu enabled | Server; must remain `24` for DuitNow QR Offline |
 | `POS_FIUU_QR_VALIDITY_SECONDS` | Optional | Server; 60-180 seconds, default 180 |
 | `POS_FIUU_PRECREATE_URL` | Optional | Server; official endpoint override only |
+| `FIUU_RECONCILIATION_ENABLED` | Yes for the OPA recovery worker | Server only; fail-closed default `false` |
+| `FIUU_RECONCILIATION_SECRET` | When the OPA recovery worker is enabled | Server-only secret of at least 32 random characters; leave unset while disabled |
 | `POS_FIUU_VT_BRANCHES` | When VT pilot enabled | Server; explicit comma-separated pilot codes, initially `BR001` only |
 | `POS_FIUU_VT_VALIDITY_SECONDS` | Optional | Server; 60-3600 seconds, default 900 |
 
@@ -95,7 +98,8 @@ The OPA mapping is keyed by canonical branch code and is tenant-bound:
     "applicationCode": "<provider-issued-code>",
     "secretKey": "<provider-issued-secret>",
     "storeId": "<provider-approved-store-id>",
-    "terminalId": "<provider-approved-terminal-id>"
+    "terminalId": "<provider-approved-terminal-id>",
+    "credentialVersion": "v1"
   }
 }
 ```
@@ -103,7 +107,52 @@ The OPA mapping is keyed by canonical branch code and is tenant-bound:
 The former global OPA fallbacks `POS_FIUU_APPLICATION_CODE`,
 `POS_FIUU_SECRET_KEY`, `POS_FIUU_STORE_ID` and `POS_FIUU_TERMINAL_ID` are
 unsupported and must remain unset. Runtime health ignores them. An allowlisted
-branch without a complete six-field mapping fails closed.
+branch without a complete seven-field mapping fails closed.
+
+`credentialVersion` is a required non-secret generation label, not a key or
+credential. The rollout configuration fingerprint is SHA-256 over the exact
+versioned tuple `environment`, `applicationCode`, `storeId`, `terminalId` and
+`credentialVersion`. `secretKey` is used only for provider authentication and
+is never included in that fingerprint or stored in the rollout registry.
+
+`POS_FIUU_OPA_BRANCHES` is an activation gate, not a substitute for mapping or
+rollout approval. It accepts only explicit canonical branch codes and must not
+contain a wildcard. Keep the Production allowlist empty and
+`POS_QR_PAYMENT_MODE=manual` until the exact branch activation receives fresh
+action-time approval. Each allowlisted branch must resolve to its own complete
+tenant-bound seven-field mapping; never copy Store ID, Terminal ID or credentials
+between branches or environments.
+
+Dynamic OPA is a database-authorized capability, not an environment-only
+feature. Before `POST /api/pos/qr-payments` creates a row or contacts Fiuu, and
+before `GET /api/pos/qr-config` advertises dynamic QR, the server must obtain a
+positive `ACTIVE` result from `is_pos_fiuu_opa_branch_active` for the exact
+tenant, branch and full configuration fingerprint. A missing RPC, RPC error,
+`false` result or non-`ACTIVE` record fails closed.
+
+Rollout lifecycle is `DRAFT -> VERIFIED -> ACTIVE -> DRAINING -> REVOKED`.
+`DRAINING` forbids new payment intents but preserves signed callbacks, status
+inquiries and idempotent fulfilment for intents issued while the rollout was
+`ACTIVE`. Move `DRAINING` to `REVOKED` only after the unresolved-intent queue is
+empty and Finance has reconciled all related settlements.
+
+OPA recovery is separately fail-closed. Keep
+`FIUU_RECONCILIATION_ENABLED=false` unless the intended environment has the
+approved migration, mapping and worker secret. When enabled, call only
+`POST /api/internal/pos/fiuu-opa/reconcile` with the server-only Bearer secret;
+never expose that secret to a browser, `NEXT_PUBLIC_*`, logs, screenshots or
+source control. Switching payment creation back to `manual` stops new OPA
+intents, but the applicable allowlist, mapping and recovery configuration must
+remain available until every already-issued intent, signed callback and Finance
+settlement check is resolved.
+
+Readiness is also fail-closed. Health must receive `true` from
+`is_pos_fiuu_opa_rollout_control_ready()` before treating rollout controls as
+installed. `FIUU_RECONCILIATION_ENABLED=true` and a configured secret prove
+configuration only; they are not evidence that a scheduler is running. Record
+an observed scheduler invocation, authenticated worker response, bounded retry
+result and monitoring/alert evidence for the intended environment before UAT or
+activation.
 
 Never expose Fiuu Application Secret Keys as `NEXT_PUBLIC_*`. Configure the signed OPA payment notification URL as `/api/pos/qr-payments/webhook`. Fiuu VT deep-link results are not signed: they require SALE plus a fresh exact STATUS recheck on the same enrolled device before automatic idempotent fulfillment, and must not be treated as equivalent to the signed OPA webhook. The current go-live gate remains BR001 only, Production remains `manual`, and this package does not authorize a Production migration, environment change, deployment or activation. Follow `docs/FIUU_POS_SETUP.md` before changing the mode.
 
@@ -155,18 +204,47 @@ Create migration:
 npx supabase migration new <name>
 ```
 
-Apply to linked remote Supabase project:
-
-```powershell
-npx supabase db push --yes
-```
-
 Rules:
 
 - Apply migrations before relying on deployed API code that uses new tables/columns.
 - Check RLS and grants before production use.
 - Regenerate database types after stable schema changes.
 - If `db push` reports history mismatch, stop and inspect before manually applying SQL.
+
+### Production migration protocol
+
+Generic `supabase db push --yes` is **prohibited for Production**. A Production
+change requires fresh action-time owner approval for the exact action and this
+sequence:
+
+1. Confirm the linked Supabase project identity is the intended Production
+   project, then run `npx supabase migration list --linked` and save the output
+   with the release evidence.
+2. Run `npx supabase db push --dry-run` and compare every pending migration with
+   an explicit, reviewed manifest containing the exact migration filenames and
+   checksums approved for that release.
+3. Abort if the dry-run contains any additional, missing, reordered or modified
+   migration. Do not approve a directory, range, branch or generic “all pending”
+   set.
+4. Apply only the exact approved manifest through the controlled release job or
+   reviewed SQL procedure that enforces that manifest. A direct generic
+   `supabase db push --yes` is not an acceptable Production deployment method.
+5. Use an announced maintenance window and establish application write
+   quiescence for affected tables. The approved migration must set bounded
+   `lock_timeout` and `statement_timeout` values appropriate to the reviewed
+   operation; a timeout or unexpected lock aborts the release rather than being
+   bypassed.
+6. Monitor database locks, long-running statements, errors, API health and
+   payment/reconciliation queues during the change. Verify the applied migration
+   list, schema/RLS/grants and application health before restoring writes.
+
+Production must remain `POS_QR_PAYMENT_MODE=manual`, with
+`POS_FIUU_OPA_BRANCHES` empty and `FIUU_RECONCILIATION_ENABLED=false`, until the
+specific migration, environment, deployment and BR001 activation each receive
+fresh action-time approval. `BR002` through `BR036` remain inactive until all
+BR001 signed callback/status `00`, physical receipt, stock, shift and settlement
+gates pass and a later action receives its own fresh approval. Never place
+secrets in a migration manifest, command transcript or release evidence.
 
 ## Vercel Deployment Flow
 

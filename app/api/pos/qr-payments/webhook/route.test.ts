@@ -114,6 +114,9 @@ beforeEach(() => {
  mocks.getFiuuOpaConfig.mockReturnValue({
   applicationCode: 'APP001',
   secretKey: 'server-only-secret',
+  storeId: 'STORE001',
+  terminalId: 'TERM001',
+  credentialVersion: 'v1-test',
   channelId: '24',
  });
  mocks.verifyFiuuOpaSignature.mockReturnValue(true);

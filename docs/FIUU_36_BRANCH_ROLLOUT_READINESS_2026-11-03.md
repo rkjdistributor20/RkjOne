@@ -16,15 +16,26 @@ remain BR001-only fallbacks and must not be used as a bulk-rollout shortcut.
 
 Branch `codex/fiuu-production-rollout` now contains a fail-closed 36-branch OPA
 package. It accepts canonical `BR001` through `BR036` only, requires an explicit
-environment allowlist and complete six-field server-only mapping
+environment allowlist and complete seven-field server-only mapping
 (`organizationId`, `branchId`, `applicationCode`, `secretKey`, `storeId` and
-`terminalId`), and adds a database
-rollout record bound to organization, branch and a SHA-256 Application Code
-fingerprint. The migration creates no rollout row and activates no branch.
+`terminalId`, plus non-secret `credentialVersion`), and adds a database rollout
+record bound to organization, branch and a full SHA-256 configuration
+fingerprint. The fingerprint covers `environment`, `applicationCode`, `storeId`,
+`terminalId` and `credentialVersion`; `secretKey` is never hashed or stored in
+the rollout registry. The migration creates no rollout row and activates no
+branch.
+
+New OPA intent creation and dynamic-mode advertising are both fail-closed behind
+an explicit `is_pos_fiuu_opa_branch_active` database RPC check. The exact
+tenant, branch and configuration fingerprint must be `ACTIVE`; missing, error,
+false or any other lifecycle state cannot create or advertise a payable QR.
+Lifecycle is `DRAFT -> VERIFIED -> ACTIVE -> DRAINING -> REVOKED`.
+`DRAINING` blocks new intents but preserves reconciliation for already-issued
+intents, and it may become `REVOKED` only after the unresolved queue is clear.
 
 The final verification on 3 November 2026 passed:
 
-- Vitest package suite: `239/239`, including `14/14` rollout-migration
+- Vitest package suite: `264/264`, including `16/16` rollout-migration
   contract tests;
 - TypeScript: `npx tsc --noEmit --pretty false`;
 - targeted ESLint for every changed application/test file;
@@ -32,13 +43,16 @@ The final verification on 3 November 2026 passed:
 - `git diff --check`.
 
 The complete migration also passed a real PostgreSQL transactional replay in
-the linked staging project. It was executed as
-`BEGIN; <migration>; ROLLBACK;`, returned `Success. No rows returned`, and a
-follow-up `to_regclass('public.pos_fiuu_opa_branch_rollouts')` check returned
-`false`. This proves the migration parsed and completed against the staging
-schema without leaving the rollout table or any rollout row behind. It does
-not authorize or perform a persistent staging/Production migration, deploy an
-environment change, or provision an `ACTIVE` rollout row.
+the linked staging project after the final trigger-readiness hardening. It was
+executed as `BEGIN; <migration>; assertions; ROLLBACK;` and returned
+`dry_run=passed`, `rollout_control_ready=true`, `rollout_rows=0` and
+`persistent_change=false`. A separate follow-up probe returned
+`rollback_verified=true`, `rollout_table_exists=false` and
+`readiness_rpc_exists=false`. This proves the migration parsed and completed
+against the staging schema and that the transaction left neither its rollout
+table nor readiness RPC behind. It does not authorize or perform a persistent
+staging/Production migration, deploy an environment change, or provision an
+`ACTIVE` rollout row.
 
 ## Live read-only audit
 
@@ -69,8 +83,8 @@ The linked Fiuu mailbox contains channel-activation notices for every
 `masterkayajunus01` through `masterkayajunus36`. This confirms that all 36
 submerchant/channel records were announced as activated by Fiuu. It does not
 prove that the tenant-bound OPA mapping (`organizationId`, `branchId`,
-`applicationCode`, `secretKey`, `storeId`, `terminalId`) has been issued and
-verified for each branch.
+`applicationCode`, `secretKey`, `storeId`, `terminalId`, `credentialVersion`)
+has been issued and verified for each branch.
 
 The linked BR001 Samsung tablet is reachable from the authorized PC. The
 official Fiuu Virtual Terminal app reports version `3.5.13`; a fresh read-only
@@ -104,7 +118,9 @@ create a sale or issue a refund without a specifically approved workflow.
 
 1. Record the exact RKJ One `organizationId` and `branchId`, then obtain the
    provider-issued OPA `applicationCode`, `secretKey`, `storeId` and
-   `terminalId` for every branch. Keep secrets server-only.
+   `terminalId` for every branch. Assign and record a non-secret
+   `credentialVersion` for each exact credential generation. Keep secrets
+   server-only.
 2. Prove one fresh BR001 OPA payment with a valid signed notification, status
    `00`, exact amount and references, and exact-once receipt/stock/shift output.
 3. Produce and inspect the physical BR001 customer receipt; the database
@@ -119,24 +135,35 @@ create a sale or issue a refund without a specifically approved workflow.
    approved rollout window, then pass signed callback, cross-branch,
    cross-tenant, duplicate-callback, timeout, expiry and recovery UAT. The
    non-persistent transactional staging replay is already complete.
-8. Create a current Production recovery point and name the rollback owner and
+8. Confirm `is_pos_fiuu_opa_rollout_control_ready()` returns `true`, verify the
+   BR001 `ACTIVE` RPC gate, and preserve evidence that a real scheduler invoked
+   the authenticated reconciliation worker and produced monitored bounded-retry
+   results. Environment flags and a stored worker secret are not scheduler
+   proof.
+9. Create a current Production recovery point and name the rollback owner and
    monitoring window.
-9. Obtain fresh owner confirmation immediately before each Production
+10. Obtain fresh owner confirmation immediately before each Production
    migration, environment change and deployment. A real payment or refund also
    requires its own action-time confirmation.
 
 ## Safe rollout sequence
 
 1. Keep Production manual and the dynamic allowlist empty.
-2. Complete and soak BR001 in staging/Preview.
+2. Complete and soak BR001 in staging/Preview, including readiness RPC and real
+   scheduler evidence.
 3. With fresh Production approval, apply the migration and deploy while still
    manual and with no dynamic branch enabled.
-4. Enable BR001 only, monitor callback latency, reconciliation, receipt, stock,
-   shift and settlement, then complete Finance sign-off.
+4. With a separate fresh approval, provision the exact BR001 seven-field
+   mapping and matching configuration fingerprint, verify the explicit
+   `ACTIVE` RPC gate, and enable BR001 only. Monitor callback latency,
+   reconciliation, receipt, stock, shift and settlement, then complete Finance
+   sign-off.
 5. Roll out in small reversible batches only after each batch has complete
-   provider mappings and tablet attestation. Do not enable all 36 at once.
-6. On any mismatch, stop new QR creation by returning to manual mode, but retain
-   the explicit allowlist, server-only mappings and callback path until all
-   already-issued intents and settlement checks clear. Disable new recovery
-   scheduling only after the unresolved queue is drained, and preserve all
-   payment evidence.
+   provider mappings, fresh action-time approval and tablet attestation. Do not
+   enable all 36 at once; `BR002`-`BR036` remain inactive until every BR001 gate
+   is closed.
+6. On any mismatch, transition the affected rollout from `ACTIVE` to
+   `DRAINING` and return creation mode to manual with fresh approval. Retain the
+   explicit allowlist, server-only mappings, callback path and recovery worker
+   until all already-issued intents and settlement checks clear. Only then move
+   `DRAINING -> REVOKED`, disable scheduling and preserve all payment evidence.

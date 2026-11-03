@@ -78,6 +78,34 @@ function indexOfOrFail(sql: string, pattern: RegExp, label: string) {
  return index;
 }
 
+function expectFullConfigurationParameters(sql: string, context: string) {
+ for (const parameter of [
+  'p_environment',
+  'p_application_code',
+  'p_store_id',
+  'p_terminal_id',
+  'p_credential_version',
+ ]) {
+  expect(sql, `${context} must accept ${parameter}`).toMatch(
+   new RegExp(`\\b${parameter}\\s+TEXT\\b`, 'i'),
+  );
+ }
+}
+
+function expectFullStoredConfiguration(sql: string, context: string) {
+ for (const field of [
+  'fiuu_environment',
+  'fiuu_application_code',
+  'fiuu_store_id',
+  'fiuu_terminal_id',
+  'fiuu_credential_version',
+ ]) {
+  expect(sql, `${context} must bind ${field}`).toMatch(
+   new RegExp(`sale_payload\\s*->>\\s*'${field}'`, 'i'),
+  );
+ }
+}
+
 describe('Fiuu OPA branch rollout migration contract', () => {
  it('is fail-closed and does not seed or activate any rollout row', () => {
   expect(executableSql).toMatch(
@@ -100,9 +128,11 @@ describe('Fiuu OPA branch rollout migration contract', () => {
  it('generalizes only OPA to canonical BR001-BR036 branches', () => {
   const rolloutGuard = functionSection('guard_pos_fiuu_opa_branch_rollout');
   const activeGuard = functionSection('is_pos_fiuu_opa_branch_active');
+  const generationGuard = functionSection('is_pos_fiuu_opa_branch_rollout_match');
   for (const section of [
    rolloutGuard,
    activeGuard,
+   generationGuard,
    functionSection('claim_pos_fiuu_opa_inquiry'),
    functionSection('complete_pos_fiuu_opa_inquiry'),
    functionSection('report_pos_fiuu_payment'),
@@ -116,6 +146,41 @@ describe('Fiuu OPA branch rollout migration contract', () => {
   expect(activeGuard).toMatch(/rollout\.branch_id\s*=\s*p_branch_id/i);
   expect(activeGuard).toMatch(/rollout\.status\s*=\s*'ACTIVE'/i);
   expect(activeGuard).toMatch(/branch\.branch_code\)\)\s*=\s*p_branch_code/i);
+  expectFullConfigurationParameters(activeGuard, 'ACTIVE rollout gate');
+  expectFullConfigurationParameters(generationGuard, 'Existing-intent generation gate');
+  expect(generationGuard).toMatch(
+   /rollout\.status\s+IN\s*\(\s*'ACTIVE'\s*,\s*'DRAINING'\s*,\s*'REVOKED'\s*\)/i,
+  );
+  for (const functionName of [
+   'claim_pos_fiuu_opa_inquiry',
+   'complete_pos_fiuu_opa_inquiry',
+   'report_pos_fiuu_payment',
+   'fulfill_pos_fiuu_payment',
+   'report_pos_fiuu_opa_inquiry_success',
+  ]) {
+   const section = stripSqlComments(functionSection(functionName));
+   expect(section, `${functionName} must accept the issued configuration generation`).toMatch(
+    /public\.is_pos_fiuu_opa_branch_rollout_match\s*\(/i,
+   );
+   expect(section, `${functionName} must not require ACTIVE after intent creation`).not.toMatch(
+    /public\.is_pos_fiuu_opa_branch_active\s*\(/i,
+   );
+  }
+ });
+
+ it('requires the stored configuration fingerprint in every post-creation function', () => {
+  for (const functionName of [
+   'claim_pos_fiuu_opa_inquiry',
+   'complete_pos_fiuu_opa_inquiry',
+   'report_pos_fiuu_payment',
+   'fulfill_pos_fiuu_payment',
+   'report_pos_fiuu_opa_inquiry_success',
+  ]) {
+   const section = stripSqlComments(functionSection(functionName));
+   expect(section, `${functionName} must require the stored configuration fingerprint`).toMatch(
+    /sale_payload\s*->>\s*'fiuu_configuration_sha256'/i,
+   );
+  }
  });
 
  it('does not redefine VT App-to-App or cloudECR authorization boundaries', () => {
@@ -132,7 +197,7 @@ describe('Fiuu OPA branch rollout migration contract', () => {
   expect(shiftGuard).toMatch(/INTERVAL\s*'20 minutes'/i);
  });
 
- it('binds organization, branch, branch code and application code with SHA-256 at intent creation', () => {
+ it('binds the full non-secret configuration generation and scope with SHA-256 at intent creation', () => {
   const functionDefinitions = Array.from(
    executableSql.matchAll(
     /CREATE\s+OR\s+REPLACE\s+FUNCTION\s+public\.[a-z0-9_]+\s*\([\s\S]*?\n\$\$;/gi,
@@ -144,7 +209,7 @@ describe('Fiuu OPA branch rollout migration contract', () => {
    && /NEW\.organization_id/i.test(section)
    && /NEW\.branch_id/i.test(section)
    && /NEW\.sale_payload\s*->>\s*'fiuu_branch_code'/i.test(section)
-   && /NEW\.sale_payload\s*->>\s*'fiuu_application_code'/i.test(section)
+   && /NEW\.sale_payload\s*->>\s*'fiuu_credential_version'/i.test(section)
    && /digest\s*\(/i.test(section)
   ));
 
@@ -154,23 +219,41 @@ describe('Fiuu OPA branch rollout migration contract', () => {
   ).toBeDefined();
   if (!creationGuard) return;
 
-  const digestInput = /digest\s*\(([\s\S]*?),\s*'sha256'\s*\)/i.exec(creationGuard)?.[1];
-  expect(digestInput, 'The intent scope binding must explicitly use SHA-256').toBeDefined();
-  if (!digestInput) return;
-  expect(digestInput).toMatch(/NEW\.organization_id/i);
-  expect(digestInput).toMatch(/NEW\.branch_id/i);
-  expect(digestInput).toMatch(/NEW\.sale_payload\s*->>\s*'fiuu_branch_code'/i);
-  expect(digestInput).toMatch(/NEW\.sale_payload\s*->>\s*'fiuu_application_code'/i);
+  expectFullStoredConfiguration(creationGuard, 'Intent creation guard');
+  expect(creationGuard).toMatch(/fiuu-opa-config:v1/i);
   expect(creationGuard).toMatch(/extensions\.digest\s*\(/i);
+  expect(creationGuard).toMatch(/NEW\.organization_id/i);
+  expect(creationGuard).toMatch(/NEW\.branch_id/i);
+  expect(creationGuard).toMatch(/NEW\.sale_payload\s*->>\s*'fiuu_branch_code'/i);
 
-  const storesDatabaseBinding = (
-   /NEW\.sale_payload\s*:=\s*jsonb_set\([\s\S]*?encode\s*\(\s*extensions\.digest\s*\(/i.test(creationGuard)
-   || /NEW\.[a-z0-9_]*(?:binding|sha256)[a-z0-9_]*\s*:=\s*encode\s*\(\s*extensions\.digest\s*\(/i.test(creationGuard)
-  );
+  const configurationAssignment = /\b([a-z0-9_]*configuration_sha256)\s*:=\s*encode\s*\(\s*extensions\.digest\s*\(/i
+   .exec(creationGuard);
   expect(
-   storesDatabaseBinding,
-   'The database must persist the creation-time SHA-256 binding, not merely calculate it',
-  ).toBe(true);
+   configurationAssignment,
+   'The creation guard must compute the full configuration SHA-256',
+  ).toBeTruthy();
+  if (configurationAssignment) {
+   expect(creationGuard).toMatch(new RegExp(
+    `'\\{fiuu_configuration_sha256\\}'[\\s\\S]*?to_jsonb\\s*\\(\\s*${configurationAssignment[1]}\\s*\\)`,
+    'i',
+   ));
+  }
+
+  const bindingAssignment = /\b([a-z0-9_]*rollout_binding_sha256)\s*:=\s*encode\s*\(\s*extensions\.digest\s*\(/i
+   .exec(creationGuard);
+  expect(
+   bindingAssignment,
+   'The creation guard must compute the rollout scope SHA-256',
+  ).toBeTruthy();
+  if (bindingAssignment) {
+   expect(creationGuard).toMatch(new RegExp(
+    `'\\{fiuu_rollout_binding_sha256\\}'[\\s\\S]*?to_jsonb\\s*\\(\\s*${bindingAssignment[1]}\\s*\\)`,
+    'i',
+   ));
+  }
+  expect(creationGuard).toMatch(
+   /public\.is_pos_fiuu_opa_branch_active\s*\([\s\S]*?fiuu_environment[\s\S]*?fiuu_application_code[\s\S]*?fiuu_store_id[\s\S]*?fiuu_terminal_id[\s\S]*?fiuu_credential_version/i,
+  );
 
   const creationTrigger = Array.from(
    executableSql.matchAll(/CREATE\s+TRIGGER\s+[a-z0-9_]+[\s\S]*?;/gi),
@@ -209,7 +292,34 @@ describe('Fiuu OPA branch rollout migration contract', () => {
   );
  });
 
- it('permits validated PAID and REPORTED replay after revocation but gates new transitions on ACTIVE', () => {
+ it('uses ACTIVE -> DRAINING -> REVOKED so issued intents can finish without new creation', () => {
+  const rolloutGuard = stripSqlComments(functionSection('guard_pos_fiuu_opa_branch_rollout'));
+  const generationGuard = stripSqlComments(
+   functionSection('is_pos_fiuu_opa_branch_rollout_match'),
+  );
+  const activeGuard = stripSqlComments(functionSection('is_pos_fiuu_opa_branch_active'));
+
+  expect(executableSql).toMatch(
+   /status\s+TEXT[\s\S]*?CHECK\s*\(\s*status\s+IN\s*\(\s*'DRAFT'\s*,\s*'VERIFIED'\s*,\s*'ACTIVE'\s*,\s*'DRAINING'\s*,\s*'REVOKED'\s*\)\s*\)/i,
+  );
+  expect(executableSql).toMatch(/draining_at\s+TIMESTAMPTZ/i);
+  expect(rolloutGuard).toMatch(
+   /OLD\.status\s*=\s*'ACTIVE'[\s\S]*?NEW\.status\s*=\s*'DRAINING'/i,
+  );
+  expect(rolloutGuard).toMatch(
+   /OLD\.status\s*=\s*'DRAINING'[\s\S]*?NEW\.status\s*=\s*'REVOKED'/i,
+  );
+  expect(rolloutGuard).not.toMatch(
+   /\(\s*OLD\.status\s*=\s*'ACTIVE'\s+AND\s+NEW\.status\s*(?:=\s*'REVOKED'|IN\s*\([^)]*'REVOKED')/i,
+  );
+  expect(activeGuard).toMatch(/rollout\.status\s*=\s*'ACTIVE'/i);
+  expect(activeGuard).not.toMatch(/'DRAINING'/i);
+  expect(generationGuard).toMatch(
+   /rollout\.status\s+IN\s*\(\s*'ACTIVE'\s*,\s*'DRAINING'\s*,\s*'REVOKED'\s*\)/i,
+  );
+ });
+
+ it('permits validated existing intents through DRAINING and REVOKED generations', () => {
   const report = stripSqlComments(functionSection('report_pos_fiuu_payment'));
   const reportEvidence = indexOfOrFail(
    report,
@@ -226,10 +336,10 @@ describe('Fiuu OPA branch rollout migration contract', () => {
    /IF\s+v_payment\.status\s*=\s*'REPORTED'/i,
    'REPORTED report replay',
   );
-  const reportActiveGate = indexOfOrFail(
+  const reportGenerationGate = indexOfOrFail(
    report,
-   /public\.is_pos_fiuu_opa_branch_active\s*\(/i,
-   'Report ACTIVE gate',
+   /public\.is_pos_fiuu_opa_branch_rollout_match\s*\(/i,
+   'Report configuration-generation gate',
   );
   const reportTransition = indexOfOrFail(
    report,
@@ -237,9 +347,10 @@ describe('Fiuu OPA branch rollout migration contract', () => {
    'PENDING or EXPIRED to REPORTED transition',
   );
   expect(reportEvidence).toBeLessThan(paidReplay);
-  expect(paidReplay).toBeLessThan(reportActiveGate);
-  expect(reportedReplay).toBeLessThan(reportActiveGate);
-  expect(reportActiveGate).toBeLessThan(reportTransition);
+  expect(reportedReplay).toBeGreaterThanOrEqual(0);
+  expect(reportEvidence).toBeLessThan(reportTransition);
+  expect(reportGenerationGate).toBeLessThan(reportTransition);
+  expect(report).not.toMatch(/public\.is_pos_fiuu_opa_branch_active\s*\(/i);
 
   const fulfill = stripSqlComments(functionSection('fulfill_pos_fiuu_payment'));
   const fulfillReplay = indexOfOrFail(
@@ -247,26 +358,32 @@ describe('Fiuu OPA branch rollout migration contract', () => {
    /IF\s+v_payment\.status\s*=\s*'PAID'/i,
    'PAID fulfilment replay',
   );
-  const fulfillActiveGate = indexOfOrFail(
+  const fulfillGenerationGate = indexOfOrFail(
    fulfill,
-   /public\.is_pos_fiuu_opa_branch_active\s*\(/i,
-   'Fulfilment ACTIVE gate',
+   /public\.is_pos_fiuu_opa_branch_rollout_match\s*\(/i,
+   'Fulfilment configuration-generation gate',
   );
   const saleTransition = indexOfOrFail(
    fulfill,
    /public\.process_pos_sale_internal\s*\(/i,
    'REPORTED to PAID sale transition',
   );
-  expect(fulfillReplay).toBeLessThan(fulfillActiveGate);
-  expect(fulfillActiveGate).toBeLessThan(saleTransition);
+  expect(fulfillReplay).toBeGreaterThanOrEqual(0);
+  expect(fulfillGenerationGate).toBeLessThan(saleTransition);
+  expect(fulfill).not.toMatch(/public\.is_pos_fiuu_opa_branch_active\s*\(/i);
 
   const claim = stripSqlComments(functionSection('claim_pos_fiuu_opa_inquiry'));
-  expect(indexOfOrFail(claim, /is_pos_fiuu_opa_branch_active\s*\(/i, 'Claim ACTIVE gate'))
+  expect(indexOfOrFail(
+   claim,
+   /is_pos_fiuu_opa_branch_rollout_match\s*\(/i,
+   'Claim configuration-generation gate',
+  ))
    .toBeLessThan(indexOfOrFail(
     claim,
     /INSERT\s+INTO\s+public\.pos_fiuu_opa_reconciliation_attempts/i,
     'New reconciliation claim',
    ));
+  expect(claim).not.toMatch(/public\.is_pos_fiuu_opa_branch_active\s*\(/i);
  });
 
  it('returns organization scope in every inquiry claim', () => {
@@ -351,13 +468,19 @@ describe('Fiuu OPA branch rollout migration contract', () => {
 
  it('preserves revoked generations and permits only DRAFT fingerprint correction', () => {
   expect(executableSql).toMatch(
-   /PRIMARY\s+KEY\s*\(\s*organization_id\s*,\s*branch_id\s*,\s*application_code_sha256\s*\)/i,
+   /PRIMARY\s+KEY\s*\(\s*organization_id\s*,\s*branch_id\s*,\s*configuration_sha256\s*\)/i,
   );
   expect(executableSql).toMatch(
-   /NEW\.application_code_sha256\s+IS\s+DISTINCT\s+FROM\s+OLD\.application_code_sha256[\s\S]*?OLD\.status\s*=\s*'DRAFT'[\s\S]*?NEW\.status\s*=\s*'DRAFT'/i,
+   /NEW\.configuration_sha256\s+IS\s+DISTINCT\s+FROM\s+OLD\.configuration_sha256[\s\S]*?OLD\.status\s*=\s*'DRAFT'[\s\S]*?NEW\.status\s*=\s*'DRAFT'/i,
   );
   expect(executableSql).toMatch(/IF\s+OLD\.status\s*=\s*'REVOKED'[\s\S]*?immutable/i);
-  expect(executableSql).not.toMatch(/GRANT[\s\S]*?DELETE[\s\S]*?pos_fiuu_opa_branch_rollouts/i);
+  const rolloutTableGrants = Array.from(executableSql.matchAll(
+   /GRANT\s+([\s\S]*?)\s+ON\s+TABLE\s+public\.pos_fiuu_opa_branch_rollouts\s+TO\s+[^;]+;/gi,
+  ));
+  expect(rolloutTableGrants.length).toBeGreaterThan(0);
+  for (const grant of rolloutTableGrants) {
+   expect(grant[1]).not.toMatch(/\bDELETE\b/i);
+  }
  });
 
  it('keeps the rollout and shift guard triggers attached to the expected tables', () => {

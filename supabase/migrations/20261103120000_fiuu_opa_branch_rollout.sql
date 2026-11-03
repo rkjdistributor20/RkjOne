@@ -179,37 +179,46 @@ $$;
 CREATE TABLE IF NOT EXISTS public.pos_fiuu_opa_branch_rollouts (
   organization_id UUID NOT NULL,
   branch_id UUID NOT NULL,
-  application_code_sha256 TEXT NOT NULL,
+  configuration_sha256 TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'DRAFT'
     CONSTRAINT pos_fiuu_opa_branch_rollouts_status_check
-      CHECK (status IN ('DRAFT', 'VERIFIED', 'ACTIVE', 'REVOKED')),
+      CHECK (status IN ('DRAFT', 'VERIFIED', 'ACTIVE', 'DRAINING', 'REVOKED')),
   verified_at TIMESTAMPTZ,
   activated_at TIMESTAMPTZ,
+  draining_at TIMESTAMPTZ,
   revoked_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT pos_fiuu_opa_branch_rollouts_pkey
-    PRIMARY KEY (organization_id, branch_id, application_code_sha256),
+    PRIMARY KEY (organization_id, branch_id, configuration_sha256),
   CONSTRAINT pos_fiuu_opa_branch_rollouts_organization_fkey
     FOREIGN KEY (organization_id)
     REFERENCES public.organizations(id) ON DELETE RESTRICT,
   CONSTRAINT pos_fiuu_opa_branch_rollouts_branch_fkey
     FOREIGN KEY (branch_id)
     REFERENCES public.branches(id) ON DELETE RESTRICT,
-  CONSTRAINT pos_fiuu_opa_branch_rollouts_application_fingerprint_check
-    CHECK (application_code_sha256 ~ '^[0-9a-f]{64}$'),
+  CONSTRAINT pos_fiuu_opa_branch_rollouts_configuration_fingerprint_check
+    CHECK (configuration_sha256 ~ '^[0-9a-f]{64}$'),
   CONSTRAINT pos_fiuu_opa_branch_rollouts_lifecycle_check CHECK (
     (status = 'DRAFT'
       AND verified_at IS NULL
       AND activated_at IS NULL
+      AND draining_at IS NULL
       AND revoked_at IS NULL)
     OR (status = 'VERIFIED'
       AND verified_at IS NOT NULL
       AND activated_at IS NULL
+      AND draining_at IS NULL
       AND revoked_at IS NULL)
     OR (status = 'ACTIVE'
       AND verified_at IS NOT NULL
       AND activated_at IS NOT NULL
+      AND draining_at IS NULL
+      AND revoked_at IS NULL)
+    OR (status = 'DRAINING'
+      AND verified_at IS NOT NULL
+      AND activated_at IS NOT NULL
+      AND draining_at IS NOT NULL
       AND revoked_at IS NULL)
     OR (status = 'REVOKED'
       AND revoked_at IS NOT NULL)
@@ -245,15 +254,16 @@ BEGIN
     WHERE column_row.attrelid = v_table_oid
       AND column_row.attnum > 0
       AND NOT column_row.attisdropped
-  ) <> 9 OR EXISTS (
+  ) <> 10 OR EXISTS (
     WITH expected(column_name, data_type, is_not_null) AS (
       VALUES
         ('organization_id', 'uuid', true),
         ('branch_id', 'uuid', true),
-        ('application_code_sha256', 'text', true),
+        ('configuration_sha256', 'text', true),
         ('status', 'text', true),
         ('verified_at', 'timestamp with time zone', false),
         ('activated_at', 'timestamp with time zone', false),
+        ('draining_at', 'timestamp with time zone', false),
         ('revoked_at', 'timestamp with time zone', false),
         ('created_at', 'timestamp with time zone', true),
         ('updated_at', 'timestamp with time zone', true)
@@ -314,7 +324,7 @@ BEGIN
           'pos_fiuu_opa_branch_rollouts_organization_fkey',
           'pos_fiuu_opa_branch_rollouts_branch_fkey',
           'pos_fiuu_opa_branch_rollouts_status_check',
-          'pos_fiuu_opa_branch_rollouts_application_fingerprint_check',
+          'pos_fiuu_opa_branch_rollouts_configuration_fingerprint_check',
           'pos_fiuu_opa_branch_rollouts_lifecycle_check'
         )
         OR NOT constraint_row.convalidated
@@ -337,7 +347,7 @@ BEGIN
         JOIN pg_catalog.pg_attribute AS column_row
           ON column_row.attrelid = constraint_row.conrelid
          AND column_row.attnum = key_row.attnum
-      ) = ARRAY['organization_id', 'branch_id', 'application_code_sha256']::TEXT[]
+      ) = ARRAY['organization_id', 'branch_id', 'configuration_sha256']::TEXT[]
   ) OR NOT EXISTS (
     SELECT 1
     FROM pg_catalog.pg_constraint AS constraint_row
@@ -361,15 +371,15 @@ BEGIN
       AND constraint_row.conname = 'pos_fiuu_opa_branch_rollouts_status_check'
       AND constraint_row.contype = 'c'
       AND pg_catalog.pg_get_expr(constraint_row.conbin, constraint_row.conrelid)
-        ~ 'status.*DRAFT.*VERIFIED.*ACTIVE.*REVOKED'
+        ~ 'status.*DRAFT.*VERIFIED.*ACTIVE.*DRAINING.*REVOKED'
   ) OR NOT EXISTS (
     SELECT 1
     FROM pg_catalog.pg_constraint AS constraint_row
     WHERE constraint_row.conrelid = v_table_oid
-      AND constraint_row.conname = 'pos_fiuu_opa_branch_rollouts_application_fingerprint_check'
+      AND constraint_row.conname = 'pos_fiuu_opa_branch_rollouts_configuration_fingerprint_check'
       AND constraint_row.contype = 'c'
       AND pg_catalog.pg_get_expr(constraint_row.conbin, constraint_row.conrelid)
-        LIKE '%application_code_sha256%^[0-9a-f]{64}$%'
+        LIKE '%configuration_sha256%^[0-9a-f]{64}$%'
   ) OR NOT EXISTS (
     SELECT 1
     FROM pg_catalog.pg_constraint AS constraint_row
@@ -377,7 +387,7 @@ BEGIN
       AND constraint_row.conname = 'pos_fiuu_opa_branch_rollouts_lifecycle_check'
       AND constraint_row.contype = 'c'
       AND pg_catalog.pg_get_expr(constraint_row.conbin, constraint_row.conrelid)
-        ~ 'verified_at.*activated_at.*revoked_at'
+        ~ 'verified_at.*activated_at.*draining_at.*revoked_at'
   ) THEN
     RAISE EXCEPTION USING
       ERRCODE = 'check_violation',
@@ -386,7 +396,7 @@ BEGIN
 END;
 $$;
 
--- Preserve revoked fingerprints for signed callback/replay validation while
+-- Preserve revoked configuration fingerprints for signed callback/replay validation while
 -- allowing one new DRAFT generation after the previous generation is revoked.
 CREATE UNIQUE INDEX IF NOT EXISTS uq_pos_fiuu_opa_branch_rollouts_current
   ON public.pos_fiuu_opa_branch_rollouts(organization_id, branch_id)
@@ -436,7 +446,7 @@ END;
 $$;
 
 COMMENT ON TABLE public.pos_fiuu_opa_branch_rollouts IS
-  'Fail-closed OPA rollout generations only; contains no provider credential or secret.';
+  'Fail-closed OPA rollout generations keyed by a non-secret full configuration fingerprint; contains no provider credential or secret.';
 
 ALTER TABLE public.pos_fiuu_opa_branch_rollouts ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.pos_fiuu_opa_branch_rollouts
@@ -470,17 +480,18 @@ BEGIN
         MESSAGE = 'Fiuu OPA rollout organization, branch and creation time are immutable';
     END IF;
 
-    IF NEW.application_code_sha256 IS DISTINCT FROM OLD.application_code_sha256
+    IF NEW.configuration_sha256 IS DISTINCT FROM OLD.configuration_sha256
       AND NOT (OLD.status = 'DRAFT' AND NEW.status = 'DRAFT') THEN
       RAISE EXCEPTION USING
         ERRCODE = 'check_violation',
-        MESSAGE = 'Fiuu OPA application fingerprint may only be corrected while DRAFT';
+        MESSAGE = 'Fiuu OPA configuration fingerprint may only be corrected while DRAFT';
     END IF;
 
     IF NEW.status IS NOT DISTINCT FROM OLD.status
       AND (
         NEW.verified_at IS DISTINCT FROM OLD.verified_at
         OR NEW.activated_at IS DISTINCT FROM OLD.activated_at
+        OR NEW.draining_at IS DISTINCT FROM OLD.draining_at
         OR NEW.revoked_at IS DISTINCT FROM OLD.revoked_at
       ) THEN
       RAISE EXCEPTION USING
@@ -498,14 +509,15 @@ BEGIN
       NEW.status IS NOT DISTINCT FROM OLD.status
       OR (OLD.status = 'DRAFT' AND NEW.status IN ('VERIFIED', 'REVOKED'))
       OR (OLD.status = 'VERIFIED' AND NEW.status IN ('ACTIVE', 'REVOKED'))
-      OR (OLD.status = 'ACTIVE' AND NEW.status = 'REVOKED')
+      OR (OLD.status = 'ACTIVE' AND NEW.status = 'DRAINING')
+      OR (OLD.status = 'DRAINING' AND NEW.status = 'REVOKED')
     ) THEN
       RAISE EXCEPTION USING
         ERRCODE = 'check_violation',
         MESSAGE = 'Invalid Fiuu OPA rollout status transition';
     END IF;
 
-    IF OLD.status = 'ACTIVE'
+    IF OLD.status = 'DRAINING'
       AND NEW.status = 'REVOKED'
       AND EXISTS (
         SELECT 1
@@ -513,6 +525,8 @@ BEGIN
         WHERE payment.organization_id = OLD.organization_id
           AND payment.branch_id = OLD.branch_id
           AND payment.provider = 'fiuu'
+          AND payment.sale_payload->>'fiuu_configuration_sha256'
+            IS NOT DISTINCT FROM OLD.configuration_sha256
           AND (
             payment.status IN ('PENDING', 'REPORTED')
             OR (
@@ -524,7 +538,7 @@ BEGIN
       ) THEN
       RAISE EXCEPTION USING
         ERRCODE = 'check_violation',
-        MESSAGE = 'Active Fiuu OPA rollout cannot be revoked while a payment is unresolved';
+        MESSAGE = 'Draining Fiuu OPA rollout cannot be revoked while a payment is unresolved';
     END IF;
   END IF;
 
@@ -558,14 +572,22 @@ BEGIN
     IF NEW.status = 'VERIFIED' THEN
       NEW.verified_at := now();
       NEW.activated_at := NULL;
+      NEW.draining_at := NULL;
       NEW.revoked_at := NULL;
     ELSIF NEW.status = 'ACTIVE' THEN
       NEW.verified_at := OLD.verified_at;
       NEW.activated_at := now();
+      NEW.draining_at := NULL;
+      NEW.revoked_at := NULL;
+    ELSIF NEW.status = 'DRAINING' THEN
+      NEW.verified_at := OLD.verified_at;
+      NEW.activated_at := OLD.activated_at;
+      NEW.draining_at := now();
       NEW.revoked_at := NULL;
     ELSIF NEW.status = 'REVOKED' THEN
       NEW.verified_at := OLD.verified_at;
       NEW.activated_at := OLD.activated_at;
+      NEW.draining_at := OLD.draining_at;
       NEW.revoked_at := now();
     END IF;
   END IF;
@@ -615,7 +637,11 @@ CREATE OR REPLACE FUNCTION public.is_pos_fiuu_opa_branch_rollout_match(
   p_organization_id UUID,
   p_branch_id UUID,
   p_branch_code TEXT,
-  p_application_code TEXT
+  p_environment TEXT,
+  p_application_code TEXT,
+  p_store_id TEXT,
+  p_terminal_id TEXT,
+  p_credential_version TEXT
 )
 RETURNS BOOLEAN
 LANGUAGE plpgsql
@@ -627,9 +653,17 @@ BEGIN
     OR p_branch_id IS NULL
     OR p_branch_code IS NULL
     OR p_branch_code !~ '^BR(00[1-9]|0[12][0-9]|03[0-6])$'
+    OR p_environment IS NULL
+    OR p_environment NOT IN ('sandbox', 'production')
     OR NULLIF(btrim(p_application_code), '') IS NULL
     OR length(p_application_code) > 32
-    OR p_application_code ~ '[[:cntrl:]]' THEN
+    OR p_application_code ~ '[[:cntrl:]]'
+    OR p_store_id IS NULL
+    OR p_store_id !~ '^[A-Za-z0-9_-]{4,20}$'
+    OR p_terminal_id IS NULL
+    OR p_terminal_id !~ '^[A-Za-z0-9_-]{4,20}$'
+    OR p_credential_version IS NULL
+    OR p_credential_version !~ '^[A-Za-z0-9._-]{1,32}$' THEN
     RETURN false;
   END IF;
 
@@ -640,9 +674,17 @@ BEGIN
    AND branch.organization_id = rollout.organization_id
   WHERE rollout.organization_id = p_organization_id
     AND rollout.branch_id = p_branch_id
-    AND rollout.status IN ('ACTIVE', 'REVOKED')
-    AND rollout.application_code_sha256 = encode(
-      extensions.digest(p_application_code, 'sha256'),
+    AND rollout.status IN ('ACTIVE', 'DRAINING', 'REVOKED')
+    AND rollout.configuration_sha256 = encode(
+      extensions.digest(
+        'fiuu-opa-config:v1'
+          || pg_catalog.chr(31) || p_environment
+          || pg_catalog.chr(31) || p_application_code
+          || pg_catalog.chr(31) || p_store_id
+          || pg_catalog.chr(31) || p_terminal_id
+          || pg_catalog.chr(31) || p_credential_version,
+        'sha256'
+      ),
       'hex'
     )
     AND upper(btrim(branch.branch_code)) = p_branch_code
@@ -653,17 +695,21 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.is_pos_fiuu_opa_branch_rollout_match(
-  UUID, UUID, TEXT, TEXT
+  UUID, UUID, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT
 ) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.is_pos_fiuu_opa_branch_rollout_match(
-  UUID, UUID, TEXT, TEXT
+  UUID, UUID, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT
 ) TO service_role;
 
 CREATE OR REPLACE FUNCTION public.is_pos_fiuu_opa_branch_active(
   p_organization_id UUID,
   p_branch_id UUID,
   p_branch_code TEXT,
-  p_application_code TEXT
+  p_environment TEXT,
+  p_application_code TEXT,
+  p_store_id TEXT,
+  p_terminal_id TEXT,
+  p_credential_version TEXT
 )
 RETURNS BOOLEAN
 LANGUAGE plpgsql
@@ -675,9 +721,17 @@ BEGIN
     OR p_branch_id IS NULL
     OR p_branch_code IS NULL
     OR p_branch_code !~ '^BR(00[1-9]|0[12][0-9]|03[0-6])$'
+    OR p_environment IS NULL
+    OR p_environment NOT IN ('sandbox', 'production')
     OR NULLIF(btrim(p_application_code), '') IS NULL
     OR length(p_application_code) > 32
-    OR p_application_code ~ '[[:cntrl:]]' THEN
+    OR p_application_code ~ '[[:cntrl:]]'
+    OR p_store_id IS NULL
+    OR p_store_id !~ '^[A-Za-z0-9_-]{4,20}$'
+    OR p_terminal_id IS NULL
+    OR p_terminal_id !~ '^[A-Za-z0-9_-]{4,20}$'
+    OR p_credential_version IS NULL
+    OR p_credential_version !~ '^[A-Za-z0-9._-]{1,32}$' THEN
     RETURN false;
   END IF;
 
@@ -689,8 +743,16 @@ BEGIN
   WHERE rollout.organization_id = p_organization_id
     AND rollout.branch_id = p_branch_id
     AND rollout.status = 'ACTIVE'
-    AND rollout.application_code_sha256 = encode(
-      extensions.digest(p_application_code, 'sha256'),
+    AND rollout.configuration_sha256 = encode(
+      extensions.digest(
+        'fiuu-opa-config:v1'
+          || pg_catalog.chr(31) || p_environment
+          || pg_catalog.chr(31) || p_application_code
+          || pg_catalog.chr(31) || p_store_id
+          || pg_catalog.chr(31) || p_terminal_id
+          || pg_catalog.chr(31) || p_credential_version,
+        'sha256'
+      ),
       'hex'
     )
     AND branch.status::TEXT = 'ACTIVE'
@@ -702,11 +764,11 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.is_pos_fiuu_opa_branch_active(
-  UUID, UUID, TEXT, TEXT
+  UUID, UUID, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT
 )
   FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.is_pos_fiuu_opa_branch_active(
-  UUID, UUID, TEXT, TEXT
+  UUID, UUID, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT
 ) TO service_role;
 
 CREATE OR REPLACE FUNCTION public.guard_pos_fiuu_opa_payment_identity()
@@ -717,7 +779,12 @@ SET search_path = pg_catalog, public
 AS $$
 DECLARE
   v_branch_code TEXT;
+  v_configuration_sha256 TEXT;
+  v_rollout_binding_sha256 TEXT;
+  v_requires_active BOOLEAN;
 BEGIN
+  v_requires_active := TG_OP = 'INSERT';
+
   IF TG_OP = 'UPDATE' AND OLD.provider = 'fiuu' THEN
     IF NEW.provider IS DISTINCT FROM OLD.provider
       OR NEW.organization_id IS DISTINCT FROM OLD.organization_id
@@ -726,14 +793,28 @@ BEGIN
         IS DISTINCT FROM OLD.sale_payload->>'branchId'
       OR NEW.sale_payload->>'fiuu_branch_code'
         IS DISTINCT FROM OLD.sale_payload->>'fiuu_branch_code'
+      OR NEW.sale_payload->>'fiuu_environment'
+        IS DISTINCT FROM OLD.sale_payload->>'fiuu_environment'
       OR NEW.sale_payload->>'fiuu_application_code'
         IS DISTINCT FROM OLD.sale_payload->>'fiuu_application_code'
+      OR NEW.sale_payload->>'fiuu_store_id'
+        IS DISTINCT FROM OLD.sale_payload->>'fiuu_store_id'
+      OR NEW.sale_payload->>'fiuu_terminal_id'
+        IS DISTINCT FROM OLD.sale_payload->>'fiuu_terminal_id'
+      OR NEW.sale_payload->>'fiuu_credential_version'
+        IS DISTINCT FROM OLD.sale_payload->>'fiuu_credential_version'
+      OR NEW.sale_payload->>'fiuu_configuration_sha256'
+        IS DISTINCT FROM OLD.sale_payload->>'fiuu_configuration_sha256'
       OR NEW.sale_payload->>'fiuu_rollout_binding_sha256'
         IS DISTINCT FROM OLD.sale_payload->>'fiuu_rollout_binding_sha256' THEN
       RAISE EXCEPTION USING
         ERRCODE = 'check_violation',
         MESSAGE = 'Fiuu OPA payment rollout identity is immutable';
     END IF;
+  END IF;
+
+  IF TG_OP = 'UPDATE' THEN
+    v_requires_active := OLD.provider IS DISTINCT FROM 'fiuu';
   END IF;
 
   IF NEW.provider = 'fiuu' THEN
@@ -748,27 +829,77 @@ BEGIN
     OR NEW.sale_payload->>'branchId' IS DISTINCT FROM NEW.branch_id::TEXT
     OR COALESCE(NEW.sale_payload->>'fiuu_branch_code', '')
       !~ '^BR(00[1-9]|0[12][0-9]|03[0-6])$'
+    OR COALESCE(NEW.sale_payload->>'fiuu_environment', '')
+      NOT IN ('sandbox', 'production')
     OR NULLIF(btrim(NEW.sale_payload->>'fiuu_application_code'), '') IS NULL
     OR length(NEW.sale_payload->>'fiuu_application_code') > 32
-    OR NEW.sale_payload->>'fiuu_application_code' ~ '[[:cntrl:]]' THEN
+    OR NEW.sale_payload->>'fiuu_application_code' ~ '[[:cntrl:]]'
+    OR COALESCE(NEW.sale_payload->>'fiuu_store_id', '')
+      !~ '^[A-Za-z0-9_-]{4,20}$'
+    OR COALESCE(NEW.sale_payload->>'fiuu_terminal_id', '')
+      !~ '^[A-Za-z0-9_-]{4,20}$'
+    OR COALESCE(NEW.sale_payload->>'fiuu_credential_version', '')
+      !~ '^[A-Za-z0-9._-]{1,32}$' THEN
     RAISE EXCEPTION USING
       ERRCODE = 'check_violation',
       MESSAGE = 'Fiuu OPA payment rollout identity is invalid';
   END IF;
 
+  v_configuration_sha256 := encode(
+    extensions.digest(
+      'fiuu-opa-config:v1'
+        || pg_catalog.chr(31) || NEW.sale_payload->>'fiuu_environment'
+        || pg_catalog.chr(31) || NEW.sale_payload->>'fiuu_application_code'
+        || pg_catalog.chr(31) || NEW.sale_payload->>'fiuu_store_id'
+        || pg_catalog.chr(31) || NEW.sale_payload->>'fiuu_terminal_id'
+        || pg_catalog.chr(31) || NEW.sale_payload->>'fiuu_credential_version',
+      'sha256'
+    ),
+    'hex'
+  );
+
+  IF NEW.sale_payload ? 'fiuu_configuration_sha256'
+    AND NEW.sale_payload->>'fiuu_configuration_sha256'
+      IS DISTINCT FROM v_configuration_sha256 THEN
+    RAISE EXCEPTION USING
+      ERRCODE = 'check_violation',
+      MESSAGE = 'Fiuu OPA payment configuration fingerprint is invalid';
+  END IF;
+
+  NEW.sale_payload := jsonb_set(
+    NEW.sale_payload,
+    '{fiuu_configuration_sha256}',
+    to_jsonb(v_configuration_sha256),
+    true
+  );
+
   -- Persist a database-derived, non-secret binding of the complete intent
-  -- identity. The rollout authorization itself separately compares the
-  -- application-code-only fingerprint stored on the rollout row.
+  -- identity. The binding includes the canonical full-configuration hash so
+  -- neither a credential generation nor a terminal mapping can be substituted.
+  v_rollout_binding_sha256 := encode(
+    extensions.digest(
+      'fiuu-opa-binding:v1'
+        || pg_catalog.chr(31) || NEW.organization_id::TEXT
+        || pg_catalog.chr(31) || NEW.branch_id::TEXT
+        || pg_catalog.chr(31) || NEW.sale_payload->>'fiuu_branch_code'
+        || pg_catalog.chr(31) || v_configuration_sha256,
+      'sha256'
+    ),
+    'hex'
+  );
+
+  IF NEW.sale_payload ? 'fiuu_rollout_binding_sha256'
+    AND NEW.sale_payload->>'fiuu_rollout_binding_sha256'
+      IS DISTINCT FROM v_rollout_binding_sha256 THEN
+    RAISE EXCEPTION USING
+      ERRCODE = 'check_violation',
+      MESSAGE = 'Fiuu OPA payment rollout binding is invalid';
+  END IF;
+
   NEW.sale_payload := jsonb_set(
     NEW.sale_payload,
     '{fiuu_rollout_binding_sha256}',
-    to_jsonb(encode(extensions.digest(
-      NEW.organization_id::TEXT
-        || E'\x1f' || NEW.branch_id::TEXT
-        || E'\x1f' || NEW.sale_payload->>'fiuu_branch_code'
-        || E'\x1f' || NEW.sale_payload->>'fiuu_application_code',
-      'sha256'
-    ), 'hex')),
+    to_jsonb(v_rollout_binding_sha256),
     true
   );
 
@@ -780,16 +911,40 @@ BEGIN
   FOR SHARE;
 
   IF NOT FOUND
-    OR v_branch_code IS DISTINCT FROM NEW.sale_payload->>'fiuu_branch_code'
-    OR NOT public.is_pos_fiuu_opa_branch_active(
+    OR v_branch_code IS DISTINCT FROM NEW.sale_payload->>'fiuu_branch_code' THEN
+    RAISE EXCEPTION USING
+      ERRCODE = 'check_violation',
+      MESSAGE = 'Fiuu OPA payment requires a matching canonical branch';
+  END IF;
+
+  IF v_requires_active THEN
+    IF NOT public.is_pos_fiuu_opa_branch_active(
       NEW.organization_id,
       NEW.branch_id,
       v_branch_code,
-      NEW.sale_payload->>'fiuu_application_code'
+      NEW.sale_payload->>'fiuu_environment',
+      NEW.sale_payload->>'fiuu_application_code',
+      NEW.sale_payload->>'fiuu_store_id',
+      NEW.sale_payload->>'fiuu_terminal_id',
+      NEW.sale_payload->>'fiuu_credential_version'
     ) THEN
+      RAISE EXCEPTION USING
+        ERRCODE = 'check_violation',
+        MESSAGE = 'Fiuu OPA payment requires one matching ACTIVE rollout authorization';
+    END IF;
+  ELSIF NOT public.is_pos_fiuu_opa_branch_rollout_match(
+    NEW.organization_id,
+    NEW.branch_id,
+    v_branch_code,
+    NEW.sale_payload->>'fiuu_environment',
+    NEW.sale_payload->>'fiuu_application_code',
+    NEW.sale_payload->>'fiuu_store_id',
+    NEW.sale_payload->>'fiuu_terminal_id',
+    NEW.sale_payload->>'fiuu_credential_version'
+  ) THEN
     RAISE EXCEPTION USING
       ERRCODE = 'check_violation',
-      MESSAGE = 'Fiuu OPA payment requires one matching ACTIVE rollout authorization';
+      MESSAGE = 'Fiuu OPA payment requires its matching rollout generation';
   END IF;
 
   RETURN NEW;
@@ -843,7 +998,7 @@ EXECUTE FUNCTION public.guard_pos_fiuu_opa_payment_identity();
 
 -- This migration contains no rollout INSERT or activation UPDATE. A first
 -- install therefore remains empty/fail-closed, while replay preserves existing
--- DRAFT, VERIFIED, ACTIVE and REVOKED generations.
+-- DRAFT, VERIFIED, ACTIVE, DRAINING and REVOKED generations.
 
 CREATE OR REPLACE FUNCTION public.claim_pos_fiuu_opa_inquiry(
   p_payment_id UUID,
@@ -908,11 +1063,31 @@ BEGIN
       AND payment.sale_payload->>'fiuu_branch_code'
         ~ '^BR(00[1-9]|0[12][0-9]|03[0-6])$'
       AND payment.sale_payload->>'branchId' = payment.branch_id::TEXT
-      AND public.is_pos_fiuu_opa_branch_active(
+      AND NULLIF(
+        payment.sale_payload->>'fiuu_configuration_sha256',
+        ''
+      ) IS NOT NULL
+      AND payment.sale_payload->>'fiuu_configuration_sha256' = encode(
+        extensions.digest(
+          'fiuu-opa-config:v1'
+            || pg_catalog.chr(31) || payment.sale_payload->>'fiuu_environment'
+            || pg_catalog.chr(31) || payment.sale_payload->>'fiuu_application_code'
+            || pg_catalog.chr(31) || payment.sale_payload->>'fiuu_store_id'
+            || pg_catalog.chr(31) || payment.sale_payload->>'fiuu_terminal_id'
+            || pg_catalog.chr(31) || payment.sale_payload->>'fiuu_credential_version',
+          'sha256'
+        ),
+        'hex'
+      )
+      AND public.is_pos_fiuu_opa_branch_rollout_match(
         payment.organization_id,
         payment.branch_id,
         payment.sale_payload->>'fiuu_branch_code',
-        payment.sale_payload->>'fiuu_application_code'
+        payment.sale_payload->>'fiuu_environment',
+        payment.sale_payload->>'fiuu_application_code',
+        payment.sale_payload->>'fiuu_store_id',
+        payment.sale_payload->>'fiuu_terminal_id',
+        payment.sale_payload->>'fiuu_credential_version'
       );
     RETURN NULL;
   END IF;
@@ -930,11 +1105,28 @@ BEGIN
     OR v_branch_code !~ '^BR(00[1-9]|0[12][0-9]|03[0-6])$'
     OR v_payment.sale_payload->>'fiuu_branch_code' IS DISTINCT FROM v_branch_code
     OR v_payment.sale_payload->>'branchId' IS DISTINCT FROM v_payment.branch_id::TEXT
-    OR NOT public.is_pos_fiuu_opa_branch_active(
+    OR NULLIF(v_payment.sale_payload->>'fiuu_configuration_sha256', '') IS NULL
+    OR v_payment.sale_payload->>'fiuu_configuration_sha256' IS DISTINCT FROM encode(
+      extensions.digest(
+        'fiuu-opa-config:v1'
+          || pg_catalog.chr(31) || v_payment.sale_payload->>'fiuu_environment'
+          || pg_catalog.chr(31) || v_payment.sale_payload->>'fiuu_application_code'
+          || pg_catalog.chr(31) || v_payment.sale_payload->>'fiuu_store_id'
+          || pg_catalog.chr(31) || v_payment.sale_payload->>'fiuu_terminal_id'
+          || pg_catalog.chr(31) || v_payment.sale_payload->>'fiuu_credential_version',
+        'sha256'
+      ),
+      'hex'
+    )
+    OR NOT public.is_pos_fiuu_opa_branch_rollout_match(
       v_payment.organization_id,
       v_payment.branch_id,
       v_branch_code,
-      v_payment.sale_payload->>'fiuu_application_code'
+      v_payment.sale_payload->>'fiuu_environment',
+      v_payment.sale_payload->>'fiuu_application_code',
+      v_payment.sale_payload->>'fiuu_store_id',
+      v_payment.sale_payload->>'fiuu_terminal_id',
+      v_payment.sale_payload->>'fiuu_credential_version'
     ) THEN
     RETURN NULL;
   END IF;
@@ -943,6 +1135,7 @@ BEGIN
     OR NULLIF(v_payment.sale_payload->>'fiuu_application_code', '') IS NULL
     OR NULLIF(v_payment.sale_payload->>'fiuu_store_id', '') IS NULL
     OR NULLIF(v_payment.sale_payload->>'fiuu_terminal_id', '') IS NULL
+    OR NULLIF(v_payment.sale_payload->>'fiuu_credential_version', '') IS NULL
     OR v_shift_status IS DISTINCT FROM 'OPEN'
     OR v_payment.expires_at IS NULL THEN
     UPDATE public.pos_online_payments
@@ -1130,11 +1323,28 @@ BEGIN
     OR v_branch_code !~ '^BR(00[1-9]|0[12][0-9]|03[0-6])$'
     OR v_payment.sale_payload->>'fiuu_branch_code' IS DISTINCT FROM v_branch_code
     OR v_payment.sale_payload->>'branchId' IS DISTINCT FROM v_payment.branch_id::TEXT
+    OR NULLIF(v_payment.sale_payload->>'fiuu_configuration_sha256', '') IS NULL
+    OR v_payment.sale_payload->>'fiuu_configuration_sha256' IS DISTINCT FROM encode(
+      extensions.digest(
+        'fiuu-opa-config:v1'
+          || pg_catalog.chr(31) || v_payment.sale_payload->>'fiuu_environment'
+          || pg_catalog.chr(31) || v_payment.sale_payload->>'fiuu_application_code'
+          || pg_catalog.chr(31) || v_payment.sale_payload->>'fiuu_store_id'
+          || pg_catalog.chr(31) || v_payment.sale_payload->>'fiuu_terminal_id'
+          || pg_catalog.chr(31) || v_payment.sale_payload->>'fiuu_credential_version',
+        'sha256'
+      ),
+      'hex'
+    )
     OR NOT public.is_pos_fiuu_opa_branch_rollout_match(
       v_payment.organization_id,
       v_payment.branch_id,
       v_branch_code,
-      v_payment.sale_payload->>'fiuu_application_code'
+      v_payment.sale_payload->>'fiuu_environment',
+      v_payment.sale_payload->>'fiuu_application_code',
+      v_payment.sale_payload->>'fiuu_store_id',
+      v_payment.sale_payload->>'fiuu_terminal_id',
+      v_payment.sale_payload->>'fiuu_credential_version'
     ) THEN
     RAISE EXCEPTION 'Fiuu OPA payment not eligible for inquiry completion';
   END IF;
@@ -1153,13 +1363,17 @@ BEGIN
   END IF;
 
   IF v_payment.status NOT IN ('REPORTED', 'PAID')
-    AND NOT public.is_pos_fiuu_opa_branch_active(
+    AND NOT public.is_pos_fiuu_opa_branch_rollout_match(
       v_payment.organization_id,
       v_payment.branch_id,
       v_branch_code,
-      v_payment.sale_payload->>'fiuu_application_code'
+      v_payment.sale_payload->>'fiuu_environment',
+      v_payment.sale_payload->>'fiuu_application_code',
+      v_payment.sale_payload->>'fiuu_store_id',
+      v_payment.sale_payload->>'fiuu_terminal_id',
+      v_payment.sale_payload->>'fiuu_credential_version'
     ) THEN
-    RAISE EXCEPTION 'Fiuu OPA rollout is not active for inquiry completion';
+    RAISE EXCEPTION 'Fiuu OPA rollout generation does not match inquiry completion';
   END IF;
 
   IF v_payment.status IN ('REPORTED', 'PAID') AND p_outcome <> 'SUCCEEDED' THEN
@@ -1356,11 +1570,28 @@ BEGIN
     OR v_branch_code !~ '^BR(00[1-9]|0[12][0-9]|03[0-6])$'
     OR v_payment.sale_payload->>'fiuu_branch_code' IS DISTINCT FROM v_branch_code
     OR v_payment.sale_payload->>'branchId' IS DISTINCT FROM v_payment.branch_id::TEXT
+    OR NULLIF(v_payment.sale_payload->>'fiuu_configuration_sha256', '') IS NULL
+    OR v_payment.sale_payload->>'fiuu_configuration_sha256' IS DISTINCT FROM encode(
+      extensions.digest(
+        'fiuu-opa-config:v1'
+          || pg_catalog.chr(31) || v_payment.sale_payload->>'fiuu_environment'
+          || pg_catalog.chr(31) || v_payment.sale_payload->>'fiuu_application_code'
+          || pg_catalog.chr(31) || v_payment.sale_payload->>'fiuu_store_id'
+          || pg_catalog.chr(31) || v_payment.sale_payload->>'fiuu_terminal_id'
+          || pg_catalog.chr(31) || v_payment.sale_payload->>'fiuu_credential_version',
+        'sha256'
+      ),
+      'hex'
+    )
     OR NOT public.is_pos_fiuu_opa_branch_rollout_match(
       v_payment.organization_id,
       v_payment.branch_id,
       v_branch_code,
-      v_payment.sale_payload->>'fiuu_application_code'
+      v_payment.sale_payload->>'fiuu_environment',
+      v_payment.sale_payload->>'fiuu_application_code',
+      v_payment.sale_payload->>'fiuu_store_id',
+      v_payment.sale_payload->>'fiuu_terminal_id',
+      v_payment.sale_payload->>'fiuu_credential_version'
     ) THEN
     RAISE EXCEPTION 'Fiuu POS payment not found';
   END IF;
@@ -1429,7 +1660,7 @@ BEGIN
 
   -- Existing PAID/REPORTED results remain replayable after a safe rollout
   -- revocation, but only when the durable result exactly matches the newly
-  -- validated signed response. ACTIVE is checked only for a new transition.
+  -- validated signed response. The original rollout generation must still match.
   IF v_payment.status IN ('PAID', 'REPORTED') THEN
     IF v_payment.provider_transaction_id IS DISTINCT FROM v_gateway_ref
       OR v_payment.provider_sale_reported_at IS NULL
@@ -1480,13 +1711,17 @@ BEGIN
     RAISE EXCEPTION 'Fiuu POS payment cannot accept a success report';
   END IF;
 
-  IF NOT public.is_pos_fiuu_opa_branch_active(
+  IF NOT public.is_pos_fiuu_opa_branch_rollout_match(
     v_payment.organization_id,
     v_payment.branch_id,
     v_branch_code,
-    v_payment.sale_payload->>'fiuu_application_code'
+    v_payment.sale_payload->>'fiuu_environment',
+    v_payment.sale_payload->>'fiuu_application_code',
+    v_payment.sale_payload->>'fiuu_store_id',
+    v_payment.sale_payload->>'fiuu_terminal_id',
+    v_payment.sale_payload->>'fiuu_credential_version'
   ) THEN
-    RAISE EXCEPTION 'Fiuu OPA rollout is not active for a new success report';
+    RAISE EXCEPTION 'Fiuu OPA rollout generation does not match a success report';
   END IF;
 
   IF v_shift_status IS DISTINCT FROM 'OPEN' THEN
@@ -1608,11 +1843,28 @@ BEGIN
     OR v_branch_code !~ '^BR(00[1-9]|0[12][0-9]|03[0-6])$'
     OR v_payment.sale_payload->>'fiuu_branch_code' IS DISTINCT FROM v_branch_code
     OR v_payment.sale_payload->>'branchId' IS DISTINCT FROM v_payment.branch_id::TEXT
+    OR NULLIF(v_payment.sale_payload->>'fiuu_configuration_sha256', '') IS NULL
+    OR v_payment.sale_payload->>'fiuu_configuration_sha256' IS DISTINCT FROM encode(
+      extensions.digest(
+        'fiuu-opa-config:v1'
+          || pg_catalog.chr(31) || v_payment.sale_payload->>'fiuu_environment'
+          || pg_catalog.chr(31) || v_payment.sale_payload->>'fiuu_application_code'
+          || pg_catalog.chr(31) || v_payment.sale_payload->>'fiuu_store_id'
+          || pg_catalog.chr(31) || v_payment.sale_payload->>'fiuu_terminal_id'
+          || pg_catalog.chr(31) || v_payment.sale_payload->>'fiuu_credential_version',
+        'sha256'
+      ),
+      'hex'
+    )
     OR NOT public.is_pos_fiuu_opa_branch_rollout_match(
       v_payment.organization_id,
       v_payment.branch_id,
       v_branch_code,
-      v_payment.sale_payload->>'fiuu_application_code'
+      v_payment.sale_payload->>'fiuu_environment',
+      v_payment.sale_payload->>'fiuu_application_code',
+      v_payment.sale_payload->>'fiuu_store_id',
+      v_payment.sale_payload->>'fiuu_terminal_id',
+      v_payment.sale_payload->>'fiuu_credential_version'
     ) THEN
     RAISE EXCEPTION 'Fiuu POS payment not found';
   END IF;
@@ -1665,13 +1917,17 @@ BEGIN
     RAISE EXCEPTION 'Fiuu POS payment has no durable fulfillment result';
   END IF;
 
-  IF NOT public.is_pos_fiuu_opa_branch_active(
+  IF NOT public.is_pos_fiuu_opa_branch_rollout_match(
     v_payment.organization_id,
     v_payment.branch_id,
     v_branch_code,
-    v_payment.sale_payload->>'fiuu_application_code'
+    v_payment.sale_payload->>'fiuu_environment',
+    v_payment.sale_payload->>'fiuu_application_code',
+    v_payment.sale_payload->>'fiuu_store_id',
+    v_payment.sale_payload->>'fiuu_terminal_id',
+    v_payment.sale_payload->>'fiuu_credential_version'
   ) THEN
-    RAISE EXCEPTION 'Fiuu OPA branch rollout is not active';
+    RAISE EXCEPTION 'Fiuu OPA rollout generation does not match fulfillment';
   END IF;
 
   -- No new receipt or stock mutation may start unless the matching shift is
@@ -1815,8 +2071,8 @@ GRANT EXECUTE ON FUNCTION public.fulfill_pos_fiuu_payment(
   UUID, TEXT, NUMERIC, TEXT, TEXT
 ) TO service_role;
 
--- This wrapper remains atomic: the ACTIVE-branch authorization in
--- report_pos_fiuu_payment runs before signed evidence can be persisted.
+-- This wrapper remains atomic: the matching rollout-generation authorization
+-- in report_pos_fiuu_payment runs before signed evidence can be persisted.
 CREATE OR REPLACE FUNCTION public.report_pos_fiuu_payment_with_evidence(
   p_payment_id UUID,
   p_gateway_ref TEXT,
@@ -1953,11 +2209,28 @@ BEGIN
     OR v_branch_code !~ '^BR(00[1-9]|0[12][0-9]|03[0-6])$'
     OR v_payment.sale_payload->>'fiuu_branch_code' IS DISTINCT FROM v_branch_code
     OR v_payment.sale_payload->>'branchId' IS DISTINCT FROM v_payment.branch_id::TEXT
+    OR NULLIF(v_payment.sale_payload->>'fiuu_configuration_sha256', '') IS NULL
+    OR v_payment.sale_payload->>'fiuu_configuration_sha256' IS DISTINCT FROM encode(
+      extensions.digest(
+        'fiuu-opa-config:v1'
+          || pg_catalog.chr(31) || v_payment.sale_payload->>'fiuu_environment'
+          || pg_catalog.chr(31) || v_payment.sale_payload->>'fiuu_application_code'
+          || pg_catalog.chr(31) || v_payment.sale_payload->>'fiuu_store_id'
+          || pg_catalog.chr(31) || v_payment.sale_payload->>'fiuu_terminal_id'
+          || pg_catalog.chr(31) || v_payment.sale_payload->>'fiuu_credential_version',
+        'sha256'
+      ),
+      'hex'
+    )
     OR NOT public.is_pos_fiuu_opa_branch_rollout_match(
       v_payment.organization_id,
       v_payment.branch_id,
       v_branch_code,
-      v_payment.sale_payload->>'fiuu_application_code'
+      v_payment.sale_payload->>'fiuu_environment',
+      v_payment.sale_payload->>'fiuu_application_code',
+      v_payment.sale_payload->>'fiuu_store_id',
+      v_payment.sale_payload->>'fiuu_terminal_id',
+      v_payment.sale_payload->>'fiuu_credential_version'
     ) THEN
     RAISE EXCEPTION 'Fiuu OPA payment not eligible for inquiry success';
   END IF;
@@ -1994,13 +2267,17 @@ BEGIN
   END IF;
 
   IF v_payment.status NOT IN ('REPORTED', 'PAID')
-    AND NOT public.is_pos_fiuu_opa_branch_active(
+    AND NOT public.is_pos_fiuu_opa_branch_rollout_match(
       v_payment.organization_id,
       v_payment.branch_id,
       v_branch_code,
-      v_payment.sale_payload->>'fiuu_application_code'
+      v_payment.sale_payload->>'fiuu_environment',
+      v_payment.sale_payload->>'fiuu_application_code',
+      v_payment.sale_payload->>'fiuu_store_id',
+      v_payment.sale_payload->>'fiuu_terminal_id',
+      v_payment.sale_payload->>'fiuu_credential_version'
     ) THEN
-    RAISE EXCEPTION 'Fiuu OPA branch rollout is not active';
+    RAISE EXCEPTION 'Fiuu OPA rollout generation does not match inquiry success';
   END IF;
 
   IF NULLIF(v_payment.gateway_ref, '') IS NULL THEN
@@ -2217,3 +2494,99 @@ BEGIN
   END IF;
 END;
 $$;
+
+-- Runtime health checks must fail closed unless the complete rollout-control
+-- boundary is present. This RPC deliberately checks exact function signatures
+-- and trigger attachments instead of treating a table-only probe as readiness.
+CREATE OR REPLACE FUNCTION public.is_pos_fiuu_opa_rollout_control_ready()
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+  SELECT
+    EXISTS (
+      SELECT 1
+      FROM pg_catalog.pg_class AS relation
+      JOIN pg_catalog.pg_namespace AS relation_schema
+        ON relation_schema.oid = relation.relnamespace
+      WHERE relation_schema.nspname = 'public'
+        AND relation.relname = 'pos_fiuu_opa_branch_rollouts'
+        AND relation.relkind IN ('r', 'p')
+        AND relation.oid = pg_catalog.to_regclass(
+          'public.pos_fiuu_opa_branch_rollouts'
+        )
+    )
+    AND pg_catalog.to_regprocedure(
+      'public.is_pos_fiuu_opa_branch_active(uuid,uuid,text,text,text,text,text,text)'
+    ) IS NOT NULL
+    AND pg_catalog.to_regprocedure(
+      'public.is_pos_fiuu_opa_branch_rollout_match(uuid,uuid,text,text,text,text,text,text)'
+    ) IS NOT NULL
+    AND (
+      SELECT count(*) = 1
+      FROM pg_catalog.pg_trigger AS trigger_row
+      WHERE trigger_row.tgname = 'guard_pos_fiuu_opa_branch_rollout'
+        AND NOT trigger_row.tgisinternal
+        AND trigger_row.tgenabled IN ('O', 'A')
+        AND trigger_row.tgrelid = pg_catalog.to_regclass(
+          'public.pos_fiuu_opa_branch_rollouts'
+        )
+        AND trigger_row.tgfoid = pg_catalog.to_regprocedure(
+          'public.guard_pos_fiuu_opa_branch_rollout()'
+        )
+        AND trigger_row.tgtype = 23
+        AND trigger_row.tgattr::TEXT = ''
+    )
+    AND (
+      SELECT count(*) = 1
+      FROM pg_catalog.pg_trigger AS trigger_row
+      WHERE trigger_row.tgname = 'guard_pos_fiuu_opa_payment_identity'
+        AND NOT trigger_row.tgisinternal
+        AND trigger_row.tgenabled IN ('O', 'A')
+        AND trigger_row.tgrelid = pg_catalog.to_regclass(
+          'public.pos_online_payments'
+        )
+        AND trigger_row.tgfoid = pg_catalog.to_regprocedure(
+          'public.guard_pos_fiuu_opa_payment_identity()'
+        )
+        AND trigger_row.tgtype = 23
+        AND (
+          SELECT array_agg(column_row.attname::TEXT ORDER BY column_row.attname)
+          FROM unnest(
+            string_to_array(NULLIF(trigger_row.tgattr::TEXT, ''), ' ')::SMALLINT[]
+          ) AS trigger_column(attnum)
+          JOIN pg_catalog.pg_attribute AS column_row
+            ON column_row.attrelid = trigger_row.tgrelid
+           AND column_row.attnum = trigger_column.attnum
+        ) = ARRAY['branch_id', 'organization_id', 'provider', 'sale_payload']::TEXT[]
+    )
+    AND (
+      SELECT count(*) = 1
+      FROM pg_catalog.pg_trigger AS trigger_row
+      WHERE trigger_row.tgname = 'guard_pos_shift_close_pending_payments'
+        AND NOT trigger_row.tgisinternal
+        AND trigger_row.tgenabled IN ('O', 'A')
+        AND trigger_row.tgrelid = pg_catalog.to_regclass('public.pos_shifts')
+        AND trigger_row.tgfoid = pg_catalog.to_regprocedure(
+          'public.guard_pos_shift_close_pending_payments()'
+        )
+        AND trigger_row.tgtype = 19
+        AND trigger_row.tgattr::TEXT = (
+          SELECT status_column.attnum::TEXT
+          FROM pg_catalog.pg_attribute AS status_column
+          WHERE status_column.attrelid = trigger_row.tgrelid
+            AND status_column.attname = 'status'
+            AND NOT status_column.attisdropped
+        )
+    );
+$$;
+
+REVOKE ALL ON FUNCTION public.is_pos_fiuu_opa_rollout_control_ready()
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.is_pos_fiuu_opa_rollout_control_ready()
+  TO service_role;
+
+COMMENT ON FUNCTION public.is_pos_fiuu_opa_rollout_control_ready() IS
+  'Fail-closed readiness probe for the Fiuu OPA rollout table, generation gates and required enabled triggers.';

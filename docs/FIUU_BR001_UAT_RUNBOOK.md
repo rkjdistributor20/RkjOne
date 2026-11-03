@@ -5,9 +5,10 @@ Last updated: 2026-11-03
 ## Decision and authority
 
 The current BR001 UAT target is signed **Fiuu OPA Dynamic DuitNow QR**, which is
-also the preferred architecture for wider rollout. Its tenant-bound mapping of
-`organizationId`, `branchId`, Application Code, Secret Key, Store ID and
-Terminal ID still has not been securely provisioned. The official **Fiuu
+also the preferred architecture for wider rollout. Its tenant-bound seven-field
+mapping of `organizationId`, `branchId`, Application Code, Secret Key, Store ID,
+Terminal ID and non-secret `credentialVersion` still has not been securely
+provisioned. The official **Fiuu
 VT App-to-App** application is installed and
 opens on the physical Samsung `SM-X406B`, but the completed VT payment did not
 return a native `STATUS=00`; it therefore remains a BR001-only fallback rather
@@ -152,14 +153,17 @@ through approved internal/provider channels:
 - OPA Application Code;
 - OPA Secret Key;
 - Store ID;
-- Terminal ID; and
+- Terminal ID;
+- a non-secret `credentialVersion` label for this exact credential generation;
+  and
 - confirmation that DuitNow QR channel `24` is active for the same application/store.
 
 One Application Code is treated as one store. Every environment requires an
-explicit tenant-bound branch mapping containing all six values; RKJ One will
+explicit tenant-bound branch mapping containing all seven values; RKJ One will
 not infer organization, branch, Store ID or Terminal ID. The two internal IDs
 must be valid UUIDs. Store ID and Terminal ID must each be 4–20 permitted
-characters.
+characters. `credentialVersion` is a required non-secret 1–32 character label
+using only letters, numbers, `.`, `_` or `-`.
 
 The server-only mapping shape is:
 
@@ -171,10 +175,15 @@ The server-only mapping shape is:
     "applicationCode": "provider-issued-code",
     "secretKey": "provider-issued-secret",
     "storeId": "provider-approved-store-id",
-    "terminalId": "provider-approved-terminal-id"
+    "terminalId": "provider-approved-terminal-id",
+    "credentialVersion": "v1"
   }
 }
 ```
+
+The rollout configuration fingerprint binds the exact `environment`,
+`applicationCode`, `storeId`, `terminalId` and `credentialVersion`. The Secret
+Key is never hashed into that fingerprint or stored in the rollout registry.
 
 Never commit the real mapping. Enter it directly into the intended Vercel
 environment as `POS_FIUU_APPLICATIONS_JSON`. Do not paste it into chat. The
@@ -213,8 +222,11 @@ POST https://<preview-host>/api/internal/pos/fiuu-opa/reconcile
 Authorization: Bearer <server-only reconciliation secret>
 ```
 
-No Production schedule is included in this change. In Preview, invoke the
-endpoint only after the BR001 QR expiry plus ten seconds. One authenticated
+No Production schedule is included in this change. A configured flag and
+secret do not prove that a scheduler is running. Before UAT, retain redacted
+evidence of an observed scheduler invocation, authenticated worker response,
+bounded retry result and monitoring/alert path. In Preview, invoke the endpoint
+only after the BR001 QR expiry plus ten seconds. One authenticated
 invocation handles one BR001 payment and, while the provider keeps returning a
 signed pending status, performs at most six inquiries at +10, +20, +30, +40,
 +50 and +60 seconds. It never performs a seventh inquiry or an automatic
@@ -223,12 +235,20 @@ plan must support that duration before UAT.
 
 `POS_QR_PAYMENT_MODE=fiuu` alone does not expose dynamic QR. The server also
 requires an explicit canonical `BR001`-`BR036` allowlist, a complete per-branch
-provider mapping and a matching `ACTIVE` database rollout record for the same
-organization, branch and Application Code fingerprint. Empty, wildcard,
-malformed, unmapped or inactive entries fail closed. For this UAT the allowlist
-and database rollout scope must contain **BR001 only**. The official DuitNow
+seven-field provider mapping and a positive
+`is_pos_fiuu_opa_branch_active` result for the same organization, branch and
+full rollout configuration fingerprint. This explicit database RPC gate runs
+before payment insertion/provider contact and before `/api/pos/qr-config`
+advertises dynamic QR. Missing/error/false results and non-`ACTIVE` records fail
+closed. For this UAT the allowlist and database rollout scope must contain
+**BR001 only**. The official DuitNow
 pre-create validity range is 60–180 seconds. RKJ One defaults to 180 and
 rejects/falls back from values outside that range.
+
+Rollout lifecycle is `DRAFT -> VERIFIED -> ACTIVE -> DRAINING -> REVOKED`.
+Only `ACTIVE` creates new intents. `DRAINING` blocks new intents but permits
+already-issued intents to receive signed callbacks, reconcile and fulfil.
+`DRAINING -> REVOKED` is permitted only after no unresolved intent remains.
 
 Configure the Fiuu real-time notification endpoint for the intended Preview host:
 
@@ -243,13 +263,18 @@ Do not point Fiuu at Production while testing Preview. Keep the webhook availabl
 Complete these checks before generating any payable QR:
 
 1. Confirm the deployment uses the intended non-Production database and Production remains `manual`.
-2. Confirm the secure mapping contains `BR001` only and includes the exact RKJ One `organizationId`, BR001 `branchId`, Application Code, Secret Key, Store ID and Terminal ID.
+2. Confirm the secure mapping contains `BR001` only and includes the exact RKJ One `organizationId`, BR001 `branchId`, Application Code, Secret Key, Store ID, Terminal ID and non-secret `credentialVersion`.
 3. Confirm the OPA environment and pre-create host match; no custom or sandbox host is accepted in Production.
 4. Confirm channel ID is exactly `24`, currency is `MYR`, and QR validity is 60–180 seconds.
 5. Confirm the notification URL is configured for the same Preview deployment.
-6. Exercise HMAC verification, invalid-signature rejection, host allowlisting and idempotency using fixtures.
-7. Confirm the official BR001 device, authenticated staff, active UAT shift and opening stock are ready.
-8. Confirm Finance is available to inspect the provider portal and later settlement.
+6. Confirm `is_pos_fiuu_opa_rollout_control_ready()` returns `true`, then verify
+   the exact BR001 configuration returns `true` from
+   `is_pos_fiuu_opa_branch_active`.
+7. Confirm an observed scheduler run successfully reached the authenticated
+   recovery worker; environment configuration alone is insufficient.
+8. Exercise HMAC verification, invalid-signature rejection, host allowlisting and idempotency using fixtures.
+9. Confirm the official BR001 device, authenticated staff, active UAT shift and opening stock are ready.
+10. Confirm Finance is available to inspect the provider portal and later settlement.
 
 Save only redacted evidence: timestamp, deployment, commit, non-secret branch/store labels and pass/fail result.
 
@@ -317,7 +342,8 @@ A BR001 Production package must identify the reviewed commit, migration list, in
 The package must include migrations
 `20261026133000_add_fiuu_opa_inquiry_recovery.sql` and
 `20261103120000_fiuu_opa_branch_rollout.sql`, a server-only recovery secret,
-and an approved scheduler/monitoring method. Applying either migration, adding
+and an approved scheduler/monitoring method with observed operational proof.
+Applying either migration, adding
 the secret, enabling a schedule, provisioning a rollout row or changing the
 payment mode are separate Production actions that require fresh confirmation
 at the moment of execution.
@@ -326,14 +352,17 @@ Request fresh owner confirmation immediately before any Production migration, en
 
 Rollback procedure:
 
-1. Stop creating new dynamic QR intents.
+1. With fresh action-time approval, move the exact BR001 rollout from `ACTIVE`
+   to `DRAINING`; this stops new intents while preserving recovery.
 2. Inventory unresolved payments and provider references.
 3. With action-time approval, set Production back to `POS_QR_PAYMENT_MODE=manual`.
-4. Keep the branch allowlist, server-only provider mappings and callback
+4. Keep the branch allowlist, server-only seven-field provider mapping and callback
    reconciliation available until every already-issued intent and settlement
    check has cleared; removing them early would disable safe recovery.
 5. Preserve payment, receipt, stock, audit and settlement evidence.
 6. Reconcile or refund through the documented provider process; never fabricate a local failure.
+7. Only after the unresolved queue is empty, and with fresh approval for that
+   Production action, transition `DRAINING -> REVOKED`.
 
 ## cloudECR/VT+ fallback gate
 

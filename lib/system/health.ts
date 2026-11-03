@@ -117,6 +117,7 @@ function envReady(names: string[]) {
 const FIUU_BRANCH_CODE_PATTERN = /^BR(?:00[1-9]|0[12]\d|03[0-6])$/;
 const FIUU_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const FIUU_IDENTIFIER_PATTERN = /^[A-Za-z0-9_-]{4,20}$/;
+const FIUU_CREDENTIAL_VERSION_PATTERN = /^[A-Za-z0-9._-]{1,32}$/;
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -158,6 +159,9 @@ export function hasCompleteFiuuApplicationsConfig(raw: string | undefined): bool
       const terminalId = typeof value.terminalId === "string"
         ? value.terminalId.trim()
         : "";
+      const credentialVersion = typeof value.credentialVersion === "string"
+        ? value.credentialVersion
+        : "";
 
       return FIUU_UUID_PATTERN.test(organizationId)
         && FIUU_UUID_PATTERN.test(branchId)
@@ -165,7 +169,8 @@ export function hasCompleteFiuuApplicationsConfig(raw: string | undefined): bool
         && applicationCode.length <= 32
         && secretKey.length > 0
         && FIUU_IDENTIFIER_PATTERN.test(storeId)
-        && FIUU_IDENTIFIER_PATTERN.test(terminalId);
+        && FIUU_IDENTIFIER_PATTERN.test(terminalId)
+        && FIUU_CREDENTIAL_VERSION_PATTERN.test(credentialVersion);
     });
   } catch {
     return false;
@@ -232,22 +237,46 @@ async function loadAccessReadiness(supabase: DbClient) {
   };
 }
 
-async function hasFiuuDatabaseSchema(supabase: DbClient) {
-  const checks = await Promise.all([
-    supabase
-      .from("pos_online_payments")
-      .select(
-        "expires_at, provider_order_id, provider_result, provider_status_checked_at, provider_reconcile_reference_id, provider_reconcile_claimed_at, provider_sale_reported_at, provider_transaction_id, fiuu_opa_reconcile_state, fiuu_opa_reconcile_attempt_count, fiuu_opa_reconcile_next_at, fiuu_opa_reconcile_claim_token, fiuu_opa_reconcile_lease_expires_at",
-        { count: "exact", head: true },
-      ),
-    supabase
-      .from("pos_fiuu_opa_reconciliation_attempts")
-      .select("id", { count: "exact", head: true }),
-    supabase
-      .from("pos_fiuu_opa_signed_evidence")
-      .select("id", { count: "exact", head: true }),
-  ]);
-  return checks.every(({ error }) => !error);
+export async function hasFiuuDatabaseSchema(supabase: DbClient) {
+  const probe = supabase as unknown as {
+    from: (table: string) => {
+      select: (
+        columns: string,
+        options: { count: "exact"; head: true },
+      ) => PromiseLike<{ error: unknown }>;
+    };
+    rpc: (
+      functionName: "is_pos_fiuu_opa_rollout_control_ready",
+    ) => PromiseLike<{ data: unknown; error: unknown }>;
+  };
+
+  try {
+    const checks = await Promise.all([
+      probe
+        .from("pos_online_payments")
+        .select(
+          "expires_at, provider_order_id, provider_result, provider_status_checked_at, provider_reconcile_reference_id, provider_reconcile_claimed_at, provider_sale_reported_at, provider_transaction_id, fiuu_opa_reconcile_state, fiuu_opa_reconcile_attempt_count, fiuu_opa_reconcile_next_at, fiuu_opa_reconcile_claim_token, fiuu_opa_reconcile_lease_expires_at",
+          { count: "exact", head: true },
+        ),
+      probe
+        .from("pos_fiuu_opa_reconciliation_attempts")
+        .select("id", { count: "exact", head: true }),
+      probe
+        .from("pos_fiuu_opa_signed_evidence")
+        .select("id", { count: "exact", head: true }),
+      probe
+        .from("pos_fiuu_opa_branch_rollouts")
+        .select("organization_id", { count: "exact", head: true }),
+    ]);
+    if (!checks.every(({ error }) => !error)) return false;
+
+    const { data, error } = await probe.rpc(
+      "is_pos_fiuu_opa_rollout_control_ready",
+    );
+    return !error && data === true;
+  } catch {
+    return false;
+  }
 }
 
 function launchItem(
@@ -272,10 +301,11 @@ function launchItem(
   };
 }
 
-function buildLaunchControl(input: {
+export function buildLaunchControl(input: {
   hasSupabaseEnv: boolean;
   hasFiuuCredentials: boolean;
-  hasFiuuRecoveryWorker: boolean;
+  hasFiuuRecoveryWorkerConfig: boolean;
+  hasFiuuRecoveryOperationalGate: boolean;
   hasFiuuVtPilot: boolean;
   hasFiuuCloudEcrPilot: boolean;
   hasFiuuSchema: boolean;
@@ -300,7 +330,8 @@ function buildLaunchControl(input: {
   const hasCompletedFirstLogin = input.activeProfilesNeverSignedIn === 0;
   const hasFiuuRuntime = ((input.posQrPaymentMode === "fiuu"
     && input.hasFiuuCredentials
-    && input.hasFiuuRecoveryWorker) ||
+    && input.hasFiuuRecoveryWorkerConfig
+    && input.hasFiuuRecoveryOperationalGate) ||
     (input.posQrPaymentMode === "fiuu_vt" && input.hasFiuuVtPilot) ||
     (input.posQrPaymentMode === "fiuu_cloudecr" && input.hasFiuuCloudEcrPilot)) &&
     input.hasFiuuSchema;
@@ -333,7 +364,11 @@ function buildLaunchControl(input: {
       hasFiuuRuntime ? "ACTION" : "WAITING",
       hasFiuuRuntime
         ? "Konfigurasi payment ditemui, tetapi transaksi live masih perlu diuji dengan callback/webhook dan settlement company account."
-        : "Payment Fiuu belum dibuka untuk operasi real sehingga skema, mod dan kredensial OPA lengkap.",
+        : input.posQrPaymentMode === "fiuu"
+          && input.hasFiuuRecoveryWorkerConfig
+          && !input.hasFiuuRecoveryOperationalGate
+          ? "Konfigurasi worker pemulihan OPA ditemui, tetapi tiada bukti scheduler atau operational gate sedang berjalan."
+          : "Payment Fiuu belum dibuka untuk operasi real sehingga skema, mod dan kredensial OPA lengkap.",
       hasFiuuRuntime
         ? "Buat transaksi kecil, semak webhook, resit, laporan collection dan bank settlement."
         : "Kekalkan QR manual; lengkapkan migrasi dan kredensial OPA melalui environment server-only.",
@@ -417,9 +452,13 @@ export async function buildSystemHealthSnapshot(
     process.env.POS_FIUU_APPLICATIONS_JSON,
   );
   const fiuuRecoverySecret = (process.env.FIUU_RECONCILIATION_SECRET ?? "").trim();
-  const hasFiuuRecoveryWorker =
+  const hasFiuuRecoveryWorkerConfig =
     process.env.FIUU_RECONCILIATION_ENABLED?.trim().toLowerCase() === "true"
     && fiuuRecoverySecret.length >= 32;
+  // Enable flag + secret only proves that the worker endpoint is configured.
+  // Keep launch readiness fail-closed until a scheduler heartbeat or equivalent
+  // operational gate can be verified independently.
+  const hasFiuuRecoveryOperationalGate = false;
   const hasFiuuVtPilot = Boolean(process.env.POS_FIUU_VT_BRANCHES?.trim());
   const fiuuCloudEcrBaseUrl = process.env.POS_FIUU_CLOUDECR_BASE_URL?.trim()
     .replace(/\/$/, "");
@@ -447,7 +486,7 @@ export async function buildSystemHealthSnapshot(
     posPilotPassed: false,
     monitoringVerified: false,
     hasFiuuCredentials,
-    hasFiuuRecoveryWorker,
+    hasFiuuRecoveryWorker: hasFiuuRecoveryOperationalGate,
     hasFiuuVtPilot,
     hasFiuuCloudEcrPilot,
     hasFiuuSchema,
@@ -468,7 +507,8 @@ export async function buildSystemHealthSnapshot(
   const launchControl = buildLaunchControl({
     hasSupabaseEnv,
     hasFiuuCredentials,
-    hasFiuuRecoveryWorker,
+    hasFiuuRecoveryWorkerConfig,
+    hasFiuuRecoveryOperationalGate,
     hasFiuuVtPilot,
     hasFiuuCloudEcrPilot,
     hasFiuuSchema,
@@ -646,7 +686,7 @@ export async function buildSystemHealthSnapshot(
           "payment-env",
           "Kesiapan Fiuu live",
           "WARN",
-          `Mod QR POS ${posQrPaymentMode}; pemetaan OPA enam medan ${hasFiuuCredentials ? "lengkap" : "belum lengkap"}; worker pemulihan OPA ${hasFiuuRecoveryWorker ? "dikonfigurasi" : "belum lengkap"}; pilot VT ${hasFiuuVtPilot ? "dikonfigurasi" : "tidak aktif"}; pilot VT+ cloudECR ${hasFiuuCloudEcrPilot ? "dikonfigurasi" : "tidak aktif"}; skema Fiuu ${hasFiuuSchema ? "tersedia" : "belum tersedia"}; UAT transaksi live belum direkodkan.`,
+          `Mod QR POS ${posQrPaymentMode}; pemetaan OPA tujuh medan ${hasFiuuCredentials ? "lengkap" : "belum lengkap"}; konfigurasi worker pemulihan OPA ${hasFiuuRecoveryWorkerConfig ? "lengkap" : "belum lengkap"}; scheduler/operational gate ${hasFiuuRecoveryOperationalGate ? "disahkan" : "belum dibuktikan"}; skema dan kawalan rollout Fiuu ${hasFiuuSchema ? "tersedia" : "belum tersedia"}; pilot VT ${hasFiuuVtPilot ? "dikonfigurasi" : "tidak aktif"}; pilot VT+ cloudECR ${hasFiuuCloudEcrPilot ? "dikonfigurasi" : "tidak aktif"}; UAT transaksi live belum direkodkan.`,
           "Kekalkan QR statik/manual di luar pilot sehingga migrasi, bukti provider dan settlement disahkan.",
         ),
       ],

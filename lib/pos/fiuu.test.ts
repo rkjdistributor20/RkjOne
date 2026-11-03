@@ -5,6 +5,7 @@ import {
  FIUU_CALLBACK_GRACE_MS,
  getFiuuEnvironment,
  getFiuuOpaConfig,
+ getFiuuOpaConfigurationFingerprint,
  getPosQrPaymentMode,
   isFiuuOpaApplicationUnavailable,
  isFiuuOpaDefinitiveRejection,
@@ -32,6 +33,7 @@ function opaEntry(overrides: Record<string, string> = {}) {
   secretKey: 'secret-001',
   storeId: 'STORE001',
   terminalId: 'TERM001',
+  credentialVersion: 'cred-v1',
   ...overrides,
  };
 }
@@ -142,6 +144,7 @@ describe('Fiuu pre-create outcome classification', () => {
   secretKey: 'test-secret',
   storeId: 'STORE001',
   terminalId: 'TERM001',
+  credentialVersion: 'cred-v1',
   channelId: '24' as const,
   environment: 'sandbox' as const,
   precreateUrl: 'https://sandbox-payment.fiuu.com/RMS/API/MOLOPA/precreate.php',
@@ -242,11 +245,55 @@ describe('Fiuu configuration safety', () => {
    secretKey: 'secret-001',
    storeId: 'STORE001',
    terminalId: 'TERM001',
+   credentialVersion: 'cred-v1',
    channelId: '24',
    environment: 'sandbox',
   });
   expect(config?.precreateUrl).toContain('sandbox-payment.fiuu.com');
   expect(config?.validitySeconds).toBe(180);
+ });
+
+ it('requires and validates a non-secret credential generation', () => {
+  process.env.POS_QR_PAYMENT_MODE = 'fiuu';
+  process.env.POS_FIUU_ENVIRONMENT = 'sandbox';
+  process.env.POS_FIUU_APPLICATIONS_JSON = JSON.stringify({
+   BR001: opaEntry({ credentialVersion: '' }),
+  });
+
+  expect(() => getFiuuOpaConfig(OPA_SCOPE)).toThrow(
+   'Konfigurasi OPA Fiuu BR001 mesti lengkap',
+  );
+
+  process.env.POS_FIUU_APPLICATIONS_JSON = JSON.stringify({
+   BR001: opaEntry({ credentialVersion: 'secret/version' }),
+  });
+  expect(() => getFiuuOpaConfig(OPA_SCOPE)).toThrow(
+   'Versi kelayakan Fiuu mesti 1 hingga 32 aksara',
+  );
+ });
+
+ it('fingerprints the complete non-secret rollout configuration generation', () => {
+  const config = {
+   environment: 'sandbox' as const,
+   applicationCode: 'APP001',
+   storeId: 'STORE001',
+   terminalId: 'TERM001',
+   credentialVersion: 'cred-v1',
+  };
+
+  expect(getFiuuOpaConfigurationFingerprint(config)).toBe(
+   '9e0192d964f325892a890a56289d3f3f7d0ad421a00381872040f6d79d6c88b1',
+  );
+  expect(getFiuuOpaConfigurationFingerprint({ ...config, environment: 'production' }))
+   .not.toBe(getFiuuOpaConfigurationFingerprint(config));
+  expect(getFiuuOpaConfigurationFingerprint({ ...config, applicationCode: 'APP002' }))
+   .not.toBe(getFiuuOpaConfigurationFingerprint(config));
+  expect(getFiuuOpaConfigurationFingerprint({ ...config, storeId: 'STORE002' }))
+   .not.toBe(getFiuuOpaConfigurationFingerprint(config));
+  expect(getFiuuOpaConfigurationFingerprint({ ...config, terminalId: 'TERM002' }))
+   .not.toBe(getFiuuOpaConfigurationFingerprint(config));
+  expect(getFiuuOpaConfigurationFingerprint({ ...config, credentialVersion: 'cred-v2' }))
+   .not.toBe(getFiuuOpaConfigurationFingerprint(config));
  });
 
  it('uses only the documented 60 to 180 second DuitNow validity range', () => {
@@ -303,6 +350,7 @@ describe('Fiuu configuration safety', () => {
    applicationCode: 'APP001',
    storeId: 'STORE001',
    terminalId: 'TERM001',
+   credentialVersion: 'cred-v1',
    environment: 'production',
   });
  });

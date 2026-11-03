@@ -1,4 +1,10 @@
-import { getFiuuOpaConfig, getPosQrPaymentMode, type FiuuOpaScope } from './fiuu';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import {
+ getFiuuOpaConfig,
+ getPosQrPaymentMode,
+ type FiuuOpaConfig,
+ type FiuuOpaScope,
+} from './fiuu';
 
 // Kept for compatibility with the BR001-only reconciliation implementation.
 export const FIUU_OPA_PILOT_BRANCH = 'BR001' as const;
@@ -105,4 +111,29 @@ export function isFiuuOpaEnabledForBranch(scope: FiuuOpaScope): boolean {
  if (getPosQrPaymentMode() !== 'fiuu') return false;
 
  return isFiuuOpaConfiguredForBranch(scope);
+}
+
+/**
+ * A mapped environment entry is not rollout approval. The service-role RPC is
+ * the final, fail-closed gate and matches the complete non-secret
+ * configuration generation registered by HQ.
+ */
+export async function isFiuuOpaRolloutActive(
+ service: SupabaseClient,
+ scope: FiuuOpaScope,
+ config: FiuuOpaConfig,
+): Promise<boolean> {
+ if (!isFiuuOpaConfiguredForBranch(scope)) return false;
+
+ const { data, error } = await service.rpc('is_pos_fiuu_opa_branch_active', {
+  p_organization_id: scope.organizationId.trim().toLowerCase(),
+  p_branch_id: scope.branchId.trim().toLowerCase(),
+  p_branch_code: normalizeBranchCode(scope.branchCode),
+  p_environment: config.environment,
+  p_application_code: config.applicationCode,
+  p_store_id: config.storeId,
+  p_terminal_id: config.terminalId,
+  p_credential_version: config.credentialVersion,
+ });
+ return !error && data === true;
 }

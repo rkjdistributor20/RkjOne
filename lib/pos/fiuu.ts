@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 
 const FIUU_DUITNOW_QR_CHANNEL_ID = '24';
 const FIUU_SANDBOX_PRECREATE_URL = 'https://sandbox-payment.fiuu.com/RMS/API/MOLOPA/precreate.php';
@@ -23,6 +23,7 @@ type FiuuApplicationEntry = {
   secretKey: string;
   storeId: string;
   terminalId: string;
+  credentialVersion: string;
 };
 
 export type FiuuOpaScope = {
@@ -36,6 +37,7 @@ export type FiuuOpaConfig = {
   secretKey: string;
   storeId: string;
   terminalId: string;
+  credentialVersion: string;
   channelId: '24';
   environment: FiuuEnvironment;
   precreateUrl: string;
@@ -113,6 +115,22 @@ function validateIdentifier(value: string, label: string): string {
   return normalized;
 }
 
+function validateCredentialVersion(value: string): string {
+  const normalized = value.trim();
+  if (normalized !== value || !/^[A-Za-z0-9._-]{1,32}$/.test(normalized)) {
+    throw new Error('Versi kelayakan Fiuu mesti 1 hingga 32 aksara A-Z, 0-9, titik, _ atau -');
+  }
+  return normalized;
+}
+
+function validateApplicationCode(value: string): string {
+  const normalized = value.trim();
+  if (!normalized || normalized.length > 32 || /[\u0000-\u001f\u007f]/.test(normalized)) {
+    throw new Error('Application Code Fiuu tidak sah');
+  }
+  return normalized;
+}
+
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function parseApplications(): Record<string, FiuuApplicationEntry> {
@@ -137,19 +155,23 @@ function parseApplications(): Record<string, FiuuApplicationEntry> {
     const secretKey = typeof value.secretKey === 'string' ? value.secretKey.trim() : '';
     const storeId = typeof value.storeId === 'string' ? value.storeId.trim() : '';
     const terminalId = typeof value.terminalId === 'string' ? value.terminalId.trim() : '';
+    const credentialVersion = typeof value.credentialVersion === 'string'
+      ? value.credentialVersion
+      : '';
     if (!UUID_PATTERN.test(organizationId) || !UUID_PATTERN.test(branchId)) {
       throw new Error(`Organization ID atau Branch ID Fiuu ${branchCode} tidak sah`);
     }
-    if (!applicationCode || applicationCode.length > 32 || !secretKey || !storeId || !terminalId) {
-      throw new Error(`Konfigurasi OPA Fiuu ${branchCode} mesti lengkap dengan organisasi, cawangan, Application Code, Secret Key, Store ID dan Terminal ID`);
+    if (!applicationCode || !secretKey || !storeId || !terminalId || !credentialVersion) {
+      throw new Error(`Konfigurasi OPA Fiuu ${branchCode} mesti lengkap dengan organisasi, cawangan, Application Code, Secret Key, Store ID, Terminal ID dan versi kelayakan`);
     }
     result[branchCode.toUpperCase()] = {
       organizationId,
       branchId,
-      applicationCode,
+      applicationCode: validateApplicationCode(applicationCode),
       secretKey,
       storeId: validateIdentifier(storeId, 'Store ID'),
       terminalId: validateIdentifier(terminalId, 'Terminal ID'),
+      credentialVersion: validateCredentialVersion(credentialVersion),
     };
   }
 
@@ -210,7 +232,6 @@ export function getFiuuOpaConfig(
     || mapped.branchId !== branchId) return null;
 
   const { applicationCode, secretKey } = mapped;
-  if (applicationCode.length > 32) throw new Error('Application Code Fiuu melebihi 32 aksara');
 
   const defaultUrl = environment === 'production'
     ? FIUU_PRODUCTION_PRECREATE_URL
@@ -225,6 +246,7 @@ export function getFiuuOpaConfig(
     secretKey,
     storeId: mapped.storeId,
     terminalId: mapped.terminalId,
+    credentialVersion: mapped.credentialVersion,
     channelId: FIUU_DUITNOW_QR_CHANNEL_ID,
     environment,
     precreateUrl: validatePrecreateUrl(
@@ -239,6 +261,25 @@ export function getFiuuOpaConfig(
       : FIUU_SANDBOX_REVERSAL_URL,
     validitySeconds: parseValiditySeconds(),
   };
+}
+
+/**
+ * Stable, non-secret identity for one exact Fiuu OPA configuration generation.
+ * The delimiter and field order are mirrored by the database rollout guard.
+ */
+export function getFiuuOpaConfigurationFingerprint(config: Pick<
+  FiuuOpaConfig,
+  'environment' | 'applicationCode' | 'storeId' | 'terminalId' | 'credentialVersion'
+>): string {
+  const canonical = [
+    'fiuu-opa-config:v1',
+    config.environment,
+    config.applicationCode,
+    config.storeId,
+    config.terminalId,
+    config.credentialVersion,
+  ].join('\x1f');
+  return createHash('sha256').update(canonical, 'utf8').digest('hex');
 }
 const FIUU_TWO_DECIMAL_SIGNATURE_FIELDS = new Set(['amount', 'baseAmount']);
 

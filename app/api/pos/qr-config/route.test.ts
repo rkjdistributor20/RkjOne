@@ -2,14 +2,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
  assertCanAccessPosBranch: vi.fn(),
+ createAdminClient: vi.fn(),
  createClient: vi.fn(),
  enforceRateLimit: vi.fn(),
  getCurrentProfile: vi.fn(),
  getFiuuCloudEcrConfig: vi.fn(),
+ getFiuuOpaConfig: vi.fn(),
  getFiuuStaticQrConfig: vi.fn(),
  getPosQrPaymentMode: vi.fn(),
  isFiuuCloudEcrEnabledForBranch: vi.fn(),
  isFiuuOpaEnabledForBranch: vi.fn(),
+ isFiuuOpaRolloutActive: vi.fn(),
  isFiuuVtEnabledForBranch: vi.fn(),
  posAccessErrorStatus: vi.fn(),
 }));
@@ -22,10 +25,12 @@ vi.mock('@/lib/pos/access', () => ({
  posAccessErrorStatus: mocks.posAccessErrorStatus,
 }));
 vi.mock('@/lib/pos/fiuu', () => ({
+ getFiuuOpaConfig: mocks.getFiuuOpaConfig,
  getPosQrPaymentMode: mocks.getPosQrPaymentMode,
 }));
 vi.mock('@/lib/pos/fiuu-opa-server', () => ({
  isFiuuOpaEnabledForBranch: mocks.isFiuuOpaEnabledForBranch,
+ isFiuuOpaRolloutActive: mocks.isFiuuOpaRolloutActive,
 }));
 vi.mock('@/lib/pos/fiuu-cloudecr', () => ({
  getFiuuCloudEcrConfig: mocks.getFiuuCloudEcrConfig,
@@ -50,6 +55,9 @@ vi.mock('@/lib/security/rate-limit', () => ({
 vi.mock('@/lib/supabase/server', () => ({
  createClient: mocks.createClient,
 }));
+vi.mock('@/lib/supabase/admin', () => ({
+ createAdminClient: mocks.createAdminClient,
+}));
 
 import { GET } from './route';
 
@@ -60,6 +68,20 @@ const SCOPE = {
  branchId: BRANCH_ID,
  branchCode: 'BR001',
 };
+const OPA_CONFIG = {
+ applicationCode: 'APP001',
+ secretKey: 'secret-001',
+ storeId: 'STORE001',
+ terminalId: 'TERM001',
+ credentialVersion: 'cred-v1',
+ channelId: '24' as const,
+ environment: 'sandbox' as const,
+ precreateUrl: 'https://sandbox-payment.fiuu.com/RMS/API/MOLOPA/precreate.php',
+ inquiryUrl: 'https://sandbox-api.fiuu.com/RMS/API/MOLOPA/inquiry.php',
+ reversalUrl: 'https://sandbox-api.fiuu.com/RMS/API/MOLOPA/reversal.php',
+ validitySeconds: 180,
+};
+const ADMIN_CLIENT = { rpc: vi.fn() };
 
 function arrangeBranch() {
  const query = {
@@ -93,7 +115,10 @@ beforeEach(() => {
  mocks.assertCanAccessPosBranch.mockResolvedValue(undefined);
  mocks.posAccessErrorStatus.mockReturnValue(403);
  mocks.getPosQrPaymentMode.mockReturnValue('fiuu');
+ mocks.getFiuuOpaConfig.mockReturnValue(OPA_CONFIG);
  mocks.isFiuuOpaEnabledForBranch.mockReturnValue(true);
+ mocks.isFiuuOpaRolloutActive.mockResolvedValue(true);
+ mocks.createAdminClient.mockReturnValue(ADMIN_CLIENT);
  mocks.isFiuuVtEnabledForBranch.mockReturnValue(false);
  mocks.isFiuuCloudEcrEnabledForBranch.mockReturnValue(false);
  mocks.getFiuuStaticQrConfig.mockReturnValue(null);
@@ -117,6 +142,47 @@ describe('Fiuu OPA QR configuration scope', () => {
    configured: true,
   });
   expect(mocks.isFiuuOpaEnabledForBranch).toHaveBeenCalledWith(SCOPE);
+  expect(mocks.getFiuuOpaConfig).toHaveBeenCalledWith(SCOPE);
+  expect(mocks.createAdminClient).toHaveBeenCalledTimes(1);
+  expect(mocks.isFiuuOpaRolloutActive).toHaveBeenCalledWith(
+   ADMIN_CLIENT,
+   SCOPE,
+   OPA_CONFIG,
+  );
+ });
+
+ it('fails closed to manual when the mapped configuration has no ACTIVE rollout row', async () => {
+  mocks.isFiuuOpaRolloutActive.mockResolvedValue(false);
+
+  const response = await GET(new Request(
+   `http://localhost/api/pos/qr-config?branch_id=${BRANCH_ID}`,
+  ));
+
+  expect(response.status).toBe(200);
+  await expect(response.json()).resolves.toMatchObject({
+   mode: 'FIUU_STATIC_MANUAL',
+   configured: false,
+  });
+  expect(mocks.isFiuuOpaRolloutActive).toHaveBeenCalledWith(
+   ADMIN_CLIENT,
+   SCOPE,
+   OPA_CONFIG,
+  );
+ });
+
+ it('fails closed to manual when the ACTIVE rollout check throws', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  mocks.isFiuuOpaRolloutActive.mockRejectedValue(new Error('rollout RPC unavailable'));
+
+  const response = await GET(new Request(
+   `http://localhost/api/pos/qr-config?branch_id=${BRANCH_ID}`,
+  ));
+
+  expect(response.status).toBe(200);
+  await expect(response.json()).resolves.toMatchObject({
+   mode: 'FIUU_STATIC_MANUAL',
+   configured: false,
+  });
  });
 
  it('fails closed to manual when the tenant tuple is not configured', async () => {
@@ -132,6 +198,8 @@ describe('Fiuu OPA QR configuration scope', () => {
    configured: false,
   });
   expect(mocks.isFiuuOpaEnabledForBranch).toHaveBeenCalledWith(SCOPE);
+  expect(mocks.getFiuuOpaConfig).not.toHaveBeenCalled();
+  expect(mocks.isFiuuOpaRolloutActive).not.toHaveBeenCalled();
  });
 
  it('fails closed to manual when an allowlisted branch has a partial mapping', async () => {
@@ -150,5 +218,7 @@ describe('Fiuu OPA QR configuration scope', () => {
    configured: false,
   });
   expect(mocks.isFiuuOpaEnabledForBranch).toHaveBeenCalledWith(SCOPE);
+  expect(mocks.getFiuuOpaConfig).not.toHaveBeenCalled();
+  expect(mocks.isFiuuOpaRolloutActive).not.toHaveBeenCalled();
  });
 });

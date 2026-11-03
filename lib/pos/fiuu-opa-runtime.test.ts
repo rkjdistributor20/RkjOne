@@ -12,6 +12,7 @@ const CONFIG: FiuuOpaConfig = {
  secretKey: SECRET,
  storeId: 'STORE001',
  terminalId: 'TERM001',
+ credentialVersion: 'v1-test',
  channelId: '24',
  environment: 'sandbox',
  precreateUrl: 'https://sandbox-payment.fiuu.com/RMS/API/MOLOPA/precreate.php',
