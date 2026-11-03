@@ -32,6 +32,30 @@ function isExpectedStagingProject(): boolean {
  }
 }
 
+function classifyTargetConfigurationFailure(error: unknown): string {
+ if (!(error instanceof Error)) return 'target-unknown';
+
+ const message = error.message;
+ if (message.startsWith('Kod cawangan pilot Fiuu OPA')) return 'target-allowlist';
+ if (message.startsWith('POS_FIUU_APPLICATIONS_JSON')) return 'target-json';
+ if (message.startsWith('Konfigurasi OPA Fiuu')) return 'target-credentials';
+ if (message.startsWith('Application Code Fiuu')) return 'target-application-code';
+ if (message.startsWith('Store ID Fiuu')) return 'target-store-id';
+ if (message.startsWith('Terminal ID Fiuu')) return 'target-terminal-id';
+ if (message.startsWith('Versi kelayakan Fiuu')) return 'target-credential-version';
+ if (message.startsWith('Persekitaran Fiuu')) return 'target-environment';
+ if (message.startsWith('RKJ One hanya membenarkan saluran')) return 'target-channel';
+ if (message.startsWith('Endpoint Fiuu')) return 'target-endpoint';
+ if (message.startsWith('Kod pemetaan cawangan Fiuu OPA')
+  || message.startsWith('Pemetaan cawangan Fiuu OPA berulang')
+  || message.startsWith('Pemetaan Fiuu OPA')
+  || message.startsWith('Konfigurasi Fiuu ')
+  || message.startsWith('Organization ID atau Branch ID Fiuu')) {
+  return 'target-mapping';
+ }
+ return 'target-unknown';
+}
+
 /**
  * Preview-only operational probe used to bind one reviewed Fiuu OPA
  * configuration generation to the staging rollout gate. It deliberately
@@ -59,7 +83,13 @@ export async function GET() {
   }
 
   failureStage = 'target-configuration';
-  const targets = getFiuuOpaConfiguredTargets();
+  let targets: ReturnType<typeof getFiuuOpaConfiguredTargets>;
+  try {
+   targets = getFiuuOpaConfiguredTargets();
+  } catch (error) {
+   failureStage = classifyTargetConfigurationFailure(error);
+   throw error;
+  }
   if (targets.length !== 1 || targets[0]?.branchCode !== 'BR001') {
    return jsonError('Skop Fiuu OPA Preview tidak sah', 503);
   }

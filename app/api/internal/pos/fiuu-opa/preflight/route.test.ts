@@ -152,6 +152,23 @@ describe('Fiuu OPA Preview preflight', () => {
   expect(mocks.getFiuuOpaConfig).not.toHaveBeenCalled();
  });
 
+ it('logs only a fixed safe category for malformed target configuration', async () => {
+  const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  mocks.getFiuuOpaConfiguredTargets.mockImplementationOnce(() => {
+   throw new Error('POS_FIUU_APPLICATIONS_JSON bukan JSON yang sah');
+  });
+
+  const response = await GET();
+  const body = await response.json();
+
+  expect(response.status).toBe(503);
+  expect(body).toEqual({ error: 'Preflight Fiuu OPA gagal secara selamat' });
+  expect(consoleError).toHaveBeenCalledWith(
+   '[fiuu-opa-preflight] failed at target-json',
+  );
+  expect(JSON.stringify(body)).not.toContain('POS_FIUU_APPLICATIONS_JSON');
+ });
+
  it('rejects organization mismatch and non-sandbox configuration', async () => {
   mocks.getCurrentProfile.mockResolvedValueOnce({
    organization_id: '77777777-7777-4777-8777-777777777777',
