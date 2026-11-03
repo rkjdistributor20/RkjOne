@@ -17,10 +17,18 @@ export function isFiuuReconciliationExpired(expiresAt: string, nowMs = Date.now(
 type FiuuEnvironment = 'sandbox' | 'production';
 
 type FiuuApplicationEntry = {
+  organizationId: string;
+  branchId: string;
   applicationCode: string;
   secretKey: string;
-  storeId?: string;
-  terminalId?: string;
+  storeId: string;
+  terminalId: string;
+};
+
+export type FiuuOpaScope = {
+  organizationId: string;
+  branchId: string;
+  branchCode: string;
 };
 
 export type FiuuOpaConfig = {
@@ -96,16 +104,16 @@ function requiredString(value: unknown, label: string, maxLength: number): strin
   return normalized;
 }
 
-function normalizeIdentifier(value: string, prefix: string): string {
-  const cleaned = `${prefix}${value}`.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 20);
-  return cleaned.padEnd(4, '0');
-}
-
-function validateIdentifier(value: string | undefined, fallback: string, label: string): string {
-  const normalized = (value?.trim() || fallback).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 20);
+function validateIdentifier(value: string, label: string): string {
+  const normalized = value.trim();
+  if (!/^[A-Za-z0-9_-]{4,20}$/.test(normalized)) {
+    throw new Error(`${label} Fiuu mesti 4 hingga 20 aksara A-Z, 0-9, _ atau -`);
+  }
   if (normalized.length < 4) throw new Error(`${label} Fiuu mesti sekurang-kurangnya 4 aksara`);
   return normalized;
 }
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function parseApplications(): Record<string, FiuuApplicationEntry> {
   const raw = process.env.POS_FIUU_APPLICATIONS_JSON?.trim();
@@ -123,14 +131,26 @@ function parseApplications(): Record<string, FiuuApplicationEntry> {
 
   for (const [branchCode, value] of Object.entries(parsed)) {
     if (!isRecord(value)) throw new Error(`Konfigurasi Fiuu ${branchCode} tidak sah`);
+    const organizationId = typeof value.organizationId === 'string' ? value.organizationId.trim().toLowerCase() : '';
+    const branchId = typeof value.branchId === 'string' ? value.branchId.trim().toLowerCase() : '';
     const applicationCode = typeof value.applicationCode === 'string' ? value.applicationCode.trim() : '';
     const secretKey = typeof value.secretKey === 'string' ? value.secretKey.trim() : '';
-    const storeId = typeof value.storeId === 'string' ? value.storeId.trim() : undefined;
-    const terminalId = typeof value.terminalId === 'string' ? value.terminalId.trim() : undefined;
-    if (!applicationCode || applicationCode.length > 32 || !secretKey) {
-      throw new Error(`Application Code atau Secret Key Fiuu ${branchCode} tidak lengkap`);
+    const storeId = typeof value.storeId === 'string' ? value.storeId.trim() : '';
+    const terminalId = typeof value.terminalId === 'string' ? value.terminalId.trim() : '';
+    if (!UUID_PATTERN.test(organizationId) || !UUID_PATTERN.test(branchId)) {
+      throw new Error(`Organization ID atau Branch ID Fiuu ${branchCode} tidak sah`);
     }
-    result[branchCode.toUpperCase()] = { applicationCode, secretKey, storeId, terminalId };
+    if (!applicationCode || applicationCode.length > 32 || !secretKey || !storeId || !terminalId) {
+      throw new Error(`Konfigurasi OPA Fiuu ${branchCode} mesti lengkap dengan organisasi, cawangan, Application Code, Secret Key, Store ID dan Terminal ID`);
+    }
+    result[branchCode.toUpperCase()] = {
+      organizationId,
+      branchId,
+      applicationCode,
+      secretKey,
+      storeId: validateIdentifier(storeId, 'Store ID'),
+      terminalId: validateIdentifier(terminalId, 'Terminal ID'),
+    };
   }
 
   return result;
@@ -174,25 +194,22 @@ export function getFiuuEnvironment(): FiuuEnvironment {
 }
 
 export function getFiuuOpaConfig(
-  branchCode: string,
-  deviceCode: string,
+  scope: FiuuOpaScope,
   options: { requireActiveMode?: boolean } = {},
 ): FiuuOpaConfig | null {
   if (options.requireActiveMode !== false && getPosQrPaymentMode() !== 'fiuu') return null;
 
   const applications = parseApplications();
-  const mapped = applications[branchCode.toUpperCase()];
+  const branchCode = scope.branchCode.trim().toUpperCase();
+  const organizationId = scope.organizationId.trim().toLowerCase();
+  const branchId = scope.branchId.trim().toLowerCase();
+  const mapped = applications[branchCode];
   const environment = getFiuuEnvironment();
-  if (environment === 'production' && (!mapped || !mapped.storeId || !mapped.terminalId)) return null;
+  if (!mapped
+    || mapped.organizationId !== organizationId
+    || mapped.branchId !== branchId) return null;
 
-  const applicationCode = mapped?.applicationCode
-    ?? process.env.POS_FIUU_APPLICATION_CODE?.trim()
-    ?? '';
-  const secretKey = mapped?.secretKey
-    ?? process.env.POS_FIUU_SECRET_KEY?.trim()
-    ?? '';
-
-  if (!applicationCode || !secretKey) return null;
+  const { applicationCode, secretKey } = mapped;
   if (applicationCode.length > 32) throw new Error('Application Code Fiuu melebihi 32 aksara');
 
   const defaultUrl = environment === 'production'
@@ -206,16 +223,8 @@ export function getFiuuOpaConfig(
   return {
     applicationCode,
     secretKey,
-    storeId: validateIdentifier(
-      mapped?.storeId ?? process.env.POS_FIUU_STORE_ID,
-      normalizeIdentifier(branchCode, 'RKJ'),
-      'Store ID',
-    ),
-    terminalId: validateIdentifier(
-      mapped?.terminalId ?? process.env.POS_FIUU_TERMINAL_ID,
-      normalizeIdentifier(deviceCode, 'RKJ'),
-      'Terminal ID',
-    ),
+    storeId: mapped.storeId,
+    terminalId: mapped.terminalId,
     channelId: FIUU_DUITNOW_QR_CHANNEL_ID,
     environment,
     precreateUrl: validatePrecreateUrl(

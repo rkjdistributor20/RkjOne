@@ -16,9 +16,15 @@ Never reuse credentials, identifiers, activation/binding material or readiness e
 
 ## Current BR001 decision (2026-10-27)
 
-The controlled RM2.50 BR001 static DuitNow QR sale passed. Transaction `TX-20261021-00001` completed once under shift `SH-20261021-0001`, the expected stock was deducted, the shift total reconciled to RM2.50 and Finance manually marked the related payment record paid. This confirms the existing RKJ One static-QR/manual sale pipeline only; it is not proof of Fiuu VT, Fiuu VT+ or cloudECR automatic confirmation.
+The controlled RM2.50 BR001 static DuitNow QR sale passed. The redacted staging
+sale and shift records completed once, the expected stock was deducted, the
+shift total reconciled to RM2.50 and Finance manually marked the related
+payment record paid. Real payment, order, transaction, sale and shift
+identifiers are intentionally excluded from Git. This confirms the existing
+RKJ One static-QR/manual sale pipeline only; it is not proof of Fiuu VT, Fiuu
+VT+ or cloudECR automatic confirmation.
 
-The immediate BR001 device-UAT route is now the official **Fiuu Virtual Terminal App-to-App** application. It is installed on the Samsung tablet and reaches the VT activation screen. It must not be activated with a root-merchant link or code unless Fiuu confirms in writing that it maps to submerchant `masterkayajunus01`, the intended BR001 terminal and BR001 settlement. RKJ One hard-locks this transport to BR001 in both server configuration and the database. Signed OPA remains the preferred broad-rollout architecture, but its dedicated Application Code and Secret Key remain unavailable. No Production migration, environment variable, payment mode, deployment, merchant configuration or outlet rollout was changed.
+The immediate BR001 device-UAT route is now the official **Fiuu Virtual Terminal App-to-App** application. It is installed on the Samsung tablet and reaches the VT activation screen. It must not be activated with a root-merchant link or code unless Fiuu confirms in writing that it maps to submerchant `masterkayajunus01`, the intended BR001 terminal and BR001 settlement. RKJ One hard-locks this transport to BR001 in both server configuration and the database. Signed OPA remains the preferred broad-rollout architecture, but its complete tenant-bound six-field mapping has not been securely provisioned. No Production migration, environment variable, payment mode, deployment, merchant configuration or outlet rollout was changed.
 
 ### Device and Play evidence updated on 2026-10-27
 
@@ -124,7 +130,7 @@ All 36 generated assets were decoded and compared byte-for-byte with the Fiuu EM
 - A signed `00/00` response is persisted first as `REPORTED` with its Fiuu Transaction ID and exact verified response payload. Receipt, stock and shift fulfilment is then idempotently retried from that durable state without sending another SALE. A failed or ambiguous `getLast` never converts the original payment to `FAILED`.
 - Only one unresolved cloudECR SALE may exist for the configured POS ID, Device ID and Terminal SN across all RKJ tablets. A server-side price snapshot plus deterministic product-row locks prevents a concurrent catalogue change from producing a receipt with a different amount. Stock is revalidated during fulfilment; any mismatch stays `REPORTED` for Finance/manual resolution.
 - After the visible QR expires, RKJ One keeps the intent locked during the database-enforced 20-minute reconciliation grace period; only after that period can the attempt become safely retryable.
-- Production OPA QR creation requires an explicit branch entry with provider-issued Application Code, Secret Key, Store ID and Terminal ID. Global credentials or an invented identifier cannot activate a Production branch.
+- Production OPA QR creation requires an explicit branch entry with the exact RKJ One `organizationId` and `branchId` plus provider-issued Application Code, Secret Key, Store ID and Terminal ID. Global credentials or an invented identifier cannot activate a Production branch.
 - Callback verification remains available after creation mode is rolled back to `manual`, allowing an already-issued QR to complete safely.
 
 Merchant portal credentials shown on the portal home page must not be assumed to be OPA Application Code/Secret Key. Obtain the OPA credentials and notification setup from Fiuu for the intended store/branch arrangement.
@@ -132,7 +138,7 @@ Merchant portal credentials shown on the portal home page must not be assumed to
 ## Immediate BR001 OPA actions
 
 1. Retrieve the BR001 sandbox OPA Application Code and Secret Key from the authenticated Fiuu portal or an approved secure channel. Do not substitute the portal Merchant ID, Verify Key or cloudECR Secret Key.
-2. Record the provider-approved BR001 Store ID and Terminal ID. Production will remain fail-closed unless both are explicit in the branch mapping.
+2. Record the RKJ One `organizationId` and BR001 `branchId` UUIDs together with the provider-approved BR001 Store ID and Terminal ID. OPA remains fail-closed unless all six fields belong to the same tenant and branch.
 3. Enter a `BR001`-only mapping directly into the Vercel Preview environment; never paste the real values into Git or chat.
 4. Add a separate server-only `FIUU_RECONCILIATION_SECRET` of at least 32 random characters to Preview. It authenticates the inquiry-recovery endpoint and must not be reused as an OPA or portal secret.
 5. Configure the Preview notification URL:
@@ -163,7 +169,9 @@ RKJ replied under the same ticket confirming that the dedicated Roti Kaya Junus 
 
 ## Server environment
 
-Use Vercel server-only environment variables. `POS_FIUU_APPLICATIONS_JSON` is preferred for branch isolation:
+Use Vercel server-only environment variables. `POS_FIUU_APPLICATIONS_JSON` is
+required for branch and tenant isolation; global OPA fallback variables are
+unsupported:
 
 ```dotenv
 POS_QR_PAYMENT_MODE=fiuu
@@ -185,11 +193,20 @@ same durable exact-once fulfilment flow as a callback, `01/11` remains pending,
 Automatic reversal is deliberately disabled until Fiuu's
 `paymentReferenceId` semantics are confirmed.
 
-The payment-mode selector is not sufficient by itself. OPA creation is also protected by `POS_FIUU_OPA_BRANCHES`, and the present pilot implementation fails closed unless the normalized allowlist contains exactly the hard-locked pilot branch `BR001`. Wildcards, malformed entries and `BR002`–`BR036` are rejected.
+The payment-mode selector is not sufficient by itself. OPA creation is also
+protected by `POS_FIUU_OPA_BRANCHES`, a complete six-field per-branch mapping
+and an `ACTIVE` database rollout record for the same organization, branch and
+Application Code fingerprint. The package recognizes only canonical
+`BR001`-`BR036` codes, but the current authorized go-live scope remains exactly
+`BR001`. Wildcards, malformed, partially mapped, cross-tenant, inactive and
+unauthorized branches fail closed. `BR002`-`BR036` must not be activated until
+the BR001 gates pass and a later rollout is separately approved.
 
 ```json
 {
   "BRANCH_CODE": {
+    "organizationId": "organization-uuid",
+    "branchId": "branch-uuid",
     "applicationCode": "provider-issued-code",
     "secretKey": "provider-issued-secret",
     "storeId": "provider-approved-store-id",
@@ -198,7 +215,14 @@ The payment-mode selector is not sufficient by itself. OPA creation is also prot
 }
 ```
 
-Do not commit the real JSON. Keep `POS_QR_PAYMENT_MODE=manual` until UAT passes. Staging must use `POS_FIUU_ENVIRONMENT=sandbox`; Production must use `production` only after written approval and pilot sign-off. A `POS_FIUU_PRECREATE_URL` override must use the approved host for the selected environment; localhost is accepted only during non-production development.
+Do not commit the real JSON. Do not configure the deprecated global fallbacks
+`POS_FIUU_APPLICATION_CODE`, `POS_FIUU_SECRET_KEY`, `POS_FIUU_STORE_ID` or
+`POS_FIUU_TERMINAL_ID`; they are not a substitute for the tenant-bound mapping.
+Keep `POS_QR_PAYMENT_MODE=manual` until UAT passes. Staging must use
+`POS_FIUU_ENVIRONMENT=sandbox`; Production must use `production` only after
+fresh action-time approval and pilot sign-off. A `POS_FIUU_PRECREATE_URL`
+override must use the approved host for the selected environment; localhost is
+accepted only during non-production development.
 
 A valid signed `STATUS=00` notification is handled in two committed phases: first persist sanitized provider evidence and mark the payment `REPORTED`, then perform receipt, stock, shift and sale fulfilment idempotently. The callback and both database RPCs independently enforce the BR001 pilot identity. If the second phase fails, the durable `REPORTED` row remains and either a duplicate valid Fiuu notification or authenticated payment-status polling can retry fulfilment without issuing another charge. Fulfilment locks the referenced products and refuses a receipt if the active catalogue no longer matches the server-side pricing snapshot.
 

@@ -3,7 +3,7 @@ import type { Database, ProfileWithBranch } from "@/types/database";
 import {
   buildProductionReadiness,
   type ProductionReadinessSnapshot,
-} from "@/lib/system/production-readiness";
+} from "./production-readiness";
 
 export type SystemHealthStatus = "PASS" | "WARN" | "FAIL";
 
@@ -112,6 +112,64 @@ function check(
 
 function envReady(names: string[]) {
   return names.some((name) => Boolean(process.env[name]));
+}
+
+const FIUU_BRANCH_CODE_PATTERN = /^BR(?:00[1-9]|0[12]\d|03[0-6])$/;
+const FIUU_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const FIUU_IDENTIFIER_PATTERN = /^[A-Za-z0-9_-]{4,20}$/;
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function hasCompleteFiuuApplicationsConfig(raw: string | undefined): boolean {
+  if (!raw?.trim()) return false;
+
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!isObjectRecord(parsed)) return false;
+    const entries = Object.entries(parsed);
+    if (entries.length === 0) return false;
+    const normalizedBranches = new Set<string>();
+
+    return entries.every(([rawBranchCode, value]) => {
+      const branchCode = rawBranchCode.trim().toUpperCase();
+      if (rawBranchCode !== rawBranchCode.trim()
+        || !FIUU_BRANCH_CODE_PATTERN.test(branchCode)
+        || normalizedBranches.has(branchCode)
+        || !isObjectRecord(value)) return false;
+      normalizedBranches.add(branchCode);
+
+      const organizationId = typeof value.organizationId === "string"
+        ? value.organizationId.trim()
+        : "";
+      const branchId = typeof value.branchId === "string"
+        ? value.branchId.trim()
+        : "";
+      const applicationCode = typeof value.applicationCode === "string"
+        ? value.applicationCode.trim()
+        : "";
+      const secretKey = typeof value.secretKey === "string"
+        ? value.secretKey.trim()
+        : "";
+      const storeId = typeof value.storeId === "string"
+        ? value.storeId.trim()
+        : "";
+      const terminalId = typeof value.terminalId === "string"
+        ? value.terminalId.trim()
+        : "";
+
+      return FIUU_UUID_PATTERN.test(organizationId)
+        && FIUU_UUID_PATTERN.test(branchId)
+        && applicationCode.length > 0
+        && applicationCode.length <= 32
+        && secretKey.length > 0
+        && FIUU_IDENTIFIER_PATTERN.test(storeId)
+        && FIUU_IDENTIFIER_PATTERN.test(terminalId);
+    });
+  } catch {
+    return false;
+  }
 }
 
 async function loadAccessReadiness(supabase: DbClient) {
@@ -355,9 +413,9 @@ export async function buildSystemHealthSnapshot(
   const hasSupabaseEnv =
     envReady(["NEXT_PUBLIC_SUPABASE_URL"]) &&
     envReady(["SUPABASE_SERVICE_ROLE_KEY"]);
-  const hasFiuuCredentials = Boolean(process.env.POS_FIUU_APPLICATIONS_JSON) ||
-    (Boolean(process.env.POS_FIUU_APPLICATION_CODE) &&
-      Boolean(process.env.POS_FIUU_SECRET_KEY));
+  const hasFiuuCredentials = hasCompleteFiuuApplicationsConfig(
+    process.env.POS_FIUU_APPLICATIONS_JSON,
+  );
   const fiuuRecoverySecret = (process.env.FIUU_RECONCILIATION_SECRET ?? "").trim();
   const hasFiuuRecoveryWorker =
     process.env.FIUU_RECONCILIATION_ENABLED?.trim().toLowerCase() === "true"
@@ -588,7 +646,7 @@ export async function buildSystemHealthSnapshot(
           "payment-env",
           "Kesiapan Fiuu live",
           "WARN",
-          `Mod QR POS ${posQrPaymentMode}; kredensial OPA ${hasFiuuCredentials ? "dikesan" : "belum lengkap"}; worker pemulihan OPA ${hasFiuuRecoveryWorker ? "dikonfigurasi" : "belum lengkap"}; pilot VT ${hasFiuuVtPilot ? "dikonfigurasi" : "tidak aktif"}; pilot VT+ cloudECR ${hasFiuuCloudEcrPilot ? "dikonfigurasi" : "tidak aktif"}; skema Fiuu ${hasFiuuSchema ? "tersedia" : "belum tersedia"}; UAT transaksi live belum direkodkan.`,
+          `Mod QR POS ${posQrPaymentMode}; pemetaan OPA enam medan ${hasFiuuCredentials ? "lengkap" : "belum lengkap"}; worker pemulihan OPA ${hasFiuuRecoveryWorker ? "dikonfigurasi" : "belum lengkap"}; pilot VT ${hasFiuuVtPilot ? "dikonfigurasi" : "tidak aktif"}; pilot VT+ cloudECR ${hasFiuuCloudEcrPilot ? "dikonfigurasi" : "tidak aktif"}; skema Fiuu ${hasFiuuSchema ? "tersedia" : "belum tersedia"}; UAT transaksi live belum direkodkan.`,
           "Kekalkan QR statik/manual di luar pilot sehingga migrasi, bukti provider dan settlement disahkan.",
         ),
       ],

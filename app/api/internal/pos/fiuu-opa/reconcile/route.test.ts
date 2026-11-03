@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
  createAdminClient: vi.fn(),
+ getFiuuOpaConfiguredTargets: vi.fn(),
  reconcileFiuuOpaPayment: vi.fn(),
 }));
 
@@ -11,11 +12,29 @@ vi.mock('@/lib/supabase/admin', () => ({
 vi.mock('@/lib/pos/fiuu-opa-reconciliation', () => ({
  reconcileFiuuOpaPayment: mocks.reconcileFiuuOpaPayment,
 }));
+vi.mock('@/lib/pos/fiuu-opa-server', () => ({
+ getFiuuOpaConfiguredTargets: mocks.getFiuuOpaConfiguredTargets,
+}));
 
 import { POST } from './route';
 
 const ORIGINAL_ENV = { ...process.env };
 const SECRET = 'a-secure-worker-secret-with-32-characters';
+const ORGANIZATION_ID = '66666666-6666-4666-8666-666666666666';
+const ORGANIZATION_ID_2 = '77777777-7777-4777-8777-777777777777';
+const BRANCH_ID = '33333333-3333-4333-8333-333333333333';
+const BRANCH_ID_36 = '36363636-3636-4636-8636-363636363636';
+
+const BR001_TARGET = {
+ organizationId: ORGANIZATION_ID,
+ branchId: BRANCH_ID,
+ branchCode: 'BR001',
+};
+const BR036_TARGET = {
+ organizationId: ORGANIZATION_ID_2,
+ branchId: BRANCH_ID_36,
+ branchCode: 'BR036',
+};
 
 function request(token = SECRET) {
  return new Request('http://localhost/api/internal/pos/fiuu-opa/reconcile', {
@@ -28,6 +47,7 @@ function queue(rows: Array<Record<string, unknown>>) {
  const query = {
   select: vi.fn(),
   eq: vi.fn(),
+  in: vi.fn(),
   or: vi.fn(),
   order: vi.fn(),
   limit: vi.fn().mockResolvedValue({
@@ -37,6 +57,7 @@ function queue(rows: Array<Record<string, unknown>>) {
  };
  query.select.mockReturnValue(query);
  query.eq.mockReturnValue(query);
+ query.in.mockReturnValue(query);
  query.or.mockReturnValue(query);
  query.order.mockReturnValue(query);
  return query;
@@ -74,6 +95,7 @@ beforeEach(() => {
   FIUU_RECONCILIATION_SECRET: SECRET,
  };
  mocks.reconcileFiuuOpaPayment.mockResolvedValue('terminal');
+ mocks.getFiuuOpaConfiguredTargets.mockReturnValue([BR001_TARGET]);
 });
 
 afterEach(() => {
@@ -81,7 +103,7 @@ afterEach(() => {
  process.env = { ...ORIGINAL_ENV };
 });
 
-describe('BR001 Fiuu OPA reconciliation worker', () => {
+describe('Fiuu OPA reconciliation worker', () => {
  it('is fail-closed until the dedicated worker flag is enabled', async () => {
   delete process.env.FIUU_RECONCILIATION_ENABLED;
 
@@ -107,6 +129,29 @@ describe('BR001 Fiuu OPA reconciliation worker', () => {
   expect(mocks.createAdminClient).not.toHaveBeenCalled();
  });
 
+ it('fails closed before opening the service client when no branch is configured', async () => {
+  mocks.getFiuuOpaConfiguredTargets.mockReturnValue([]);
+
+  const response = await POST(request());
+
+  expect(response.status).toBe(503);
+  expect(mocks.createAdminClient).not.toHaveBeenCalled();
+ });
+
+ it('fails closed when the allowlist has a partial or invalid target mapping', async () => {
+  mocks.getFiuuOpaConfiguredTargets.mockImplementation(() => {
+   throw new Error('Pemetaan Fiuu OPA BR036 tiada');
+  });
+
+  const response = await POST(request());
+
+  expect(response.status).toBe(503);
+  await expect(response.json()).resolves.toEqual({
+   error: 'Fiuu reconciliation branch configuration is invalid',
+  });
+  expect(mocks.createAdminClient).not.toHaveBeenCalled();
+ });
+
  it('processes only the bounded BR001 due-payment queue', async () => {
   const ids = ['11111111-1111-4111-8111-111111111111'];
   const { pendingQuery, service } = arrangeQueues({ pendingIds: ids });
@@ -120,13 +165,47 @@ describe('BR001 Fiuu OPA reconciliation worker', () => {
    examined: 1,
    results: { terminal: 1 },
   });
-  expect(pendingQuery.eq).toHaveBeenCalledWith('sale_payload->>fiuu_branch_code', 'BR001');
+  expect(pendingQuery.in).toHaveBeenCalledWith('organization_id', [ORGANIZATION_ID]);
+  expect(pendingQuery.in).toHaveBeenCalledWith('branch_id', [BRANCH_ID]);
+  expect(pendingQuery.in).toHaveBeenCalledWith('sale_payload->>fiuu_branch_code', ['BR001']);
   expect(pendingQuery.limit).toHaveBeenCalledWith(1);
   expect(mocks.reconcileFiuuOpaPayment).toHaveBeenNthCalledWith(1, {
    service,
    paymentId: ids[0],
   });
   expect(mocks.reconcileFiuuOpaPayment).toHaveBeenCalledTimes(1);
+ });
+
+ it('filters both recovery queues to the explicit configured branch set', async () => {
+  mocks.getFiuuOpaConfiguredTargets.mockReturnValue([BR001_TARGET, BR036_TARGET]);
+  const { pendingQuery, reportedQuery } = arrangeQueues({ pendingIds: [] });
+
+  const response = await POST(request());
+
+  expect(response.status).toBe(200);
+  await expect(response.json()).resolves.toMatchObject({
+   ok: true,
+   branch: null,
+   branches: ['BR001', 'BR036'],
+  });
+  expect(reportedQuery.in).toHaveBeenCalledWith(
+   'organization_id',
+   [ORGANIZATION_ID, ORGANIZATION_ID_2],
+  );
+  expect(reportedQuery.in).toHaveBeenCalledWith('branch_id', [BRANCH_ID, BRANCH_ID_36]);
+  expect(reportedQuery.in).toHaveBeenCalledWith(
+   'sale_payload->>fiuu_branch_code',
+   ['BR001', 'BR036'],
+  );
+  expect(pendingQuery.in).toHaveBeenCalledWith(
+   'organization_id',
+   [ORGANIZATION_ID, ORGANIZATION_ID_2],
+  );
+  expect(pendingQuery.in).toHaveBeenCalledWith('branch_id', [BRANCH_ID, BRANCH_ID_36]);
+  expect(pendingQuery.in).toHaveBeenCalledWith(
+   'sale_payload->>fiuu_branch_code',
+   ['BR001', 'BR036'],
+  );
  });
 
  it('runs exactly six pending inquiries at ten-second intervals', async () => {

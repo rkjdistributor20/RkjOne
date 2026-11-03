@@ -57,7 +57,11 @@ export async function GET(request: Request) {
  let cloudEcrEnabled = false;
  try {
   dynamicEnabled = paymentMode === 'fiuu'
-   && isFiuuOpaEnabledForBranch(branch.branch_code);
+   && isFiuuOpaEnabledForBranch({
+    organizationId: profile.organization_id,
+    branchId: branch.id,
+    branchCode: branch.branch_code,
+   });
  } catch (configurationError) {
   console.error('[pos-fiuu-opa] invalid_branch_configuration', {
    reason: configurationError instanceof Error ? configurationError.message : 'unknown',

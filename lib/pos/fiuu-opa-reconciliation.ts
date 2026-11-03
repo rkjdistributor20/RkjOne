@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { getFiuuOpaConfig } from './fiuu';
-import { FIUU_OPA_PILOT_BRANCH } from './fiuu-opa-server';
+import { isFiuuOpaConfiguredForBranch } from './fiuu-opa-server';
 import {
  inquireFiuuOpaPayment,
  type FiuuOpaInquiryResult,
@@ -10,6 +10,8 @@ import type { Database, Json } from '@/types/database';
 
 type FiuuOpaClaim = {
  payment_id: string;
+ organization_id: string;
+ branch_id: string;
  claim_token: string;
  attempt_no: number;
  branch_code: string;
@@ -21,6 +23,7 @@ type FiuuOpaClaim = {
 };
 
 const SUCCESS_REPORT_RETRY_DELAYS_MS = [0, 100, 250] as const;
+const CANONICAL_FIUU_OPA_BRANCH_PATTERN = /^BR(?:00[1-9]|0[12]\d|03[0-6])$/;
 
 export type FiuuOpaReconciliationResult =
  | 'not_due'
@@ -41,18 +44,21 @@ function parseFiuuOpaClaim(value: Json | null): FiuuOpaClaim | null {
  if (!isRecord(value)) return null;
  const claim = {
   payment_id: cleanProviderValue(value.payment_id, 40),
+  organization_id: cleanProviderValue(value.organization_id, 40).toLowerCase(),
+  branch_id: cleanProviderValue(value.branch_id, 40).toLowerCase(),
   claim_token: cleanProviderValue(value.claim_token, 40),
   attempt_no: Number(value.attempt_no),
-  branch_code: cleanProviderValue(value.branch_code, 40).toUpperCase(),
+  branch_code: typeof value.branch_code === 'string' ? value.branch_code : '',
   device_code: cleanProviderValue(value.device_code, 40),
   application_code: cleanProviderValue(value.application_code, 32),
   gateway_ref: cleanProviderValue(value.gateway_ref, 40) || null,
   amount_rm: Number(value.amount_rm),
   expires_at: cleanProviderValue(value.expires_at, 40),
  };
- if (!claim.payment_id || !claim.claim_token || !Number.isInteger(claim.attempt_no)
+ if (!claim.payment_id || !claim.organization_id || !claim.branch_id
+  || !claim.claim_token || !Number.isInteger(claim.attempt_no)
   || claim.attempt_no < 1 || claim.attempt_no > 6
-  || claim.branch_code !== FIUU_OPA_PILOT_BRANCH
+  || !CANONICAL_FIUU_OPA_BRANCH_PATTERN.test(claim.branch_code)
   || !claim.device_code || !claim.application_code
   || !Number.isFinite(claim.amount_rm) || claim.amount_rm <= 0
   || !Number.isFinite(new Date(claim.expires_at).getTime())) return null;
@@ -102,8 +108,9 @@ async function reportSignedInquirySuccess(
 }
 
 /**
- * Runs one leased BR001 inquiry. The database decides whether the payment is
- * due, fences concurrent workers and caps the cadence at six attempts.
+ * Runs one leased inquiry for an explicitly configured canonical branch. The
+ * database decides whether the payment is due, fences concurrent workers and
+ * caps the cadence at six attempts.
  */
 export async function reconcileFiuuOpaPayment(input: {
  service: ReturnType<typeof createAdminClient>;
@@ -126,14 +133,35 @@ export async function reconcileFiuuOpaPayment(input: {
  const claim = parseFiuuOpaClaim(claimData);
  if (!claim || claim.payment_id !== input.paymentId || claim.claim_token !== claimToken) {
   console.error('[pos-fiuu] inquiry_claim_invalid', { paymentId: input.paymentId });
+  const { error: completionError } = await input.service.rpc('complete_pos_fiuu_opa_inquiry', {
+   p_payment_id: input.paymentId,
+   p_claim_token: claimToken,
+   p_outcome: 'INVALID',
+   p_status_code: null,
+   p_provider_result: null,
+   p_failure_code: 'INVALID_CLAIM',
+  });
+  if (completionError) {
+   console.error('[pos-fiuu] inquiry_invalid_claim_release_failed', {
+    paymentId: input.paymentId,
+    reason: completionError.message.slice(0, 160),
+   });
+  }
   return 'invalid_claim';
  }
 
  let config;
  try {
-  config = getFiuuOpaConfig(claim.branch_code, claim.device_code, {
-   requireActiveMode: false,
-  });
+  const scope = {
+   organizationId: claim.organization_id,
+   branchId: claim.branch_id,
+   branchCode: claim.branch_code,
+  };
+  config = isFiuuOpaConfiguredForBranch(scope)
+   ? getFiuuOpaConfig(scope, {
+    requireActiveMode: false,
+   })
+   : null;
  } catch {
   config = null;
  }

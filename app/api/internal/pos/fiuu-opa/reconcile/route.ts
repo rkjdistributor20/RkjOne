@@ -1,5 +1,6 @@
 import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
+import { getFiuuOpaConfiguredTargets } from '@/lib/pos/fiuu-opa-server';
 import { reconcileFiuuOpaPayment } from '@/lib/pos/fiuu-opa-reconciliation';
 import { createAdminClient } from '@/lib/supabase/admin';
 
@@ -48,7 +49,7 @@ async function deferReportedPayment(
 }
 
 /**
- * Service-only BR001 worker. It is deliberately not connected to a Production
+ * Service-only OPA worker. It is deliberately not connected to a Production
  * schedule by this change; scheduling is enabled only after sandbox UAT.
  */
 export async function POST(request: Request) {
@@ -72,6 +73,27 @@ export async function POST(request: Request) {
   );
  }
 
+ let configuredTargets: ReturnType<typeof getFiuuOpaConfiguredTargets>;
+ try {
+  configuredTargets = getFiuuOpaConfiguredTargets();
+ } catch {
+  return NextResponse.json(
+   { error: 'Fiuu reconciliation branch configuration is invalid' },
+   { status: 503, headers: { 'Cache-Control': 'no-store' } },
+  );
+ }
+ if (configuredTargets.length === 0) {
+  return NextResponse.json(
+   { error: 'Fiuu reconciliation has no configured branches' },
+   { status: 503, headers: { 'Cache-Control': 'no-store' } },
+  );
+ }
+ const configuredBranches = configuredTargets.map((target) => target.branchCode);
+ const configuredBranchIds = configuredTargets.map((target) => target.branchId);
+ const configuredOrganizationIds = [...new Set(
+  configuredTargets.map((target) => target.organizationId),
+ )];
+
  const service = createAdminClient();
  const now = new Date().toISOString();
  const { data: reported, error: reportedError } = await service
@@ -79,7 +101,9 @@ export async function POST(request: Request) {
 		.select('id, gateway_ref, amount_rm, provider_status_checked_at')
   .eq('provider', 'fiuu')
   .eq('status', 'REPORTED')
-  .eq('sale_payload->>fiuu_branch_code', 'BR001')
+  .in('organization_id', configuredOrganizationIds)
+  .in('branch_id', configuredBranchIds)
+  .in('sale_payload->>fiuu_branch_code', configuredBranches)
 		.order('provider_status_checked_at', { ascending: true, nullsFirst: true })
   .order('created_at', { ascending: true })
   .limit(5);
@@ -98,7 +122,9 @@ export async function POST(request: Request) {
   .select('id')
   .eq('provider', 'fiuu')
   .eq('status', 'PENDING')
-  .eq('sale_payload->>fiuu_branch_code', 'BR001')
+  .in('organization_id', configuredOrganizationIds)
+  .in('branch_id', configuredBranchIds)
+  .in('sale_payload->>fiuu_branch_code', configuredBranches)
   .or([
    'fiuu_opa_reconcile_state.is.null',
    `fiuu_opa_reconcile_next_at.lte.${now}`,
@@ -150,7 +176,8 @@ export async function POST(request: Request) {
 
  return NextResponse.json({
   ok: true,
-  branch: 'BR001',
+  branch: configuredBranches.length === 1 ? configuredBranches[0] : null,
+  branches: configuredBranches,
   examined: (reported?.length ?? 0) + (data?.length ?? 0),
   results: counts,
  }, { headers: { 'Cache-Control': 'no-store' } });

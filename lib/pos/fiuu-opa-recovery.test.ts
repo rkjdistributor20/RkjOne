@@ -64,7 +64,11 @@ describe('Fiuu OPA inquiry recovery migration', () => {
   expect(workerRoute).toContain('FIUU_RECONCILIATION_SECRET');
   expect(workerRoute).toContain('FIUU_RECONCILIATION_ENABLED');
   expect(workerRoute).not.toContain('process.env.CRON_SECRET');
-  expect(workerRoute).toContain(".eq('sale_payload->>fiuu_branch_code', 'BR001')");
+  expect(workerRoute).toContain('getFiuuOpaConfiguredTargets');
+  expect(workerRoute).toContain(".in('organization_id', configuredOrganizationIds)");
+  expect(workerRoute).toContain(".in('branch_id', configuredBranchIds)");
+  expect(workerRoute).toContain(".in('sale_payload->>fiuu_branch_code', configuredBranches)");
+  expect(workerRoute).not.toContain(".eq('sale_payload->>fiuu_branch_code'");
   expect(workerRoute).toContain('fiuu_opa_reconcile_lease_expires_at.lte.');
   expect(workerRoute).toContain(".eq('status', 'REPORTED')");
   expect(workerRoute).toContain("service.rpc('fulfill_pos_fiuu_payment'");

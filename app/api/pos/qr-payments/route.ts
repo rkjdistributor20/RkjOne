@@ -256,7 +256,11 @@ export async function POST(request: Request) {
  const branchCode = device.branchCode?.trim().toUpperCase() ?? '';
  if (paymentMode === 'fiuu') {
   try {
-   if (!branchCode || !isFiuuOpaEnabledForBranch(branchCode)) {
+    if (!branchCode || !isFiuuOpaEnabledForBranch({
+     organizationId: profile.organization_id,
+     branchId: body.branchId,
+     branchCode,
+    })) {
     return NextResponse.json(
      { error: 'Fiuu OPA belum dibenarkan untuk cawangan ini.', mode: 'FIUU_OPA_BRANCH_NOT_ENABLED' },
      { status: 409 },
@@ -418,7 +422,11 @@ export async function POST(request: Request) {
   validitySeconds = getFiuuVtValiditySeconds();
  } else {
   try {
-   config = getFiuuOpaConfig(branchCode, device.deviceCode);
+    config = getFiuuOpaConfig({
+     organizationId: profile.organization_id,
+     branchId: body.branchId,
+     branchCode,
+    });
   } catch (error) {
    console.error('[pos-fiuu] invalid_configuration', { reason: errorMessage(error) });
    return NextResponse.json({ error: 'Konfigurasi Fiuu POS tidak sah. Hubungi HQ.' }, { status: 503 });

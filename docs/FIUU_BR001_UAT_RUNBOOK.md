@@ -1,10 +1,17 @@
 # Fiuu BR001 Dynamic DuitNow QR UAT and rollback runbook
 
-Last updated: 2026-10-28
+Last updated: 2026-11-03
 
 ## Decision and authority
 
-The immediate BR001 UAT transport is the official **Fiuu VT App-to-App** application because it is now installed and opens on the physical Samsung `SM-X406B`. Signed **Fiuu OPA Dynamic DuitNow QR** remains the preferred architecture for wider rollout, but its dedicated Application Code and Secret Key have not been provisioned.
+The current BR001 UAT target is signed **Fiuu OPA Dynamic DuitNow QR**, which is
+also the preferred architecture for wider rollout. Its tenant-bound mapping of
+`organizationId`, `branchId`, Application Code, Secret Key, Store ID and
+Terminal ID still has not been securely provisioned. The official **Fiuu
+VT App-to-App** application is installed and
+opens on the physical Samsung `SM-X406B`, but the completed VT payment did not
+return a native `STATUS=00`; it therefore remains a BR001-only fallback rather
+than accepted proof of automatic verification.
 
 Fiuu VT+ with cloudECR remains a separate prepared fallback. Its package, activation and credentials are not interchangeable with the standard Fiuu VT application.
 
@@ -42,11 +49,11 @@ confirmation.
 
 ## Controlled payment checkpoint — 2026-10-28
 
-The owner completed one RM2.50 DuitNow QR payment for Preview order
-`RKJ_87553A4C0F034E158D4426A9D8616EBE`. Fiuu's official payment-success email
-matches merchant `RNR Juru Arah Selatan`, amount RM2.50, provider transaction
-`4140436862` and 28 October 2026 at 02:05 MYT. No second charge was initiated
-during reconciliation.
+The owner completed one RM2.50 DuitNow QR payment for a Preview order. Fiuu's
+official payment-success email matches merchant `RNR Juru Arah Selatan`, amount
+RM2.50 and 28 October 2026 at 02:05 MYT. The real order and provider transaction
+identifiers are redacted from Git. No second charge was initiated during
+reconciliation.
 
 The native VT SALE/STATUS return did not reach RKJ One, so this payment does
 **not** pass automatic App-to-App `STATUS=00` verification. After explicit
@@ -58,16 +65,16 @@ callback or `STATUS=00` evidence was created.
 
 Post-commit verification returned:
 
-- payment `PAID`, provider/gateway reference `4140436862`;
-- one completed sale `TX-20261028-00001` for RM2.50;
+- payment `PAID` with its provider/gateway reference retained only in the approved evidence store;
+- one completed sale for RM2.50, with its identifier redacted from Git;
 - one receipt;
 - three BOM stock deductions and three stock movements;
 - shift totals RM32.50 gross, RM2.50 QR and three transactions; and
 - one occurrence only of the provider transaction reference.
 
-The earlier provider-paid transaction `4140386055` remains intentionally
-unlinked to a local sale: its local intent is still `EXPIRED`, with no local
-transaction or gateway reference. Finance must decide its separate
+An earlier provider-paid transaction, whose identifier is redacted from Git,
+remains intentionally unlinked to a local sale: its local intent is still
+`EXPIRED`, with no local transaction or gateway reference. Finance must decide its separate
 reconciliation/refund treatment before settlement sign-off. Do not silently
 create a second sale or refund it without a separately approved provider
 workflow.
@@ -76,6 +83,31 @@ The exact-once local sale/receipt/stock/shift path therefore passes under
 controlled manual recovery, while automatic VT confirmation and settlement
 remain **NO-GO**. Production, `BR002` through `BR036`, Production migrations,
 environment values and deployments remain unchanged.
+
+## Settlement and fleet checkpoint — 2026-11-03
+
+Fiuu's official 30 October 2026 settlement report contains both RM2.50 provider
+transactions. Each settled at RM2.48 net, for RM4.96 total. The matched
+transaction reconciles to the staging sale, so its provider settlement
+evidence passes. The second transaction is also provider-settled but still
+locally `EXPIRED` and unlinked. Both real identifiers are redacted from Git.
+This discrepancy remains a Finance
+blocker and must not be converted into a sale or refund without a separately
+approved workflow. The settlement file's bank details are deliberately not
+recorded in Git.
+
+A fresh read-only fleet audit found 36 active staging branches but only one
+active staging tablet. Production has 36 branch rows, with `BR012` inactive;
+35 current tablet rows; seven active and 28 pending tablets; zero recently seen
+tablets; five native-app installations; seven complete asset records; and zero
+Device Owner or kiosk-compliant tablets. None of the six Fiuu pilot migrations
+is present in Production. The detailed evidence and gate sequence are in
+`docs/FIUU_36_BRANCH_ROLLOUT_READINESS_2026-11-03.md`.
+
+Provider settlement for the matched payment is no longer the blocking item.
+Automatic signed confirmation, the unresolved settled transaction, BR012,
+per-branch provider mappings, tablet compliance and the Production migration
+gate remain **NO-GO**. Production and `BR002` through `BR036` remain unchanged.
 
 ## Transport decision table
 
@@ -112,21 +144,30 @@ ESLint and the 163-page Next.js build. Production was not changed.
 
 ## OPA configuration gate
 
-Before enabling OPA in Preview/staging, obtain the following provider-issued BR001 values through an approved secure channel:
+Before enabling OPA in Preview/staging, obtain the following BR001 values
+through approved internal/provider channels:
 
+- RKJ One organization UUID (`organizationId`);
+- RKJ One BR001 UUID (`branchId`);
 - OPA Application Code;
 - OPA Secret Key;
 - Store ID;
 - Terminal ID; and
 - confirmation that DuitNow QR channel `24` is active for the same application/store.
 
-One Application Code is treated as one store. RKJ One Production requires an explicit branch mapping containing all four values; it will not invent a Store ID or Terminal ID. Store ID and Terminal ID must each be 4–20 permitted characters.
+One Application Code is treated as one store. Every environment requires an
+explicit tenant-bound branch mapping containing all six values; RKJ One will
+not infer organization, branch, Store ID or Terminal ID. The two internal IDs
+must be valid UUIDs. Store ID and Terminal ID must each be 4–20 permitted
+characters.
 
 The server-only mapping shape is:
 
 ```json
 {
   "BR001": {
+    "organizationId": "organization-uuid",
+    "branchId": "branch-uuid",
     "applicationCode": "provider-issued-code",
     "secretKey": "provider-issued-secret",
     "storeId": "provider-approved-store-id",
@@ -135,7 +176,11 @@ The server-only mapping shape is:
 }
 ```
 
-Never commit the real mapping. Enter it directly into the intended Vercel environment as `POS_FIUU_APPLICATIONS_JSON`. Do not paste it into chat.
+Never commit the real mapping. Enter it directly into the intended Vercel
+environment as `POS_FIUU_APPLICATIONS_JSON`. Do not paste it into chat. The
+deprecated global OPA variables `POS_FIUU_APPLICATION_CODE`,
+`POS_FIUU_SECRET_KEY`, `POS_FIUU_STORE_ID` and `POS_FIUU_TERMINAL_ID` must
+remain unset; runtime health ignores them.
 
 ## Environment separation
 
@@ -176,7 +221,14 @@ signed pending status, performs at most six inquiries at +10, +20, +30, +40,
 reversal. The route has a 180-second execution budget, so the selected hosting
 plan must support that duration before UAT.
 
-`POS_QR_PAYMENT_MODE=fiuu` alone does not expose dynamic QR. The server also requires the explicit OPA branch allowlist and currently hard-locks it to `BR001`; empty, wildcard, malformed or non-BR001 entries fail closed. The official DuitNow pre-create validity range is 60–180 seconds. RKJ One defaults to 180 and rejects/falls back from values outside that range.
+`POS_QR_PAYMENT_MODE=fiuu` alone does not expose dynamic QR. The server also
+requires an explicit canonical `BR001`-`BR036` allowlist, a complete per-branch
+provider mapping and a matching `ACTIVE` database rollout record for the same
+organization, branch and Application Code fingerprint. Empty, wildcard,
+malformed, unmapped or inactive entries fail closed. For this UAT the allowlist
+and database rollout scope must contain **BR001 only**. The official DuitNow
+pre-create validity range is 60–180 seconds. RKJ One defaults to 180 and
+rejects/falls back from values outside that range.
 
 Configure the Fiuu real-time notification endpoint for the intended Preview host:
 
@@ -191,7 +243,7 @@ Do not point Fiuu at Production while testing Preview. Keep the webhook availabl
 Complete these checks before generating any payable QR:
 
 1. Confirm the deployment uses the intended non-Production database and Production remains `manual`.
-2. Confirm the secure mapping contains `BR001` only and includes Application Code, Secret Key, Store ID and Terminal ID.
+2. Confirm the secure mapping contains `BR001` only and includes the exact RKJ One `organizationId`, BR001 `branchId`, Application Code, Secret Key, Store ID and Terminal ID.
 3. Confirm the OPA environment and pre-create host match; no custom or sandbox host is accepted in Production.
 4. Confirm channel ID is exactly `24`, currency is `MYR`, and QR validity is 60–180 seconds.
 5. Confirm the notification URL is configured for the same Preview deployment.
@@ -262,12 +314,13 @@ Any unexplained variance is a stop condition. Store evidence only in an approved
 
 A BR001 Production package must identify the reviewed commit, migration list, intended environment-variable names, completed UAT/settlement evidence, rollback owner and monitoring window. It must explicitly state that `BR002-BR036` remain unchanged.
 
-The package must include migration
-`20261026133000_add_fiuu_opa_inquiry_recovery.sql`, a server-only recovery
-secret, and an approved scheduler/monitoring method. Applying the migration,
-adding the secret, enabling a schedule or changing the payment mode are all
-separate Production actions that require fresh confirmation at the moment of
-execution.
+The package must include migrations
+`20261026133000_add_fiuu_opa_inquiry_recovery.sql` and
+`20261103120000_fiuu_opa_branch_rollout.sql`, a server-only recovery secret,
+and an approved scheduler/monitoring method. Applying either migration, adding
+the secret, enabling a schedule, provisioning a rollout row or changing the
+payment mode are separate Production actions that require fresh confirmation
+at the moment of execution.
 
 Request fresh owner confirmation immediately before any Production migration, environment change, deployment or real charge.
 
@@ -276,7 +329,9 @@ Rollback procedure:
 1. Stop creating new dynamic QR intents.
 2. Inventory unresolved payments and provider references.
 3. With action-time approval, set Production back to `POS_QR_PAYMENT_MODE=manual`.
-4. Keep callback reconciliation available for already-issued QR codes.
+4. Keep the branch allowlist, server-only provider mappings and callback
+   reconciliation available until every already-issued intent and settlement
+   check has cleared; removing them early would disable safe recovery.
 5. Preserve payment, receipt, stock, audit and settlement evidence.
 6. Reconcile or refund through the documented provider process; never fabricate a local failure.
 

@@ -7,7 +7,7 @@ import {
  parseVerifiedFiuuOpaJson,
  verifyFiuuOpaSignature,
 } from '@/lib/pos/fiuu';
-import { FIUU_OPA_PILOT_BRANCH } from '@/lib/pos/fiuu-opa-server';
+import { isFiuuOpaConfiguredForBranch } from '@/lib/pos/fiuu-opa-server';
 import { enforceRateLimit } from '@/lib/security/rate-limit';
 import type { Json } from '@/types/database';
 
@@ -76,7 +76,7 @@ async function handleFiuuNotification(input: {
  const admin = createAdminClient();
  const { data: payment, error: paymentError } = await admin
  .from('pos_online_payments')
-  .select('id, branch_id, status, provider, amount_rm, gateway_ref, sale_payload, transaction_id')
+  .select('id, organization_id, branch_id, status, provider, amount_rm, gateway_ref, sale_payload, transaction_id')
   .eq('id', referenceId)
   .eq('provider', 'fiuu')
   .maybeSingle();
@@ -89,14 +89,27 @@ async function handleFiuuNotification(input: {
 
  const branchCode = cleanProviderValue(payment.sale_payload.fiuu_branch_code, 40).toUpperCase();
  const saleBranchId = cleanProviderValue(payment.sale_payload.branchId, 40).toLowerCase();
- if (branchCode !== FIUU_OPA_PILOT_BRANCH
-  || saleBranchId !== payment.branch_id.toLowerCase()) {
-  return NextResponse.json({ error: 'Fiuu OPA pilot branch mismatch' }, { status: 403 });
+ if (saleBranchId !== payment.branch_id.toLowerCase()) {
+  return NextResponse.json({ error: 'Fiuu OPA branch mismatch' }, { status: 403 });
  }
- const deviceCode = cleanProviderValue(payment.sale_payload.fiuu_device_code, 40);
+ try {
+  if (!isFiuuOpaConfiguredForBranch({
+   organizationId: payment.organization_id,
+   branchId: payment.branch_id,
+   branchCode,
+  })) {
+   return NextResponse.json({ error: 'Fiuu OPA branch is not configured' }, { status: 403 });
+  }
+ } catch {
+  return NextResponse.json({ error: 'Fiuu configuration invalid' }, { status: 503 });
+ }
  let config;
  try {
-  config = getFiuuOpaConfig(branchCode, deviceCode, { requireActiveMode: false });
+  config = getFiuuOpaConfig({
+   organizationId: payment.organization_id,
+   branchId: payment.branch_id,
+   branchCode,
+  }, { requireActiveMode: false });
  } catch {
   return NextResponse.json({ error: 'Fiuu configuration invalid' }, { status: 503 });
  }

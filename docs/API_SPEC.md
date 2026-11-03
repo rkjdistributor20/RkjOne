@@ -4,7 +4,7 @@
 
 `GET /api/pos/qr-config?branch_id=<uuid>` requires an authenticated RKJ One profile and applies the standard POS branch-scope check. It returns the active QR mode, selected branch identity, and the versioned static Fiuu QR descriptor where configured. No Fiuu secret or server credential is returned.
 
-Last updated: 2026-10-26
+Last updated: 2026-11-03
 
 Base URL:
 
@@ -25,7 +25,7 @@ The signed OPA transport creates a sale only after a valid Fiuu Offline Payment 
 
 ### POST `/api/pos/qr-payments`
 
-Creates a pending Fiuu DuitNow QR payment for an authenticated, authorized POS shift member on an official branch device. Product prices, quantities, discount and payment split are recalculated on the server. OPA returns an authenticated RKJ One QR image proxy. OPA creation additionally requires an explicit `POS_FIUU_OPA_BRANCHES` allowlist and is currently hard-locked to `BR001`; wildcard, malformed and non-BR001 configuration fails closed before any payment row or provider request is created. Legacy VT returns a provider order ID for the native handoff. In BR001 cloudECR mode, the server sends one signed SALE to the configured POS account and stores the expected POS ID, Device ID and Terminal SN with the intent; no credential, token or Secret Key is returned to the client.
+Creates a pending Fiuu DuitNow QR payment for an authenticated, authorized POS shift member on an official branch device. Product prices, quantities, discount and payment split are recalculated on the server. OPA returns an authenticated RKJ One QR image proxy. OPA creation additionally requires an explicit `POS_FIUU_OPA_BRANCHES` allowlist, a `POS_FIUU_APPLICATIONS_JSON` entry containing the matching `organizationId`, `branchId`, `applicationCode`, `secretKey`, `storeId` and `terminalId`, and an `ACTIVE` database rollout record for the same tenant, branch and Application Code fingerprint. Only canonical `BR001`-`BR036` codes are recognized; wildcard, malformed, partial, cross-tenant, unmapped or inactive configuration fails closed before any payment row or provider request is created. The current authorized go-live scope remains BR001 only, and Production remains manual. Legacy VT returns a provider order ID for the native handoff. In BR001 cloudECR mode, the server sends one signed SALE to the configured POS account and stores the expected POS ID, Device ID and Terminal SN with the intent; no credential, token or Secret Key is returned to the client.
 
 The request must include an opaque `idempotency_key` of 16-64 letters, numbers, underscores or hyphens. Retrying the same organization, branch, shift, creator, amount and sale payload returns the existing intent. Reusing the key for different intent data returns `409` and never creates another payment.
 
@@ -39,7 +39,7 @@ Returns the provider QR image through an authenticated, branch-scoped, no-store 
 
 ### POST `/api/pos/qr-payments/webhook`
 
-Public provider callback endpoint. Request bodies are capped at 64 KiB. Fiuu callbacks require a valid HMAC-SHA256 signature, the hard-locked `BR001` branch identity at both API and database boundaries, canonical two-decimal MYR amount, and exact matches for the stored application, reference, provider transaction ID and DuitNow channel `24`. A verified success is processed in two committed database phases: sanitized provider evidence is first stored durably as `REPORTED`, then sale, stock deduction, receipt creation and payment completion are fulfilled idempotently in a separate transaction. If fulfilment fails, the `REPORTED` evidence remains and either a duplicate valid callback or authenticated status polling can retry without a second charge. Existing `PAID` callbacks return the existing result. Invalid callbacks do not create a sale. Callback credentials remain available for already-issued intents when new QR creation is rolled back to manual mode.
+Public provider callback endpoint. Request bodies are capped at 64 KiB. Fiuu callbacks require a valid HMAC-SHA256 signature, the exact stored organization/branch/application identity at both API and database boundaries, canonical two-decimal MYR amount, and exact matches for the stored reference, provider transaction ID and DuitNow channel `24`. A verified success is processed in two committed database phases: sanitized provider evidence is first stored durably as `REPORTED`, then sale, stock deduction, receipt creation and payment completion are fulfilled idempotently in a separate transaction. If fulfilment fails, the `REPORTED` evidence remains and either a duplicate valid callback or authenticated status polling can retry without a second charge. Existing `PAID` callbacks return the existing result. Invalid callbacks do not create a sale. Callback credentials remain available for already-issued intents when new QR creation is rolled back to manual mode. Although the package supports explicit canonical branch rollout records, the current go-live gate is BR001 only and no Production activation is authorized by this specification.
 
 ### POST `/api/pos/qr-payments/[paymentId]/vt-result`
 

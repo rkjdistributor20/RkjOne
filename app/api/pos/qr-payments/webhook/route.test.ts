@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
  createAdminClient: vi.fn(),
  enforceRateLimit: vi.fn(),
  getFiuuOpaConfig: vi.fn(),
+ isFiuuOpaConfiguredForBranch: vi.fn(),
  parseVerifiedFiuuOpaJson: vi.fn(),
  verifyFiuuOpaSignature: vi.fn(),
  verifyPosBillplzSignature: vi.fn(),
@@ -28,7 +29,7 @@ vi.mock('@/lib/pos/fiuu', () => ({
  verifyFiuuOpaSignature: mocks.verifyFiuuOpaSignature,
 }));
 vi.mock('@/lib/pos/fiuu-opa-server', () => ({
- FIUU_OPA_PILOT_BRANCH: 'BR001',
+ isFiuuOpaConfiguredForBranch: mocks.isFiuuOpaConfiguredForBranch,
 }));
 vi.mock('@/lib/pos/qr-gateway', () => ({
  verifyPosBillplzSignature: mocks.verifyPosBillplzSignature,
@@ -37,6 +38,7 @@ vi.mock('@/lib/pos/qr-gateway', () => ({
 import { POST } from './route';
 
 const PAYMENT_ID = '11111111-1111-4111-8111-111111111111';
+const ORGANIZATION_ID = '66666666-6666-4666-8666-666666666666';
 const BRANCH_ID = '33333333-3333-4333-8333-333333333333';
 const SIGNATURE = 'a'.repeat(64);
 
@@ -76,6 +78,7 @@ function arrangeAdmin(
   maybeSingle: vi.fn().mockResolvedValue({
    data: {
     id: PAYMENT_ID,
+    organization_id: ORGANIZATION_ID,
     branch_id: BRANCH_ID,
     status: 'PENDING',
     provider: 'fiuu',
@@ -107,6 +110,7 @@ function arrangeAdmin(
 beforeEach(() => {
  vi.clearAllMocks();
  mocks.enforceRateLimit.mockReturnValue(null);
+ mocks.isFiuuOpaConfiguredForBranch.mockReturnValue(true);
  mocks.getFiuuOpaConfig.mockReturnValue({
   applicationCode: 'APP001',
   secretKey: 'server-only-secret',
@@ -245,18 +249,52 @@ describe('Fiuu OPA webhook durability', () => {
 		}));
 	});
 
- it('rejects a callback for an intent outside the BR001 pilot boundary', async () => {
+ it('accepts a configured BR036 callback without requiring the active payment mode', async () => {
+  const rpc = arrangeAdmin([
+   { data: { payment_id: PAYMENT_ID, status: 'REPORTED' }, error: null },
+   { data: { transaction_id: '22222222-2222-4222-8222-222222222222' }, error: null },
+  ], {
+   sale_payload: {
+    branchId: BRANCH_ID,
+    fiuu_branch_code: 'BR036',
+    fiuu_device_code: 'POS-BR036-01',
+   },
+  });
+
+  const response = await POST(webhookRequest());
+
+  expect(response.status).toBe(200);
+  const scope = {
+   organizationId: ORGANIZATION_ID,
+   branchId: BRANCH_ID,
+   branchCode: 'BR036',
+  };
+  expect(mocks.isFiuuOpaConfiguredForBranch).toHaveBeenCalledWith(scope);
+  expect(mocks.getFiuuOpaConfig).toHaveBeenCalledWith(
+   scope,
+   { requireActiveMode: false },
+  );
+  expect(rpc).toHaveBeenCalledTimes(2);
+ });
+
+ it('rejects a callback for a branch outside the explicit configured allowlist', async () => {
+  mocks.isFiuuOpaConfiguredForBranch.mockReturnValue(false);
   const rpc = arrangeAdmin([], {
    sale_payload: {
     branchId: BRANCH_ID,
-    fiuu_branch_code: 'BR002',
-    fiuu_device_code: 'POS-BR002-01',
+    fiuu_branch_code: 'BR036',
+    fiuu_device_code: 'POS-BR036-01',
    },
   });
 
   const response = await POST(webhookRequest());
 
   expect(response.status).toBe(403);
+  expect(mocks.isFiuuOpaConfiguredForBranch).toHaveBeenCalledWith({
+   organizationId: ORGANIZATION_ID,
+   branchId: BRANCH_ID,
+   branchCode: 'BR036',
+  });
   expect(rpc).not.toHaveBeenCalled();
   expect(mocks.getFiuuOpaConfig).not.toHaveBeenCalled();
  });
