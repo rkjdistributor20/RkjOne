@@ -169,6 +169,20 @@ describe('Fiuu OPA Preview preflight', () => {
   expect(JSON.stringify(body)).not.toContain('POS_FIUU_APPLICATIONS_JSON');
  });
 
+ it('logs only a fixed safe category for invalid mapped identifiers', async () => {
+  const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  mocks.getFiuuOpaConfiguredTargets.mockImplementationOnce(() => {
+   throw new Error('Organization ID atau Branch ID Fiuu BR001 tidak sah');
+  });
+
+  const response = await GET();
+
+  expect(response.status).toBe(503);
+  expect(consoleError).toHaveBeenCalledWith(
+   '[fiuu-opa-preflight] failed at target-mapping-identifiers',
+  );
+ });
+
  it('rejects organization mismatch and non-sandbox configuration', async () => {
   mocks.getCurrentProfile.mockResolvedValueOnce({
    organization_id: '77777777-7777-4777-8777-777777777777',

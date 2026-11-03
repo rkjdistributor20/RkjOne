@@ -46,12 +46,12 @@ function classifyTargetConfigurationFailure(error: unknown): string {
  if (message.startsWith('Persekitaran Fiuu')) return 'target-environment';
  if (message.startsWith('RKJ One hanya membenarkan saluran')) return 'target-channel';
  if (message.startsWith('Endpoint Fiuu')) return 'target-endpoint';
- if (message.startsWith('Kod pemetaan cawangan Fiuu OPA')
-  || message.startsWith('Pemetaan cawangan Fiuu OPA berulang')
-  || message.startsWith('Pemetaan Fiuu OPA')
-  || message.startsWith('Konfigurasi Fiuu ')
-  || message.startsWith('Organization ID atau Branch ID Fiuu')) {
-  return 'target-mapping';
+ if (message.startsWith('Kod pemetaan cawangan Fiuu OPA')) return 'target-mapping-code';
+ if (message.startsWith('Pemetaan cawangan Fiuu OPA berulang')) return 'target-mapping-duplicate';
+ if (message.startsWith('Pemetaan Fiuu OPA')) return 'target-mapping-missing';
+ if (message.startsWith('Konfigurasi Fiuu ')) return 'target-mapping-shape';
+ if (message.startsWith('Organization ID atau Branch ID Fiuu')) {
+  return 'target-mapping-identifiers';
  }
  return 'target-unknown';
 }
