@@ -68,13 +68,22 @@ Do not bulk-update tablet rows or reuse a registration. The all-branch allowlist
 
 - Staging migration `20261104130000_expand_fiuu_vt_registered_branches.sql`
   applied successfully and the Fiuu database verifier returned zero errors.
+- Production is configured with the explicit canonical `BR001`-`BR036` VT
+  allowlist. Migration `20261104190000_activate_br012_and_prepare_tablet.sql`
+  closes the final branch-record gap by activating the exact `BR012` record and
+  creating only its `PENDING` tablet slot. It does not enroll or activate a
+  physical tablet.
 - Full application verification passed: 35 test files / 289 tests, TypeScript,
   ESLint and the optimized Next.js production build.
 - Production remains safe for gradual physical rollout because every unregistered
   branch falls back to static/manual QR. Registering the exact tablet is the
   per-branch activation event; no bulk database activation is permitted.
+- Post-migration Production evidence shows 36/36 canonical branch records
+  `ACTIVE`, 36/36 current tablet slots, no missing or duplicate slot, seven
+  already-registered tablets (`BR001`, `BR014`, `BR017`, `BR018`, `BR021`,
+  `BR023`, `BR035`) and 29 slots still `PENDING` physical registration.
 
-## Production branch and tablet readiness audit (2026-10-20)
+## Production branch and tablet readiness audit (superseded 2026-11-04)
 
 The owner authorized activation for all outlets, but that authorization is a rollout approval and does not replace physical tablet enrolment or payment UAT. A read-only Production audit found:
 
@@ -84,7 +93,7 @@ The owner authorized activation for all outlets, but that authorization is a rol
 - 4 of the 6 active tablets report the native app (`BR001`, `BR018`, `BR021`, `BR035`);
 - 0 tablets report Android Device Owner, kiosk permission or active kiosk enforcement.
 
-Do not bulk-update tablet records to `ACTIVE`. The registered-device release may explicitly allowlist `BR001`-`BR036`, but the runtime and database continue to reject VT until each exact physical tablet passes asset verification and one-time enrollment. Static QR/manual confirmation remains the fallback for every active branch with a matching branch record. If `BR012` is still inactive or missing at deployment time, it remains fail-closed even when its code is present in the allowlist.
+Do not bulk-update tablet records to `ACTIVE`. The registered-device release may explicitly allowlist `BR001`-`BR036`, but the runtime and database continue to reject VT until each exact physical tablet passes asset verification and one-time enrollment. Static QR/manual confirmation remains the fallback for every active branch with a matching branch record. Migration `20261104190000_activate_br012_and_prepare_tablet.sql` closes the final BR012 branch-record gap and creates only a `PENDING` slot, so all 36 branches can now be registered one physical tablet at a time.
 
 Register tablets one cawangan at a time. After each registration, run a controlled first transaction and reconcile the Fiuu result, RKJ One sale, one receipt, stock movement, shift aggregate and Finance settlement before normal use. Retain static QR/manual fallback and immediate rollback throughout.
 
