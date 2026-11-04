@@ -213,6 +213,8 @@ function FiuuVtStaffSteps({ stage }: { stage: FiuuVtStaffStage }) {
     return (
      <li
       key={step.title}
+      aria-current={active ? 'step' : undefined}
+      aria-label={`${index + 1}. ${step.title}: ${completed ? 'Selesai' : active ? 'Langkah semasa' : 'Belum mula'}`}
       className={cn(
        'rounded-xl border p-3',
        completed && 'border-emerald-200 bg-emerald-50',
@@ -234,6 +236,7 @@ function FiuuVtStaffSteps({ stage }: { stage: FiuuVtStaffStage }) {
        <p className="text-xs font-bold text-slate-950">{step.title}</p>
       </div>
       <p className="mt-1 pl-8 text-[11px] leading-4 text-slate-600">{step.detail}</p>
+      <span className="sr-only">{completed ? 'Selesai' : active ? 'Langkah semasa' : 'Belum mula'}</span>
      </li>
     );
    })}
@@ -280,6 +283,7 @@ export function PaymentDialog({
 	const [manualQrVerified, setManualQrVerified] = useState(false);
  const [vtNativeStatus, setVtNativeStatus] = useState<FiuuVtNativeStatus | null>(null);
  const [vtStatusLoading, setVtStatusLoading] = useState(false);
+ const [vtSaleOpened, setVtSaleOpened] = useState(false);
 
  const quickAmounts = useMemo(() => buildQuickAmounts(total), [total]);
  const defaultAmount = total > 0 ? total.toFixed(2) : '';
@@ -317,6 +321,7 @@ export function PaymentDialog({
    || !vtNativeStatus.trustedInstall
   ));
  const isFiuuVtCheckout = method !== 'CASH'
+  && qrCents > 0
   && !trainingMode
   && qrConfig?.mode === 'FIUU_VT_APP'
   && !vtManualFallback;
@@ -376,6 +381,7 @@ export function PaymentDialog({
 	setManualQrVerified(false);
 	setVtNativeStatus(null);
 	setVtStatusLoading(false);
+	setVtSaleOpened(false);
 	qrAttemptKeyRef.current = null;
 	vtResultFingerprintRef.current = null;
  vtAutoConfirmAttemptRef.current = null;
@@ -615,6 +621,7 @@ export function PaymentDialog({
   const activePayment = qrPayment;
   if (!activePayment || activePayment.integration !== 'vt_app'
    || activePayment.providerOrderId !== result.orderId) return;
+  setVtSaleOpened(true);
   const fingerprint = isFiuuVtErrorResult(result)
    ? [result.kind, result.opType, result.orderId, result.errorCode].join(':')
    : [result.opType, result.orderId, result.transactionId, result.status, result.amountRm].join(':');
@@ -704,6 +711,7 @@ export function PaymentDialog({
      }
      const nativeStatus = await readFiuuVtStatus();
      if (nativeStatus.pendingOperation === 'SALE') {
+       setVtSaleOpened(true);
       setQrPollError('RKJ One masih menunggu keputusan SALE asal daripada Fiuu VT. Jangan buka STATUS atau SALE baharu.');
       return;
      }
@@ -982,13 +990,16 @@ export function PaymentDialog({
     }
    }
    if (payment.status === 'REPORTED') {
+      setVtSaleOpened(true);
      setQrPollError('Fiuu VT telah melaporkan bayaran berjaya. Jangan buka SALE baharu; RKJ One sedang memuktamadkan jualan secara automatik.');
      toast.info('Bayaran Fiuu VT terdahulu sedang disahkan secara automatik.');
     return;
    }
     if (activePayment.integration === 'vt_app' && activePayment.providerOrderId) {
+      setVtSaleOpened(false);
      try {
       await launchFiuuVtSale(activePayment.providerOrderId, activePayment.amountRm);
+       setVtSaleOpened(true);
       toast.info('Selesaikan pembayaran dalam aplikasi Fiuu VT.');
      } catch (launchError) {
       setQrPollError(launchError instanceof Error
@@ -1085,7 +1096,7 @@ export function PaymentDialog({
 
      {qrPayment.integration === 'vt_app'
       && (qrStatus === 'PENDING' || qrStatus === 'REPORTED' || qrStatus === 'PAID') && (
-      <FiuuVtStaffSteps stage={qrStatus === 'PENDING' ? 'PAYMENT' : 'FINALIZING'} />
+       <FiuuVtStaffSteps stage={qrStatus === 'PENDING' ? (vtSaleOpened ? 'PAYMENT' : 'READY') : 'FINALIZING'} />
      )}
 
      {qrStatus === 'REPORTED' ? (
@@ -1583,6 +1594,7 @@ export function PaymentDialog({
        onClick={() => {
         removeStoredQrPayment();
         setQrPayment(null);
+         setVtSaleOpened(false);
         setQrStatus('PENDING');
         setQrSecondsRemaining(0);
         setQrPollError(null);

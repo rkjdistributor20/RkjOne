@@ -69,6 +69,9 @@ describe('Fiuu VT BR001 cashier warning', () => {
   expect(paymentDialog).toContain('Menunggu bayaran pelanggan');
   expect(paymentDialog).toContain('Semak sekarang');
   expect(paymentDialog).toContain('Bayaran disahkan. Resit dikeluarkan dan stok dikemas kini.');
+  expect(paymentDialog).toContain('&& qrCents > 0');
+  expect(paymentDialog).toContain('const [vtSaleOpened, setVtSaleOpened] = useState(false);');
+  expect(paymentDialog).toContain("aria-current={active ? 'step' : undefined}");
  });
 });
 

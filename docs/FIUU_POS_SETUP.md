@@ -1,6 +1,6 @@
 # RKJ One Fiuu DuitNow QR POS Setup
 
-Last updated: 2026-10-28
+Last updated: 2026-11-04
 
 ## Authoritative BR001 operating runbook
 
@@ -290,7 +290,7 @@ Validation on 2026-10-27: the standard VT BR001 server/database hard lock passes
 
 Validation on 2026-10-28: the official VT app is available on the BR001 Samsung and has entered the provider payment flow. The first physical attempt exposed a documented error-only callback shape (`errorCode` and `errorMsg`) that was not a transaction result and therefore did not create a sale, receipt or stock movement. The BR001 bridge and client now handle that callback separately, preserve the durable pending attempt, reconcile through the authenticated RKJ status endpoint and present a bounded-expiry warning without treating the error as payment success. All repository tests (`184/184`), TypeScript, targeted ESLint, the Next.js Production build (`163` pages) and Android Java compilation pass locally. This is Preview-only code validation; the updated APK still requires physical BR001 installation and UAT. Production, Production credentials and BR002-BR036 remain unchanged.
 
-Validation on 2026-11-04: one controlled physical BR001 Fiuu VT payment for RM3.50 completed successfully in the isolated Preview/staging environment. The provider result and a matching Fiuu payment-success email were observed, RKJ One recorded the payment and transaction as complete, created exactly one receipt, produced the expected four stock-deduction and four stock-movement records, incremented the active shift QR total and left no unresolved `PENDING` or `REPORTED` attempt. The physical receipt also printed successfully. Identifiers, gateway references and credentials are deliberately omitted from this record. Finance must still match the new transaction to its Fiuu settlement report and bank credit before the BR001 pilot can pass its final gate. Production remains in `manual` mode and BR002-BR036 remain inactive.
+Validation on 2026-11-04: one controlled physical BR001 Fiuu VT App-to-App payment for RM3.50 completed successfully in the isolated Preview/staging environment. RKJ One recorded the payment as `PAID` and its transaction as `COMPLETED`, created exactly one receipt, produced four expected stock-deduction records and four stock-movement records, updated the active-shift QR aggregate once, and left no unresolved `PENDING` or `REPORTED` attempt. A matching Fiuu payment-success email was observed and the physical receipt printed successfully. Identifiers, gateway references, QR payloads and credentials are deliberately omitted. This proves the BR001 VT App-to-App operational flow only; it is not evidence of a signed OPA notification or provider settlement. Finance must still match this RM3.50 transaction to a new Fiuu settlement report and corresponding bank credit. Production remains in `POS_QR_PAYMENT_MODE=manual`, and BR002-BR036 remain inactive.
 
 ## Play Store
 

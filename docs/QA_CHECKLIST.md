@@ -109,11 +109,11 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [x] The successful BR001 payment created exactly one receipt, four expected stock-deduction rows and four stock-movement rows, incremented the active shift QR total and left no unresolved `PENDING` or `REPORTED` attempt.
 - [x] The physical BR001 receipt printed successfully after payment confirmation.
 - [x] Production remains in `manual` mode and BR002-BR036 remain inactive after the successful BR001 transaction.
+- [x] The 2026-11-04 result is classified as VT App-to-App operational evidence, not a signed OPA callback or settlement evidence.
 - [ ] The updated BR001 UAT APK proves on the physical Samsung that an official VT error callback returns to RKJ One, shows a bounded recovery state and permits a deliberate new attempt only after the server reconciliation window.
 - [ ] BR001 proves that successful Fiuu `getLast` returns the original SALE reference in signed metadata; absent metadata must remain fail-closed and be escalated to Fiuu.
 - [ ] BR001 validates uncertain-result recovery through `getLast`: each inquiry uses a new query reference, signed metadata contains the original SALE reference, and network/duplicate recovery creates no duplicate sale, receipt or stock movement.
-- [ ] Finance reconciles the physical BR001 payment against the provider transaction, RKJ receipt, stock, shift, Fiuu settlement report and bank credit.
-- [ ] Finance matches the 2026-11-04 RM3.50 BR001 transaction to the new Fiuu settlement report and corresponding bank credit.
+- [ ] Finance matches the 2026-11-04 RM3.50 BR001 VT payment across the provider transaction, RKJ receipt, stock records, shift aggregate, a new Fiuu settlement report and the corresponding bank credit.
 - [ ] Owner gives fresh confirmation immediately before any Production migration, credential, environment or deployment change.
 
 ## Deployment Review
