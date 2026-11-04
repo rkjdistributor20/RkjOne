@@ -1,34 +1,44 @@
 import { getPosQrPaymentMode } from './fiuu';
 
-export const FIUU_VT_PILOT_BRANCH = 'BR001' as const;
 export const FIUU_VT_PREVIEW_LATE_RECOVERY_MS = 24 * 60 * 60 * 1000;
 
-const BRANCH_CODE_PATTERN = /^BR\d{3}$/;
+export const FIUU_VT_BRANCH_CODE_PATTERN = /^BR(00[1-9]|0[12]\d|03[0-6])$/;
 
-export function getFiuuVtPilotBranches(): ReadonlySet<string> {
+export function normalizeFiuuVtBranchCode(value: unknown): string | null {
+ if (typeof value !== 'string') return null;
+ const branchCode = value.trim().toUpperCase();
+ return FIUU_VT_BRANCH_CODE_PATTERN.test(branchCode) ? branchCode : null;
+}
+
+export function getFiuuVtBranches(): ReadonlySet<string> {
  const configuredBranches = process.env.POS_FIUU_VT_BRANCHES;
  if (!configuredBranches?.trim()) return new Set();
 
  const branches = new Set<string>();
  for (const raw of configuredBranches.split(',')) {
-  const branchCode = raw.trim().toUpperCase();
-  if (!branchCode || !BRANCH_CODE_PATTERN.test(branchCode)) {
-   throw new Error(`Kod cawangan pilot Fiuu VT tidak sah: ${branchCode.slice(0, 12) || '(kosong)'}`);
+  const branchCode = normalizeFiuuVtBranchCode(raw);
+  if (!branchCode) {
+   const redacted = raw.trim().toUpperCase().slice(0, 12) || '(kosong)';
+   throw new Error(`Kod cawangan Fiuu VT tidak sah: ${redacted}`);
   }
-  if (branchCode !== FIUU_VT_PILOT_BRANCH) {
-   throw new Error(`Pilot Fiuu VT dikunci kepada ${FIUU_VT_PILOT_BRANCH}`);
+  if (branches.has(branchCode)) {
+   throw new Error(`Kod cawangan Fiuu VT berulang: ${branchCode}`);
   }
   branches.add(branchCode);
  }
  return branches;
 }
 
+// Preserve the original export for older server modules while the rollout
+// moves from one pilot branch to an explicit per-branch allowlist.
+export const getFiuuVtPilotBranches = getFiuuVtBranches;
+
 export function isFiuuVtEnabledForBranch(branchCode: string): boolean {
- const normalizedBranchCode = branchCode.trim().toUpperCase();
- if (!BRANCH_CODE_PATTERN.test(normalizedBranchCode)) return false;
+ const normalizedBranchCode = normalizeFiuuVtBranchCode(branchCode);
+ if (!normalizedBranchCode) return false;
 
  return getPosQrPaymentMode() === 'fiuu_vt'
-  && getFiuuVtPilotBranches().has(normalizedBranchCode);
+  && getFiuuVtBranches().has(normalizedBranchCode);
 }
 
 export function getFiuuVtValiditySeconds(): number {
@@ -37,10 +47,9 @@ export function getFiuuVtValiditySeconds(): number {
 }
 
 export function getFiuuVtLateRecoveryMs(): number {
- // This exception exists only for BR001 Preview UAT, where a paid native SALE
+ // This exception exists only for Preview UAT, where a paid native SALE
  // may need to be re-attached after the WebView/session was replaced. Production
- // remains on the normal bounded callback grace unless separately reviewed and
- // explicitly enabled in a future rollout.
+ // remains on the normal bounded callback grace.
  return process.env.VERCEL_ENV === 'preview'
   ? FIUU_VT_PREVIEW_LATE_RECOVERY_MS
   : 0;

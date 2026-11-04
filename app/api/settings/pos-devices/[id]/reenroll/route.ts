@@ -33,7 +33,7 @@ export async function POST(
   const expiresAt = new Date(Date.now() + ENROLLMENT_VALIDITY_MS).toISOString();
   const admin = createAdminClient();
   const { data: updated, error } = await (admin as any)
-    .rpc('request_br001_pos_device_reenrollment', {
+    .rpc('request_pos_device_reenrollment', {
       p_device_id: deviceId,
       p_organization_id: profile.organization_id,
       p_actor_id: profile.id,

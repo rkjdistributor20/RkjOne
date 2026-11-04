@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
  createClient: vi.fn(),
  enforceRateLimit: vi.fn(),
  getCurrentProfile: vi.fn(),
+ getPosDeviceContext: vi.fn(),
  getFiuuCloudEcrConfig: vi.fn(),
  getFiuuOpaConfig: vi.fn(),
  getFiuuStaticQrConfig: vi.fn(),
@@ -23,6 +24,9 @@ vi.mock('@/lib/auth/session', () => ({
 vi.mock('@/lib/pos/access', () => ({
  assertCanAccessPosBranch: mocks.assertCanAccessPosBranch,
  posAccessErrorStatus: mocks.posAccessErrorStatus,
+}));
+vi.mock('@/lib/pos/device-auth', () => ({
+ getPosDeviceContext: mocks.getPosDeviceContext,
 }));
 vi.mock('@/lib/pos/fiuu', () => ({
  getFiuuOpaConfig: mocks.getFiuuOpaConfig,
@@ -113,6 +117,10 @@ beforeEach(() => {
   role: 'STAFF',
  });
  mocks.assertCanAccessPosBranch.mockResolvedValue(undefined);
+ mocks.getPosDeviceContext.mockResolvedValue({
+  mode: 'PRODUCTION',
+  device: { branchId: BRANCH_ID },
+ });
  mocks.posAccessErrorStatus.mockReturnValue(403);
  mocks.getPosQrPaymentMode.mockReturnValue('fiuu');
  mocks.getFiuuOpaConfig.mockReturnValue(OPA_CONFIG);
@@ -220,5 +228,64 @@ describe('Fiuu OPA QR configuration scope', () => {
   expect(mocks.isFiuuOpaEnabledForBranch).toHaveBeenCalledWith(SCOPE);
   expect(mocks.getFiuuOpaConfig).not.toHaveBeenCalled();
   expect(mocks.isFiuuOpaRolloutActive).not.toHaveBeenCalled();
+ });
+});
+
+describe('Fiuu VT registered-device configuration gate', () => {
+ it('enables VT only for an allowlisted branch on its registered official tablet', async () => {
+  mocks.getPosQrPaymentMode.mockReturnValue('fiuu_vt');
+  mocks.isFiuuOpaEnabledForBranch.mockReturnValue(false);
+  mocks.isFiuuVtEnabledForBranch.mockReturnValue(true);
+
+  const response = await GET(new Request(
+   `http://localhost/api/pos/qr-config?branch_id=${BRANCH_ID}`,
+  ));
+
+  expect(response.status).toBe(200);
+  await expect(response.json()).resolves.toMatchObject({
+   mode: 'FIUU_VT_APP',
+   configured: true,
+   vt: {
+    packageName: 'com.rms.mobile.razervt',
+    rollout: 'REGISTERED_DEVICE_ONLY',
+   },
+  });
+ });
+
+ it('fails closed while the branch tablet is not registered', async () => {
+  mocks.getPosQrPaymentMode.mockReturnValue('fiuu_vt');
+  mocks.isFiuuOpaEnabledForBranch.mockReturnValue(false);
+  mocks.isFiuuVtEnabledForBranch.mockReturnValue(true);
+  mocks.getPosDeviceContext.mockResolvedValue({ mode: 'TRAINING', device: null });
+
+  const response = await GET(new Request(
+   `http://localhost/api/pos/qr-config?branch_id=${BRANCH_ID}`,
+  ));
+
+  await expect(response.json()).resolves.toMatchObject({
+   mode: 'FIUU_STATIC_MANUAL',
+   configured: false,
+   vt: null,
+  });
+ });
+
+ it('fails closed when a registered tablet belongs to another branch', async () => {
+  mocks.getPosQrPaymentMode.mockReturnValue('fiuu_vt');
+  mocks.isFiuuOpaEnabledForBranch.mockReturnValue(false);
+  mocks.isFiuuVtEnabledForBranch.mockReturnValue(true);
+  mocks.getPosDeviceContext.mockResolvedValue({
+   mode: 'PRODUCTION',
+   device: { branchId: '44444444-4444-4444-8444-444444444444' },
+  });
+
+  const response = await GET(new Request(
+   `http://localhost/api/pos/qr-config?branch_id=${BRANCH_ID}`,
+  ));
+
+  await expect(response.json()).resolves.toMatchObject({
+   mode: 'FIUU_STATIC_MANUAL',
+   configured: false,
+   vt: null,
+  });
  });
 });

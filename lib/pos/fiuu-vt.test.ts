@@ -12,11 +12,11 @@ import {
  shouldLaunchFiuuVtStatusAfterReconcile,
 } from './fiuu-vt';
 import {
- FIUU_VT_PILOT_BRANCH,
+ getFiuuVtBranches,
  getFiuuVtLateRecoveryMs,
- getFiuuVtPilotBranches,
  getFiuuVtValiditySeconds,
  isFiuuVtEnabledForBranch,
+ normalizeFiuuVtBranchCode,
 } from './fiuu-vt-server';
 
 const ORIGINAL_ENV = { ...process.env };
@@ -194,7 +194,7 @@ describe('Fiuu VT STATUS recovery', () => {
  );
 });
 
-describe('Fiuu VT pilot gate', () => {
+describe('Fiuu VT registered-branch gate', () => {
  it('allows the bounded late-recovery exception on Preview only', () => {
   process.env.VERCEL_ENV = 'preview';
   expect(getFiuuVtLateRecoveryMs()).toBe(24 * 60 * 60 * 1000);
@@ -208,38 +208,44 @@ describe('Fiuu VT pilot gate', () => {
   process.env.POS_QR_PAYMENT_MODE = 'fiuu_vt';
   delete process.env.POS_FIUU_VT_BRANCHES;
 
-  expect([...getFiuuVtPilotBranches()]).toEqual([]);
-  expect(isFiuuVtEnabledForBranch(FIUU_VT_PILOT_BRANCH)).toBe(false);
+  expect([...getFiuuVtBranches()]).toEqual([]);
+  expect(isFiuuVtEnabledForBranch('BR001')).toBe(false);
  });
 
- it('allows only BR001 while the dedicated mode is active', () => {
+ it('allows only explicitly configured BR001-BR036 branches while the dedicated mode is active', () => {
   process.env.POS_QR_PAYMENT_MODE = 'fiuu_vt';
-  process.env.POS_FIUU_VT_BRANCHES = ' br001 ';
+  process.env.POS_FIUU_VT_BRANCHES = ' br001,BR002,br036 ';
 
-  expect([...getFiuuVtPilotBranches()]).toEqual(['BR001']);
+  expect([...getFiuuVtBranches()]).toEqual(['BR001', 'BR002', 'BR036']);
   expect(isFiuuVtEnabledForBranch('br001')).toBe(true);
-  expect(isFiuuVtEnabledForBranch('BR002')).toBe(false);
+  expect(isFiuuVtEnabledForBranch('BR002')).toBe(true);
+  expect(isFiuuVtEnabledForBranch('BR036')).toBe(true);
+  expect(isFiuuVtEnabledForBranch('BR003')).toBe(false);
   expect(isFiuuVtEnabledForBranch('not-a-branch')).toBe(false);
 
   process.env.POS_QR_PAYMENT_MODE = 'manual';
   expect(isFiuuVtEnabledForBranch('BR001')).toBe(false);
  });
 
- it.each(['*', 'ALL', 'BR01', 'BR0001', 'BR001,', ',BR001', 'BR001,,BR001'])(
+ it.each(['*', 'ALL', 'BR01', 'BR000', 'BR037', 'BR0001', 'BR001,', ',BR001', 'BR001,,BR002'])(
   'rejects wildcard or malformed allowlist value %s',
   (allowlist) => {
    process.env.POS_FIUU_VT_BRANCHES = allowlist;
-   expect(() => getFiuuVtPilotBranches()).toThrow('Kod cawangan pilot Fiuu VT tidak sah');
+   expect(() => getFiuuVtBranches()).toThrow('Kod cawangan Fiuu VT tidak sah');
   },
  );
 
- it.each(['BR002', 'BR001,BR002', 'BR007'])(
-  'rejects non-BR001 allowlist value %s',
-  (allowlist) => {
-   process.env.POS_FIUU_VT_BRANCHES = allowlist;
-   expect(() => getFiuuVtPilotBranches()).toThrow('dikunci kepada BR001');
-  },
- );
+ it('rejects duplicate branch codes instead of silently accepting a configuration typo', () => {
+  process.env.POS_FIUU_VT_BRANCHES = 'BR001,br001';
+  expect(() => getFiuuVtBranches()).toThrow('Kod cawangan Fiuu VT berulang: BR001');
+ });
+
+ it('normalizes only canonical fleet branch codes', () => {
+  expect(normalizeFiuuVtBranchCode(' br001 ')).toBe('BR001');
+  expect(normalizeFiuuVtBranchCode('BR036')).toBe('BR036');
+  expect(normalizeFiuuVtBranchCode('BR000')).toBeNull();
+  expect(normalizeFiuuVtBranchCode('BR037')).toBeNull();
+ });
 
  it('bounds validity', () => {
   process.env.POS_FIUU_VT_VALIDITY_SECONDS = '30';

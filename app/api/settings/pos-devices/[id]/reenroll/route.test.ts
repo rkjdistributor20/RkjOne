@@ -80,7 +80,7 @@ describe('POST /api/settings/pos-devices/[id]/reenroll', () => {
       enrollment_code: 'ABCDEF1234',
       device: expect.objectContaining({ status: 'PENDING' }),
     }));
-    expect(mocks.rpc).toHaveBeenCalledWith('request_br001_pos_device_reenrollment', expect.objectContaining({
+    expect(mocks.rpc).toHaveBeenCalledWith('request_pos_device_reenrollment', expect.objectContaining({
       p_device_id: DEVICE_ID,
       p_organization_id: PROFILE.organization_id,
       p_actor_id: PROFILE.id,

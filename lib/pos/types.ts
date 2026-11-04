@@ -16,7 +16,7 @@ export interface PosQrConfig {
  vt?: {
   packageName: 'com.rms.mobile.razervt';
   channel: 'RPP_DuitNowQR-Offline';
-  pilot: true;
+  rollout: 'REGISTERED_DEVICE_ONLY';
  } | null;
  cloudEcr?: {
   appPackageName: 'com.fiuu.cloudecrvt';
@@ -52,6 +52,7 @@ export interface PosDeviceContext {
   branchId: string;
   branchCode: string | null;
   branchName: string | null;
+  enrollmentGeneration: number;
   lastSeenAt: string | null;
   hardwareProfile: PosOfficialHardwareProfile | null;
   management: PosDeviceManagementStatus | null;

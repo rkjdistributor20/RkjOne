@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import type { ProfileWithBranch } from '@/types/database';
 import { PosAccessError } from '@/lib/pos/access';
 import { verifyKioskBypassToken } from '@/lib/pos/kiosk-token';
+import { isOfficialHardwareProfile } from '@/lib/pos/official-tablets';
 import type { PosDeviceManagementStatus, PosOfficialHardwareProfile } from '@/lib/pos/types';
 
 export const POS_DEVICE_COOKIE = 'rkj_pos_device';
@@ -18,6 +19,7 @@ export type PosDeviceContext = {
     branchId: string;
     branchCode: string | null;
     branchName: string | null;
+    enrollmentGeneration: number;
     lastSeenAt: string | null;
     hardwareProfile: PosOfficialHardwareProfile | null;
     management: PosDeviceManagementStatus | null;
@@ -71,7 +73,7 @@ export async function getPosDeviceContext(
   const admin = createAdminClient();
   const { data } = await (admin as any)
     .from('pos_devices')
-    .select('id, organization_id, branch_id, device_code, device_name, status, secret_hash, last_seen_at, metadata, branch:branches(branch_code, branch_name)')
+    .select('id, organization_id, branch_id, device_code, device_name, status, secret_hash, enrollment_generation, last_seen_at, metadata, serial_number, imei, asset_verified_at, asset_verified_by, branch:branches(branch_code, branch_name, status)')
     .eq('id', deviceId)
     .eq('organization_id', profile.organization_id)
     .maybeSingle();
@@ -88,6 +90,26 @@ export async function getPosDeviceContext(
 
   const branch = Array.isArray(data.branch) ? data.branch[0] : data.branch;
   const metadata = data.metadata && typeof data.metadata === 'object' ? data.metadata : {};
+  const hardwareProfile = (metadata as { official_hardware_profile?: unknown }).official_hardware_profile;
+  const enrollmentGeneration = Number(data.enrollment_generation);
+  const verifiedOfficialAsset = branch?.status === 'ACTIVE'
+    && isOfficialHardwareProfile(hardwareProfile)
+    && typeof data.serial_number === 'string'
+    && data.serial_number.trim().length >= 5
+    && typeof data.imei === 'string'
+    && /^\d{15}$/.test(data.imei)
+    && Boolean(data.asset_verified_at)
+    && Boolean(data.asset_verified_by)
+    && Number.isInteger(enrollmentGeneration)
+    && enrollmentGeneration >= 0;
+  if (!verifiedOfficialAsset) {
+    return {
+      mode: 'TRAINING',
+      device: null,
+      reason: 'Rekod aset tablet rasmi belum lengkap, belum disahkan atau cawangan tidak aktif.',
+    };
+  }
+
   return {
     mode: 'PRODUCTION',
     device: {
@@ -97,8 +119,9 @@ export async function getPosDeviceContext(
       branchId: data.branch_id,
       branchCode: branch?.branch_code ?? null,
       branchName: branch?.branch_name ?? null,
+      enrollmentGeneration,
       lastSeenAt: data.last_seen_at ?? null,
-      hardwareProfile: (metadata as { official_hardware_profile?: PosOfficialHardwareProfile }).official_hardware_profile ?? null,
+      hardwareProfile: hardwareProfile as PosOfficialHardwareProfile,
       management: (metadata as { device_management?: PosDeviceManagementStatus }).device_management ?? null,
     },
   };

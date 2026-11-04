@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getCurrentProfile } from '@/lib/auth/session';
 import { assertCanAccessPosBranch, posAccessErrorStatus } from '@/lib/pos/access';
+import { getPosDeviceContext } from '@/lib/pos/device-auth';
 import { getFiuuOpaConfig, getPosQrPaymentMode } from '@/lib/pos/fiuu';
 import {
  isFiuuOpaEnabledForBranch,
@@ -54,6 +55,10 @@ export async function GET(request: Request) {
  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
  if (!branch) return NextResponse.json({ error: 'Cawangan tidak dijumpai' }, { status: 404 });
 
+ const deviceContext = await getPosDeviceContext(profile);
+ const officialDeviceReady = branch.status === 'ACTIVE'
+  && deviceContext.mode === 'PRODUCTION'
+  && deviceContext.device?.branchId === branch.id;
  const staticQr = getFiuuStaticQrConfig(branch.branch_code);
  const paymentMode = getPosQrPaymentMode();
  let dynamicEnabled = false;
@@ -76,7 +81,9 @@ export async function GET(request: Request) {
   });
  }
  try {
-  vtEnabled = paymentMode === 'fiuu_vt' && isFiuuVtEnabledForBranch(branch.branch_code);
+  vtEnabled = officialDeviceReady
+   && paymentMode === 'fiuu_vt'
+   && isFiuuVtEnabledForBranch(branch.branch_code);
  } catch (configurationError) {
   console.error('[pos-fiuu-vt] invalid_branch_configuration', {
    reason: configurationError instanceof Error ? configurationError.message : 'unknown',
@@ -111,7 +118,7 @@ export async function GET(request: Request) {
    vt: vtEnabled ? {
     packageName: FIUU_VT_PACKAGE,
     channel: FIUU_VT_DUITNOW_CHANNEL,
-    pilot: true,
+    rollout: 'REGISTERED_DEVICE_ONLY',
    } : null,
    cloudEcr: cloudEcrEnabled ? {
     appPackageName: FIUU_CLOUDECR_APP_PACKAGE,

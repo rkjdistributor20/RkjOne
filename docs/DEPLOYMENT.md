@@ -85,7 +85,7 @@ POS Fiuu DuitNow QR variables:
 | `POS_FIUU_PRECREATE_URL` | Optional | Server; official endpoint override only |
 | `FIUU_RECONCILIATION_ENABLED` | Yes for the OPA recovery worker | Server only; fail-closed default `false` |
 | `FIUU_RECONCILIATION_SECRET` | When the OPA recovery worker is enabled | Server-only secret of at least 32 random characters; leave unset while disabled |
-| `POS_FIUU_VT_BRANCHES` | When VT pilot enabled | Server; explicit comma-separated pilot codes, initially `BR001` only |
+| `POS_FIUU_VT_BRANCHES` | When VT App-to-App is enabled | Server; explicit comma-separated canonical `BR001`-`BR036` allowlist, no wildcard or duplicate; each branch remains static/manual until its verified official tablet is registered |
 | `POS_FIUU_VT_VALIDITY_SECONDS` | Optional | Server; 60-3600 seconds, default 900 |
 
 The OPA mapping is keyed by canonical branch code and is tenant-bound:
@@ -154,7 +154,7 @@ an observed scheduler invocation, authenticated worker response, bounded retry
 result and monitoring/alert evidence for the intended environment before UAT or
 activation.
 
-Never expose Fiuu Application Secret Keys as `NEXT_PUBLIC_*`. Configure the signed OPA payment notification URL as `/api/pos/qr-payments/webhook`. Fiuu VT deep-link results are not signed: they require SALE plus a fresh exact STATUS recheck on the same enrolled device before automatic idempotent fulfillment, and must not be treated as equivalent to the signed OPA webhook. The current go-live gate remains BR001 only, Production remains `manual`, and this package does not authorize a Production migration, environment change, deployment or activation. Follow `docs/FIUU_POS_SETUP.md` before changing the mode.
+Never expose Fiuu Application Secret Keys as `NEXT_PUBLIC_*`. Configure the signed OPA payment notification URL as `/api/pos/qr-payments/webhook`. Fiuu VT deep-link results are not signed: they require SALE plus a fresh exact STATUS recheck on the same registered device before automatic idempotent fulfillment, and must not be treated as equivalent to the signed OPA webhook. The VT fleet release is fail-closed per branch: allowlisting a branch does not activate it unless the exact verified official tablet and current enrollment generation match. Follow `docs/FIUU_POS_SETUP.md` before changing the mode.
 
 ## Local Setup
 
@@ -238,13 +238,15 @@ sequence:
    payment/reconciliation queues during the change. Verify the applied migration
    list, schema/RLS/grants and application health before restoring writes.
 
-Production must remain `POS_QR_PAYMENT_MODE=manual`, with
-`POS_FIUU_OPA_BRANCHES` empty and `FIUU_RECONCILIATION_ENABLED=false`, until the
-specific migration, environment, deployment and BR001 activation each receive
-fresh action-time approval. `BR002` through `BR036` remain inactive until all
-BR001 signed callback/status `00`, physical receipt, stock, shift and settlement
-gates pass and a later action receives its own fresh approval. Never place
-secrets in a migration manifest, command transcript or release evidence.
+For the approved VT registered-device rollout, Production may use
+`POS_QR_PAYMENT_MODE=fiuu_vt` with every canonical code explicitly listed in
+`POS_FIUU_VT_BRANCHES` only after the exact migration and application release
+have passed staging and Production preflight. This does not bulk-activate a
+cawangan: an unregistered, inactive, unverified or mismatched tablet receives
+the existing static/manual QR flow. Keep `POS_FIUU_OPA_BRANCHES` empty and
+`FIUU_RECONCILIATION_ENABLED=false`; those controls belong to the separate
+signed OPA path. Never place secrets in a migration manifest, command transcript
+or release evidence.
 
 ## Vercel Deployment Flow
 

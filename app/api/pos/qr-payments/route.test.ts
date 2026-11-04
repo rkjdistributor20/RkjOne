@@ -193,8 +193,10 @@ beforeEach(() => {
  mocks.assertCanAccessPosBranch.mockResolvedValue(undefined);
  mocks.assertAreaManagerScheduledForPos.mockResolvedValue(undefined);
  mocks.assertOfficialPosDevice.mockResolvedValue({
+  id: '77777777-7777-4777-8777-777777777777',
   branchCode: 'BR001',
   deviceCode: 'POS-BR001-TEST',
+  enrollmentGeneration: 1,
  });
  mocks.assertActivePosShiftMember.mockResolvedValue(undefined);
  mocks.posAccessErrorStatus.mockReturnValue(403);

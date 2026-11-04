@@ -459,7 +459,9 @@ export async function POST(request: Request) {
   ...(body.receipt_email ? { receipt_email: body.receipt_email } : {}),
   ...(body.receipt_phone ? { receipt_phone: body.receipt_phone } : {}),
   fiuu_branch_code: branchCode || body.branchId,
+  fiuu_device_id: device.id,
   fiuu_device_code: device.deviceCode,
+  fiuu_enrollment_generation: device.enrollmentGeneration,
   ...(config ? {
    fiuu_environment: config.environment,
    fiuu_application_code: config.applicationCode,
@@ -554,7 +556,11 @@ export async function POST(request: Request) {
   return base
    .eq('branch_id', body.branchId)
    .eq('shift_id', body.shiftId)
-   .contains('sale_payload', { fiuu_device_code: device.deviceCode });
+   .contains('sale_payload', {
+    fiuu_device_id: device.id,
+    fiuu_device_code: device.deviceCode,
+    fiuu_enrollment_generation: device.enrollmentGeneration,
+   });
  };
  const { data: activeDevicePayment, error: activeDeviceError } = await activeEndpointQuery()
   .maybeSingle();

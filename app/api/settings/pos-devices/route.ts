@@ -30,7 +30,7 @@ export async function GET() {
   const [{ data: devices, error }, { data: branches }] = await Promise.all([
     (admin as any)
       .from('pos_devices')
-      .select('id, branch_id, device_code, device_name, status, enrollment_code_hash, enrollment_expires_at, enrolled_at, last_seen_at, revoked_at, created_at, metadata, serial_number, imei, purchase_date, warranty_expires_at, asset_verified_at, asset_verified_by, branch:branches(branch_code, branch_name)')
+      .select('id, branch_id, device_code, device_name, status, enrollment_generation, enrollment_code_hash, enrollment_expires_at, enrolled_at, last_seen_at, revoked_at, created_at, metadata, serial_number, imei, purchase_date, warranty_expires_at, asset_verified_at, asset_verified_by, branch:branches(branch_code, branch_name)')
       .eq('organization_id', profile.organization_id)
       .order('created_at', { ascending: false }),
     admin

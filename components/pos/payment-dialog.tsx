@@ -496,7 +496,7 @@ export function PaymentDialog({
     || payment.provider_order_id !== orderId
     || payment.branch_id !== branchId
     || payment.shift_id !== currentShift.id) {
-    throw new Error('Transaksi native Fiuu VT bukan milik sesi BR001 yang aktif.');
+     throw new Error('Transaksi native Fiuu VT bukan milik sesi tablet cawangan yang aktif.');
    }
    if (!['PENDING', 'REPORTED', 'PAID'].includes(payment.status)) {
     throw new Error(`Transaksi Fiuu VT sudah ${payment.status}. Jangan jana SALE baharu.`);
@@ -535,7 +535,7 @@ export function PaymentDialog({
     Math.ceil((new Date(activePayment.expiresAt).getTime() - Date.now()) / 1000),
    ));
    setQrPollError(payment.reconciliation_expired
-    ? 'Transaksi berbayar lama dipulihkan untuk rekonsiliasi BR001. Jangan jana QR atau SALE baharu.'
+     ? 'Transaksi berbayar lama dipulihkan untuk rekonsiliasi cawangan ini. Jangan jana QR atau SALE baharu.'
     : 'Transaksi Fiuu VT aktif dipulihkan daripada tablet. Menyemak keputusan yang sama...');
    try {
     window.localStorage.setItem(storageKey, JSON.stringify({ payment: activePayment, idempotencyKey }));

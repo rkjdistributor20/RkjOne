@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 const migration = readFileSync(join(
  process.cwd(),
- 'supabase/migrations/20261027120000_harden_fiuu_vt_br001_pilot.sql',
+ 'supabase/migrations/20261104130000_expand_fiuu_vt_registered_branches.sql',
 ), 'utf8');
 const paymentDialog = readFileSync(join(
  process.cwd(),
@@ -19,17 +19,21 @@ const nativePlugin = readFileSync(join(
  'android/app/src/main/java/com/rkjone/staff/RkjFiuuVtPlugin.java',
 ), 'utf8');
 
-describe('Fiuu VT BR001 database boundary', () => {
+describe('Fiuu VT registered-branch database boundary', () => {
  it('checks both the payment payload and authoritative branch row', () => {
-  expect(migration).toContain("sale_payload->>'fiuu_branch_code' = 'BR001'");
+  expect(migration).toContain('^BR(00[1-9]|0[12][0-9]|03[0-6])$');
   expect(migration).toContain("upper(btrim(branch.branch_code))");
-  expect(migration).toContain("v_branch_code IS DISTINCT FROM 'BR001'");
-  expect(migration).toContain("NEW.sale_payload->>'fiuu_branch_code' IS DISTINCT FROM 'BR001'");
+  expect(migration).toContain("NEW.sale_payload->>'fiuu_branch_code' IS DISTINCT FROM v_branch_code");
+  expect(migration).toContain("NEW.sale_payload->>'branchId' IS DISTINCT FROM NEW.branch_id::TEXT");
+  expect(migration).toContain("NEW.sale_payload->>'shiftId' IS DISTINCT FROM NEW.shift_id::TEXT");
  });
 
  it('enforces the guard on inserts and every later state transition', () => {
   expect(migration).toContain('BEFORE INSERT OR UPDATE ON public.pos_online_payments');
-  expect(migration).toContain('Fiuu VT pilot payment is restricted to BR001');
+  expect(migration).toContain('guard_pos_fiuu_vt_branch_payment');
+  expect(migration).toContain('guard_fiuu_vt_payment_active_device');
+  expect(migration).toContain("sale_payload->>'fiuu_device_id'");
+  expect(migration).toContain("sale_payload->>'fiuu_enrollment_generation'");
  });
 });
 

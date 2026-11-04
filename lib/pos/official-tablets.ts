@@ -22,7 +22,7 @@ export const POS_OFFICIAL_TABLETS: Record<PosOfficialHardwareProfile, {
   connectivity: 'LTE',
   storage: '256GB',
   manufacturerTokens: ['honor'],
-  modelTokens: ['pad x8b', 'x8b'],
+  modelTokens: ['ndl2-l09', 'pad x8b', 'x8b'],
  },
 };
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-11-04 - Prepare registered-device Fiuu VT for BR001-BR036
+
+- Generalized the explicit Fiuu VT App-to-App allowlist from the BR001 pilot to canonical `BR001`-`BR036` codes without adding a wildcard or bulk-activating tablets.
+- Kept every unregistered branch on the existing static/manual QR workflow; VT is advertised only when the exact branch has an active, verified official tablet registered in the current browser session.
+- Bound each new VT payment to immutable device UUID, device code and enrollment generation so a payment cannot cross tablet replacement, reenrollment or branch reassignment.
+- Added database guards that reject non-canonical branches, mismatched branch/shift/amount payloads, unverified devices, device mutation during unresolved payments and unsafe reenrollment.
+- Added atomic one-time tablet activation with monotonic enrollment generation and retained a BR001 compatibility wrapper for an in-flight Preview client.
+- Added the exact HONOR Pad X8b LTE model token `NDL2-L09`, fleet gate tests and an updated branch staff guide.
+- BR001 operational UAT remains the evidence baseline; every other cawangan still requires its own physical tablet registration and controlled first transaction.
+
 ## 2026-10-25 - Select signed OPA for the existing BR001 tablet
 
 - Selected Fiuu OPA Dynamic DuitNow QR as the primary BR001 automatic-verification path because it is server-to-server and does not depend on tablet NFC, legacy VT compatibility or the VT+ application runtime.

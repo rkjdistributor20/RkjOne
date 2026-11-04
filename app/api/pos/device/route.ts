@@ -85,29 +85,23 @@ export async function POST(request: Request) {
   }
 
   const secret = createPosDeviceSecret();
-  const now = new Date().toISOString();
   const { data: activatedDevice, error: updateError } = await (admin as any)
-    .from('pos_devices')
-    .update({
-      status: 'ACTIVE',
-      secret_hash: hashPosDeviceValue(secret),
-      enrollment_code_hash: null,
-      enrollment_used_at: now,
-      enrolled_at: now,
-      enrolled_by: profile.id,
-      last_seen_at: now,
-      updated_at: now,
+    .rpc('activate_pos_device_enrollment', {
+      p_device_id: device.id,
+      p_organization_id: profile.organization_id,
+      p_actor_id: profile.id,
+      p_enrollment_code_hash: hashPosDeviceValue(enrollmentCode),
+      p_secret_hash: hashPosDeviceValue(secret),
     })
-    .eq('id', device.id)
-    .eq('status', 'PENDING')
-    .select('id')
-    .maybeSingle();
+    .single();
 
   if (updateError) {
-    const message = updateError.message.includes('idx_pos_devices_one_active_per_branch')
-      ? 'Cawangan ini sudah mempunyai tablet POS rasmi aktif. Batalkan tablet lama dahulu.'
-      : updateError.message;
-    return NextResponse.json({ error: message }, { status: 409 });
+    const status = updateError.code === 'P0002'
+      ? 404
+      : updateError.code === '42501'
+        ? 403
+        : 409;
+    return NextResponse.json({ error: updateError.message }, { status });
   }
   if (!activatedDevice) {
     return NextResponse.json(
@@ -123,6 +117,7 @@ export async function POST(request: Request) {
       deviceCode: device.device_code,
       deviceName: device.device_name,
       branchId: device.branch_id,
+      enrollmentGeneration: activatedDevice.enrollment_generation,
     },
   });
   response.cookies.set(POS_DEVICE_COOKIE, `${device.id}.${secret}`, {
