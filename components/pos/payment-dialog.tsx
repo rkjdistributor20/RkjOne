@@ -195,6 +195,52 @@ function MethodButton({
  </button>);
 }
 
+type FiuuVtStaffStage = 'READY' | 'PAYMENT' | 'FINALIZING';
+
+function FiuuVtStaffSteps({ stage }: { stage: FiuuVtStaffStage }) {
+ const activeStep = stage === 'READY' ? 0 : stage === 'PAYMENT' ? 1 : 2;
+ const steps = [
+  { title: 'Buka Fiuu VT', detail: 'Amaun dihantar automatik' },
+  { title: 'Pelanggan imbas & bayar', detail: 'Tunjuk QR dalam aplikasi Fiuu' },
+  { title: 'Tunggu pengesahan', detail: 'Resit dan stok siap automatik' },
+ ] as const;
+
+ return (
+  <ol className="mt-4 grid gap-2 text-left sm:grid-cols-3" aria-label="Langkah pembayaran Fiuu VT">
+   {steps.map((step, index) => {
+    const completed = index < activeStep;
+    const active = index === activeStep;
+    return (
+     <li
+      key={step.title}
+      className={cn(
+       'rounded-xl border p-3',
+       completed && 'border-emerald-200 bg-emerald-50',
+       active && 'border-amber-300 bg-amber-50 ring-1 ring-amber-200',
+       !completed && !active && 'border-slate-200 bg-slate-50',
+      )}
+     >
+      <div className="flex items-center gap-2">
+       <span className={cn(
+        'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold',
+        completed ? 'bg-emerald-600 text-white' : active ? 'bg-amber-500 text-white' : 'bg-slate-200 text-slate-600',
+       )}>
+        {completed
+         ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+         : active && stage === 'FINALIZING'
+         ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
+         : index + 1}
+       </span>
+       <p className="text-xs font-bold text-slate-950">{step.title}</p>
+      </div>
+      <p className="mt-1 pl-8 text-[11px] leading-4 text-slate-600">{step.detail}</p>
+     </li>
+    );
+   })}
+  </ol>
+ );
+}
+
 export function PaymentDialog({
  open,
  onOpenChange,
@@ -270,6 +316,10 @@ export function PaymentDialog({
    || !vtNativeStatus.installed
    || !vtNativeStatus.trustedInstall
   ));
+ const isFiuuVtCheckout = method !== 'CASH'
+  && !trainingMode
+  && qrConfig?.mode === 'FIUU_VT_APP'
+  && !vtManualFallback;
  const requiresManualQrVerification = requiresQrConfig
   && (qrConfig?.mode === 'FIUU_STATIC_MANUAL' || vtManualFallback);
  const paymentError =
@@ -533,7 +583,7 @@ export function PaymentDialog({
     if (currentPaymentFingerprint === activePayment.cartFingerprint) {
      clearCart();
     }
-    toast.success('Bayaran DuitNow QR disahkan oleh Fiuu.');
+    toast.success('Bayaran disahkan. Resit dikeluarkan dan stok dikemas kini.');
     resetPaymentForm();
     onOpenChange(false);
     onSuccess(response.result);
@@ -685,7 +735,7 @@ export function PaymentDialog({
    await clearPendingFiuuVtResult(qrPayment.providerOrderId).catch(() => undefined);
    removeStoredQrPayment();
    if (currentPaymentFingerprint === qrPayment.cartFingerprint) clearCart();
-   toast.success('Bayaran Fiuu VT disahkan dan resit telah dikeluarkan.');
+   toast.success('Bayaran disahkan. Resit dikeluarkan dan stok dikemas kini.');
    resetPaymentForm();
    onOpenChange(false);
    onSuccess(receipt);
@@ -1032,6 +1082,11 @@ export function PaymentDialog({
        {qrStatus === 'PENDING' ? (qrDisplayExpired ? 'Menyemak tamat tempoh' : 'Menunggu') : qrStatus === 'REPORTED' ? 'Dilaporkan berjaya' : qrStatus === 'PAID' ? 'Dibayar' : qrStatus === 'EXPIRED' ? 'Tamat tempoh' : qrStatus === 'CANCELLED' ? 'Dibatalkan' : 'Gagal'}
      </span>
     </div>
+
+     {qrPayment.integration === 'vt_app'
+      && (qrStatus === 'PENDING' || qrStatus === 'REPORTED' || qrStatus === 'PAID') && (
+      <FiuuVtStaffSteps stage={qrStatus === 'PENDING' ? 'PAYMENT' : 'FINALIZING'} />
+     )}
 
      {qrStatus === 'REPORTED' ? (
       <div className="mt-5 rounded-xl border-2 border-sky-200 bg-sky-50 p-5">
@@ -1394,13 +1449,20 @@ export function PaymentDialog({
      <div className="flex h-24 w-24 items-center justify-center rounded-2xl bg-amber-100">
       <QrCode className="h-12 w-12" aria-hidden="true" />
      </div>
-      <p className="text-xs text-muted-foreground">
-       {qrConfig.mode === 'FIUU_CLOUDECR'
-        ? 'Tekan Sahkan Bayaran untuk menghantar amaun ke Fiuu VT+ melalui cloudECR.'
-        : qrConfig.mode === 'FIUU_VT_APP'
-        ? 'Tekan Sahkan Bayaran untuk membuka Fiuu VT dan memaparkan QR amaun tepat.'
-        : 'Tekan Sahkan Bayaran untuk menjana QR amaun tepat.'}
-      </p>
+      {qrConfig.mode === 'FIUU_VT_APP' ? (
+       <div className="w-full">
+        <FiuuVtStaffSteps stage="READY" />
+        <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-900">
+         Satu klik sahaja. Selepas pelanggan bayar, tunggu RKJ One mengesahkan, mengemas kini stok dan membuka resit.
+        </p>
+       </div>
+      ) : (
+       <p className="text-xs text-muted-foreground">
+        {qrConfig.mode === 'FIUU_CLOUDECR'
+         ? 'Tekan Sahkan Bayaran untuk menghantar amaun ke Fiuu VT+ melalui cloudECR.'
+         : 'Tekan Sahkan Bayaran untuk menjana QR amaun tepat.'}
+       </p>
+      )}
     </div>
    )}
 
@@ -1497,7 +1559,7 @@ export function PaymentDialog({
         : qrPayment.integration === 'cloudecr'
         ? 'Menunggu Fiuu VT+'
         : qrPayment.integration === 'vt_app'
-        ? 'Menunggu Fiuu VT'
+        ? 'Menunggu bayaran pelanggan'
         : 'Menunggu bayaran Fiuu'}
       </Button>
       <Button
@@ -1508,7 +1570,7 @@ export function PaymentDialog({
        onClick={() => void checkActiveQrStatus()}
       >
        <RefreshCw className={cn('h-5 w-5', checkingQrStatus && 'animate-spin')} aria-hidden="true" />
-       Semak status
+       Semak sekarang
       </Button>
      </div>
     ) : (
@@ -1550,7 +1612,13 @@ export function PaymentDialog({
  onClick={handlePay}
  >
  {method === 'QR' ? <QrCode className="h-5 w-5" /> : <Banknote className="h-5 w-5" />}
-  {loading ? 'Memproses...' : trainingMode ? 'Sahkan Simulasi' : 'Sahkan Bayaran'}
+  {loading
+   ? isFiuuVtCheckout ? 'Membuka Fiuu VT...' : 'Memproses...'
+   : trainingMode
+   ? 'Sahkan Simulasi'
+   : isFiuuVtCheckout
+   ? 'Buka Fiuu VT & Papar QR'
+   : 'Sahkan Bayaran'}
   </Button>
   </>
   )}

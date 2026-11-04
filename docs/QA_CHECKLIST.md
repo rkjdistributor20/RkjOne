@@ -1,6 +1,6 @@
 # RKJ One QA Checklist
 
-Last updated: 2026-10-24
+Last updated: 2026-11-04
 
 Use this checklist for QA AI, Code Reviewer AI, and human review before merge/deploy.
 
@@ -105,10 +105,15 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [x] Local code uses a 180-second database claim/lease—longer than the server request window—to permit at most one `getLast` call per payment across concurrent tabs and stores signed success as `REPORTED` before receipt/stock fulfilment.
 - [x] Local code permits only one unresolved SALE for the exact cloudECR POS ID, Device ID and Terminal SN across RKJ tablets, stores the exact HMAC-verified payload, and preserves a server-side pricing snapshot.
 - [x] The BR001 native bridge recognizes the documented VT `errorCode`/`errorMsg` callback separately from a transaction result, preserves the pending attempt, and cannot create a receipt or stock movement from that error callback.
+- [x] A controlled physical BR001 Fiuu VT payment for RM3.50 reached `PAID`/`COMPLETED` in Preview/staging and matched a Fiuu payment-success email.
+- [x] The successful BR001 payment created exactly one receipt, four expected stock-deduction rows and four stock-movement rows, incremented the active shift QR total and left no unresolved `PENDING` or `REPORTED` attempt.
+- [x] The physical BR001 receipt printed successfully after payment confirmation.
+- [x] Production remains in `manual` mode and BR002-BR036 remain inactive after the successful BR001 transaction.
 - [ ] The updated BR001 UAT APK proves on the physical Samsung that an official VT error callback returns to RKJ One, shows a bounded recovery state and permits a deliberate new attempt only after the server reconciliation window.
 - [ ] BR001 proves that successful Fiuu `getLast` returns the original SALE reference in signed metadata; absent metadata must remain fail-closed and be escalated to Fiuu.
 - [ ] BR001 validates uncertain-result recovery through `getLast`: each inquiry uses a new query reference, signed metadata contains the original SALE reference, and network/duplicate recovery creates no duplicate sale, receipt or stock movement.
 - [ ] Finance reconciles the physical BR001 payment against the provider transaction, RKJ receipt, stock, shift, Fiuu settlement report and bank credit.
+- [ ] Finance matches the 2026-11-04 RM3.50 BR001 transaction to the new Fiuu settlement report and corresponding bank credit.
 - [ ] Owner gives fresh confirmation immediately before any Production migration, credential, environment or deployment change.
 
 ## Deployment Review

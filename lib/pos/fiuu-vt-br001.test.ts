@@ -61,6 +61,15 @@ describe('Fiuu VT BR001 cashier warning', () => {
    .toBeLessThan(statusFlow.indexOf('launchFiuuVtStatus'));
   expect(statusFlow).toContain("nativeStatus.pendingOperation === 'SALE'");
  });
+
+ it('gives staff a single, ordered checkout flow without a second manual confirmation', () => {
+  expect(paymentDialog).toContain('Buka Fiuu VT & Papar QR');
+  expect(paymentDialog).toContain('Pelanggan imbas & bayar');
+  expect(paymentDialog).toContain('Resit dan stok siap automatik');
+  expect(paymentDialog).toContain('Menunggu bayaran pelanggan');
+  expect(paymentDialog).toContain('Semak sekarang');
+  expect(paymentDialog).toContain('Bayaran disahkan. Resit dikeluarkan dan stok dikemas kini.');
+ });
 });
 
 describe('Fiuu VT BR001 bounded Preview recovery', () => {
