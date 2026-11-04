@@ -182,6 +182,25 @@ evidence below is historical and must not be reused for the 4 November payment.
 Production therefore remains `POS_QR_PAYMENT_MODE=manual`, and BR002-BR036
 remain inactive.
 
+## 4 November repeat BR001 VT payment evidence — rollout decision unchanged
+
+A second controlled physical BR001 Fiuu VT App-to-App payment for RM2.50
+completed in Preview/staging. The payment reached `PAID`, its transaction
+reached `COMPLETED`, provider SALE/status evidence was present, and RKJ One
+created exactly one receipt, three expected stock-deduction rows and three
+stock-movement rows. The active shift read RM11.00 QR across six transactions,
+the provider reference appeared once, and no `PENDING` or `REPORTED` attempt
+remained. A fresh Fiuu payment-success email matched the amount and time, and
+the physical customer receipt printed successfully. Provider, order, receipt
+and gateway identifiers remain redacted.
+
+This repeat run confirms operational consistency of the BR001 VT path; it does
+not turn the unsigned App-to-App result into signed OPA evidence. A read-only
+mailbox check found no new settlement notification for the 4 November
+payments, so Finance still must match both fresh transactions to their new
+settlement report and corresponding bank credits. Production remains manual,
+and BR002-BR036 remain inactive.
+
 ## Historical settlement evidence — 30 October 2026
 
 The official Fiuu settlement report for 30 October 2026 contains two settled
@@ -207,9 +226,10 @@ create a sale or issue a refund without a specifically approved workflow.
    server-only.
 2. Prove one fresh BR001 OPA payment with a valid signed notification, status
    `00`, exact amount and references, and exact-once receipt/stock/shift output.
-3. Finance must match the 2026-11-04 RM3.50 BR001 VT payment to a new Fiuu
-   settlement report and corresponding bank credit. Until this passes, BR001
-   promotion and every BR002-BR036 activation remain `NO-GO`.
+3. Finance must match both fresh 2026-11-04 BR001 VT payments (RM3.50 and the
+   repeat RM2.50) to their new Fiuu settlement report and corresponding bank
+   credits. Until this passes, BR001 promotion and every BR002-BR036 activation
+   remain `NO-GO`.
 4. Resolve the redacted unresolved provider transaction through Finance and
    preserve its audit trail in the approved evidence store.
 5. Activate `BR012`, create its current device record and verify its physical

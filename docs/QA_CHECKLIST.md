@@ -108,12 +108,16 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [x] A controlled physical BR001 Fiuu VT payment for RM3.50 reached `PAID`/`COMPLETED` in Preview/staging and matched a Fiuu payment-success email.
 - [x] The successful BR001 payment created exactly one receipt, four expected stock-deduction rows and four stock-movement rows, incremented the active shift QR total and left no unresolved `PENDING` or `REPORTED` attempt.
 - [x] The physical BR001 receipt printed successfully after payment confirmation.
+- [x] A second controlled physical BR001 Fiuu VT payment for RM2.50 reached `PAID`/`COMPLETED`, recorded provider SALE/status evidence and matched a fresh Fiuu payment-success email.
+- [x] The repeat RM2.50 payment created exactly one receipt, three expected stock-deduction rows and three stock-movement rows; the active shift read RM11.00 QR across six transactions, with no duplicate provider reference and no unresolved `PENDING` or `REPORTED` attempt.
+- [x] The repeat RM2.50 customer receipt printed successfully through the paired 58 mm Bluetooth printer.
 - [x] Production remains in `manual` mode and BR002-BR036 remain inactive after the successful BR001 transaction.
 - [x] The 2026-11-04 result is classified as VT App-to-App operational evidence, not a signed OPA callback or settlement evidence.
 - [ ] The updated BR001 UAT APK proves on the physical Samsung that an official VT error callback returns to RKJ One, shows a bounded recovery state and permits a deliberate new attempt only after the server reconciliation window.
 - [ ] BR001 proves that successful Fiuu `getLast` returns the original SALE reference in signed metadata; absent metadata must remain fail-closed and be escalated to Fiuu.
 - [ ] BR001 validates uncertain-result recovery through `getLast`: each inquiry uses a new query reference, signed metadata contains the original SALE reference, and network/duplicate recovery creates no duplicate sale, receipt or stock movement.
 - [ ] Finance matches the 2026-11-04 RM3.50 BR001 VT payment across the provider transaction, RKJ receipt, stock records, shift aggregate, a new Fiuu settlement report and the corresponding bank credit.
+- [ ] Finance matches the repeat 2026-11-04 RM2.50 BR001 VT payment across the provider transaction, RKJ receipt, stock records, shift aggregate, a new Fiuu settlement report and the corresponding bank credit.
 - [ ] Owner gives fresh confirmation immediately before any Production migration, credential, environment or deployment change.
 
 ## Deployment Review

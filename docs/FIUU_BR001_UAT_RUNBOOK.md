@@ -1,6 +1,6 @@
 # Fiuu BR001 Dynamic DuitNow QR UAT and rollback runbook
 
-Last updated: 2026-11-03
+Last updated: 2026-11-04
 
 ## Decision and authority
 
@@ -8,11 +8,13 @@ The current BR001 UAT target is signed **Fiuu OPA Dynamic DuitNow QR**, which is
 also the preferred architecture for wider rollout. Its tenant-bound seven-field
 mapping of `organizationId`, `branchId`, Application Code, Secret Key, Store ID,
 Terminal ID and non-secret `credentialVersion` still has not been securely
-provisioned. The official **Fiuu
-VT App-to-App** application is installed and
-opens on the physical Samsung `SM-X406B`, but the completed VT payment did not
-return a native `STATUS=00`; it therefore remains a BR001-only fallback rather
-than accepted proof of automatic verification.
+provisioned. The official **Fiuu VT App-to-App** application is installed and
+opens on the physical Samsung `SM-X406B`. An earlier 28 October payment did not
+return its native result, but two controlled 4 November payments later reached
+the local paid/completed state with exact-once receipt, stock and shift
+fulfilment, and both physical receipts printed. VT therefore passes BR001
+operational UAT, but remains an unsigned BR001-only transport rather than
+accepted proof of a signed OPA notification.
 
 Fiuu VT+ with cloudECR remains a separate prepared fallback. Its package, activation and credentials are not interchangeable with the standard Fiuu VT application.
 
@@ -110,13 +112,30 @@ Automatic signed confirmation, the unresolved settled transaction, BR012,
 per-branch provider mappings, tablet compliance and the Production migration
 gate remain **NO-GO**. Production and `BR002` through `BR036` remain unchanged.
 
+## Repeatability checkpoint — 2026-11-04
+
+Two controlled physical BR001 VT App-to-App payments now pass the operational
+payment, receipt, stock, shift and print path. The repeat RM2.50 payment reached
+`PAID`/`COMPLETED`, retained provider SALE/status evidence, produced one receipt,
+three expected stock deductions and three stock movements, updated the active
+shift once, left no unresolved or duplicate attempt, matched a fresh official
+Fiuu payment-success email and printed the physical customer receipt. The
+active-shift audit read RM11.00 QR across six transactions after that run.
+
+The evidence is intentionally redacted and contains no order, gateway,
+transaction, receipt, activation or credential value. It proves repeatable
+BR001 VT operations only. It does not prove a signed OPA callback, fresh
+settlement or bank credit. No new settlement notification was present at the
+latest read-only mailbox check, so Production remains `manual` and BR002-BR036
+remain inactive.
+
 ## Transport decision table
 
 | Path | Hardware dependency | Verification | BR001 decision |
 | --- | --- | --- | --- |
 | **OPA Dynamic DuitNow QR** | Browser/PWA and network only | HMAC-SHA256 request/response plus signed server notification | Preferred broad-rollout path; credentials unavailable |
 | **Fiuu VT+ + cloudECR** | Official `com.fiuu.cloudecrvt`, activation, secret and POS binding | HMAC-SHA256 server API | Prepared fallback; physical app currently splash-blocked |
-| **VT App-to-App** | Official `com.rms.mobile.razervt`, provider activation and RKJ native app | Unsigned Android deep-link SALE followed by STATUS | **BR001 physical payment completed; native callback missing, so automatic verification did not pass** |
+| **VT App-to-App** | Official `com.rms.mobile.razervt`, provider activation and RKJ native app | Unsigned Android deep-link SALE followed by STATUS | **BR001 operational UAT passes repeatedly, including exact-once receipt/stock/shift and physical printing; it does not satisfy signed OPA or settlement gates** |
 | **Static branch QR** | Browser/PWA only | Cashier confirmation and Finance reconciliation | Operational fallback only; not automatic verification |
 
 Credentials and readiness evidence are not interchangeable between these paths.
