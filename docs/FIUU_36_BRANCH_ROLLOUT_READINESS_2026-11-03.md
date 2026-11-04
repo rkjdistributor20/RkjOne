@@ -12,6 +12,10 @@ The preferred broad-rollout transport is signed **Fiuu OPA Dynamic DuitNow QR**
 with one explicit provider mapping per branch. VT App-to-App and VT+ cloudECR
 remain BR001-only fallbacks and must not be used as a bulk-rollout shortcut.
 
+Staff instructions for the currently safe all-branch manual/static workflow and
+the separate BR001 automatic pilot are maintained in
+[`FIUU_BRANCH_STAFF_QUICK_GUIDE.md`](./FIUU_BRANCH_STAFF_QUICK_GUIDE.md).
+
 ## Prepared code package — not activated
 
 Branch `codex/fiuu-production-rollout` now contains a fail-closed 36-branch OPA
@@ -41,6 +45,28 @@ The final verification on 3 November 2026 passed:
 - targeted ESLint for every changed application/test file;
 - Next.js production build: all `163` pages generated; and
 - `git diff --check`.
+
+### 4 November staging SQL repair
+
+A fresh linked-staging database lint exposed PostgreSQL JSON extraction
+precedence errors in five OPA runtime functions. Forward-only migration
+`20261104120000_fix_fiuu_opa_json_precedence.sql` now parenthesizes every
+fingerprint input before string concatenation without changing rollout rows,
+payment rows, receipts, stock, branch/device records, credentials, function
+identity, ownership, grants or trigger attachments.
+
+The repair was applied to linked staging project `rkj-one-staging-my` only.
+Post-apply verification returned an empty error-level database lint result,
+matched every local and remote migration through `20261104120000`, and a fresh
+dry-run reported the remote database up to date. The application package then
+passed `284/284` Vitest tests, TypeScript, ESLint, the 163-page Next.js
+production build and `git diff --check`.
+
+Production was not changed. The complete Production Fiuu chain now consists of
+nine unapplied forward migrations: the original six pilot migrations, two
+36-branch rollout-control migrations and this precedence repair. Applying only
+a subset is prohibited because the staging repair depends on the preceding OPA
+functions being installed in order.
 
 The complete migration first passed a real PostgreSQL transactional replay in
 the linked staging project after the final trigger-readiness hardening. It was
@@ -134,7 +160,7 @@ setting.
 | Secure screen lock | 1 | 5 | Every activated tablet |
 | Android Device Owner | 0 | 0 | Every activated tablet |
 | Kiosk/lock-task active | 0 | 0 | Every activated tablet |
-| Fiuu pilot migrations | Present in staging | 0 of 6 present | Reviewed forward-only package |
+| Fiuu migration chain | 9 of 9 present; lint clean | 0 of 9 present | Apply the reviewed ordered package only after every Production gate passes |
 
 Production `BR012` also has no current tablet record. Pending devices must never
 be bulk-marked active; each physical tablet must be enrolled, attested and

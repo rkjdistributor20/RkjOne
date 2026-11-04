@@ -6,6 +6,11 @@ Last updated: 2026-11-04
 
 Use [FIUU_BR001_UAT_RUNBOOK.md](./FIUU_BR001_UAT_RUNBOOK.md) for OPA environment safety, BR001 go/no-go gates, preflight, controlled UAT evidence and rollback. It is deliberately credential-free and does not authorize a migration, deployment, Production environment change, real charge or outlet rollout.
 
+Use [FIUU_BRANCH_STAFF_QUICK_GUIDE.md](./FIUU_BRANCH_STAFF_QUICK_GUIDE.md)
+for the short cashier/supervisor procedure. It clearly separates the current
+all-branch static/manual fallback from the BR001-only automatic VT pilot so a
+staff member cannot accidentally treat a pending payment as paid.
+
 The three Fiuu integration paths are separate:
 
 - **Fiuu VT App-to-App** uses package `com.rms.mobile.razervt` and unsigned `razervt://` deep-link responses. The official application is now available on the BR001 Samsung and is the executable device-UAT path once Fiuu supplies activation material mapped to `masterkayajunus01`.

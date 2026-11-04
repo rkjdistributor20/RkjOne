@@ -34,6 +34,7 @@
     "verify:ui-polish": "node scripts/verify-ui-polish.mjs",
     "verify:payroll": "node scripts/verify-payroll-module.mjs",
     "verify:readiness": "node scripts/verify-production-readiness.mjs",
+    "verify:fiuu-db": "npx supabase db lint --linked --level error",
     "smoke:production": "node scripts/smoke-production.mjs",
     "mobile:sync": "cap sync",
     "mobile:sync:android": "cap sync android",

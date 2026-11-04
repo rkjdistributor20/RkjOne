@@ -113,12 +113,16 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [x] The repeat RM2.50 customer receipt printed successfully through the paired 58 mm Bluetooth printer.
 - [x] Production remains in `manual` mode and BR002-BR036 remain inactive after the successful BR001 transaction.
 - [x] The 2026-11-04 result is classified as VT App-to-App operational evidence, not a signed OPA callback or settlement evidence.
+- [x] Forward-only migration `20261104120000_fix_fiuu_opa_json_precedence.sql` repairs all five linked-staging OPA JSON precedence errors without creating or activating rollout data.
+- [x] Linked staging error-level database lint is clean, migration history matches through `20261104120000`, and a fresh dry-run reports no pending migration.
+- [x] The repaired package passes 284/284 tests, TypeScript, ESLint and the 163-page production build.
 - [ ] The updated BR001 UAT APK proves on the physical Samsung that an official VT error callback returns to RKJ One, shows a bounded recovery state and permits a deliberate new attempt only after the server reconciliation window.
 - [ ] BR001 proves that successful Fiuu `getLast` returns the original SALE reference in signed metadata; absent metadata must remain fail-closed and be escalated to Fiuu.
 - [ ] BR001 validates uncertain-result recovery through `getLast`: each inquiry uses a new query reference, signed metadata contains the original SALE reference, and network/duplicate recovery creates no duplicate sale, receipt or stock movement.
 - [ ] Finance matches the 2026-11-04 RM3.50 BR001 VT payment across the provider transaction, RKJ receipt, stock records, shift aggregate, a new Fiuu settlement report and the corresponding bank credit.
 - [ ] Finance matches the repeat 2026-11-04 RM2.50 BR001 VT payment across the provider transaction, RKJ receipt, stock records, shift aggregate, a new Fiuu settlement report and the corresponding bank credit.
 - [ ] Owner gives fresh confirmation immediately before any Production migration, credential, environment or deployment change.
+- [ ] The ordered nine-migration Fiuu chain is applied to Production only after a current recovery point, rollback owner, maintenance window, complete BR001 evidence and per-branch rollout prerequisites are recorded.
 
 ## Deployment Review
 
