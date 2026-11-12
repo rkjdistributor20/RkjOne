@@ -51,10 +51,12 @@ public class RkjFiuuVtPlugin extends Plugin {
     private static final String ACTIVE_CALLBACK_HOST = "active_callback_host";
     private static final String ACTIVE_ATTEMPT_OPERATION = "active_attempt_operation";
     private static final String ACTIVE_CALLBACK_RECEIVED = "active_callback_received";
+    private static final String CALLBACK_ATTEMPT_REGISTRY = "callback_attempt_registry";
     private static final int BRIDGE_API_VERSION = 5;
     private static final long MIN_LAUNCH_INTERVAL_MS = 3000L;
     private static final long STALE_VOID_RECOVERY_MS = 30000L;
     private static final int RESULT_QUEUE_LIMIT = 128;
+    private static final int CALLBACK_ATTEMPT_REGISTRY_LIMIT = 128;
     private static final Pattern ORDER_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{4,64}$");
     private static final Pattern TRANSACTION_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{1,80}$");
     private static final Pattern ERROR_CODE_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{1,32}$");
@@ -72,6 +74,7 @@ public class RkjFiuuVtPlugin extends Plugin {
     public synchronized void getStatus(PluginCall call) {
         JSObject result = new JSObject();
         SharedPreferences preferences = preferences();
+        loadCallbackAttemptRegistry(preferences);
         String pendingOperation = recoverStaleVoidIfNeeded(preferences, System.currentTimeMillis());
         result.put("bridgeApiVersion", BRIDGE_API_VERSION);
         result.put("nativeAndroid", true);
@@ -181,38 +184,42 @@ public class RkjFiuuVtPlugin extends Plugin {
             .appendQueryParameter("channel", CHANNEL)
             .appendQueryParameter("payType", "2")
             .build();
+        boolean[] callbackAttemptRegistered = { false };
         launchFiuu(
             call,
             uri,
             "SALE",
-            () -> preferences.edit()
-                .putString(PENDING_ORDER, orderId)
-                .putString(PENDING_AMOUNT, amount.toPlainString())
-                .putString(PENDING_OPERATION, "SALE")
-                 .putBoolean(SALE_LAUNCHED, true)
-                 .putBoolean(STATUS_LAUNCHED, false)
-                 .putBoolean(VOID_LAUNCHED, false)
-                 .putBoolean(SALE_ACKNOWLEDGED, false)
-                 .putString(ACTIVE_ATTEMPT_ID, attemptId)
-                 .putString(ACTIVE_CALLBACK_HOST, callbackHost)
-                 .putString(ACTIVE_ATTEMPT_OPERATION, "SALE")
-                 .putBoolean(ACTIVE_CALLBACK_RECEIVED, false)
-                .commit(),
+            () -> callbackAttemptRegistered[0] = registerCallbackAttempt(
+                preferences,
+                attemptId,
+                callbackHost,
+                "SALE",
+                orderId,
+                amount.toPlainString(),
+                preferences.edit()
+                    .putString(PENDING_ORDER, orderId)
+                    .putString(PENDING_AMOUNT, amount.toPlainString())
+                    .putString(PENDING_OPERATION, "SALE")
+                    .putBoolean(SALE_LAUNCHED, true)
+                    .putBoolean(STATUS_LAUNCHED, false)
+                    .putBoolean(VOID_LAUNCHED, false)
+                    .putBoolean(SALE_ACKNOWLEDGED, false)
+            ),
             () -> {
                 if (orderId.equals(preferences.getString(PENDING_ORDER, ""))) {
-                    preferences.edit()
+                    SharedPreferences.Editor rollbackEditor = preferences.edit()
                         .remove(PENDING_ORDER)
                         .remove(PENDING_AMOUNT)
                         .remove(PENDING_OPERATION)
-                         .remove(SALE_LAUNCHED)
-                         .remove(STATUS_LAUNCHED)
-                         .remove(VOID_LAUNCHED)
-                         .remove(SALE_ACKNOWLEDGED)
-                         .remove(ACTIVE_ATTEMPT_ID)
-                         .remove(ACTIVE_CALLBACK_HOST)
-                         .remove(ACTIVE_ATTEMPT_OPERATION)
-                         .remove(ACTIVE_CALLBACK_RECEIVED)
-                        .commit();
+                        .remove(SALE_LAUNCHED)
+                        .remove(STATUS_LAUNCHED)
+                        .remove(VOID_LAUNCHED)
+                        .remove(SALE_ACKNOWLEDGED);
+                    if (callbackAttemptRegistered[0]) {
+                        removeCallbackAttempt(preferences, attemptId, rollbackEditor);
+                    } else {
+                        rollbackEditor.commit();
+                    }
                 }
             }
         );
@@ -252,7 +259,7 @@ public class RkjFiuuVtPlugin extends Plugin {
 
         queue.remove(resultIndex);
         saveResultQueue(preferences, queue);
-        clearActiveCallbackAttemptIfMatches(preferences, callbackAttemptId);
+        removeCallbackAttempt(preferences, callbackAttemptId);
         if ("SALE".equals(opType) && orderId.equals(preferences.getString(PENDING_ORDER, ""))) {
             preferences.edit()
                 .putBoolean(SALE_ACKNOWLEDGED, true)
@@ -304,7 +311,7 @@ public class RkjFiuuVtPlugin extends Plugin {
         }
         queue.remove(resultIndex);
         saveResultQueue(preferences, queue);
-        clearActiveCallbackAttemptIfMatches(preferences, callbackAttemptId);
+        removeCallbackAttempt(preferences, callbackAttemptId);
         if ("VOID".equals(opType) && orderId.equals(preferences.getString(PENDING_ORDER, ""))) {
             preferences.edit()
                 .putString(PENDING_OPERATION, "STATUS")
@@ -321,8 +328,9 @@ public class RkjFiuuVtPlugin extends Plugin {
         String callbackHost = normalizedCallbackHost(call.getString("callbackHost", ""));
         SharedPreferences preferences = preferences();
         String pendingOrder = preferences.getString(PENDING_ORDER, "");
+        BigDecimal pendingAmount = normalizedAmount(preferences.getString(PENDING_AMOUNT, ""));
         if (orderId == null || !orderId.equals(pendingOrder)
-            || normalizedAmount(preferences.getString(PENDING_AMOUNT, "")) == null
+            || pendingAmount == null
             || !isMatchingCallbackAttempt(attemptId, callbackHost)) {
             call.reject("Percubaan Fiuu VT tidak sepadan dengan transaksi aktif.", "FIUU_ATTEMPT_MISMATCH");
             return;
@@ -343,10 +351,6 @@ public class RkjFiuuVtPlugin extends Plugin {
 
         String previousOperation = preferences.getString(PENDING_OPERATION, "SALE");
         boolean previousStatusLaunched = preferences.getBoolean(STATUS_LAUNCHED, false);
-        String previousAttemptId = preferences.getString(ACTIVE_ATTEMPT_ID, "");
-        String previousCallbackHost = preferences.getString(ACTIVE_CALLBACK_HOST, "");
-        String previousAttemptOperation = preferences.getString(ACTIVE_ATTEMPT_OPERATION, "");
-        boolean previousCallbackReceived = preferences.getBoolean(ACTIVE_CALLBACK_RECEIVED, false);
         Uri uri = new Uri.Builder()
             .scheme(FIUU_SCHEME)
             .authority(FIUU_HOST)
@@ -355,30 +359,31 @@ public class RkjFiuuVtPlugin extends Plugin {
             .appendQueryParameter("opType", "STATUS")
             .appendQueryParameter("orderId", orderId)
             .build();
+        boolean[] callbackAttemptRegistered = { false };
         launchFiuu(
             call,
             uri,
             "STATUS",
-            () -> preferences.edit()
-                .putString(PENDING_OPERATION, "STATUS")
-                .putBoolean(STATUS_LAUNCHED, true)
-                .putString(ACTIVE_ATTEMPT_ID, attemptId)
-                .putString(ACTIVE_CALLBACK_HOST, callbackHost)
-                .putString(ACTIVE_ATTEMPT_OPERATION, "STATUS")
-                .putBoolean(ACTIVE_CALLBACK_RECEIVED, false)
-                .commit(),
-            () -> {
+            () -> callbackAttemptRegistered[0] = registerCallbackAttempt(
+                preferences,
+                attemptId,
+                callbackHost,
+                "STATUS",
+                orderId,
+                pendingAmount.toPlainString(),
                 preferences.edit()
+                    .putString(PENDING_OPERATION, "STATUS")
+                    .putBoolean(STATUS_LAUNCHED, true)
+            ),
+            () -> {
+                SharedPreferences.Editor rollbackEditor = preferences.edit()
                     .putString(PENDING_OPERATION, previousOperation)
-                    .putBoolean(STATUS_LAUNCHED, previousStatusLaunched)
-                    .commit();
-                restoreActiveCallbackAttempt(
-                    preferences,
-                    previousAttemptId,
-                    previousCallbackHost,
-                    previousAttemptOperation,
-                    previousCallbackReceived
-                );
+                    .putBoolean(STATUS_LAUNCHED, previousStatusLaunched);
+                if (callbackAttemptRegistered[0]) {
+                    removeCallbackAttempt(preferences, attemptId, rollbackEditor);
+                } else {
+                    rollbackEditor.commit();
+                }
             }
         );
     }
@@ -390,8 +395,9 @@ public class RkjFiuuVtPlugin extends Plugin {
         String callbackHost = normalizedCallbackHost(call.getString("callbackHost", ""));
         SharedPreferences preferences = preferences();
         String pendingOrder = preferences.getString(PENDING_ORDER, "");
+        BigDecimal pendingAmount = normalizedAmount(preferences.getString(PENDING_AMOUNT, ""));
         if (orderId == null || !orderId.equals(pendingOrder)
-            || normalizedAmount(preferences.getString(PENDING_AMOUNT, "")) == null
+            || pendingAmount == null
             || !isMatchingCallbackAttempt(attemptId, callbackHost)) {
             call.reject("Percubaan Fiuu VT tidak sepadan dengan transaksi aktif.", "FIUU_ATTEMPT_MISMATCH");
             return;
@@ -404,10 +410,6 @@ public class RkjFiuuVtPlugin extends Plugin {
 
         String previousOperation = preferences.getString(PENDING_OPERATION, "SALE");
         boolean previousVoidLaunched = preferences.getBoolean(VOID_LAUNCHED, false);
-        String previousAttemptId = preferences.getString(ACTIVE_ATTEMPT_ID, "");
-        String previousCallbackHost = preferences.getString(ACTIVE_CALLBACK_HOST, "");
-        String previousAttemptOperation = preferences.getString(ACTIVE_ATTEMPT_OPERATION, "");
-        boolean previousCallbackReceived = preferences.getBoolean(ACTIVE_CALLBACK_RECEIVED, false);
         Uri uri = new Uri.Builder()
             .scheme(FIUU_SCHEME)
             .authority(FIUU_HOST)
@@ -416,30 +418,31 @@ public class RkjFiuuVtPlugin extends Plugin {
             .appendQueryParameter("opType", "VOID")
             .appendQueryParameter("orderId", orderId)
             .build();
+        boolean[] callbackAttemptRegistered = { false };
         launchFiuu(
             call,
             uri,
             "VOID",
-            () -> preferences.edit()
-                .putString(PENDING_OPERATION, "VOID")
-                .putBoolean(VOID_LAUNCHED, true)
-                .putString(ACTIVE_ATTEMPT_ID, attemptId)
-                .putString(ACTIVE_CALLBACK_HOST, callbackHost)
-                .putString(ACTIVE_ATTEMPT_OPERATION, "VOID")
-                .putBoolean(ACTIVE_CALLBACK_RECEIVED, false)
-                .commit(),
-            () -> {
+            () -> callbackAttemptRegistered[0] = registerCallbackAttempt(
+                preferences,
+                attemptId,
+                callbackHost,
+                "VOID",
+                orderId,
+                pendingAmount.toPlainString(),
                 preferences.edit()
+                    .putString(PENDING_OPERATION, "VOID")
+                    .putBoolean(VOID_LAUNCHED, true)
+            ),
+            () -> {
+                SharedPreferences.Editor rollbackEditor = preferences.edit()
                     .putString(PENDING_OPERATION, previousOperation)
-                    .putBoolean(VOID_LAUNCHED, previousVoidLaunched)
-                    .commit();
-                restoreActiveCallbackAttempt(
-                    preferences,
-                    previousAttemptId,
-                    previousCallbackHost,
-                    previousAttemptOperation,
-                    previousCallbackReceived
-                );
+                    .putBoolean(VOID_LAUNCHED, previousVoidLaunched);
+                if (callbackAttemptRegistered[0]) {
+                    removeCallbackAttempt(preferences, attemptId, rollbackEditor);
+                } else {
+                    rollbackEditor.commit();
+                }
             }
         );
     }
@@ -471,6 +474,10 @@ public class RkjFiuuVtPlugin extends Plugin {
             call.reject("Keputusan Fiuu VT masih belum diproses.", "FIUU_RESULT_PENDING");
             return;
         }
+        // Migrate any pre-registry ACTIVE_* identity while its order/amount
+        // context is still available, then retain it for a possible late
+        // provider callback after the payment state is cleared.
+        loadCallbackAttemptRegistry(preferences);
         preferences.edit()
             .remove(PENDING_ORDER)
             .remove(PENDING_AMOUNT)
@@ -484,10 +491,6 @@ public class RkjFiuuVtPlugin extends Plugin {
             .remove(SALE_ACKNOWLEDGED)
             .remove(LAST_LAUNCH_AT)
             .remove(LAST_LAUNCH_OPERATION)
-            .remove(ACTIVE_ATTEMPT_ID)
-            .remove(ACTIVE_CALLBACK_HOST)
-            .remove(ACTIVE_ATTEMPT_OPERATION)
-            .remove(ACTIVE_CALLBACK_RECEIVED)
             .commit();
         call.resolve();
     }
@@ -499,31 +502,36 @@ public class RkjFiuuVtPlugin extends Plugin {
         }
 
         SharedPreferences preferences = preferences();
-        String callbackAttemptId = normalizedAttemptId(preferences.getString(ACTIVE_ATTEMPT_ID, ""));
-        String activeCallbackHost = normalizedCallbackHost(
-            preferences.getString(ACTIVE_CALLBACK_HOST, "")
-        );
         String callbackHost = normalizedCallbackHost(uri.getHost());
-        String activeOperation = preferences.getString(ACTIVE_ATTEMPT_OPERATION, "");
-        if (!isMatchingCallbackAttempt(callbackAttemptId, activeCallbackHost)
-            || callbackHost == null
-            || !callbackHost.equals(activeCallbackHost)
-            || !isFiuuOperation(activeOperation)
-            || preferences.getBoolean(ACTIVE_CALLBACK_RECEIVED, false)) {
+        JSONObject callbackAttempt = callbackHost == null
+            ? null
+            : findCallbackAttemptByHost(loadCallbackAttemptRegistry(preferences), callbackHost);
+        if (callbackAttempt == null || callbackAttempt.optBoolean("callbackReceived", false)) {
             // The manifest intentionally accepts every host for our private
-            // scheme.  Only the one-time host issued for the active launch is
-            // trusted; stale, duplicate and foreign callbacks are consumed
-            // without changing payment state.
+            // scheme. Only a durable one-time host issued by this bridge is
+            // trusted. Duplicate and foreign callbacks are consumed without
+            // changing payment state.
             return true;
         }
 
-        String pendingOrder = preferences.getString(PENDING_ORDER, "");
+        String callbackAttemptId = normalizedAttemptId(callbackAttempt.optString("attemptId"));
+        String registeredCallbackHost = normalizedCallbackHost(callbackAttempt.optString("callbackHost"));
+        String registeredOperation = callbackAttempt.optString("operation");
+        String registeredOrder = normalizedOrderId(callbackAttempt.optString("orderId"));
+        BigDecimal registeredAmount = normalizedAmount(callbackAttempt.optString("amount"));
+        if (!isMatchingCallbackAttempt(callbackAttemptId, registeredCallbackHost)
+            || !callbackHost.equals(registeredCallbackHost)
+            || !isFiuuOperation(registeredOperation)
+            || registeredOrder == null
+            || registeredAmount == null) {
+            return true;
+        }
+
         String errorCode = safe(uri.getQueryParameter("errorCode"));
         String rawErrorMessage = safe(first(uri, "errorMsg", "errorMessage"));
         String errorMessage = normalizedErrorMessage(rawErrorMessage);
         if (!errorCode.isEmpty() || !rawErrorMessage.isEmpty()) {
-            boolean validError = ORDER_PATTERN.matcher(pendingOrder).matches()
-                && hasExactlyOne(uri, "errorCode")
+            boolean validError = hasExactlyOne(uri, "errorCode")
                 && hasExactlyOne(uri, "errorMsg", "errorMessage")
                 && hasNone(
                     uri,
@@ -536,15 +544,15 @@ public class RkjFiuuVtPlugin extends Plugin {
 
             JSObject errorResult = new JSObject();
             errorResult.put("kind", "ERROR");
-            errorResult.put("opType", activeOperation);
-            errorResult.put("orderId", pendingOrder);
+            errorResult.put("opType", registeredOperation);
+            errorResult.put("orderId", registeredOrder);
             errorResult.put("errorCode", errorCode);
             errorResult.put("errorMessage", errorMessage);
             errorResult.put("callbackAttemptId", callbackAttemptId);
-            errorResult.put("callbackHost", activeCallbackHost);
+            errorResult.put("callbackHost", registeredCallbackHost);
             errorResult.put("callbackValidation", "MATCHED");
-            enqueueResult(preferences, errorResult);
-            preferences.edit().putBoolean(ACTIVE_CALLBACK_RECEIVED, true).commit();
+            if (!enqueueResult(preferences, errorResult)) return true;
+            markCallbackAttemptReceived(preferences, callbackAttemptId);
             notifyListeners("fiuuVtResult", errorResult, true);
             return true;
         }
@@ -557,13 +565,7 @@ public class RkjFiuuVtPlugin extends Plugin {
         String channel = safe(uri.getQueryParameter("channel"));
         String payDate = safe(first(uri, "payDate", "paydate"));
         BigDecimal amount = normalizedAmount(uri.getQueryParameter("amount"));
-        BigDecimal expectedAmount = normalizedAmount(preferences.getString(PENDING_AMOUNT, ""));
 
-        boolean operationWasLaunched = "SALE".equals(opType)
-            ? preferences.getBoolean(SALE_LAUNCHED, false)
-            : "STATUS".equals(opType)
-                ? preferences.getBoolean(STATUS_LAUNCHED, false)
-                : preferences.getBoolean(VOID_LAUNCHED, false);
         boolean validPayload = ("SALE".equals(opType) || "STATUS".equals(opType) || "VOID".equals(opType))
             && hasExactlyOne(uri, "opType")
             && hasExactlyOne(uri, "orderId", "orderid")
@@ -578,14 +580,12 @@ public class RkjFiuuVtPlugin extends Plugin {
             && STATUS_CODES.contains(status)
             && "MYR".equals(currency)
             && CHANNEL.equals(channel)
-            && amount != null
-            && expectedAmount != null;
+            && amount != null;
         if (!validPayload) return true;
 
-        boolean callbackMatchesActiveTransaction = operationWasLaunched
-            && activeOperation.equals(opType)
-            && orderId.equals(pendingOrder)
-            && amount.compareTo(expectedAmount) == 0;
+        boolean callbackMatchesRegisteredAttempt = registeredOperation.equals(opType)
+            && orderId.equals(registeredOrder)
+            && amount.compareTo(registeredAmount) == 0;
 
         JSObject result = new JSObject();
         result.put("opType", opType);
@@ -597,10 +597,10 @@ public class RkjFiuuVtPlugin extends Plugin {
         result.put("channel", channel);
         result.put("payDate", payDate.isEmpty() ? JSONObject.NULL : payDate);
         result.put("callbackAttemptId", callbackAttemptId);
-        result.put("callbackHost", activeCallbackHost);
-        result.put("callbackValidation", callbackMatchesActiveTransaction ? "MATCHED" : "MISMATCH");
-        enqueueResult(preferences, result);
-        preferences.edit().putBoolean(ACTIVE_CALLBACK_RECEIVED, true).commit();
+        result.put("callbackHost", registeredCallbackHost);
+        result.put("callbackValidation", callbackMatchesRegisteredAttempt ? "MATCHED" : "MISMATCH");
+        if (!enqueueResult(preferences, result)) return true;
+        markCallbackAttemptReceived(preferences, callbackAttemptId);
         notifyListeners("fiuuVtResult", result, true);
         return true;
     }
@@ -610,15 +610,15 @@ public class RkjFiuuVtPlugin extends Plugin {
      * Persist every distinct callback until JavaScript acknowledges that exact
      * item; a single last-result slot can silently discard STATUS=00.
      */
-    private synchronized void enqueueResult(SharedPreferences preferences, JSObject result) {
+    private synchronized boolean enqueueResult(SharedPreferences preferences, JSObject result) {
         JSONArray queue = loadResultQueue(preferences);
         JSONObject value;
         try {
             value = new JSONObject(result.toString());
         } catch (JSONException error) {
-            return;
+            return false;
         }
-        if (findEquivalentResultIndex(queue, value) >= 0) return;
+        if (findEquivalentResultIndex(queue, value) >= 0) return true;
 
         JSONObject entry = new JSONObject();
         try {
@@ -626,7 +626,7 @@ public class RkjFiuuVtPlugin extends Plugin {
             entry.put("result", value);
             queue.put(entry);
         } catch (JSONException error) {
-            return;
+            return false;
         }
 
         while (queue.length() > RESULT_QUEUE_LIMIT) {
@@ -637,7 +637,7 @@ public class RkjFiuuVtPlugin extends Plugin {
             if (removableIndex < 0) break;
             queue.remove(removableIndex);
         }
-        saveResultQueue(preferences, queue);
+        return saveResultQueue(preferences, queue);
     }
 
     private JSONArray loadResultQueue(SharedPreferences preferences) {
@@ -682,13 +682,13 @@ public class RkjFiuuVtPlugin extends Plugin {
         return cleanQueue;
     }
 
-    private void saveResultQueue(SharedPreferences preferences, JSONArray queue) {
+    private boolean saveResultQueue(SharedPreferences preferences, JSONArray queue) {
         SharedPreferences.Editor editor = preferences.edit()
             .remove(LAST_RESULT)
             .remove(LAST_RESULT_AT);
         if (queue.length() == 0) editor.remove(RESULT_QUEUE);
         else editor.putString(RESULT_QUEUE, queue.toString());
-        editor.commit();
+        return editor.commit();
     }
 
     private JSONObject peekQueuedResult(SharedPreferences preferences) {
@@ -856,34 +856,184 @@ public class RkjFiuuVtPlugin extends Plugin {
         return expectedHost.equals(callbackHost);
     }
 
-    private void clearActiveCallbackAttemptIfMatches(
-        SharedPreferences preferences,
-        String callbackAttemptId
-    ) {
-        if (!callbackAttemptId.equals(preferences.getString(ACTIVE_ATTEMPT_ID, ""))) return;
-        preferences.edit()
-            .remove(ACTIVE_ATTEMPT_ID)
-            .remove(ACTIVE_CALLBACK_HOST)
-            .remove(ACTIVE_ATTEMPT_OPERATION)
-            .remove(ACTIVE_CALLBACK_RECEIVED)
-            .commit();
+    /**
+     * Callback identities outlive the currently visible bridge operation. Fiuu
+     * may return SALE after a STATUS/VOID launch (or vice versa), including
+     * after Android recreates the process, so every issued one-time host must
+     * remain independently resolvable until its exact result is acknowledged.
+     */
+    private JSONArray loadCallbackAttemptRegistry(SharedPreferences preferences) {
+        JSONArray registry = new JSONArray();
+        boolean changed = false;
+        String rawRegistry = preferences.getString(CALLBACK_ATTEMPT_REGISTRY, "");
+        if (!rawRegistry.isEmpty()) {
+            try {
+                JSONArray storedRegistry = new JSONArray(rawRegistry);
+                for (int index = 0; index < storedRegistry.length(); index++) {
+                    JSONObject entry = storedRegistry.optJSONObject(index);
+                    if (!isValidCallbackAttempt(entry)) {
+                        changed = true;
+                        continue;
+                    }
+                    String attemptId = entry.optString("attemptId");
+                    String callbackHost = entry.optString("callbackHost");
+                    if (findCallbackAttemptById(registry, attemptId) != null
+                        || findCallbackAttemptByHost(registry, callbackHost) != null) {
+                        changed = true;
+                        continue;
+                    }
+                    registry.put(entry);
+                }
+            } catch (JSONException ignored) {
+                // SharedPreferences writes are atomic, but retain the legacy
+                // mirror below as a recovery path for pre-registry installs.
+                changed = true;
+            }
+        }
+
+        String legacyAttemptId = normalizedAttemptId(preferences.getString(ACTIVE_ATTEMPT_ID, ""));
+        String legacyCallbackHost = normalizedCallbackHost(
+            preferences.getString(ACTIVE_CALLBACK_HOST, "")
+        );
+        String legacyOperation = preferences.getString(ACTIVE_ATTEMPT_OPERATION, "");
+        String legacyOrderId = normalizedOrderId(preferences.getString(PENDING_ORDER, ""));
+        BigDecimal legacyAmount = normalizedAmount(preferences.getString(PENDING_AMOUNT, ""));
+        if (isMatchingCallbackAttempt(legacyAttemptId, legacyCallbackHost)
+            && isFiuuOperation(legacyOperation)
+            && legacyOrderId != null
+            && legacyAmount != null
+            && findCallbackAttemptById(registry, legacyAttemptId) == null
+            && findCallbackAttemptByHost(registry, legacyCallbackHost) == null) {
+            JSONObject legacyEntry = newCallbackAttempt(
+                legacyAttemptId,
+                legacyCallbackHost,
+                legacyOperation,
+                legacyOrderId,
+                legacyAmount.toPlainString(),
+                preferences.getBoolean(ACTIVE_CALLBACK_RECEIVED, false),
+                preferences.getLong(LAST_LAUNCH_AT, System.currentTimeMillis())
+            );
+            if (legacyEntry != null) {
+                registry.put(legacyEntry);
+                changed = true;
+            }
+        }
+
+        if (changed || !legacyMirrorMatchesRegistry(preferences, registry)) {
+            saveCallbackAttemptRegistry(preferences, registry, preferences.edit());
+        }
+        return registry;
     }
 
-    private void restoreActiveCallbackAttempt(
+    private boolean registerCallbackAttempt(
         SharedPreferences preferences,
         String attemptId,
         String callbackHost,
         String operation,
-        boolean callbackReceived
+        String orderId,
+        String amount,
+        SharedPreferences.Editor editor
     ) {
-        SharedPreferences.Editor editor = preferences.edit();
-        if (isMatchingCallbackAttempt(normalizedAttemptId(attemptId), normalizedCallbackHost(callbackHost))
-            && isFiuuOperation(operation)) {
+        String normalizedOrder = normalizedOrderId(orderId);
+        BigDecimal normalizedPaymentAmount = normalizedAmount(amount);
+        if (!isMatchingCallbackAttempt(normalizedAttemptId(attemptId), normalizedCallbackHost(callbackHost))
+            || !isFiuuOperation(operation)
+            || normalizedOrder == null
+            || normalizedPaymentAmount == null) {
+            throw new IllegalStateException("Invalid Fiuu callback attempt");
+        }
+
+        JSONArray registry = loadCallbackAttemptRegistry(preferences);
+        JSONObject existingAttempt = findCallbackAttemptById(registry, attemptId);
+        JSONObject existingHost = findCallbackAttemptByHost(registry, callbackHost);
+        if (existingAttempt != null || existingHost != null) {
+            throw new IllegalStateException("Fiuu callback attempt collision");
+        }
+
+        JSONArray queuedResults = loadResultQueue(preferences);
+        while (registry.length() >= CALLBACK_ATTEMPT_REGISTRY_LIMIT) {
+            int removableIndex = findSafestCallbackAttemptToDrop(registry, queuedResults);
+            // Never evict an unresolved host merely to admit a new launch. A
+            // full unresolved registry fails closed instead of losing the only
+            // identity capable of authenticating a late provider callback.
+            if (removableIndex < 0) {
+                throw new IllegalStateException("Fiuu callback registry is full");
+            }
+            registry.remove(removableIndex);
+        }
+
+        JSONObject entry = newCallbackAttempt(
+            attemptId,
+            callbackHost,
+            operation,
+            normalizedOrder,
+            normalizedPaymentAmount.toPlainString(),
+            false,
+            System.currentTimeMillis()
+        );
+        if (entry == null) throw new IllegalStateException("Unable to persist Fiuu callback attempt");
+        registry.put(entry);
+        if (!saveCallbackAttemptRegistry(preferences, registry, editor)) {
+            throw new IllegalStateException("Unable to commit Fiuu callback attempt");
+        }
+        return true;
+    }
+
+    private boolean removeCallbackAttempt(
+        SharedPreferences preferences,
+        String callbackAttemptId
+    ) {
+        return removeCallbackAttempt(preferences, callbackAttemptId, preferences.edit());
+    }
+
+    private boolean removeCallbackAttempt(
+        SharedPreferences preferences,
+        String callbackAttemptId,
+        SharedPreferences.Editor editor
+    ) {
+        JSONArray registry = loadCallbackAttemptRegistry(preferences);
+        for (int index = registry.length() - 1; index >= 0; index--) {
+            JSONObject entry = registry.optJSONObject(index);
+            if (entry != null && callbackAttemptId.equals(entry.optString("attemptId"))) {
+                registry.remove(index);
+            }
+        }
+        return saveCallbackAttemptRegistry(preferences, registry, editor);
+    }
+
+    private boolean markCallbackAttemptReceived(
+        SharedPreferences preferences,
+        String callbackAttemptId
+    ) {
+        JSONArray registry = loadCallbackAttemptRegistry(preferences);
+        JSONObject entry = findCallbackAttemptById(registry, callbackAttemptId);
+        if (entry == null) return false;
+        try {
+            entry.put("callbackReceived", true);
+            entry.put("receivedAt", System.currentTimeMillis());
+        } catch (JSONException error) {
+            return false;
+        }
+        return saveCallbackAttemptRegistry(preferences, registry, preferences.edit());
+    }
+
+    private boolean saveCallbackAttemptRegistry(
+        SharedPreferences preferences,
+        JSONArray registry,
+        SharedPreferences.Editor editor
+    ) {
+        if (registry.length() == 0) editor.remove(CALLBACK_ATTEMPT_REGISTRY);
+        else editor.putString(CALLBACK_ATTEMPT_REGISTRY, registry.toString());
+
+        JSONObject newest = registry.length() == 0
+            ? null
+            : registry.optJSONObject(registry.length() - 1);
+        if (isValidCallbackAttempt(newest)) {
             editor
-                .putString(ACTIVE_ATTEMPT_ID, attemptId)
-                .putString(ACTIVE_CALLBACK_HOST, callbackHost)
-                .putString(ACTIVE_ATTEMPT_OPERATION, operation)
-                .putBoolean(ACTIVE_CALLBACK_RECEIVED, callbackReceived);
+                .putString(ACTIVE_ATTEMPT_ID, newest.optString("attemptId"))
+                .putString(ACTIVE_CALLBACK_HOST, newest.optString("callbackHost"))
+                .putString(ACTIVE_ATTEMPT_OPERATION, newest.optString("operation"))
+                .putBoolean(ACTIVE_CALLBACK_RECEIVED, newest.optBoolean("callbackReceived", false));
         } else {
             editor
                 .remove(ACTIVE_ATTEMPT_ID)
@@ -891,7 +1041,100 @@ public class RkjFiuuVtPlugin extends Plugin {
                 .remove(ACTIVE_ATTEMPT_OPERATION)
                 .remove(ACTIVE_CALLBACK_RECEIVED);
         }
-        editor.commit();
+        return editor.commit();
+    }
+
+    private boolean legacyMirrorMatchesRegistry(
+        SharedPreferences preferences,
+        JSONArray registry
+    ) {
+        JSONObject newest = registry.length() == 0
+            ? null
+            : registry.optJSONObject(registry.length() - 1);
+        if (!isValidCallbackAttempt(newest)) {
+            return preferences.getString(ACTIVE_ATTEMPT_ID, "").isEmpty()
+                && preferences.getString(ACTIVE_CALLBACK_HOST, "").isEmpty()
+                && preferences.getString(ACTIVE_ATTEMPT_OPERATION, "").isEmpty()
+                && !preferences.getBoolean(ACTIVE_CALLBACK_RECEIVED, false);
+        }
+        return newest.optString("attemptId").equals(preferences.getString(ACTIVE_ATTEMPT_ID, ""))
+            && newest.optString("callbackHost").equals(preferences.getString(ACTIVE_CALLBACK_HOST, ""))
+            && newest.optString("operation").equals(preferences.getString(ACTIVE_ATTEMPT_OPERATION, ""))
+            && newest.optBoolean("callbackReceived", false)
+                == preferences.getBoolean(ACTIVE_CALLBACK_RECEIVED, false);
+    }
+
+    private JSONObject newCallbackAttempt(
+        String attemptId,
+        String callbackHost,
+        String operation,
+        String orderId,
+        String amount,
+        boolean callbackReceived,
+        long registeredAt
+    ) {
+        try {
+            JSONObject entry = new JSONObject();
+            entry.put("attemptId", attemptId);
+            entry.put("callbackHost", callbackHost);
+            entry.put("operation", operation);
+            entry.put("orderId", orderId);
+            entry.put("amount", amount);
+            entry.put("callbackReceived", callbackReceived);
+            entry.put("registeredAt", registeredAt > 0L ? registeredAt : System.currentTimeMillis());
+            return entry;
+        } catch (JSONException error) {
+            return null;
+        }
+    }
+
+    private boolean isValidCallbackAttempt(JSONObject entry) {
+        if (entry == null) return false;
+        String attemptId = normalizedAttemptId(entry.optString("attemptId"));
+        String callbackHost = normalizedCallbackHost(entry.optString("callbackHost"));
+        return isMatchingCallbackAttempt(attemptId, callbackHost)
+            && isFiuuOperation(entry.optString("operation"))
+            && normalizedOrderId(entry.optString("orderId")) != null
+            && normalizedAmount(entry.optString("amount")) != null;
+    }
+
+    private JSONObject findCallbackAttemptById(JSONArray registry, String attemptId) {
+        if (attemptId == null) return null;
+        for (int index = registry.length() - 1; index >= 0; index--) {
+            JSONObject entry = registry.optJSONObject(index);
+            if (entry != null && attemptId.equals(entry.optString("attemptId"))) return entry;
+        }
+        return null;
+    }
+
+    private JSONObject findCallbackAttemptByHost(JSONArray registry, String callbackHost) {
+        if (callbackHost == null) return null;
+        for (int index = registry.length() - 1; index >= 0; index--) {
+            JSONObject entry = registry.optJSONObject(index);
+            if (entry != null && callbackHost.equals(entry.optString("callbackHost"))) return entry;
+        }
+        return null;
+    }
+
+    private int findSafestCallbackAttemptToDrop(JSONArray registry, JSONArray queuedResults) {
+        for (int index = 0; index < registry.length(); index++) {
+            JSONObject entry = registry.optJSONObject(index);
+            if (entry != null
+                && entry.optBoolean("callbackReceived", false)
+                && hasQueuedResultForAttempt(queuedResults, entry.optString("attemptId"))) {
+                return index;
+            }
+        }
+        return -1;
+    }
+
+    private boolean hasQueuedResultForAttempt(JSONArray queue, String attemptId) {
+        for (int index = 0; index < queue.length(); index++) {
+            JSONObject entry = queue.optJSONObject(index);
+            JSONObject value = entry == null ? null : entry.optJSONObject("result");
+            if (value != null && attemptId.equals(value.optString("callbackAttemptId"))) return true;
+        }
+        return false;
     }
 
     private void launchFiuu(
