@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { getCurrentProfile } from '@/lib/auth/session';
 import {
@@ -6,21 +7,32 @@ import {
  posAccessErrorStatus,
 } from '@/lib/pos/access';
 import { assertOfficialPosDevice } from '@/lib/pos/device-auth';
-import { FIUU_CALLBACK_GRACE_MS } from '@/lib/pos/fiuu';
 import {
- FIUU_VT_TERMINAL_SETTLE_MS,
  getFiuuVtStatusDisposition,
+ isFiuuVtErrorResult,
  isFiuuVtPendingStatus,
- parseFiuuVtResult,
+ parseFiuuVtCallbackResult,
+ type FiuuVtCallbackResult,
  type FiuuVtResult,
 } from '@/lib/pos/fiuu-vt';
-import {
- getFiuuVtLateRecoveryMs,
- normalizeFiuuVtBranchCode,
-} from '@/lib/pos/fiuu-vt-server';
+import { normalizeFiuuVtBranchCode } from '@/lib/pos/fiuu-vt-server';
 import { enforceRateLimit } from '@/lib/security/rate-limit';
 import { createAdminClient } from '@/lib/supabase/admin';
-import type { Json } from '@/types/database';
+import type { Database, Json } from '@/types/database';
+
+type PaymentStatus = 'PENDING' | 'REPORTED' | 'PAID' | 'FAILED' | 'EXPIRED' | 'CANCELLED';
+type PaymentUpdate = Database['public']['Tables']['pos_online_payments']['Update'];
+type ReviewState = 'LATE_SUCCESS_REVIEW' | 'REVERSAL_REVIEW' | 'FOREIGN_CALLBACK_REVIEW';
+type NextAction =
+ | 'CHECK_STATUS'
+ | 'CHECK_STATUS_LATER'
+ | 'AUTO_CONFIRMATION'
+ | 'COMPLETE'
+ | 'ACK_ONLY'
+ | 'ACK_AND_QUARANTINE';
+
+const TERMINAL_PAYMENT_STATUSES = new Set<PaymentStatus>(['FAILED', 'EXPIRED', 'CANCELLED']);
+const LATE_STATUS_SUCCESS_GRACE_MS = 2 * 60 * 1000;
 
 function jsonRecord(value: Json | null): Record<string, unknown> | null {
  return value && typeof value === 'object' && !Array.isArray(value)
@@ -28,8 +40,21 @@ function jsonRecord(value: Json | null): Record<string, unknown> | null {
   : null;
 }
 
-function sanitizedResult(result: FiuuVtResult): Json {
+function sanitizedCallback(result: FiuuVtCallbackResult): Record<string, Json> {
+ if (isFiuuVtErrorResult(result)) {
+  return {
+   kind: 'ERROR',
+   callbackAttemptId: result.callbackAttemptId,
+   callbackHost: result.callbackHost,
+   opType: result.opType,
+   orderId: result.orderId,
+   errorCode: result.errorCode,
+   errorMessage: result.errorMessage,
+  };
+ }
  return {
+  callbackAttemptId: result.callbackAttemptId,
+  callbackHost: result.callbackHost,
   opType: result.opType,
   orderId: result.orderId,
   transactionId: result.transactionId,
@@ -41,20 +66,42 @@ function sanitizedResult(result: FiuuVtResult): Json {
  };
 }
 
-const TERMINAL_PAYMENT_STATUSES = new Set(['FAILED', 'EXPIRED', 'CANCELLED']);
-
-function isRecentTerminalStatus(status: string, checkedAt: string | null): boolean {
- if (!TERMINAL_PAYMENT_STATUSES.has(status) || !checkedAt) return false;
- const checkedAtMs = new Date(checkedAt).getTime();
- return Number.isFinite(checkedAtMs)
-  && Date.now() - checkedAtMs <= FIUU_VT_TERMINAL_SETTLE_MS;
+function callbackFingerprint(result: Record<string, Json>): string {
+ return createHash('sha256').update(JSON.stringify(result), 'utf8').digest('hex');
 }
 
-async function waitForTerminalSettle(startedAtMs: number): Promise<void> {
- const remainingMs = FIUU_VT_TERMINAL_SETTLE_MS - (Date.now() - startedAtMs);
- if (remainingMs > 0) {
-  await new Promise((resolve) => setTimeout(resolve, remainingMs));
+function responseForStatus(
+ paymentId: string,
+ status: PaymentStatus,
+ nextAction?: NextAction,
+ warning?: string,
+) {
+ const inferredAction: NextAction = nextAction
+  ?? (status === 'REPORTED' ? 'AUTO_CONFIRMATION'
+   : status === 'PENDING' ? 'CHECK_STATUS'
+   : 'COMPLETE');
+ return NextResponse.json({
+  payment: { id: paymentId, status },
+  next_action: inferredAction,
+  ...(warning ? { warning } : {}),
+ });
+}
+
+function terminalStatus(result: FiuuVtResult): Extract<PaymentStatus, 'FAILED' | 'EXPIRED' | 'CANCELLED'> | null {
+ const disposition = getFiuuVtStatusDisposition(result.status);
+ return disposition === 'FAILED' || disposition === 'EXPIRED' || disposition === 'CANCELLED'
+  ? disposition
+  : null;
+}
+
+function terminalWarning(status: Extract<PaymentStatus, 'FAILED' | 'EXPIRED' | 'CANCELLED'>): string {
+ if (status === 'CANCELLED') {
+  return 'Percubaan Fiuu VT dibatalkan. Troli dikekalkan dan kaunter sedia untuk bayaran baharu.';
  }
+ if (status === 'EXPIRED') {
+  return 'Kod QR Fiuu VT tamat tempoh. Troli dikekalkan dan kaunter sedia untuk bayaran baharu.';
+ }
+ return 'Bayaran Fiuu VT gagal. Troli dikekalkan dan kaunter sedia untuk bayaran baharu.';
 }
 
 export async function POST(
@@ -63,7 +110,7 @@ export async function POST(
 ) {
  const limited = enforceRateLimit(request, {
   key: 'pos-fiuu-vt-result',
-  limit: 60,
+  limit: 90,
   windowMs: 60 * 1000,
  });
  if (limited) return limited;
@@ -72,37 +119,42 @@ export async function POST(
  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
  const body: unknown = await request.json().catch(() => null);
- let result: FiuuVtResult;
+ const bodyRecord = body && typeof body === 'object' && !Array.isArray(body)
+  ? body as Record<string, unknown>
+  : null;
+ const rawResult = bodyRecord?.result;
+ let result: FiuuVtCallbackResult;
  try {
-  result = parseFiuuVtResult(
-   body && typeof body === 'object' && !Array.isArray(body)
-    ? Reflect.get(body, 'result')
-    : null,
-  );
- } catch (error) {
+  result = parseFiuuVtCallbackResult(rawResult);
+ } catch (parseError) {
   return NextResponse.json(
-   { error: error instanceof Error ? error.message : 'Keputusan Fiuu VT tidak sah' },
+   { error: parseError instanceof Error ? parseError.message : 'Keputusan Fiuu VT tidak sah' },
    { status: 400 },
   );
  }
+ const nativeValidation = rawResult && typeof rawResult === 'object' && !Array.isArray(rawResult)
+  ? (rawResult as Record<string, unknown>).callbackValidation
+  : undefined;
 
  const { paymentId } = await context.params;
- const admin = createAdminClient();
- const { data: payment, error } = await admin
+ const service = createAdminClient();
+ const { data: payment, error: paymentError } = await service
   .from('pos_online_payments')
-  .select('id, organization_id, branch_id, shift_id, created_by, provider, status, amount_rm, expires_at, sale_payload, provider_order_id, provider_transaction_id, provider_result, provider_sale_reported_at, provider_status_checked_at')
+  .select('id, organization_id, branch_id, shift_id, created_by, provider, status, amount_rm, sale_payload, provider_order_id, provider_transaction_id, provider_result, provider_sale_reported_at, provider_status_checked_at, fiuu_vt_review_required, fiuu_vt_reconciliation_state')
   .eq('id', paymentId)
   .eq('organization_id', profile.organization_id)
   .maybeSingle();
- if (error) return NextResponse.json({ error: 'Percubaan Fiuu VT tidak dapat dibaca' }, { status: 400 });
- if (!payment || payment.provider !== 'fiuu_vt') {
+ if (paymentError) {
+  return NextResponse.json({ error: 'Percubaan Fiuu VT tidak dapat dibaca' }, { status: 400 });
+ }
+ if (!payment || payment.provider !== 'fiuu_vt' || !payment.provider_order_id) {
   return NextResponse.json({ error: 'Percubaan Fiuu VT tidak dijumpai' }, { status: 404 });
  }
 
  try {
-  await assertCanAccessPosBranch(admin, profile, payment.branch_id);
+  await assertCanAccessPosBranch(service, profile, payment.branch_id);
   const device = await assertOfficialPosDevice(profile, payment.branch_id);
-  await assertActivePosShiftMember(admin, profile, payment.shift_id, payment.branch_id);
+  await assertActivePosShiftMember(service, profile, payment.shift_id, payment.branch_id);
   const salePayload = jsonRecord(payment.sale_payload);
   const deviceBranchCode = normalizeFiuuVtBranchCode(device.branchCode);
   const paymentBranchCode = normalizeFiuuVtBranchCode(salePayload?.fiuu_branch_code);
@@ -121,295 +173,475 @@ export async function POST(
   );
  }
 
- if (payment.status === 'PAID') {
-  return NextResponse.json({ payment: { id: payment.id, status: 'PAID' }, next_action: 'COMPLETE' });
+ const safeResult = sanitizedCallback(result);
+ const fingerprint = callbackFingerprint(safeResult);
+ const observedAt = new Date().toISOString();
+
+ const markReview = async (
+  state: ReviewState,
+  reason: string,
+  attemptId: string,
+ ) => {
+  const evidence: Json = {
+   observedAt,
+   reason,
+   paymentStatus: payment.status,
+   attemptId,
+   callback: safeResult,
+  };
+  // The RPC atomically stores p_evidence in fiuu_vt_review_evidence and
+  // propagates the review lock to any related active checkout.
+  return service.rpc('mark_pos_fiuu_vt_review', {
+   p_payment_id: payment.id,
+   p_state: state,
+   p_evidence: evidence,
+  });
+ };
+
+ const quarantineAttempt = async (
+  attemptId: string,
+  evidence: Json = safeResult,
+ ) => service
+  .from('pos_fiuu_vt_attempts')
+  .update({
+   state: 'QUARANTINED',
+   result_fingerprint: fingerprint,
+   result_json: evidence,
+   received_at: observedAt,
+   quarantined_at: observedAt,
+   updated_at: observedAt,
+  })
+  .eq('id', attemptId)
+  .eq('payment_id', payment.id)
+  .select('id')
+  .maybeSingle();
+
+ const consumeAttempt = async (attemptId: string) => service
+  .from('pos_fiuu_vt_attempts')
+  .update({
+   state: 'CONSUMED',
+   consumed_at: observedAt,
+   updated_at: observedAt,
+  })
+  .eq('id', attemptId)
+  .eq('payment_id', payment.id)
+  .in('state', ['PREPARED', 'LAUNCHED', 'RECEIVED'])
+  .select('id')
+  .maybeSingle();
+
+ const { data: attempt, error: attemptError } = await service
+  .from('pos_fiuu_vt_attempts')
+  .select('id, payment_id, provider_order_id, op_type, callback_host, state, result_fingerprint, result_json, expires_at')
+  .eq('id', result.callbackAttemptId)
+  .eq('payment_id', payment.id)
+  .maybeSingle();
+ if (attemptError) {
+  return NextResponse.json({ error: 'Percubaan callback Fiuu VT tidak dapat dibaca' }, { status: 400 });
  }
- const canRecoverConcurrentSuccess = result.opType === 'STATUS'
-  && result.status === '00'
-  && isRecentTerminalStatus(payment.status, payment.provider_status_checked_at);
- if (payment.status !== 'PENDING' && payment.status !== 'REPORTED'
-  && !canRecoverConcurrentSuccess) {
-  return NextResponse.json(
-   { error: 'Percubaan Fiuu VT sudah ditutup', mode: 'FIUU_ATTEMPT_TERMINAL' },
-   { status: 409 },
+
+ // A callback that cannot be tied to a server-created one-time attempt must
+ // be removed from the native queue, but never trusted to mutate stock/sales.
+ if (!attempt) {
+  const review = await markReview(
+   'FOREIGN_CALLBACK_REVIEW',
+   'CALLBACK_ATTEMPT_NOT_FOUND',
+   result.callbackAttemptId,
   );
- }
- const expiresAtMs = payment.expires_at ? new Date(payment.expires_at).getTime() : Number.NaN;
- const normalReconciliationDeadline = expiresAtMs + FIUU_CALLBACK_GRACE_MS;
- const lateRecoveryDeadline = normalReconciliationDeadline + getFiuuVtLateRecoveryMs();
- const normalGraceExpired = payment.status === 'PENDING'
-  && Number.isFinite(normalReconciliationDeadline)
-  && Date.now() > normalReconciliationDeadline;
- const previewLateSaleRecovery = normalGraceExpired
-  && Date.now() <= lateRecoveryDeadline
-  && result.opType === 'SALE'
-  && result.status === '00'
-  && !payment.provider_sale_reported_at
-  && !payment.provider_transaction_id;
- const previewLateStatusRecovery = normalGraceExpired
-  && Date.now() <= lateRecoveryDeadline
-  && result.opType === 'STATUS'
-  && Boolean(payment.provider_sale_reported_at)
-  && payment.provider_transaction_id === result.transactionId;
- if (normalGraceExpired && !previewLateSaleRecovery && !previewLateStatusRecovery) {
-  return NextResponse.json(
-   { error: 'Tempoh rekonsiliasi Fiuu VT telah tamat', mode: 'FIUU_ATTEMPT_TERMINAL' },
-   { status: 409 },
-  );
- }
- if (payment.provider_order_id !== result.orderId
-  || Math.round(Number(payment.amount_rm) * 100) !== Math.round(result.amountRm * 100)) {
-  return NextResponse.json({ error: 'Keputusan Fiuu VT tidak sepadan dengan jualan' }, { status: 409 });
- }
- const checkedAtMs = Date.now();
- const checkedAt = new Date(checkedAtMs).toISOString();
- const safeResult = sanitizedResult(result);
- if (result.opType === 'SALE') {
-  // The mobile SALE callback is not signed. Record it as evidence, but require
-  // a fresh provider STATUS result before any failed/cancelled/expired outcome
-  // is allowed to release the cashier or mutate fulfilment state.
-  if (payment.provider_sale_reported_at || payment.provider_transaction_id) {
-   if (payment.provider_transaction_id !== result.transactionId) {
-    return NextResponse.json({ error: 'Transaction ID SALE Fiuu VT tidak sepadan' }, { status: 409 });
-   }
-   if (payment.status === 'REPORTED') {
-    return NextResponse.json({
-     payment: { id: payment.id, status: 'REPORTED' },
-     next_action: 'AUTO_CONFIRMATION',
-     warning: 'Bayaran berjaya telah dilaporkan. RKJ One akan memuktamadkan jualan secara automatik.',
-    });
-   }
-   return NextResponse.json({
-    payment: { id: payment.id, status: 'PENDING' },
-    next_action: 'CHECK_STATUS',
-   });
+  if (review.error) {
+   return NextResponse.json({ error: 'Bukti callback asing tidak dapat disimpan' }, { status: 400 });
   }
-  const { data: updatedSale, error: updateError } = await admin
-   .from('pos_online_payments')
+  return responseForStatus(
+   payment.id,
+   payment.status as PaymentStatus,
+   'ACK_AND_QUARANTINE',
+   'Callback Fiuu VT asing dikuarantin untuk semakan HQ. Jangan ulang caj pelanggan.',
+  );
+ }
+
+ const attemptIdentityMismatch = attempt.provider_order_id !== result.orderId
+  || attempt.op_type !== result.opType
+  || attempt.callback_host !== result.callbackHost
+  || nativeValidation === 'MISMATCH';
+ if (attemptIdentityMismatch) {
+  const quarantined = await quarantineAttempt(attempt.id);
+  const review = await markReview(
+   'FOREIGN_CALLBACK_REVIEW',
+   nativeValidation === 'MISMATCH' ? 'NATIVE_CALLBACK_HOST_MISMATCH' : 'CALLBACK_ATTEMPT_IDENTITY_MISMATCH',
+   attempt.id,
+  );
+  if (quarantined.error || review.error) {
+   return NextResponse.json({ error: 'Bukti callback tidak sepadan tidak dapat disimpan' }, { status: 400 });
+  }
+  return responseForStatus(
+   payment.id,
+   payment.status as PaymentStatus,
+   'ACK_AND_QUARANTINE',
+   'Callback Fiuu VT tidak sepadan dan telah dikuarantin. Jangan ulang caj pelanggan.',
+  );
+ }
+
+ if (attempt.state === 'CONSUMED' && attempt.result_fingerprint === fingerprint) {
+  return responseForStatus(payment.id, payment.status as PaymentStatus, 'ACK_ONLY');
+ }
+ if ((attempt.state === 'CONSUMED' || attempt.state === 'RECEIVED')
+  && attempt.result_fingerprint
+  && attempt.result_fingerprint !== fingerprint) {
+  const conflictingEvidence: Json = {
+   first: attempt.result_json,
+   conflicting: safeResult,
+   observedAt,
+  };
+  const quarantined = await quarantineAttempt(attempt.id, conflictingEvidence);
+  const review = await markReview(
+   'FOREIGN_CALLBACK_REVIEW',
+   'CALLBACK_ATTEMPT_REPLAY_CONFLICT',
+   attempt.id,
+  );
+  if (quarantined.error || review.error) {
+   return NextResponse.json({ error: 'Konflik callback Fiuu VT tidak dapat disimpan' }, { status: 400 });
+  }
+  return responseForStatus(
+   payment.id,
+   payment.status as PaymentStatus,
+   'ACK_AND_QUARANTINE',
+   'Callback Fiuu VT bercanggah dan memerlukan semakan HQ.',
+  );
+ }
+
+ // RECEIVED is an ownership claim by another request. Never let an exact
+ // concurrent replay advance the payment or trigger fulfilment a second time.
+ if (attempt.state === 'RECEIVED') {
+  return NextResponse.json(
+   { error: 'Callback Fiuu VT sedang diproses. Cuba semula.' },
+   { status: 409 },
+  );
+ }
+
+ const paymentDetailsMismatch = result.orderId !== payment.provider_order_id
+  || (!isFiuuVtErrorResult(result)
+   && Math.round(result.amountRm * 100) !== Math.round(Number(payment.amount_rm) * 100))
+  || (!isFiuuVtErrorResult(result)
+   && payment.provider_transaction_id
+   && payment.provider_transaction_id !== result.transactionId);
+ if (paymentDetailsMismatch) {
+  const quarantined = await quarantineAttempt(attempt.id);
+  const review = await markReview(
+   'FOREIGN_CALLBACK_REVIEW',
+   'CALLBACK_PAYMENT_DETAILS_MISMATCH',
+   attempt.id,
+  );
+  if (quarantined.error || review.error) {
+   return NextResponse.json({ error: 'Callback tidak sepadan tidak dapat disimpan' }, { status: 400 });
+  }
+  return responseForStatus(
+   payment.id,
+   payment.status as PaymentStatus,
+   'ACK_AND_QUARANTINE',
+   'Butiran callback Fiuu VT tidak sepadan dan memerlukan semakan HQ.',
+  );
+ }
+
+ const attemptExpiresAtMs = Date.parse(attempt.expires_at);
+ const expiredForMs = Date.now() - attemptExpiresAtMs;
+ const attemptExpired = Number.isFinite(attemptExpiresAtMs) && expiredForMs >= 0;
+ const lateStatusSuccessIsRecoverable = attemptExpired
+  && expiredForMs <= LATE_STATUS_SUCCESS_GRACE_MS
+  && nativeValidation === 'MATCHED'
+  && payment.status === 'PENDING'
+  && !payment.fiuu_vt_review_required
+  && ['PREPARED', 'LAUNCHED', 'EXPIRED'].includes(attempt.state)
+  && !isFiuuVtErrorResult(result)
+  && result.opType === 'STATUS'
+  && result.status === '00';
+ let lateStatusSuccessClaimed = false;
+ if (attempt.state === 'EXPIRED'
+  || attempt.state === 'ABANDONED'
+  || attempt.state === 'QUARANTINED'
+  || attemptExpired) {
+  if (lateStatusSuccessIsRecoverable) {
+   const { data: claimed, error: claimError } = await service
+    .from('pos_fiuu_vt_attempts')
+    .update({
+     state: 'RECEIVED',
+     result_fingerprint: fingerprint,
+     result_json: safeResult,
+     received_at: observedAt,
+     updated_at: observedAt,
+    })
+    .eq('id', attempt.id)
+    .eq('payment_id', payment.id)
+    .in('state', ['PREPARED', 'LAUNCHED', 'EXPIRED'])
+    .select('id')
+    .maybeSingle();
+   if (claimError) {
+    return NextResponse.json({ error: 'Callback lewat Fiuu VT tidak dapat dituntut' }, { status: 400 });
+   }
+   if (!claimed) {
+    return NextResponse.json(
+     { error: 'Callback Fiuu VT sedang diproses. Cuba semula.' },
+     { status: 409 },
+    );
+   }
+   lateStatusSuccessClaimed = true;
+  } else {
+   const isLateSuccess = !isFiuuVtErrorResult(result)
+    && result.opType !== 'VOID'
+    && result.status === '00';
+   const isPossibleReversal = !isFiuuVtErrorResult(result)
+    && (result.opType === 'VOID'
+     || ((payment.status === 'PAID' || payment.status === 'REPORTED') && result.status !== '00'));
+   const quarantined = await quarantineAttempt(attempt.id);
+   let reviewError: unknown = null;
+   if (isLateSuccess || isPossibleReversal) {
+    const review = await markReview(
+     isLateSuccess ? 'LATE_SUCCESS_REVIEW' : 'REVERSAL_REVIEW',
+     isLateSuccess ? 'CALLBACK_AFTER_ATTEMPT_EXPIRY' : 'REVERSAL_AFTER_ATTEMPT_EXPIRY',
+     attempt.id,
+    );
+    reviewError = review.error;
+   }
+   if (quarantined.error || reviewError) {
+    return NextResponse.json({ error: 'Callback lewat Fiuu VT tidak dapat dikuarantin' }, { status: 400 });
+   }
+   return responseForStatus(
+    payment.id,
+    payment.status as PaymentStatus,
+    'ACK_AND_QUARANTINE',
+    isLateSuccess || isPossibleReversal
+     ? 'Callback lewat disimpan untuk semakan HQ. Jangan ulang caj pelanggan.'
+     : 'Callback lewat diabaikan dengan selamat. Jalankan semakan STATUS baharu.',
+   );
+  }
+ }
+
+ if (!lateStatusSuccessClaimed
+  && (attempt.state === 'PREPARED' || attempt.state === 'LAUNCHED')) {
+  const { data: claimed, error: claimError } = await service
+   .from('pos_fiuu_vt_attempts')
    .update({
-    provider_result: safeResult,
-    provider_transaction_id: result.transactionId,
-    provider_sale_reported_at: checkedAt,
-    provider_status_checked_at: null,
-    updated_at: checkedAt,
+    state: 'RECEIVED',
+    result_fingerprint: fingerprint,
+    result_json: safeResult,
+    received_at: observedAt,
+    updated_at: observedAt,
    })
-   .eq('id', payment.id)
-   .eq('status', 'PENDING')
-   .is('provider_sale_reported_at', null)
-   .is('provider_transaction_id', null)
+   .eq('id', attempt.id)
+   .eq('payment_id', payment.id)
+   .in('state', ['PREPARED', 'LAUNCHED'])
    .select('id')
    .maybeSingle();
-  if (updateError) return NextResponse.json({ error: 'Laporan SALE Fiuu VT gagal disimpan' }, { status: 400 });
-  if (!updatedSale) {
-   return NextResponse.json({ error: 'Laporan SALE Fiuu VT bertindih. Jalankan semakan STATUS semula.' }, { status: 409 });
+  if (claimError) {
+   return NextResponse.json({ error: 'Callback Fiuu VT tidak dapat dituntut' }, { status: 400 });
   }
-  return NextResponse.json({
-   payment: { id: payment.id, status: 'PENDING' },
-   next_action: 'CHECK_STATUS',
-  });
- }
-
- if (!payment.provider_sale_reported_at || !payment.provider_transaction_id) {
-  return NextResponse.json(
-   { error: 'Laporan SALE Fiuu VT diperlukan sebelum semakan STATUS', mode: 'FIUU_VT_SALE_REQUIRED' },
-   { status: 409 },
-  );
- }
- if (payment.provider_transaction_id !== result.transactionId) {
-  return NextResponse.json({ error: 'Semakan STATUS tidak sepadan dengan transaksi SALE Fiuu VT' }, { status: 409 });
- }
-
- // Once STATUS=00 is stored, a later non-success callback must never replace
- // that evidence. The automatic fulfilment RPC relies on this exact result.
- if (payment.status === 'REPORTED') {
-  if (result.status !== '00') {
+  if (!claimed) {
    return NextResponse.json(
-    {
-     error: 'Keputusan Fiuu VT bercanggah dengan kejayaan terdahulu. Jangan sahkan atau jana SALE baharu; hubungi HQ untuk rekonsiliasi.',
-     mode: 'FIUU_VT_RECONCILIATION_REQUIRED',
-    },
+    { error: 'Callback Fiuu VT sedang diproses. Cuba semula.' },
     { status: 409 },
    );
   }
-  return NextResponse.json({
-   payment: { id: payment.id, status: 'REPORTED' },
-   next_action: 'AUTO_CONFIRMATION',
-   warning: 'Bayaran berjaya telah dilaporkan. RKJ One akan memuktamadkan jualan secara automatik.',
-  });
  }
 
- // A STATUS=55/11/44 response and STATUS=00 can cross in flight. Give the
- // matching success a very short, compare-and-swap recovery window before a
- // cashier is allowed to create another charge for the same cart.
- if (canRecoverConcurrentSuccess && payment.provider_status_checked_at) {
-  const { data: recoveredSuccess, error: recoveryError } = await admin
+ if (payment.fiuu_vt_review_required) {
+  await quarantineAttempt(attempt.id);
+  return responseForStatus(
+   payment.id,
+   payment.status as PaymentStatus,
+   'ACK_AND_QUARANTINE',
+   'Transaksi ini sedang menunggu semakan HQ. Jangan ulang caj pelanggan.',
+  );
+ }
+
+ if (payment.status === 'PAID' || payment.status === 'REPORTED') {
+  const contradictory = !isFiuuVtErrorResult(result)
+   && (result.opType === 'VOID' || result.status !== '00');
+  if (contradictory) {
+   const quarantined = await quarantineAttempt(attempt.id);
+   const review = await markReview('REVERSAL_REVIEW', 'CALLBACK_CONTRADICTS_SUCCESS', attempt.id);
+   if (quarantined.error || review.error) {
+    return NextResponse.json({ error: 'Bukti pembalikan Fiuu VT tidak dapat disimpan' }, { status: 400 });
+   }
+   return responseForStatus(
+    payment.id,
+    payment.status as PaymentStatus,
+    'ACK_AND_QUARANTINE',
+    'Fiuu melaporkan keputusan bercanggah selepas kejayaan. Resit dan stok dikekalkan untuk semakan HQ.',
+   );
+  }
+  const consumed = await consumeAttempt(attempt.id);
+  if (consumed.error || !consumed.data) {
+   return NextResponse.json({ error: 'Callback Fiuu VT tidak dapat ditandakan selesai' }, { status: 400 });
+  }
+  return responseForStatus(
+   payment.id,
+   payment.status as PaymentStatus,
+   'ACK_ONLY',
+  );
+ }
+
+ if (TERMINAL_PAYMENT_STATUSES.has(payment.status as PaymentStatus)) {
+  const lateSuccess = !isFiuuVtErrorResult(result)
+   && result.opType !== 'VOID'
+   && result.status === '00';
+  if (lateSuccess) {
+   const quarantined = await quarantineAttempt(attempt.id);
+   const review = await markReview('LATE_SUCCESS_REVIEW', 'SUCCESS_AFTER_PAYMENT_CLOSED', attempt.id);
+   if (quarantined.error || review.error) {
+    return NextResponse.json({ error: 'Bukti kejayaan lewat tidak dapat disimpan' }, { status: 400 });
+   }
+   return responseForStatus(
+    payment.id,
+    payment.status as PaymentStatus,
+    'ACK_AND_QUARANTINE',
+    'Fiuu melaporkan kejayaan selepas transaksi ditutup. Jangan ulang caj pelanggan; HQ perlu menyemak.',
+   );
+  }
+  const consumed = await consumeAttempt(attempt.id);
+  if (consumed.error || !consumed.data) {
+   return NextResponse.json({ error: 'Callback Fiuu VT tidak dapat ditandakan selesai' }, { status: 400 });
+  }
+  return responseForStatus(payment.id, payment.status as PaymentStatus, 'COMPLETE');
+ }
+
+ if (payment.status !== 'PENDING') {
+  await quarantineAttempt(attempt.id);
+  return NextResponse.json(
+   { error: 'Status percubaan Fiuu VT tidak dikenali', mode: 'FIUU_ATTEMPT_TERMINAL' },
+   { status: 409 },
+  );
+ }
+
+ if (isFiuuVtErrorResult(result)) {
+  const { error: updateError } = await service
    .from('pos_online_payments')
    .update({
-    status: 'REPORTED',
     provider_result: safeResult,
-    provider_status_checked_at: checkedAt,
-    failed_at: null,
-    updated_at: checkedAt,
+    provider_status_checked_at: result.opType === 'SALE'
+     ? payment.provider_status_checked_at
+     : observedAt,
+    updated_at: observedAt,
    })
    .eq('id', payment.id)
-   .eq('status', payment.status)
-   .eq('provider_transaction_id', result.transactionId)
-   .eq('provider_status_checked_at', payment.provider_status_checked_at)
-   .not('provider_sale_reported_at', 'is', null)
-   .select('id')
-   .maybeSingle();
-  if (recoveryError) {
-   return NextResponse.json({ error: 'Kejayaan Fiuu VT lewat gagal dikunci' }, { status: 400 });
+   .eq('provider', 'fiuu_vt')
+   .eq('status', 'PENDING');
+  if (updateError) {
+   return NextResponse.json({ error: 'Ralat Fiuu VT tidak dapat direkod' }, { status: 400 });
   }
-  if (!recoveredSuccess) {
-   const { data: refreshed } = await admin
-    .from('pos_online_payments')
-    .select('status')
-    .eq('id', payment.id)
-    .maybeSingle();
-   if (refreshed?.status === 'PAID') {
-    return NextResponse.json({ payment: { id: payment.id, status: 'PAID' }, next_action: 'COMPLETE' });
-   }
-   if (refreshed?.status !== 'REPORTED') {
-    return NextResponse.json({ error: 'Status percubaan Fiuu VT berubah. Semak semula transaksi.' }, { status: 409 });
-   }
+  const consumed = await consumeAttempt(attempt.id);
+  if (consumed.error || !consumed.data) {
+   return NextResponse.json({ error: 'Callback ralat Fiuu VT tidak dapat ditandakan selesai' }, { status: 400 });
   }
-  return NextResponse.json({
-   payment: { id: payment.id, status: 'REPORTED' },
-   next_action: 'AUTO_CONFIRMATION',
-   warning: 'STATUS Fiuu VT berjaya diterima. RKJ One sedang memuktamadkan jualan secara automatik.',
-  });
+  return responseForStatus(
+   payment.id,
+   'PENDING',
+   result.opType === 'STATUS' ? 'CHECK_STATUS_LATER' : 'CHECK_STATUS',
+   `Fiuu VT memulangkan ralat ${result.errorCode}. Semak STATUS; jangan buka SALE kedua.`,
+  );
  }
 
- const disposition = getFiuuVtStatusDisposition(result.status);
- const terminalStatus = disposition === 'FAILED'
-  || disposition === 'CANCELLED'
-  || disposition === 'EXPIRED'
-  ? disposition
-  : null;
- const nextStatus = disposition === 'REPORTED'
-  ? 'REPORTED'
-  : terminalStatus;
- const update = {
+ let update: PaymentUpdate = {
+  provider_transaction_id: result.transactionId,
   provider_result: safeResult,
-  provider_status_checked_at: checkedAt,
-  updated_at: checkedAt,
-  ...(nextStatus ? {
-   status: nextStatus,
-   ...(terminalStatus ? { failed_at: checkedAt } : {}),
-  } : {}),
+  updated_at: observedAt,
  };
- const { data: updatedStatus, error: updateError } = await admin
+ let nextStatus: PaymentStatus = 'PENDING';
+ let nextAction: NextAction = 'CHECK_STATUS';
+ let warning: string | undefined;
+
+ if (result.opType === 'SALE') {
+  update = {
+   ...update,
+   provider_sale_reported_at: payment.provider_sale_reported_at ?? observedAt,
+  };
+  warning = 'Keputusan SALE diterima. RKJ One sedang membuat semakan STATUS automatik.';
+ } else if (result.opType === 'VOID') {
+  update = {
+   ...update,
+   provider_status_checked_at: observedAt,
+  };
+  warning = 'Keputusan VOID diterima. STATUS akhir akan disemak sebelum kaunter dilepaskan.';
+ } else if (result.status === '00') {
+  nextStatus = 'REPORTED';
+  nextAction = 'AUTO_CONFIRMATION';
+  update = {
+   ...update,
+   status: 'REPORTED',
+   // A fresh, one-time STATUS callback is authoritative recovery evidence
+   // when the preceding SALE callback was lost by the Android handoff.
+   provider_sale_reported_at: payment.provider_sale_reported_at ?? observedAt,
+   provider_status_checked_at: observedAt,
+   fiuu_vt_recovery_next_at: null,
+   fiuu_vt_recovery_last_error: null,
+  };
+  warning = 'Fiuu VT mengesahkan bayaran berjaya. Resit dan stok sedang dimuktamadkan.';
+ } else if (isFiuuVtPendingStatus(result.status)) {
+  nextAction = 'CHECK_STATUS_LATER';
+  update = {
+   ...update,
+   provider_status_checked_at: observedAt,
+  };
+  warning = 'Bayaran masih diproses oleh Fiuu. Semakan STATUS boleh diulang sebentar lagi.';
+ } else {
+  const closedStatus = terminalStatus(result);
+  if (!closedStatus) {
+   return NextResponse.json({ error: 'Status Fiuu VT tidak dapat diproses' }, { status: 400 });
+  }
+  nextStatus = closedStatus;
+  nextAction = 'COMPLETE';
+  update = {
+   ...update,
+   status: closedStatus,
+   provider_status_checked_at: observedAt,
+   failed_at: observedAt,
+   fiuu_vt_recovery_next_at: null,
+   fiuu_vt_recovery_last_error: null,
+  };
+  warning = terminalWarning(closedStatus);
+ }
+
+ const { data: updated, error: updateError } = await service
   .from('pos_online_payments')
   .update(update)
   .eq('id', payment.id)
+  .eq('provider', 'fiuu_vt')
   .eq('status', 'PENDING')
-  .eq('provider_transaction_id', result.transactionId)
-  .not('provider_sale_reported_at', 'is', null)
-  .select('id')
+  .eq('fiuu_vt_review_required', false)
+  .select('id, status')
   .maybeSingle();
  if (updateError) {
-  return NextResponse.json({ error: 'Keputusan STATUS Fiuu VT gagal disimpan' }, { status: 400 });
+  return NextResponse.json({ error: 'Keputusan Fiuu VT tidak dapat disimpan' }, { status: 400 });
  }
- if (!updatedStatus) {
-  const { data: refreshed, error: refreshError } = await admin
+ if (!updated) {
+  const { data: current } = await service
    .from('pos_online_payments')
-   .select('status, provider_status_checked_at')
+   .select('status, fiuu_vt_review_required')
    .eq('id', payment.id)
    .maybeSingle();
-  if (refreshError || !refreshed) {
-   return NextResponse.json({ error: 'Status percubaan Fiuu VT berubah. Semak semula transaksi.' }, { status: 409 });
+  if (!current) {
+   return NextResponse.json({ error: 'Status Fiuu VT berubah semasa diproses' }, { status: 409 });
   }
-  if (refreshed.status === 'PAID') {
-   return NextResponse.json({ payment: { id: payment.id, status: 'PAID' }, next_action: 'COMPLETE' });
+  if (current.fiuu_vt_review_required) {
+   await quarantineAttempt(attempt.id);
+   return responseForStatus(
+    payment.id,
+    current.status as PaymentStatus,
+    'ACK_AND_QUARANTINE',
+    'Transaksi berubah kepada semakan HQ semasa callback diproses.',
+   );
   }
-  if (refreshed.status === 'REPORTED') {
-   return NextResponse.json({
-    payment: { id: payment.id, status: 'REPORTED' },
-    next_action: 'AUTO_CONFIRMATION',
-   });
+  const consumed = await consumeAttempt(attempt.id);
+  if (consumed.error || !consumed.data) {
+   return NextResponse.json({ error: 'Callback Fiuu VT tidak dapat ditandakan selesai' }, { status: 400 });
   }
-  if (result.status === '00'
-   && isRecentTerminalStatus(refreshed.status, refreshed.provider_status_checked_at)
-   && refreshed.provider_status_checked_at) {
-   const { data: recoveredSuccess, error: recoveryError } = await admin
-    .from('pos_online_payments')
-    .update({
-     status: 'REPORTED',
-     provider_result: safeResult,
-     provider_status_checked_at: checkedAt,
-     failed_at: null,
-     updated_at: checkedAt,
-    })
-    .eq('id', payment.id)
-    .eq('status', refreshed.status)
-    .eq('provider_transaction_id', result.transactionId)
-    .eq('provider_status_checked_at', refreshed.provider_status_checked_at)
-    .not('provider_sale_reported_at', 'is', null)
-    .select('id')
-    .maybeSingle();
-   if (recoveryError) {
-    return NextResponse.json({ error: 'Kejayaan Fiuu VT serentak gagal dikunci' }, { status: 400 });
-   }
-   if (recoveredSuccess) {
-    return NextResponse.json({
-     payment: { id: payment.id, status: 'REPORTED' },
-     next_action: 'AUTO_CONFIRMATION',
-     warning: 'STATUS Fiuu VT berjaya diterima. RKJ One sedang memuktamadkan jualan secara automatik.',
-    });
-   }
-  }
-  if (TERMINAL_PAYMENT_STATUSES.has(refreshed.status) && result.status !== '00') {
-   return NextResponse.json({
-    payment: { id: payment.id, status: refreshed.status },
-    next_action: 'COMPLETE',
-   });
-  }
-  return NextResponse.json({ error: 'Status percubaan Fiuu VT berubah. Semak semula transaksi.' }, { status: 409 });
+  return responseForStatus(
+   payment.id,
+   current.status as PaymentStatus,
+   current.status === 'REPORTED' || current.status === 'PAID' ? 'ACK_ONLY' : undefined,
+  );
  }
 
- if (result.status === '00') {
-  return NextResponse.json({
-   payment: { id: payment.id, status: 'REPORTED' },
-   next_action: 'AUTO_CONFIRMATION',
-   warning: 'STATUS Fiuu VT berjaya diterima. RKJ One sedang memuktamadkan jualan secara automatik.',
-  });
+ const consumed = await consumeAttempt(attempt.id);
+ if (consumed.error || !consumed.data) {
+  return NextResponse.json({ error: 'Callback Fiuu VT tidak dapat ditandakan selesai' }, { status: 400 });
  }
- if (terminalStatus) {
-  await waitForTerminalSettle(checkedAtMs);
-  const { data: settled, error: settleError } = await admin
-   .from('pos_online_payments')
-   .select('status')
-   .eq('id', payment.id)
-   .maybeSingle();
-  if (settleError || !settled) {
-   return NextResponse.json({ error: 'Status akhir Fiuu VT tidak dapat disahkan' }, { status: 400 });
-  }
-  if (settled.status === 'PAID') {
-   return NextResponse.json({ payment: { id: payment.id, status: 'PAID' }, next_action: 'COMPLETE' });
-  }
-  if (settled.status === 'REPORTED') {
-   return NextResponse.json({
-    payment: { id: payment.id, status: 'REPORTED' },
-    next_action: 'AUTO_CONFIRMATION',
-   });
-  }
- }
- if (result.status === '55') {
-  return NextResponse.json({
-   payment: { id: payment.id, status: 'EXPIRED' },
-   next_action: 'COMPLETE',
-   warning: 'Kod QR Fiuu VT telah tamat tempoh. Troli dikekalkan dan staf boleh cuba bayaran baharu.',
-  });
- }
- if (isFiuuVtPendingStatus(result.status)) {
-  return NextResponse.json({
-   payment: { id: payment.id, status: 'PENDING' },
-   next_action: 'CHECK_STATUS_LATER',
-  });
- }
- return NextResponse.json({
-  payment: { id: payment.id, status: terminalStatus ?? 'FAILED' },
-  next_action: 'COMPLETE',
- });
+ return responseForStatus(payment.id, nextStatus, nextAction, warning);
 }
