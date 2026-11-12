@@ -3,6 +3,7 @@ import {
  buildFiuuVtOrderId,
  buildFiuuVtRequestUrl,
  FIUU_VT_DUITNOW_CHANNEL,
+ FIUU_VT_TERMINAL_SETTLE_MS,
  getFiuuVtStatusDisposition,
  isFiuuVtErrorResult,
  isFiuuVtPendingStatus,
@@ -163,24 +164,28 @@ describe('Fiuu VT callback validation', () => {
   expect(() => parseFiuuVtResult(value)).toThrow();
  });
 
- it('keeps documented in-progress and bounded timeout status pending', () => {
+ it('keeps only documented in-progress statuses pending', () => {
   expect(isFiuuVtPendingStatus('22')).toBe(true);
   expect(isFiuuVtPendingStatus('33')).toBe(true);
   expect(isFiuuVtPendingStatus('45')).toBe(true);
-  expect(isFiuuVtPendingStatus('55')).toBe(true);
+  expect(isFiuuVtPendingStatus('55')).toBe(false);
   expect(isFiuuVtPendingStatus('00')).toBe(false);
   expect(isFiuuVtPendingStatus('44')).toBe(false);
  });
 
- it('keeps status 55 locked pending until reconciliation grace ends', () => {
+ it('releases a provider-expired QR immediately', () => {
   expect(getFiuuVtStatusDisposition('00')).toBe('REPORTED');
   expect(getFiuuVtStatusDisposition('11')).toBe('FAILED');
   expect(getFiuuVtStatusDisposition('44')).toBe('CANCELLED');
-  expect(getFiuuVtStatusDisposition('55')).toBe('PENDING');
+  expect(getFiuuVtStatusDisposition('55')).toBe('EXPIRED');
  });
 });
 
 describe('Fiuu VT STATUS recovery', () => {
+ it('uses only a short final-status settlement hold', () => {
+  expect(FIUU_VT_TERMINAL_SETTLE_MS).toBe(3_000);
+ });
+
  it('launches provider STATUS only after RKJ authoritatively remains pending', () => {
   expect(shouldLaunchFiuuVtStatusAfterReconcile('PENDING')).toBe(true);
   expect(shouldLaunchFiuuVtStatusAfterReconcile(null)).toBe(false);

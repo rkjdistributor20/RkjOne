@@ -22,6 +22,9 @@ vi.mock('@/lib/pos/fiuu', () => ({
  FIUU_CALLBACK_GRACE_MS: 20 * 60 * 1000,
  isFiuuReconciliationExpired: mocks.isFiuuReconciliationExpired,
 }));
+vi.mock('@/lib/pos/fiuu-vt', () => ({
+ FIUU_VT_TERMINAL_SETTLE_MS: 3_000,
+}));
 vi.mock('@/lib/pos/fiuu-vt-server', () => ({
  getFiuuVtLateRecoveryMs: () => 0,
 }));
@@ -40,7 +43,7 @@ const SHIFT_ID = '44444444-4444-4444-8444-444444444444';
 const TRANSACTION_ID = '22222222-2222-4222-8222-222222222222';
 
 function payment(
- status: 'PENDING' | 'REPORTED' | 'PAID',
+ status: 'PENDING' | 'REPORTED' | 'PAID' | 'FAILED' | 'EXPIRED' | 'CANCELLED',
  provider: 'fiuu' | 'fiuu_vt' = 'fiuu',
 ) {
  return {
@@ -122,6 +125,41 @@ describe('Fiuu OPA reported recovery', () => {
   await expect(response.json()).resolves.toMatchObject({
    payment: { id: PAYMENT_ID, status: 'EXPIRED' },
   });
+ });
+
+ it('briefly projects a fresh terminal Fiuu VT result as pending while late success settles', async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-10-26T01:00:02.000Z'));
+  const recentTerminal = {
+   ...payment('EXPIRED', 'fiuu_vt'),
+   provider_status_checked_at: '2026-10-26T01:00:00.000Z',
+   provider_result: { opType: 'STATUS', status: '55' },
+  };
+  const query = {
+   select: vi.fn(),
+   eq: vi.fn(),
+   maybeSingle: vi.fn().mockResolvedValue({ data: recentTerminal, error: null }),
+  };
+  query.select.mockReturnValue(query);
+  query.eq.mockReturnValue(query);
+  mocks.createAdminClient.mockReturnValue({
+   from: vi.fn().mockReturnValue(query),
+   rpc: vi.fn(),
+  });
+
+  try {
+   const response = await GET(
+    new Request(`http://localhost/api/pos/qr-payments/${PAYMENT_ID}`),
+    { params: Promise.resolve({ paymentId: PAYMENT_ID }) },
+   );
+
+   expect(response.status).toBe(200);
+   await expect(response.json()).resolves.toMatchObject({
+    payment: { id: PAYMENT_ID, status: 'PENDING' },
+   });
+  } finally {
+   vi.useRealTimers();
+  }
  });
 
  it('retries idempotent fulfillment and returns the paid receipt', async () => {

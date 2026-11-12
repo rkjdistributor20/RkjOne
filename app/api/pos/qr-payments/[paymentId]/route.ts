@@ -7,6 +7,7 @@ import {
  posAccessErrorStatus,
 } from '@/lib/pos/access';
 import { FIUU_CALLBACK_GRACE_MS, isFiuuReconciliationExpired } from '@/lib/pos/fiuu';
+import { FIUU_VT_TERMINAL_SETTLE_MS } from '@/lib/pos/fiuu-vt';
 import { getFiuuVtLateRecoveryMs } from '@/lib/pos/fiuu-vt-server';
 import {
  buildFiuuCloudEcrReferenceId,
@@ -183,6 +184,13 @@ export async function GET(
   && data.status === 'PENDING'
   && providerResult?.opType === 'STATUS'
   && providerResult?.status === '00';
+ const terminalCheckedAtMs = data.provider_status_checked_at
+  ? new Date(data.provider_status_checked_at).getTime()
+  : Number.NaN;
+ const vtTerminalSettling = data.provider === 'fiuu_vt'
+  && (data.status === 'EXPIRED' || data.status === 'FAILED' || data.status === 'CANCELLED')
+  && Number.isFinite(terminalCheckedAtMs)
+  && Date.now() - terminalCheckedAtMs < FIUU_VT_TERMINAL_SETTLE_MS;
  const reconciliationExpired = data.provider === 'fiuu_vt'
   && data.status === 'PENDING'
   && Boolean(data.expires_at && isFiuuReconciliationExpired(data.expires_at));
@@ -193,6 +201,8 @@ export async function GET(
     + getFiuuVtLateRecoveryMs());
  const payment = vtReported
   ? { ...data, status: 'REPORTED' }
+  : vtTerminalSettling
+   ? { ...data, status: 'PENDING' }
   : data.provider === 'fiuu_vt' && vtLateRecoveryExpired
    ? { ...data, status: 'EXPIRED' }
   : data.provider !== 'fiuu'

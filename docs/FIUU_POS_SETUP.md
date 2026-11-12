@@ -105,8 +105,8 @@ The VT deep-link response does **not** contain HMAC, a digital signature, nonce 
 
 - SALE never creates a sale, receipt or stock movement;
 - STATUS must match the random order ID, Transaction ID, amount, `MYR` and exact DuitNow channel;
-- `22`, `33` and `45` remain pending; `11` and `44` close the attempt;
-- `55` remains locked as pending until the bounded reconciliation grace ends, so a second payable attempt cannot overlap a late success;
+- `22`, `33` and `45` remain pending; `11`, `44` and `55` enter a three-second final-status settlement hold before the attempt is released;
+- a matching concurrent STATUS `00` wins that short hold, while creation of a second payable attempt is blocked; after the hold a confirmed `55` preserves the cart and lets staff start a fresh payment immediately;
 - STATUS is rejected unless the matching SALE result and immutable Transaction ID were recorded first;
 - STATUS `00` is recorded durably as `REPORTED`, cannot be expired into a second payable attempt and immediately directs the RKJ One client to automatic fulfillment;
 - the automatic request still requires the same authenticated user, official device, branch and active shift, plus a fresh exact STATUS match;

@@ -286,14 +286,26 @@ export async function createPosQrPayment(
 }
 
 export async function submitFiuuVtResult(paymentId: string, result: unknown) {
- return fetchJson<{
-  payment: { id: string; status: 'PENDING' | 'REPORTED' | 'PAID' | 'FAILED' | 'EXPIRED' | 'CANCELLED' };
-  next_action: 'CHECK_STATUS' | 'CHECK_STATUS_LATER' | 'AUTO_CONFIRMATION' | 'COMPLETE';
-  warning?: string;
- }>(`/api/pos/qr-payments/${encodeURIComponent(paymentId)}/vt-result`, {
-  method: 'POST',
-  body: JSON.stringify({ result }),
- });
+ try {
+  return await fetchJson<{
+   payment: { id: string; status: 'PENDING' | 'REPORTED' | 'PAID' | 'FAILED' | 'EXPIRED' | 'CANCELLED' };
+   next_action: 'CHECK_STATUS' | 'CHECK_STATUS_LATER' | 'AUTO_CONFIRMATION' | 'COMPLETE';
+   warning?: string;
+  }>(`/api/pos/qr-payments/${encodeURIComponent(paymentId)}/vt-result`, {
+   method: 'POST',
+   body: JSON.stringify({ result }),
+  });
+ } catch (error) {
+  if (error instanceof ClientJsonError) {
+   const data = error.data;
+   const mode =
+    typeof data === 'object' && data !== null && 'mode' in data && typeof data.mode === 'string'
+     ? data.mode
+     : null;
+   throw new PosQrPaymentError(error.message, error.status, mode);
+  }
+  throw error;
+ }
 }
 
 export async function confirmFiuuVtPayment(paymentId: string) {

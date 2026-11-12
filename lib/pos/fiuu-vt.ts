@@ -4,9 +4,13 @@ export const FIUU_VT_HOST = 'merchant.razer.com';
 export const RKJ_FIUU_CALLBACK_SCHEME = 'com.rkjone.staff';
 export const RKJ_FIUU_CALLBACK_HOST = 'fiuu-vt.rkj.one';
 export const FIUU_VT_DUITNOW_CHANNEL = 'RPP_DuitNowQR-Offline';
+// Keep a just-closed attempt unavailable for a few seconds so a concurrent
+// STATUS=00 response can take precedence over a non-success terminal result.
+// This is deliberately short enough not to hold up the next customer.
+export const FIUU_VT_TERMINAL_SETTLE_MS = 3_000;
 
-export const FIUU_VT_PENDING_STATUSES = ['22', '33', '45', '55'] as const;
-export const FIUU_VT_TERMINAL_STATUSES = ['00', '11', '44'] as const;
+export const FIUU_VT_PENDING_STATUSES = ['22', '33', '45'] as const;
+export const FIUU_VT_TERMINAL_STATUSES = ['00', '11', '44', '55'] as const;
 
 export type FiuuVtOperation = 'SALE' | 'STATUS';
 export type FiuuVtStatusCode = '00' | '11' | '22' | '33' | '44' | '45' | '55';
@@ -32,7 +36,7 @@ export type FiuuVtErrorResult = {
 
 export type FiuuVtCallbackResult = FiuuVtResult | FiuuVtErrorResult;
 
-export type FiuuVtStatusDisposition = 'REPORTED' | 'PENDING' | 'FAILED' | 'CANCELLED';
+export type FiuuVtStatusDisposition = 'REPORTED' | 'PENDING' | 'FAILED' | 'CANCELLED' | 'EXPIRED';
 
 export function shouldLaunchFiuuVtStatusAfterReconcile(
  serverStatus: 'PENDING' | 'REPORTED' | 'PAID' | 'FAILED' | 'EXPIRED' | 'CANCELLED' | null,
@@ -224,7 +228,9 @@ export function getFiuuVtStatusDisposition(
  if (status === '00') return 'REPORTED';
  if (status === '11') return 'FAILED';
  if (status === '44') return 'CANCELLED';
- // Status 55 is kept pending until the bounded callback grace ends. This
- // prevents a second payable attempt while a late success can still arrive.
+ // Fiuu VT App-to-App v1.2 defines 55 as "QR expired". Treating it as
+ // pending leaves the cashier locked even though the provider has already
+ // closed the QR and no longer accepts a payment for it.
+ if (status === '55') return 'EXPIRED';
  return 'PENDING';
 }

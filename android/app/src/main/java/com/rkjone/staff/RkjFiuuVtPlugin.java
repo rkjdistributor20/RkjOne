@@ -16,6 +16,7 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
 import org.json.JSONException;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.math.BigDecimal;
@@ -38,11 +39,16 @@ public class RkjFiuuVtPlugin extends Plugin {
     private static final String PENDING_ORDER = "pending_order";
     private static final String PENDING_AMOUNT = "pending_amount";
     private static final String PENDING_OPERATION = "pending_operation";
+    private static final String RESULT_QUEUE = "result_queue";
     private static final String LAST_RESULT = "last_result";
     private static final String LAST_RESULT_AT = "last_result_at";
+    private static final String SALE_LAUNCHED = "sale_launched";
+    private static final String STATUS_LAUNCHED = "status_launched";
+    private static final String SALE_ACKNOWLEDGED = "sale_acknowledged";
     private static final String LAST_LAUNCH_AT = "last_launch_at";
     private static final String LAST_LAUNCH_OPERATION = "last_launch_operation";
     private static final long MIN_LAUNCH_INTERVAL_MS = 3000L;
+    private static final int RESULT_QUEUE_LIMIT = 16;
     private static final Pattern ORDER_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{4,64}$");
     private static final Pattern TRANSACTION_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{1,80}$");
     private static final Pattern ERROR_CODE_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{1,32}$");
@@ -51,7 +57,7 @@ public class RkjFiuuVtPlugin extends Plugin {
     );
 
     @PluginMethod
-    public void getStatus(PluginCall call) {
+    public synchronized void getStatus(PluginCall call) {
         JSObject result = new JSObject();
         SharedPreferences preferences = preferences();
         result.put("nativeAndroid", true);
@@ -62,8 +68,9 @@ public class RkjFiuuVtPlugin extends Plugin {
         result.put("pendingOrderId", emptyToNull(preferences.getString(PENDING_ORDER, "")));
         result.put("pendingAmount", emptyToNull(preferences.getString(PENDING_AMOUNT, "")));
         result.put("pendingOperation", emptyToNull(preferences.getString(PENDING_OPERATION, "")));
-        result.put("resultAvailable", !preferences.getString(LAST_RESULT, "").isEmpty());
-        long resultReceivedAt = preferences.getLong(LAST_RESULT_AT, 0L);
+        JSONObject queuedResult = peekQueuedResult(preferences);
+        result.put("resultAvailable", queuedResult != null);
+        long resultReceivedAt = queuedResult == null ? 0L : queuedResult.optLong("receivedAt", 0L);
         result.put("resultReceivedAt", resultReceivedAt > 0L ? resultReceivedAt : JSONObject.NULL);
         call.resolve(result);
     }
@@ -120,7 +127,7 @@ public class RkjFiuuVtPlugin extends Plugin {
     }
 
     @PluginMethod
-    public void startSale(PluginCall call) {
+    public synchronized void startSale(PluginCall call) {
         String orderId = normalizedOrderId(call.getString("orderId", ""));
         BigDecimal amount = normalizedAmount(call.getString("amount", ""));
         if (orderId == null || amount == null) {
@@ -154,6 +161,10 @@ public class RkjFiuuVtPlugin extends Plugin {
                 .putString(PENDING_ORDER, orderId)
                 .putString(PENDING_AMOUNT, amount.toPlainString())
                 .putString(PENDING_OPERATION, "SALE")
+                 .putBoolean(SALE_LAUNCHED, true)
+                 .putBoolean(STATUS_LAUNCHED, false)
+                 .putBoolean(SALE_ACKNOWLEDGED, false)
+                 .remove(RESULT_QUEUE)
                 .remove(LAST_RESULT)
                 .remove(LAST_RESULT_AT)
                 .apply(),
@@ -163,6 +174,9 @@ public class RkjFiuuVtPlugin extends Plugin {
                         .remove(PENDING_ORDER)
                         .remove(PENDING_AMOUNT)
                         .remove(PENDING_OPERATION)
+                         .remove(SALE_LAUNCHED)
+                         .remove(STATUS_LAUNCHED)
+                         .remove(SALE_ACKNOWLEDGED)
                         .apply();
                 }
             }
@@ -170,7 +184,85 @@ public class RkjFiuuVtPlugin extends Plugin {
     }
 
     @PluginMethod
-    public void checkStatus(PluginCall call) {
+    public synchronized void acknowledgeResult(PluginCall call) {
+        String orderId = normalizedOrderId(call.getString("orderId", ""));
+        String opType = safe(call.getString("opType", "")).toUpperCase(Locale.ROOT);
+        String transactionId = safe(call.getString("transactionId", ""));
+        String status = safe(call.getString("status", ""));
+        SharedPreferences preferences = preferences();
+        if (orderId == null || !orderId.equals(preferences.getString(PENDING_ORDER, ""))) {
+            call.reject("Percubaan Fiuu VT tidak sepadan dengan transaksi aktif.", "FIUU_ATTEMPT_MISMATCH");
+            return;
+        }
+        if (!("SALE".equals(opType) || "STATUS".equals(opType))
+            || !TRANSACTION_PATTERN.matcher(transactionId).matches()
+            || !STATUS_CODES.contains(status)) {
+            call.reject("Pengesahan keputusan Fiuu VT tidak sah.", "INVALID_FIUU_RESULT_ACK");
+            return;
+        }
+
+        JSONArray queue = loadResultQueue(preferences);
+        int resultIndex = findQueuedResultIndex(
+            queue,
+            opType,
+            orderId,
+            transactionId,
+            status,
+            ""
+        );
+        if (resultIndex < 0) {
+            call.reject("Keputusan Fiuu VT tiada atau sudah diproses.", "FIUU_RESULT_MISSING");
+            return;
+        }
+
+        queue.remove(resultIndex);
+        saveResultQueue(preferences, queue);
+        if ("SALE".equals(opType)) {
+            preferences.edit()
+                .putBoolean(SALE_ACKNOWLEDGED, true)
+                .putString(PENDING_OPERATION, "STATUS")
+                .apply();
+        }
+        call.resolve();
+    }
+
+    @PluginMethod
+    public synchronized void acknowledgeError(PluginCall call) {
+        String orderId = normalizedOrderId(call.getString("orderId", ""));
+        String opType = safe(call.getString("opType", "")).toUpperCase(Locale.ROOT);
+        String errorCode = safe(call.getString("errorCode", ""));
+        SharedPreferences preferences = preferences();
+        if (orderId == null || !orderId.equals(preferences.getString(PENDING_ORDER, ""))) {
+            call.reject("Percubaan Fiuu VT tidak sepadan dengan transaksi aktif.", "FIUU_ATTEMPT_MISMATCH");
+            return;
+        }
+        // Only a STATUS error is safe to consume: SALE may already have reached
+        // Fiuu, so dropping that error could allow an unsafe second charge.
+        if (!"STATUS".equals(opType) || !ERROR_CODE_PATTERN.matcher(errorCode).matches()) {
+            call.reject("Pengesahan ralat Fiuu VT tidak sah.", "INVALID_FIUU_ERROR_ACK");
+            return;
+        }
+
+        JSONArray queue = loadResultQueue(preferences);
+        int resultIndex = findQueuedResultIndex(
+            queue,
+            opType,
+            orderId,
+            "",
+            "",
+            errorCode
+        );
+        if (resultIndex < 0) {
+            call.reject("Ralat Fiuu VT tiada atau sudah diproses.", "FIUU_RESULT_MISSING");
+            return;
+        }
+        queue.remove(resultIndex);
+        saveResultQueue(preferences, queue);
+        call.resolve();
+    }
+
+    @PluginMethod
+    public synchronized void checkStatus(PluginCall call) {
         String orderId = normalizedOrderId(call.getString("orderId", ""));
         SharedPreferences preferences = preferences();
         String pendingOrder = preferences.getString(PENDING_ORDER, "");
@@ -179,26 +271,14 @@ public class RkjFiuuVtPlugin extends Plugin {
             call.reject("Percubaan Fiuu VT tidak sepadan dengan transaksi aktif.", "FIUU_ATTEMPT_MISMATCH");
             return;
         }
-        String storedResult = preferences.getString(LAST_RESULT, "");
-        long storedResultAt = preferences.getLong(LAST_RESULT_AT, 0L);
-        boolean consumeAcceptedSaleResult = false;
-        if (!storedResult.isEmpty()) {
-            try {
-                JSONObject value = new JSONObject(storedResult);
-                consumeAcceptedSaleResult = "SALE".equals(value.optString("opType"))
-                    && orderId.equals(value.optString("orderId"))
-                    && !"ERROR".equals(value.optString("kind"));
-            } catch (JSONException ignored) {
-                consumeAcceptedSaleResult = false;
-            }
-            if (!consumeAcceptedSaleResult) {
-                call.reject("Keputusan Fiuu VT tersimpan mesti diproses sebelum semakan STATUS.", "FIUU_RESULT_PENDING");
-                return;
-            }
+        JSONArray queue = loadResultQueue(preferences);
+        if (hasBlockingResultBeforeStatus(queue)) {
+            call.reject("Keputusan Fiuu VT tersimpan mesti diproses sebelum semakan STATUS.", "FIUU_RESULT_PENDING");
+            return;
         }
 
         String previousOperation = preferences.getString(PENDING_OPERATION, "SALE");
-        boolean shouldConsumeSaleResult = consumeAcceptedSaleResult;
+        boolean previousStatusLaunched = preferences.getBoolean(STATUS_LAUNCHED, false);
         Uri uri = new Uri.Builder()
             .scheme(FIUU_SCHEME)
             .authority(FIUU_HOST)
@@ -211,47 +291,34 @@ public class RkjFiuuVtPlugin extends Plugin {
             call,
             uri,
             "STATUS",
-            () -> {
-                SharedPreferences.Editor editor = preferences.edit()
-                    .putString(PENDING_OPERATION, "STATUS");
-                if (shouldConsumeSaleResult) {
-                    editor.remove(LAST_RESULT).remove(LAST_RESULT_AT);
-                }
-                editor.apply();
-            },
-            () -> {
-                SharedPreferences.Editor editor = preferences.edit()
-                    .putString(PENDING_OPERATION, previousOperation);
-                if (shouldConsumeSaleResult) {
-                    editor.putString(LAST_RESULT, storedResult);
-                    if (storedResultAt > 0L) editor.putLong(LAST_RESULT_AT, storedResultAt);
-                }
-                editor.apply();
-            }
+            () -> preferences.edit()
+                .putString(PENDING_OPERATION, "STATUS")
+                .putBoolean(STATUS_LAUNCHED, true)
+                .apply(),
+            () -> preferences.edit()
+                .putString(PENDING_OPERATION, previousOperation)
+                .putBoolean(STATUS_LAUNCHED, previousStatusLaunched)
+                .apply()
         );
     }
 
     @PluginMethod
-    public void getPendingResult(PluginCall call) {
+    public synchronized void getPendingResult(PluginCall call) {
         JSObject response = new JSObject();
-        String raw = preferences().getString(LAST_RESULT, "");
-        if (raw.isEmpty()) {
+        SharedPreferences preferences = preferences();
+        JSONObject queuedResult = peekQueuedResult(preferences);
+        if (queuedResult == null) {
             response.put("result", JSONObject.NULL);
             call.resolve(response);
             return;
         }
-        try {
-            response.put("result", new JSONObject(raw));
-            response.put("receivedAt", preferences().getLong(LAST_RESULT_AT, 0));
-            call.resolve(response);
-        } catch (JSONException error) {
-            preferences().edit().remove(LAST_RESULT).remove(LAST_RESULT_AT).apply();
-            call.reject("Keputusan Fiuu VT tersimpan rosak.", "INVALID_FIUU_RESULT");
-        }
+        response.put("result", queuedResult.optJSONObject("result"));
+        response.put("receivedAt", queuedResult.optLong("receivedAt", 0L));
+        call.resolve(response);
     }
 
     @PluginMethod
-    public void clearPendingResult(PluginCall call) {
+    public synchronized void clearPendingResult(PluginCall call) {
         String orderId = normalizedOrderId(call.getString("orderId", ""));
         SharedPreferences preferences = preferences();
         if (orderId == null || !orderId.equals(preferences.getString(PENDING_ORDER, ""))) {
@@ -262,15 +329,19 @@ public class RkjFiuuVtPlugin extends Plugin {
             .remove(PENDING_ORDER)
             .remove(PENDING_AMOUNT)
             .remove(PENDING_OPERATION)
+            .remove(RESULT_QUEUE)
             .remove(LAST_RESULT)
             .remove(LAST_RESULT_AT)
+            .remove(SALE_LAUNCHED)
+            .remove(STATUS_LAUNCHED)
+            .remove(SALE_ACKNOWLEDGED)
             .remove(LAST_LAUNCH_AT)
             .remove(LAST_LAUNCH_OPERATION)
             .apply();
         call.resolve();
     }
 
-    public boolean handleDeepLink(Intent intent) {
+    public synchronized boolean handleDeepLink(Intent intent) {
         Uri uri = intent == null ? null : intent.getData();
         if (uri == null
             || !getContext().getPackageName().equalsIgnoreCase(uri.getScheme())
@@ -304,10 +375,7 @@ public class RkjFiuuVtPlugin extends Plugin {
             errorResult.put("orderId", pendingOrder);
             errorResult.put("errorCode", errorCode);
             errorResult.put("errorMessage", errorMessage);
-            preferences.edit()
-                .putString(LAST_RESULT, errorResult.toString())
-                .putLong(LAST_RESULT_AT, System.currentTimeMillis())
-                .apply();
+            enqueueResult(preferences, errorResult);
             notifyListeners("fiuuVtResult", errorResult, true);
             return true;
         }
@@ -322,6 +390,9 @@ public class RkjFiuuVtPlugin extends Plugin {
         BigDecimal amount = normalizedAmount(uri.getQueryParameter("amount"));
         BigDecimal expectedAmount = normalizedAmount(preferences.getString(PENDING_AMOUNT, ""));
 
+        boolean operationWasLaunched = "SALE".equals(opType)
+            ? preferences.getBoolean(SALE_LAUNCHED, false)
+            : preferences.getBoolean(STATUS_LAUNCHED, false);
         boolean valid = ("SALE".equals(opType) || "STATUS".equals(opType))
             && hasExactlyOne(uri, "opType")
             && hasExactlyOne(uri, "orderId", "orderid")
@@ -331,7 +402,7 @@ public class RkjFiuuVtPlugin extends Plugin {
             && hasExactlyOne(uri, "currency")
             && hasExactlyOne(uri, "channel")
             && hasAtMostOne(uri, "payDate", "paydate")
-            && opType.equals(preferences.getString(PENDING_OPERATION, ""))
+            && operationWasLaunched
             && ORDER_PATTERN.matcher(orderId).matches()
             && orderId.equals(preferences.getString(PENDING_ORDER, ""))
             && TRANSACTION_PATTERN.matcher(transactionId).matches()
@@ -352,12 +423,182 @@ public class RkjFiuuVtPlugin extends Plugin {
         result.put("currency", currency);
         result.put("channel", channel);
         result.put("payDate", payDate.isEmpty() ? JSONObject.NULL : payDate);
-        preferences.edit()
-            .putString(LAST_RESULT, result.toString())
-            .putLong(LAST_RESULT_AT, System.currentTimeMillis())
-            .apply();
+        enqueueResult(preferences, result);
         notifyListeners("fiuuVtResult", result, true);
         return true;
+    }
+
+    /**
+     * Fiuu may return SALE and STATUS callbacks only a few milliseconds apart.
+     * Persist every distinct callback until JavaScript acknowledges that exact
+     * item; a single last-result slot can silently discard STATUS=00.
+     */
+    private synchronized void enqueueResult(SharedPreferences preferences, JSObject result) {
+        JSONArray queue = loadResultQueue(preferences);
+        JSONObject value;
+        try {
+            value = new JSONObject(result.toString());
+        } catch (JSONException error) {
+            return;
+        }
+        if (findEquivalentResultIndex(queue, value) >= 0) return;
+
+        JSONObject entry = new JSONObject();
+        try {
+            entry.put("receivedAt", System.currentTimeMillis());
+            entry.put("result", value);
+            queue.put(entry);
+        } catch (JSONException error) {
+            return;
+        }
+
+        while (queue.length() > RESULT_QUEUE_LIMIT) {
+            int removableIndex = findSafestResultToDrop(queue);
+            queue.remove(removableIndex < 0 ? 0 : removableIndex);
+        }
+        saveResultQueue(preferences, queue);
+    }
+
+    private JSONArray loadResultQueue(SharedPreferences preferences) {
+        JSONArray cleanQueue = new JSONArray();
+        String rawQueue = preferences.getString(RESULT_QUEUE, "");
+        if (!rawQueue.isEmpty()) {
+            try {
+                JSONArray storedQueue = new JSONArray(rawQueue);
+                for (int index = 0; index < storedQueue.length(); index++) {
+                    JSONObject entry = storedQueue.optJSONObject(index);
+                    if (entry != null && entry.optJSONObject("result") != null) cleanQueue.put(entry);
+                }
+            } catch (JSONException ignored) {
+                // Discard only the malformed queue. The legacy slot below may
+                // still contain the callback saved by an older RKJ One build.
+            }
+        }
+
+        String legacyResult = preferences.getString(LAST_RESULT, "");
+        if (!legacyResult.isEmpty()) {
+            try {
+                JSONObject legacyValue = new JSONObject(legacyResult);
+                if (findEquivalentResultIndex(cleanQueue, legacyValue) < 0) {
+                    JSONObject legacyEntry = new JSONObject();
+                    legacyEntry.put("receivedAt", preferences.getLong(LAST_RESULT_AT, System.currentTimeMillis()));
+                    legacyEntry.put("result", legacyValue);
+                    cleanQueue.put(legacyEntry);
+                }
+            } catch (JSONException ignored) {
+                // A malformed legacy value is ignored and removed on the next
+                // successful queue write or explicit attempt clear.
+            }
+        }
+        return cleanQueue;
+    }
+
+    private void saveResultQueue(SharedPreferences preferences, JSONArray queue) {
+        SharedPreferences.Editor editor = preferences.edit()
+            .remove(LAST_RESULT)
+            .remove(LAST_RESULT_AT);
+        if (queue.length() == 0) editor.remove(RESULT_QUEUE);
+        else editor.putString(RESULT_QUEUE, queue.toString());
+        editor.apply();
+    }
+
+    private JSONObject peekQueuedResult(SharedPreferences preferences) {
+        JSONArray queue = loadResultQueue(preferences);
+        if (queue.length() == 0) return null;
+        boolean saleAcknowledged = preferences.getBoolean(SALE_ACKNOWLEDGED, false);
+        int selectedIndex = selectResultIndex(queue, saleAcknowledged);
+        return selectedIndex < 0 ? null : queue.optJSONObject(selectedIndex);
+    }
+
+    private int selectResultIndex(JSONArray queue, boolean saleAcknowledged) {
+        if (!saleAcknowledged) {
+            int saleIndex = findNormalResultIndex(queue, "SALE", "");
+            if (saleIndex >= 0) return saleIndex;
+        }
+        int successIndex = findNormalResultIndex(queue, "STATUS", "00");
+        if (successIndex >= 0) return successIndex;
+        int statusIndex = findNormalResultIndex(queue, "STATUS", "");
+        if (statusIndex >= 0) return statusIndex;
+        int saleIndex = findNormalResultIndex(queue, "SALE", "");
+        if (saleIndex >= 0) return saleIndex;
+        return queue.length() == 0 ? -1 : 0;
+    }
+
+    private int findNormalResultIndex(JSONArray queue, String opType, String status) {
+        for (int index = 0; index < queue.length(); index++) {
+            JSONObject entry = queue.optJSONObject(index);
+            JSONObject value = entry == null ? null : entry.optJSONObject("result");
+            if (value == null || "ERROR".equals(value.optString("kind"))) continue;
+            if (!opType.equals(value.optString("opType"))) continue;
+            if (status.isEmpty() || status.equals(value.optString("status"))) return index;
+        }
+        return -1;
+    }
+
+    private boolean hasBlockingResultBeforeStatus(JSONArray queue) {
+        for (int index = 0; index < queue.length(); index++) {
+            JSONObject entry = queue.optJSONObject(index);
+            JSONObject value = entry == null ? null : entry.optJSONObject("result");
+            if (value != null && !"ERROR".equals(value.optString("kind"))) return true;
+        }
+        return false;
+    }
+
+    private int findQueuedResultIndex(
+        JSONArray queue,
+        String opType,
+        String orderId,
+        String transactionId,
+        String status,
+        String errorCode
+    ) {
+        for (int index = 0; index < queue.length(); index++) {
+            JSONObject entry = queue.optJSONObject(index);
+            JSONObject value = entry == null ? null : entry.optJSONObject("result");
+            if (value == null
+                || !opType.equals(value.optString("opType"))
+                || !orderId.equals(value.optString("orderId"))) continue;
+            if (!errorCode.isEmpty()) {
+                if ("ERROR".equals(value.optString("kind"))
+                    && errorCode.equals(value.optString("errorCode"))) return index;
+                continue;
+            }
+            if (!"ERROR".equals(value.optString("kind"))
+                && transactionId.equals(value.optString("tranID"))
+                && status.equals(value.optString("status"))) return index;
+        }
+        return -1;
+    }
+
+    private int findEquivalentResultIndex(JSONArray queue, JSONObject candidate) {
+        String candidateKind = candidate.optString("kind");
+        for (int index = 0; index < queue.length(); index++) {
+            JSONObject entry = queue.optJSONObject(index);
+            JSONObject value = entry == null ? null : entry.optJSONObject("result");
+            if (value == null
+                || !candidateKind.equals(value.optString("kind"))
+                || !candidate.optString("opType").equals(value.optString("opType"))
+                || !candidate.optString("orderId").equals(value.optString("orderId"))) continue;
+            if ("ERROR".equals(candidateKind)) {
+                if (candidate.optString("errorCode").equals(value.optString("errorCode"))) return index;
+            } else if (candidate.optString("tranID").equals(value.optString("tranID"))
+                && candidate.optString("status").equals(value.optString("status"))) {
+                return index;
+            }
+        }
+        return -1;
+    }
+
+    private int findSafestResultToDrop(JSONArray queue) {
+        for (int index = 0; index < queue.length(); index++) {
+            JSONObject entry = queue.optJSONObject(index);
+            JSONObject value = entry == null ? null : entry.optJSONObject("result");
+            if (value == null || "ERROR".equals(value.optString("kind"))) return index;
+            if ("STATUS".equals(value.optString("opType")) && !"00".equals(value.optString("status"))) {
+                return index;
+            }
+        }
+        return -1;
     }
 
     private void launchFiuu(

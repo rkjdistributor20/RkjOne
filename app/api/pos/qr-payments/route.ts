@@ -39,7 +39,10 @@ import {
  getFiuuCloudEcrValiditySeconds,
  isFiuuCloudEcrEnabledForBranch,
 } from '@/lib/pos/fiuu-cloudecr-server';
-import { buildFiuuVtOrderId } from '@/lib/pos/fiuu-vt';
+import {
+ buildFiuuVtOrderId,
+ FIUU_VT_TERMINAL_SETTLE_MS,
+} from '@/lib/pos/fiuu-vt';
 import {
  getFiuuVtValiditySeconds,
  isFiuuVtEnabledForBranch,
@@ -515,6 +518,38 @@ export async function POST(request: Request) {
  }
  if (existingPayment) {
   return existingPaymentResponse(existingPayment, expectedIntent, transport);
+ }
+
+ // A non-success STATUS result is held for a few seconds so an in-flight
+ // matching STATUS=00 can win safely. Do not let another tab create a second
+ // charge during that final provider-settlement window.
+ if (transport.integration === 'vt_app') {
+  const settleCutoff = new Date(Date.now() - FIUU_VT_TERMINAL_SETTLE_MS).toISOString();
+  const { data: settlingPayment, error: settlingError } = await admin
+   .from('pos_online_payments')
+   .select('id')
+   .eq('organization_id', profile.organization_id)
+   .eq('branch_id', body.branchId)
+   .eq('shift_id', body.shiftId)
+   .eq('created_by', profile.id)
+   .eq('provider', 'fiuu_vt')
+   .in('status', ['FAILED', 'EXPIRED', 'CANCELLED'])
+   .gte('provider_status_checked_at', settleCutoff)
+   .order('provider_status_checked_at', { ascending: false })
+   .limit(1)
+   .maybeSingle();
+  if (settlingError) {
+   return NextResponse.json({ error: 'Status akhir Fiuu VT tidak dapat disahkan' }, { status: 400 });
+  }
+  if (settlingPayment) {
+   return NextResponse.json(
+    {
+     error: 'Tunggu beberapa saat sementara status akhir Fiuu disahkan.',
+     mode: 'FIUU_FINAL_STATUS_SETTLING',
+    },
+    { status: 409 },
+   );
+  }
  }
 
  const { data: activePayment, error: activeError } = await admin

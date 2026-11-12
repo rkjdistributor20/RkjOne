@@ -8,6 +8,8 @@ import {
 import {
  parseFiuuVtCallbackResult,
  type FiuuVtCallbackResult,
+ type FiuuVtErrorResult,
+ type FiuuVtResult,
 } from '@/lib/pos/fiuu-vt';
 
 export type FiuuVtNativeStatus = {
@@ -26,6 +28,17 @@ export type FiuuVtNativeStatus = {
 type FiuuVtPlugin = {
  getStatus(): Promise<FiuuVtNativeStatus>;
  startSale(options: { orderId: string; amount: string }): Promise<{ launched: true }>;
+ acknowledgeResult(options: {
+  orderId: string;
+  opType: FiuuVtResult['opType'];
+  transactionId: string;
+  status: FiuuVtResult['status'];
+ }): Promise<void>;
+ acknowledgeError(options: {
+  orderId: string;
+  opType: FiuuVtErrorResult['opType'];
+  errorCode: string;
+ }): Promise<void>;
  checkStatus(options: { orderId: string }): Promise<{ launched: true }>;
  getPendingResult(): Promise<{ result: unknown | null; receivedAt?: number }>;
  clearPendingResult(options: { orderId: string }): Promise<void>;
@@ -67,6 +80,25 @@ export async function launchFiuuVtSale(orderId: string, amountRm: number) {
 
 export async function launchFiuuVtStatus(orderId: string) {
  return NativeFiuuVt.checkStatus({ orderId });
+}
+
+export async function acknowledgeFiuuVtResult(result: FiuuVtResult) {
+ if (!supportsFiuuVtApp()) return;
+ await NativeFiuuVt.acknowledgeResult({
+  orderId: result.orderId,
+  opType: result.opType,
+  transactionId: result.transactionId,
+  status: result.status,
+ });
+}
+
+export async function acknowledgeFiuuVtError(result: FiuuVtErrorResult) {
+ if (!supportsFiuuVtApp()) return;
+ await NativeFiuuVt.acknowledgeError({
+  orderId: result.orderId,
+  opType: result.opType,
+  errorCode: result.errorCode,
+ });
 }
 
 export async function readPendingFiuuVtResult(): Promise<FiuuVtCallbackResult | null> {

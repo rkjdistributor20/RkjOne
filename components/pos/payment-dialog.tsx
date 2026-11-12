@@ -34,6 +34,8 @@ import {
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import {
+ acknowledgeFiuuVtError,
+ acknowledgeFiuuVtResult,
  clearPendingFiuuVtResult,
  launchFiuuVtSale,
  launchFiuuVtStatus,
@@ -272,6 +274,7 @@ export function PaymentDialog({
 	const vtResultFingerprintRef = useRef<string | null>(null);
  const vtAutoConfirmAttemptRef = useRef<string | null>(null);
  const vtRecoveryOrderRef = useRef<string | null>(null);
+ const processFiuuVtResultRef = useRef<(result: FiuuVtCallbackResult) => Promise<void>>(async () => undefined);
 	const [qrPollError, setQrPollError] = useState<string | null>(null);
 	const [checkingQrStatus, setCheckingQrStatus] = useState(false);
 	const [qrImageError, setQrImageError] = useState(false);
@@ -558,12 +561,14 @@ export function PaymentDialog({
 
  const handleDialogOpenChange = useCallback((nextOpen: boolean) => {
  if (!nextOpen && qrPayment && (qrStatus === 'PENDING' || qrStatus === 'REPORTED' || qrStatus === 'PAID')) {
-  toast.info('Tunggu keputusan QR atau tamat tempoh sebelum menutup bayaran.');
+   toast.info(qrDisplayExpired
+    ? 'Tekan “Semak status & lepaskan kaunter” dahulu supaya tiada caj berganda.'
+    : 'Tunggu keputusan QR atau tekan “Semak sekarang” sebelum menutup bayaran.');
   return;
  }
  if (!nextOpen) resetPaymentForm();
  onOpenChange(nextOpen);
- }, [onOpenChange, qrPayment, qrStatus, resetPaymentForm]);
+ }, [onOpenChange, qrDisplayExpired, qrPayment, qrStatus, resetPaymentForm]);
 
  const reconcileQrPayment = useCallback(async (activePayment: ActiveQrPayment, manual = false) => {
   if (manual) setCheckingQrStatus(true);
@@ -595,16 +600,26 @@ export function PaymentDialog({
     onSuccess(response.result);
     return status;
    }
-   if (status === 'EXPIRED') {
-    setQrStatus('EXPIRED');
-    return status;
-   }
-   if (status === 'FAILED' || status === 'CANCELLED') {
+   if (status === 'EXPIRED' || status === 'FAILED' || status === 'CANCELLED') {
+    if (activePayment.integration === 'vt_app') {
+     const queuedResult = await readPendingFiuuVtResult().catch(() => null);
+     const queuedResultCanStillProvePayment = queuedResult
+      && !isFiuuVtErrorResult(queuedResult)
+      && (queuedResult.opType === 'SALE' || queuedResult.status === '00');
+     if (queuedResultCanStillProvePayment) {
+      setQrStatus('PENDING');
+      setQrPollError('Callback Fiuu VT tambahan sedang disahkan sebelum kaunter dilepaskan.');
+      return 'PENDING';
+     }
+    }
     setQrStatus(status);
     if (activePayment.integration === 'vt_app' && activePayment.providerOrderId) {
      await clearPendingFiuuVtResult(activePayment.providerOrderId).catch(() => undefined);
     }
     removeStoredQrPayment();
+    if (status === 'EXPIRED') {
+     setQrPollError('Kod QR telah tamat tempoh. Troli masih ada dan bayaran baharu boleh dimulakan.');
+    }
    }
    return status;
   } catch (error) {
@@ -628,14 +643,33 @@ export function PaymentDialog({
   if (vtResultFingerprintRef.current === fingerprint) return;
   vtResultFingerprintRef.current = fingerprint;
   setCheckingQrStatus(true);
+  const processNextQueuedResult = async () => {
+   const nextResult = await readPendingFiuuVtResult().catch(() => null);
+   if (!nextResult) return false;
+   // A SALE error has no transaction evidence and is deliberately retained,
+   // but it must not prevent a fresh STATUS query or a provider-confirmed
+   // terminal result from releasing the cashier.
+   if (isFiuuVtErrorResult(nextResult) && nextResult.opType === 'SALE') return false;
+   vtResultFingerprintRef.current = null;
+   queueMicrotask(() => void processFiuuVtResultRef.current(nextResult));
+   return true;
+  };
   try {
    if (isFiuuVtErrorResult(result)) {
     const serverStatus = await reconcileQrPayment(activePayment);
     if (serverStatus === 'PENDING') {
-     setQrPollError(
-      `Fiuu VT tidak dapat melengkapkan semakan (kod ${result.errorCode}). `
-      + 'RKJ One akan terus menyemak sehingga tempoh rekonsiliasi tamat.',
-     );
+     if (result.opType === 'STATUS') {
+      await acknowledgeFiuuVtError(result);
+      setQrPollError(
+       `Semakan STATUS Fiuu VT terganggu (kod ${result.errorCode}). `
+       + 'Tekan butang semakan untuk cuba semula dengan selamat.',
+      );
+     } else {
+      setQrPollError(
+       `Keputusan SALE Fiuu VT belum pasti (kod ${result.errorCode}). `
+       + 'Jangan mulakan bayaran baharu; RKJ One akan terus merekonsiliasi percubaan asal.',
+      );
+     }
     }
     return;
    }
@@ -643,22 +677,39 @@ export function PaymentDialog({
    const response = await submitFiuuVtResult(activePayment.id, result);
    setQrPollError(response.warning ?? null);
    if (response.next_action === 'CHECK_STATUS') {
+    await acknowledgeFiuuVtResult(result);
     toast.info('Laporan SALE diterima. Menjalankan semakan STATUS Fiuu VT.');
+    if (await processNextQueuedResult()) return;
     await launchFiuuVtStatus(result.orderId);
     return;
    }
+   if (response.next_action === 'CHECK_STATUS_LATER') {
+    await acknowledgeFiuuVtResult(result);
+    if (await processNextQueuedResult()) return;
+    setQrStatus('PENDING');
+    setQrPollError('Bayaran masih diproses oleh Fiuu. Tekan butang semakan sebentar lagi.');
+    return;
+   }
    if (response.next_action === 'AUTO_CONFIRMATION') {
+    await acknowledgeFiuuVtResult(result);
     setQrStatus('REPORTED');
     toast.success('Fiuu VT melaporkan bayaran berjaya. RKJ One sedang mengeluarkan resit secara automatik.');
     return;
    }
    if (response.payment.status === 'PENDING') {
     setQrStatus('PENDING');
-    setQrPollError('Bayaran masih diproses oleh Fiuu. Tekan Semak status sebentar lagi.');
+    setQrPollError('Bayaran masih diproses oleh Fiuu. Tekan butang semakan sebentar lagi.');
     return;
    }
    if (response.payment.status === 'PAID') {
-    setQrStatus('PAID');
+    await acknowledgeFiuuVtResult(result).catch(() => undefined);
+    await reconcileQrPayment(activePayment, true);
+    return;
+   }
+   await acknowledgeFiuuVtResult(result);
+   if (await processNextQueuedResult()) {
+    setQrStatus('PENDING');
+    setQrPollError('Callback Fiuu VT tambahan sedang disahkan sebelum kaunter dilepaskan.');
     return;
    }
    setQrStatus(response.payment.status as QrPaymentStatus);
@@ -666,6 +717,10 @@ export function PaymentDialog({
    removeStoredQrPayment();
   } catch (error) {
    vtResultFingerprintRef.current = null;
+   if (error instanceof PosQrPaymentError && error.status === 409) {
+    const serverStatus = await reconcileQrPayment(activePayment);
+    if (serverStatus && serverStatus !== 'PENDING') return;
+   }
    setQrPollError(error instanceof Error
     ? `Keputusan Fiuu VT tidak dapat disahkan: ${error.message}`
     : 'Keputusan Fiuu VT tidak dapat disahkan.');
@@ -673,6 +728,10 @@ export function PaymentDialog({
    setCheckingQrStatus(false);
   }
  }, [qrPayment, reconcileQrPayment, removeStoredQrPayment]);
+
+ useEffect(() => {
+  processFiuuVtResultRef.current = processFiuuVtResult;
+ }, [processFiuuVtResult]);
 
  useEffect(() => {
   if (!open || !qrPayment || qrPayment.integration !== 'vt_app') return;
@@ -702,21 +761,24 @@ export function PaymentDialog({
    setQrPollError(null);
    vtResultFingerprintRef.current = null;
    vtAutoConfirmAttemptRef.current = null;
-   setQrStatus('PENDING');
    try {
      const pendingResult = await readPendingFiuuVtResult();
      if (pendingResult) {
       await processFiuuVtResult(pendingResult);
-      return;
+       if (!isFiuuVtErrorResult(pendingResult)) return;
+       if (pendingResult.opType === 'SALE' && !qrDisplayExpired) return;
      }
      const nativeStatus = await readFiuuVtStatus();
-     if (nativeStatus.pendingOperation === 'SALE') {
+     if (nativeStatus.pendingOperation === 'SALE' && !qrDisplayExpired) {
        setVtSaleOpened(true);
       setQrPollError('RKJ One masih menunggu keputusan SALE asal daripada Fiuu VT. Jangan buka STATUS atau SALE baharu.');
       return;
      }
     const serverStatus = await reconcileQrPayment(qrPayment);
     if (!shouldLaunchFiuuVtStatusAfterReconcile(serverStatus)) return;
+    if (qrDisplayExpired) {
+     setQrPollError('Meminta status akhir daripada Fiuu VT untuk melepaskan kaunter dengan selamat...');
+    }
     await launchFiuuVtStatus(qrPayment.providerOrderId);
    } catch (error) {
     setQrPollError(error instanceof Error ? error.message : 'Fiuu VT tidak dapat dibuka.');
@@ -726,7 +788,7 @@ export function PaymentDialog({
    return;
   }
   await reconcileQrPayment(qrPayment, true);
-  }, [processFiuuVtResult, qrPayment, reconcileQrPayment]);
+  }, [processFiuuVtResult, qrDisplayExpired, qrPayment, reconcileQrPayment]);
 
  const confirmReportedFiuuVt = useCallback(async () => {
   if (!qrPayment || qrPayment.integration !== 'vt_app' || !qrPayment.providerOrderId) return;
@@ -778,7 +840,15 @@ export function PaymentDialog({
    if (polling) return;
    polling = true;
    try {
-    if (active) await reconcileQrPayment(qrPayment);
+    if (!active) return;
+    if (qrPayment.integration === 'vt_app') {
+     const pendingResult = await readPendingFiuuVtResult().catch(() => null);
+     if (pendingResult) {
+      await processFiuuVtResult(pendingResult);
+       if (!isFiuuVtErrorResult(pendingResult)) return;
+     }
+    }
+    await reconcileQrPayment(qrPayment);
    } finally {
     polling = false;
    }
@@ -793,7 +863,7 @@ export function PaymentDialog({
    window.clearInterval(countdownTimer);
    window.clearInterval(pollTimer);
   };
- }, [qrPayment, qrStatus, reconcileQrPayment]);
+ }, [processFiuuVtResult, qrPayment, qrStatus, reconcileQrPayment]);
 
  const appendNumpad = useCallback((key: string) => {
  setCashTenderedOverride((prevOverride) => {
@@ -1198,9 +1268,9 @@ export function PaymentDialog({
        {qrStatus === 'PAID'
         ? 'Semak status semula. Jangan jana QR baharu untuk jualan ini.'
         : qrStatus === 'EXPIRED'
-        ? 'Tiada STATUS=00 diterima dalam tempoh rekonsiliasi. Jana QR baharu hanya jika pelanggan tidak didebit; jika ada debit, hubungi HQ.'
+        ? 'Fiuu mengesahkan QR telah tamat. Troli dikekalkan; cuba bayaran baharu. Jika pelanggan menunjukkan bukti debit, jangan cuba semula dan hubungi HQ.'
         : qrDisplayExpired
-        ? 'Callback lewat masih direkonsiliasi. Jangan jana QR baharu untuk jualan ini.'
+        ? 'Tekan “Semak status & lepaskan kaunter”. Selepas Fiuu mengesahkan tamat, troli kekal dan staf boleh terus cuba bayaran baharu.'
         : 'Jana kod baharu. Jangan serahkan resit atau stok sebelum status Dibayar.'}
       </p>
      </div>
@@ -1560,13 +1630,22 @@ export function PaymentDialog({
       </Button>
      </div>
     ) : qrStatus === 'PENDING' || qrStatus === 'PAID' ? (
-     <div className="flex w-full gap-2">
+     qrStatus === 'PENDING' && qrDisplayExpired ? (
+      <Button
+       type="button"
+       className="h-12 w-full gap-2 rounded-xl bg-amber-500 font-bold text-amber-950 hover:bg-amber-600"
+       disabled={checkingQrStatus}
+       onClick={() => void checkActiveQrStatus()}
+      >
+       <RefreshCw className={cn('h-5 w-5', checkingQrStatus && 'animate-spin')} aria-hidden="true" />
+       {checkingQrStatus ? 'Menyemak status akhir...' : 'Semak status & lepaskan kaunter'}
+      </Button>
+     ) : (
+      <div className="flex w-full gap-2">
       <Button className="h-12 flex-1 gap-2 rounded-xl" disabled aria-live="polite">
        <LoaderCircle className="h-5 w-5 animate-spin" aria-hidden="true" />
        {qrStatus === 'PAID'
         ? 'Memulihkan resit'
-        : qrDisplayExpired
-        ? 'Merekonsiliasi callback lewat'
         : qrPayment.integration === 'cloudecr'
         ? 'Menunggu Fiuu VT+'
         : qrPayment.integration === 'vt_app'
@@ -1583,11 +1662,12 @@ export function PaymentDialog({
        <RefreshCw className={cn('h-5 w-5', checkingQrStatus && 'animate-spin')} aria-hidden="true" />
        Semak sekarang
       </Button>
-     </div>
+      </div>
+     )
     ) : (
     <>
      <Button variant="outline" className="h-12 flex-1" onClick={() => handleDialogOpenChange(false)}>
-      Tutup
+      Kembali ke troli
      </Button>
      <Button
       className="h-12 flex-[2] gap-2 rounded-xl bg-amber-500 font-bold hover:bg-amber-600"
@@ -1604,7 +1684,7 @@ export function PaymentDialog({
        }}
      >
       <RefreshCw className="h-5 w-5" aria-hidden="true" />
-      Jana QR baharu
+      Cuba bayaran QR semula
      </Button>
     </>
    )
