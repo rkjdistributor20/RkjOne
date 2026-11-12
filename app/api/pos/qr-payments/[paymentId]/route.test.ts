@@ -6,7 +6,6 @@ const mocks = vi.hoisted(() => ({
  assertCanAccessPosBranch: vi.fn(),
  posAccessErrorStatus: vi.fn(),
  isFiuuReconciliationExpired: vi.fn(),
- recoverReportedFiuuVtPayment: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/session', () => ({
@@ -21,9 +20,6 @@ vi.mock('@/lib/pos/access', () => ({
 }));
 vi.mock('@/lib/pos/fiuu', () => ({
  isFiuuReconciliationExpired: mocks.isFiuuReconciliationExpired,
-}));
-vi.mock('@/lib/pos/fiuu-vt-reliability', () => ({
- recoverReportedFiuuVtPayment: mocks.recoverReportedFiuuVtPayment,
 }));
 vi.mock('@/lib/pos/fiuu-cloudecr', () => ({
  buildFiuuCloudEcrReferenceId: vi.fn(),
@@ -78,7 +74,6 @@ beforeEach(() => {
  mocks.assertCanAccessPosBranch.mockResolvedValue(undefined);
  mocks.posAccessErrorStatus.mockReturnValue(403);
  mocks.isFiuuReconciliationExpired.mockReturnValue(false);
- mocks.recoverReportedFiuuVtPayment.mockResolvedValue('fulfilled');
 });
 
 describe('Fiuu OPA reported recovery', () => {
@@ -137,16 +132,12 @@ describe('Fiuu OPA reported recovery', () => {
   });
  });
 
- it('recovers a durable Fiuu VT REPORTED success and returns its paid receipt', async () => {
+ it('keeps a durable Fiuu VT REPORTED success observational until explicit confirmation', async () => {
   const reported = payment('REPORTED', 'fiuu_vt');
-  const paid = payment('PAID', 'fiuu_vt');
   const query = {
    select: vi.fn(),
    eq: vi.fn(),
-   maybeSingle: vi.fn()
-    .mockResolvedValueOnce({ data: reported, error: null })
-    .mockResolvedValueOnce({ data: paid, error: null })
-    .mockResolvedValueOnce({ data: { receipt_data: { receipt_number: 'RC-VT-001' } }, error: null }),
+   maybeSingle: vi.fn().mockResolvedValue({ data: reported, error: null }),
   };
   query.select.mockReturnValue(query);
   query.eq.mockReturnValue(query);
@@ -160,10 +151,10 @@ describe('Fiuu OPA reported recovery', () => {
 
   expect(response.status).toBe(200);
   await expect(response.json()).resolves.toMatchObject({
-   payment: { id: PAYMENT_ID, status: 'PAID', transaction_id: TRANSACTION_ID },
-   result: { receipt_number: 'RC-VT-001' },
+   payment: { id: PAYMENT_ID, status: 'REPORTED', transaction_id: null },
+   result: null,
   });
-  expect(mocks.recoverReportedFiuuVtPayment).toHaveBeenCalledWith(service, reported);
+  expect(service.rpc).not.toHaveBeenCalled();
  });
 
  it('retries idempotent fulfillment and returns the paid receipt', async () => {

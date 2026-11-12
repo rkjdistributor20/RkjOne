@@ -7,7 +7,9 @@ function source(path: string) {
 }
 
 const migration = source('supabase/migrations/20261104130000_expand_fiuu_vt_registered_branches.sql');
+const cloudEcrMigration = source('supabase/migrations/20261024120000_add_fiuu_cloudecr_br001_pilot.sql');
 const hardeningMigration = source('supabase/migrations/20261112120000_harden_fiuu_vt_server_recovery.sql');
+const serializationMigration = source('supabase/migrations/20261113120000_serialize_fiuu_vt_review_and_fulfillment.sql');
 const paymentDialog = source('components/pos/payment-dialog.tsx');
 const vtResultRoute = source('app/api/pos/qr-payments/[paymentId]/vt-result/route.ts');
 const vtAttemptRoute = source('app/api/pos/qr-payments/[paymentId]/vt-attempt/route.ts');
@@ -61,9 +63,15 @@ describe('Fiuu VT cashier flow', () => {
   expect(recovery).toContain('fetchPosQrPayment');
   expect(recovery).not.toContain('createPosQrPayment');
   expect(recovery).not.toContain('launchFiuuVtSale');
+  expect(recovery).toContain('beginFiuuVtCallbackDrain(paymentId)');
+  expect(recovery).toContain('setQrPayment(activePayment)');
   expect(recovery).toContain('readActiveFiuuVtResult(paymentId)');
+  expect(recovery).toContain('processFiuuVtResultRef.current(queuedResult)');
+  expect(recovery).toContain('scheduleFiuuVtRecoveryRetry()');
   expect(recovery).toContain("['EXPIRED', 'FAILED', 'CANCELLED'].includes(payment.status)");
   expect(recovery).toContain('await releaseFiuuVtNativeState(orderId)');
+  expect(recovery.indexOf('readActiveFiuuVtResult(paymentId)'))
+   .toBeLessThan(recovery.indexOf('await releaseFiuuVtNativeState(orderId)'));
   expect(recovery).toContain('const fingerprint = payment.cart_fingerprint');
   expect(recovery).not.toContain('cart.map(');
  });
@@ -79,7 +87,7 @@ describe('Fiuu VT cashier flow', () => {
   expect(paymentDialog).toContain('Cuba bayaran QR semula');
   expect(paymentDialog).toContain('Semak status & lepaskan kaunter');
   expect(paymentDialog).toContain('Selepas Fiuu mengesahkan tamat, troli kekal');
-  expect(paymentDialog).toContain('tanpa risiko caj berganda.');
+  expect(paymentDialog).toContain('Pelepasan selamat boleh mengambil kira-kira 30 saat');
  });
 
  it('polls the native callback queue after app switching', () => {
@@ -99,7 +107,9 @@ describe('Fiuu VT cashier flow', () => {
   const confirmation = paymentDialog.slice(start, end);
   expect(start).toBeGreaterThan(-1);
   expect(end).toBeGreaterThan(start);
-  expect(confirmation).toContain('if (await processNextQueuedResult())');
+  expect(confirmation).toContain('const queueOutcome = await processNextQueuedResult()');
+  expect(confirmation).toContain("if (queueOutcome === 'queued')");
+  expect(confirmation).toContain("if (queueOutcome === 'read_failed') return");
   expect(confirmation).toContain('callback tambahan sebelum terminal dilepaskan');
   expect(confirmation).toContain("setQrStatus('PENDING')");
   expect(confirmation).toContain('fresh, successful empty read');
@@ -127,9 +137,11 @@ describe('Fiuu VT cashier flow', () => {
   const confirmEnd = paymentDialog.indexOf('useEffect(() => {', confirmStart);
   const confirm = paymentDialog.slice(confirmStart, confirmEnd);
   expect(reconcile).toContain('vtCallbackDrainInProgressRef.current');
-  expect(reconcile).toContain('canFinalizeFiuuVtPayment(');
-  expect(confirm).toContain('vtCallbackDrainInProgressRef.current');
-  expect(confirm).toContain('canFinalizeFiuuVtPayment(');
+  expect(reconcile).toContain('captureFiuuVtFinalizationSeal(');
+  expect(reconcile).toContain('isFiuuVtFinalizationSealValid(');
+  expect(confirm).toContain('captureFiuuVtFinalizationSeal(');
+  expect(confirm).toContain('isFiuuVtFinalizationSealValid(');
+  expect(paymentDialog).toContain('canFinalizeFiuuVtPayment(');
   expect(paymentDialog).toContain('vtCallbackDrainInProgress || qrStatus');
   expect(paymentDialog).toContain('const readActiveFiuuVtResult');
   expect(paymentDialog).toContain('beginFiuuVtCallbackDrain(paymentId)');
@@ -147,16 +159,46 @@ describe('Fiuu VT cashier flow', () => {
   const start = paymentDialog.indexOf('const recoverFiuuVtPayment');
   const end = paymentDialog.indexOf('const handleDialogOpenChange', start);
   const recovery = paymentDialog.slice(start, end);
-  const begin = recovery.indexOf('const recoveryDrainScope = beginFiuuVtCallbackDrain(paymentId)');
-  const increment = recovery.indexOf('recoveryDrainScope.callbacksProcessing += 1');
+  const begin = recovery.indexOf('beginFiuuVtCallbackDrain(paymentId)');
+  const serverRead = recovery.indexOf('fetchPosQrPayment(paymentId)');
   const install = recovery.indexOf('setQrPayment(activePayment)');
-  const decrement = recovery.indexOf('recoveryDrainScope.callbacksProcessing = Math.max');
   expect(begin).toBeGreaterThan(-1);
-  expect(increment).toBeGreaterThan(begin);
-  expect(install).toBeGreaterThan(increment);
-  expect(decrement).toBeGreaterThan(install);
+  expect(serverRead).toBeGreaterThan(begin);
+  expect(install).toBeGreaterThan(serverRead);
+  expect(recovery).not.toContain('callbacksProcessing += 1');
   expect(paymentDialog).toContain('if (currentScope !== scope');
   expect(paymentDialog).toContain('scope.queueReadsInProgress = Math.max');
+  expect(paymentDialog).toContain('scope.consecutiveEmptyReads');
+  expect(paymentDialog).toContain('FIUU_VT_QUEUE_QUIESCENCE_MS');
+ });
+
+ it('retries transient recovery and callback leases without opening another SALE', () => {
+  const recoveryStart = paymentDialog.indexOf('const recoverFiuuVtPayment');
+  const recoveryEnd = paymentDialog.indexOf('const handleDialogOpenChange', recoveryStart);
+  const recovery = paymentDialog.slice(recoveryStart, recoveryEnd);
+  const checkoutStart = paymentDialog.indexOf('async function handlePay()');
+  const checkoutEnd = paymentDialog.indexOf('const { result, manual_payment_review_error', checkoutStart);
+  const checkout = paymentDialog.slice(checkoutStart, checkoutEnd);
+
+  expect(recovery).toContain('scheduleFiuuVtRecoveryRetry()');
+  expect(paymentDialog).toContain('vtRecoveryRetry');
+  expect(paymentDialog).toContain("error.mode === 'FIUU_VT_CALLBACK_ACTIVE'");
+  expect(paymentDialog).toContain('vtCallbackRetryTimerRef');
+  expect(paymentDialog).toContain('vtOperationRetryAtRef.current = Date.now() + 2_000');
+  expect(paymentDialog).toContain('!vtNativeStatus.resultAvailable');
+  expect(paymentDialog).toContain('await processFiuuVtResultRef.current(result)');
+  expect(paymentDialog).toContain('scheduleFiuuVtRecoveryRetry(500)');
+  expect(vtResultRoute).toContain("mode: 'FIUU_VT_CALLBACK_ACTIVE'");
+  const submitResultStart = posApi.indexOf('export async function submitFiuuVtResult');
+  const submitResultEnd = posApi.indexOf('export async function createFiuuVtAttempt', submitResultStart);
+  const submitResult = posApi.slice(submitResultStart, submitResultEnd);
+  expect(submitResult).toContain('retry_after_ms');
+  expect(submitResult).toContain('new PosQrPaymentError(error.message, error.status, mode, retryAfterMs)');
+  expect(checkout).toContain('const freshNativeStatus = await readFiuuVtStatus()');
+  expect(checkout).toContain('freshNativeStatus.pendingOrderId');
+  expect(checkout).toContain('freshNativeStatus.resultAvailable || vtCallbackDrainInProgressRef.current');
+  expect(checkout.indexOf('const freshNativeStatus = await readFiuuVtStatus()'))
+   .toBeLessThan(checkout.indexOf('createPosQrPayment(payload, idempotencyKey)'));
  });
 
  it('holds reused VT payments pending until the native callback queue is proven empty', () => {
@@ -246,17 +288,140 @@ describe('Fiuu VT one-time callback security and deterministic recovery', () => 
   expect(vtResultRoute).toContain("state: 'QUARANTINED'");
  });
 
- it('uses bridge v6, exact callback acknowledgement and a bounded queue', () => {
-  expect(nativePlugin).toContain('private static final int BRIDGE_API_VERSION = 6');
+ it('uses bridge v8, exact callback acknowledgement and bounded active/quarantine queues', () => {
+  expect(nativePlugin).toContain('private static final int BRIDGE_API_VERSION = 8');
   expect(nativePlugin).toContain('private static final int RESULT_QUEUE_LIMIT = 128');
+  expect(nativePlugin).toContain('private static final int QUARANTINED_RESULT_QUEUE_LIMIT = 32');
   expect(nativePlugin).toContain('private static final String CALLBACK_ATTEMPT_REGISTRY');
   expect(nativePlugin).toContain('result.put("callbackAttemptId", callbackAttemptId)');
   expect(nativePlugin).toContain('result.put("callbackHost", registeredCallbackHost)');
   expect(nativePlugin).toContain('public synchronized void acknowledgeResult(PluginCall call)');
   expect(nativePlugin).toContain('public synchronized void acknowledgeError(PluginCall call)');
   expect(nativeClient).toContain('RESULT_ACKNOWLEDGEMENT_API_VERSION = 5');
-  expect(nativeClient).toContain('FIUU_VT_CALLBACK_ATTEMPT_API_VERSION = 6');
+  expect(nativeClient).toContain('FIUU_VT_CALLBACK_ATTEMPT_API_VERSION = 8');
   expect(nativeClient).toContain('callbackAttemptId: result.callbackAttemptId');
+ });
+
+ it('serializes late-callback review and marks only the nearest causally matching paid replacement', () => {
+  const reviewStart = serializationMigration.indexOf('CREATE OR REPLACE FUNCTION public.mark_pos_fiuu_vt_review');
+  const fulfilStart = serializationMigration.indexOf('CREATE OR REPLACE FUNCTION public.fulfill_pos_fiuu_vt_payment');
+  const reviewFlow = serializationMigration.slice(reviewStart, fulfilStart);
+  const fulfilFlow = serializationMigration.slice(fulfilStart);
+
+  expect(reviewStart).toBeGreaterThan(-1);
+  expect(fulfilStart).toBeGreaterThan(reviewStart);
+  expect(reviewFlow.indexOf('FROM public.pos_shifts'))
+   .toBeLessThan(reviewFlow.indexOf('SELECT * INTO v_payment'));
+  expect(fulfilFlow.indexOf('FROM public.pos_shifts'))
+   .toBeLessThan(fulfilFlow.indexOf('SELECT * INTO v_payment'));
+  expect(reviewFlow).toContain("candidate.status IN ('PENDING', 'REPORTED')");
+  expect(reviewFlow).not.toContain("candidate.status IN ('PENDING', 'REPORTED', 'PAID')");
+  expect(reviewFlow).toContain("candidate.status = 'PAID'");
+  expect(reviewFlow).toContain('candidate.created_at > v_payment.created_at');
+  expect(reviewFlow).toContain("v_payment.expires_at + INTERVAL '20 minutes'");
+  expect(reviewFlow).toContain('round(candidate.amount_rm, 2) = round(v_payment.amount_rm, 2)');
+  expect(reviewFlow).toContain("candidate.sale_payload->'items'");
+  expect(reviewFlow).toContain("candidate.sale_payload->'pricing_snapshot'");
+  expect(reviewFlow).toContain('ORDER BY candidate.created_at ASC, candidate.id ASC');
+  expect(reviewFlow).toContain('LIMIT 1');
+  expect(reviewFlow).toContain('WHERE candidate.id = v_paid_replacement_id');
+  expect(reviewFlow).toContain('RELATED_PAID_PAYMENT_AT_REVIEW');
+  expect(fulfilFlow).toContain('v_related_review_count > 0');
+  expect(fulfilFlow).toContain("related.status IN ('PENDING', 'REPORTED')");
+  expect(fulfilFlow.indexOf("v_payment.status = 'PAID' AND v_payment.transaction_id IS NOT NULL"))
+   .toBeLessThan(fulfilFlow.indexOf('v_payment.fiuu_vt_review_required'));
+  expect(fulfilFlow.indexOf('v_related_review_count > 0'))
+   .toBeLessThan(fulfilFlow.indexOf('process_pos_sale_internal'));
+  expect(fulfilFlow).toContain("!~ '^RKJ_[A-F0-9]{32}$'");
+  expect(serializationMigration).toContain('FROM PUBLIC, anon, authenticated');
+  expect(serializationMigration).toContain('TO service_role');
+ });
+
+ it('prevents cloudECR double-sale fulfilment while the serialized review lock is active', () => {
+  const cloudFulfilStart = cloudEcrMigration.indexOf(
+   'CREATE OR REPLACE FUNCTION public.fulfill_pos_fiuu_cloudecr_payment',
+  );
+  const cloudFulfilFlow = cloudEcrMigration.slice(cloudFulfilStart);
+  const guardStart = serializationMigration.indexOf(
+   'CREATE OR REPLACE FUNCTION public.guard_pos_fiuu_cloudecr_review_fulfillment',
+  );
+  const triggerStart = serializationMigration.indexOf(
+   'CREATE TRIGGER guard_pos_fiuu_cloudecr_review_fulfillment',
+  );
+  const guardFlow = serializationMigration.slice(guardStart, triggerStart);
+
+  expect(guardStart).toBeGreaterThan(-1);
+  expect(triggerStart).toBeGreaterThan(guardStart);
+  expect(cloudFulfilStart).toBeGreaterThan(-1);
+  expect(cloudFulfilFlow.indexOf('FROM public.pos_shifts'))
+   .toBeLessThan(cloudFulfilFlow.indexOf('SELECT * INTO v_payment'));
+  expect(cloudFulfilFlow.indexOf('process_pos_sale_internal'))
+   .toBeLessThan(cloudFulfilFlow.indexOf("SET status = 'PAID'"));
+  expect(guardFlow).toContain("OLD.provider = 'fiuu_cloudecr'");
+  expect(guardFlow).toContain("NEW.status = 'PAID'");
+  expect(guardFlow).toContain("OLD.status IS DISTINCT FROM 'PAID'");
+  expect(guardFlow).toContain('COALESCE(OLD.fiuu_vt_review_required, false)');
+  expect(guardFlow).toContain('COALESCE(NEW.fiuu_vt_review_required, false)');
+  expect(serializationMigration).toContain(
+   'BEFORE UPDATE OF status, fiuu_vt_review_required',
+  );
+  expect(serializationMigration).toContain(
+   "RAISE EXCEPTION 'Fiuu cloudECR payment requires reconciliation review'",
+  );
+ });
+
+ it('does not mark an unrelated paid transaction from the same shift', () => {
+  const reviewStart = serializationMigration.indexOf(
+   'CREATE OR REPLACE FUNCTION public.mark_pos_fiuu_vt_review',
+  );
+  const fulfilStart = serializationMigration.indexOf(
+   'CREATE OR REPLACE FUNCTION public.fulfill_pos_fiuu_vt_payment',
+  );
+  const reviewFlow = serializationMigration.slice(reviewStart, fulfilStart);
+  const paidUpdateStart = reviewFlow.indexOf('IF v_paid_replacement_id IS NOT NULL THEN');
+  const paidUpdateEnd = reviewFlow.indexOf('RETURN jsonb_build_object', paidUpdateStart);
+  const paidUpdate = reviewFlow.slice(paidUpdateStart, paidUpdateEnd);
+
+  expect(reviewFlow).not.toContain("candidate.status IN ('PENDING', 'REPORTED', 'PAID')");
+  expect(reviewFlow).toContain('candidate.created_at > v_payment.created_at');
+  expect(reviewFlow).toContain("v_payment.expires_at + INTERVAL '20 minutes'");
+  expect(reviewFlow).toContain('round(candidate.amount_rm, 2) = round(v_payment.amount_rm, 2)');
+  expect(reviewFlow).toContain("candidate.sale_payload->'items'");
+  expect(reviewFlow).toContain("candidate.sale_payload->'pricing_snapshot'");
+  expect(reviewFlow).toContain("candidate.sale_payload->'payment_method'");
+  expect(reviewFlow).toContain('ORDER BY candidate.created_at ASC, candidate.id ASC');
+  expect(paidUpdate).toContain('WHERE candidate.id = v_paid_replacement_id');
+  expect(paidUpdate).not.toContain("candidate.status = 'PAID'");
+ });
+
+ it('consumes durable SALE errors into STATUS and refuses to clear any unread callback', () => {
+  const errorAckStart = nativePlugin.indexOf('public synchronized void acknowledgeError');
+  const errorAckEnd = nativePlugin.indexOf('@PluginMethod', errorAckStart + 1);
+  const errorAck = nativePlugin.slice(errorAckStart, errorAckEnd);
+  const clearStart = nativePlugin.indexOf('public synchronized void clearPendingResult');
+  const clearEnd = nativePlugin.indexOf('public synchronized boolean handleDeepLink', clearStart);
+  const clear = nativePlugin.slice(clearStart, clearEnd);
+
+  expect(errorAck).toContain('"SALE".equals(opType)');
+  expect(errorAck).toContain('.putBoolean(SALE_ACKNOWLEDGED, true)');
+  expect(errorAck).toContain('.putString(PENDING_OPERATION, "STATUS")');
+  expect(clear).toContain('QueueLoadState storedResults = loadResultQueueState(preferences)');
+  expect(clear).toContain('!storedResults.safeForMutation');
+  expect(clear).toContain('storedResults.values.length() > 0');
+  expect(clear).not.toContain('hasBlockingResultBeforeStatus(loadResultQueue(preferences))');
+ });
+
+ it('blocks a new native SALE while any old callback remains queued', () => {
+  const startSaleStart = nativePlugin.indexOf('public synchronized void startSale');
+  const startSaleEnd = nativePlugin.indexOf('@PluginMethod', startSaleStart + 1);
+  const startSale = nativePlugin.slice(startSaleStart, startSaleEnd);
+
+  expect(startSale).toContain('QueueLoadState storedResults = loadResultQueueState(preferences)');
+  expect(startSale).toContain('!storedResults.safeForMutation');
+  expect(startSale).toContain('storedResults.values.length() > 0');
+  expect(startSale).toContain('FIUU_RESULT_PENDING');
+  expect(startSale.indexOf('storedResults.values.length() > 0'))
+   .toBeLessThan(startSale.indexOf('Uri uri = new Uri.Builder()'));
  });
 
  it('keeps STATUS=00 ahead of ambiguous queue entries and never releases on unread callbacks', () => {

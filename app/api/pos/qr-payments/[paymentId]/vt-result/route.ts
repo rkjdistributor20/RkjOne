@@ -487,6 +487,7 @@ export async function POST(
   return NextResponse.json(
    {
     error: 'Callback Fiuu VT sedang diproses. Cuba semula.',
+    mode: 'FIUU_VT_CALLBACK_ACTIVE',
     retry_after_ms: claimDecision.retryAfterMs,
    },
    {

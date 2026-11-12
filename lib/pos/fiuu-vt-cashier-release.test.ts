@@ -17,7 +17,7 @@ const route = readFileSync(join(
 const paymentDialog = readFileSync(join(
  process.cwd(),
  'components/pos/payment-dialog.tsx',
-), 'utf8');
+), 'utf8').replace(/\r\n/g, '\n');
 
 describe('Fiuu VT cashier release safety contract', () => {
  it('releases only an exact abandoned SALE with no provider evidence', () => {
@@ -59,8 +59,30 @@ describe('Fiuu VT cashier release safety contract', () => {
   expect(paymentDialog).toContain('retryFiuuVtSaleLaunch');
   expect(paymentDialog).toContain('Batal & kembali ke troli');
   expect(paymentDialog).toContain('Cuba buka semula');
-  expect(paymentDialog).toContain('Pelanggan tidak bayar — batal & lepaskan kaunter');
-  expect(paymentDialog).toContain('Batal pelanggan & lepaskan kaunter');
+  expect(paymentDialog).toContain('Pelanggan tidak bayar — mula batal');
+  expect(paymentDialog).toContain('Batalkan pembayaran');
+  expect(paymentDialog).toContain('Buka Fiuu VT untuk batal');
+ });
+
+ it('offers cancellation before provider expiry and turns the close action into a safe confirmation', () => {
+  const closeStart = paymentDialog.indexOf('const handleDialogOpenChange');
+  const closeEnd = paymentDialog.indexOf('const reconcileQrPayment', closeStart);
+  const closeHandler = paymentDialog.slice(closeStart, closeEnd);
+  const livePendingStart = paymentDialog.indexOf(
+   ") : qrStatus === 'PENDING' || qrStatus === 'PAID' ? (",
+  );
+  const livePendingEnd = paymentDialog.indexOf('Cuba bayaran QR semula', livePendingStart);
+  const livePendingActions = paymentDialog.slice(livePendingStart, livePendingEnd);
+
+  expect(closeStart).toBeGreaterThan(-1);
+  expect(closeEnd).toBeGreaterThan(closeStart);
+  expect(closeHandler).toContain("qrStatus === 'PENDING' && qrPayment.integration === 'vt_app'");
+  expect(closeHandler).toContain('setVtCancelConfirming(true)');
+  expect(closeHandler).not.toContain('qrDisplayExpired &&');
+  expect(livePendingStart).toBeGreaterThan(-1);
+  expect(livePendingEnd).toBeGreaterThan(livePendingStart);
+  expect(livePendingActions).toContain('Batalkan pembayaran');
+  expect(livePendingActions).toContain('onClick={() => setVtCancelConfirming(true)}');
  });
 
  it('honours the server retry lease and resumes STATUS without another SALE', () => {
@@ -81,7 +103,7 @@ describe('Fiuu VT cashier release safety contract', () => {
    'clearPendingFiuuVtResult(qrPayment.providerOrderId).catch(() => undefined)',
   );
   expect(paymentDialog).toContain('processFiuuVtResultRef.current(result)');
-  expect(paymentDialog).toContain('const pollDelaysMs = [1_500, 2_500, 4_000, 6_000]');
+  expect(paymentDialog).toContain('const pollDelaysMs = [750, 1_500, 2_500, 4_000]');
   expect(paymentDialog).toContain('pollAttempt = 0');
  });
 
@@ -94,19 +116,23 @@ describe('Fiuu VT cashier release safety contract', () => {
   expect(paymentDialog).toContain('Fiuu VT tidak sempat dibuka sebelum aplikasi dimuat semula');
  });
 
- it('drains a persisted callback before trusting a recovered server snapshot', () => {
+ it('restores an active payment and only drains callbacks early for terminal recovery', () => {
   const recoveryStart = paymentDialog.indexOf('const recoverFiuuVtPayment');
   const recoveryEnd = paymentDialog.indexOf('const handleDialogOpenChange', recoveryStart);
   const recovery = paymentDialog.slice(recoveryStart, recoveryEnd);
-  const pendingResultRead = recovery.indexOf('readActiveFiuuVtResult(paymentId)');
-  const callbackProcessing = recovery.indexOf('processFiuuVtResultRef.current(pendingResult)');
+  const drainStart = recovery.indexOf('beginFiuuVtCallbackDrain(paymentId)');
   const serverRead = recovery.indexOf('fetchPosQrPayment(paymentId)');
+  const install = recovery.indexOf('setQrPayment(activePayment)');
 
   expect(recoveryStart).toBeGreaterThan(-1);
   expect(recoveryEnd).toBeGreaterThan(recoveryStart);
-  expect(pendingResultRead).toBeGreaterThan(-1);
-  expect(callbackProcessing).toBeGreaterThan(pendingResultRead);
-  expect(serverRead).toBeGreaterThan(callbackProcessing);
+  expect(drainStart).toBeGreaterThan(-1);
+  expect(serverRead).toBeGreaterThan(drainStart);
+  expect(install).toBeGreaterThan(serverRead);
+  expect(recovery).toContain('readActiveFiuuVtResult(paymentId)');
+  expect(recovery).toContain('processFiuuVtResultRef.current(queuedResult)');
+  expect(recovery.indexOf("['EXPIRED', 'FAILED', 'CANCELLED'].includes(payment.status)"))
+   .toBeLessThan(recovery.indexOf('readActiveFiuuVtResult(paymentId)'));
   expect(recovery).toContain('getRecoveredFiuuVtLocalStatus(payment.status)');
  });
 
@@ -119,12 +145,43 @@ describe('Fiuu VT cashier release safety contract', () => {
   const release = paymentDialog.slice(releaseStart, releaseEnd);
 
   expect(recovery).toContain("['EXPIRED', 'FAILED', 'CANCELLED'].includes(payment.status)");
+  expect(recovery).toContain('readActiveFiuuVtResult(paymentId)');
+  expect(recovery).toContain('vtCallbackDrainInProgressRef.current');
+  expect(recovery).toContain('captureFiuuVtFinalizationSeal(paymentId, true)');
+  expect(recovery).toContain('isFiuuVtFinalizationSealValid(finalizationSeal)');
   expect(recovery).toContain('await releaseFiuuVtNativeState(orderId)');
   expect(release).toContain('await clearPendingFiuuVtResult(orderId)');
   expect(release).toContain('pendingOrderId: null');
   expect(release).toContain('pendingOperation: null');
   expect(release).toContain('storeDeferredFiuuVtNativeCleanup(nativeCleanupKey, orderId)');
   expect(recovery).toContain('Kaunter telah dilepaskan dan troli boleh digunakan semula.');
+ });
+
+ it('quiesces deferred native cleanup before allowing another SALE', () => {
+  const cleanupStart = paymentDialog.indexOf('const drainAndReleaseDeferredFiuuVtNativeState');
+  const cleanupEnd = paymentDialog.indexOf('useEffect(() => {', cleanupStart);
+  const cleanup = paymentDialog.slice(cleanupStart, cleanupEnd);
+  const preSaleStart = paymentDialog.indexOf("if (qrConfig?.mode === 'FIUU_VT_APP') {", paymentDialog.indexOf('async function handlePay'));
+  const preSaleEnd = paymentDialog.indexOf('if (storageKey)', preSaleStart);
+  const preSale = paymentDialog.slice(preSaleStart, preSaleEnd);
+
+  expect(cleanup).toContain('await readActiveFiuuVtResult(paymentId)');
+  expect(cleanup).toContain('await processFiuuVtResultRef.current(queuedResult)');
+  expect(cleanup).toContain('vtCallbackDrainInProgressRef.current || vtCallbackDrainScopeRef.current');
+  expect(cleanup).toContain('captureFiuuVtFinalizationSeal(paymentId, true)');
+  expect(cleanup).toContain('isFiuuVtFinalizationSealValid(finalizationSeal)');
+  expect(cleanup.indexOf('await readActiveFiuuVtResult(paymentId)'))
+   .toBeLessThan(cleanup.indexOf('await releaseFiuuVtNativeState(orderId)'));
+  expect(preSale).toContain('drainAndReleaseDeferredFiuuVtNativeState(deferredCleanupOrderId)');
+  expect(preSale).not.toContain('releaseFiuuVtNativeState(deferredCleanupOrderId)');
+ });
+
+ it('retries orphan callbacks even when native pending order is already clear', () => {
+  expect(paymentDialog).toContain('!vtNativeStatus.resultAvailable');
+  expect(paymentDialog).toContain('const drainScope = vtCallbackDrainScopeRef.current');
+  expect(paymentDialog).toContain('await processFiuuVtResultRef.current(result)');
+  expect(paymentDialog).toContain('scheduleFiuuVtRecoveryRetry(500)');
+  expect(paymentDialog).toContain("} else {\n    vtRecoveryOrderRef.current = null;\n    scheduleFiuuVtRecoveryRetry(500);");
  });
 
  it('unlatches a transient recovery failure so focus or reconnect can retry', () => {

@@ -39,6 +39,7 @@ public class RkjFiuuVtPlugin extends Plugin {
     private static final String PENDING_AMOUNT = "pending_amount";
     private static final String PENDING_OPERATION = "pending_operation";
     private static final String RESULT_QUEUE = "result_queue";
+    private static final String QUARANTINED_RESULT_QUEUE = "quarantined_result_queue";
     private static final String LAST_RESULT = "last_result";
     private static final String LAST_RESULT_AT = "last_result_at";
     private static final String SALE_LAUNCHED = "sale_launched";
@@ -52,13 +53,18 @@ public class RkjFiuuVtPlugin extends Plugin {
     private static final String ACTIVE_ATTEMPT_OPERATION = "active_attempt_operation";
     private static final String ACTIVE_CALLBACK_RECEIVED = "active_callback_received";
     private static final String CALLBACK_ATTEMPT_REGISTRY = "callback_attempt_registry";
-    private static final int BRIDGE_API_VERSION = 6;
+    private static final int BRIDGE_API_VERSION = 8;
     private static final long MIN_LAUNCH_INTERVAL_MS = 3000L;
     private static final long STALE_VOID_RECOVERY_MS = 30000L;
     private static final int RESULT_QUEUE_LIMIT = 128;
-    private static final int CALLBACK_ATTEMPT_REGISTRY_LIMIT = 128;
-    private static final Pattern ORDER_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{4,64}$");
+    private static final int QUARANTINED_RESULT_QUEUE_LIMIT = 32;
+    private static final int CALLBACK_ATTEMPT_REGISTRY_LIMIT = 256;
+    private static final long RELEASED_CALLBACK_RETENTION_MS = 30L * 24L * 60L * 60L * 1000L;
+    private static final long LEGACY_PENDING_RECOVERY_GRACE_MS = 24L * 60L * 60L * 1000L;
+    private static final Pattern ORDER_PATTERN = Pattern.compile("^RKJ_[A-F0-9]{32}$");
+    private static final Pattern LEGACY_ORDER_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{4,64}$");
     private static final Pattern TRANSACTION_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{1,80}$");
+    private static final Pattern PAY_DATE_PATTERN = Pattern.compile("^[0-9T:+.\\-/ ]{6,40}$");
     private static final Pattern ERROR_CODE_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{1,32}$");
     private static final Pattern ATTEMPT_ID_PATTERN = Pattern.compile(
         "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
@@ -69,11 +75,25 @@ public class RkjFiuuVtPlugin extends Plugin {
     private static final Set<String> STATUS_CODES = new HashSet<>(
         Arrays.asList("00", "11", "22", "33", "44", "45", "55")
     );
+    private static final Set<String> TERMINAL_STATUS_CODES = new HashSet<>(
+        Arrays.asList("00", "11", "44", "55")
+    );
+
+    private static final class QueueLoadState {
+        final JSONArray values;
+        final boolean safeForMutation;
+
+        QueueLoadState(JSONArray values, boolean safeForMutation) {
+            this.values = values;
+            this.safeForMutation = safeForMutation;
+        }
+    }
 
     @PluginMethod
     public synchronized void getStatus(PluginCall call) {
         JSObject result = new JSObject();
         SharedPreferences preferences = preferences();
+        quarantineInvalidPendingStateIfNeeded(preferences);
         loadCallbackAttemptRegistry(preferences);
         String pendingOperation = recoverStaleVoidIfNeeded(preferences, System.currentTimeMillis());
         result.put("bridgeApiVersion", BRIDGE_API_VERSION);
@@ -99,6 +119,15 @@ public class RkjFiuuVtPlugin extends Plugin {
         );
         JSONObject queuedResult = peekQueuedResult(preferences);
         result.put("resultAvailable", queuedResult != null);
+        JSONArray quarantine = loadQuarantinedResultQueue(preferences);
+        result.put("quarantinedResultCount", quarantine.length());
+        result.put(
+            "quarantineBlocksRelease",
+            hasBlockingQuarantinedResultForOrder(
+                quarantine,
+                preferences.getString(PENDING_ORDER, "")
+            )
+        );
         long resultReceivedAt = queuedResult == null ? 0L : queuedResult.optLong("receivedAt", 0L);
         result.put("resultReceivedAt", resultReceivedAt > 0L ? resultReceivedAt : JSONObject.NULL);
         call.resolve(result);
@@ -169,8 +198,21 @@ public class RkjFiuuVtPlugin extends Plugin {
         }
 
         SharedPreferences preferences = preferences();
+        quarantineInvalidPendingStateIfNeeded(preferences);
         if (!preferences.getString(PENDING_ORDER, "").isEmpty()) {
             call.reject("Percubaan Fiuu VT terdahulu masih perlu direkonsiliasi.", "FIUU_ACTIVE_ATTEMPT_EXISTS");
+            return;
+        }
+        QueueLoadState storedResults = loadResultQueueState(preferences);
+        if (!storedResults.safeForMutation) {
+            call.reject(
+                "Storan keselamatan Fiuu VT perlu disahkan semula sebelum jualan baharu.",
+                "FIUU_STORAGE_RECOVERY_REQUIRED"
+            );
+            return;
+        }
+        if (storedResults.values.length() > 0) {
+            call.reject("Keputusan Fiuu VT terdahulu masih belum diproses.", "FIUU_RESULT_PENDING");
             return;
         }
 
@@ -275,6 +317,13 @@ public class RkjFiuuVtPlugin extends Plugin {
                 .putString(PENDING_OPERATION, "STATUS")
                 .putBoolean(VOID_LAUNCHED, false);
         }
+        if ("STATUS".equals(opType) && TERMINAL_STATUS_CODES.contains(status)) {
+            JSONArray quarantine = removeBlockingQuarantinedResultsForOrder(
+                loadQuarantinedResultQueue(preferences),
+                orderId
+            );
+            writeQuarantinedResultQueue(acknowledgementEditor, quarantine);
+        }
         if (!removeCallbackAttempt(preferences, callbackAttemptId, acknowledgementEditor)) {
             call.reject("Keputusan Fiuu VT belum dapat disimpan dengan selamat.", "FIUU_RESULT_ACK_PERSIST_FAILED");
             return;
@@ -289,11 +338,13 @@ public class RkjFiuuVtPlugin extends Plugin {
         String opType = safe(call.getString("opType", "")).toUpperCase(Locale.ROOT);
         String errorCode = safe(call.getString("errorCode", ""));
         SharedPreferences preferences = preferences();
-        // STATUS and VOID errors are safe to consume for a retry. SALE may
-        // already have reached Fiuu, so its ambiguous error must be retained.
+        // The web layer acknowledges an error only after the server durably
+        // records the exact callback attempt. A SALE error must therefore be
+        // consumed and moved to STATUS reconciliation instead of permanently
+        // blocking the native queue.
         if (callbackAttemptId == null
             || orderId == null
-            || !("STATUS".equals(opType) || "VOID".equals(opType))
+            || !("SALE".equals(opType) || "STATUS".equals(opType) || "VOID".equals(opType))
             || !ERROR_CODE_PATTERN.matcher(errorCode).matches()) {
             call.reject("Pengesahan ralat Fiuu VT tidak sah.", "INVALID_FIUU_ERROR_ACK");
             return;
@@ -315,7 +366,11 @@ public class RkjFiuuVtPlugin extends Plugin {
         }
         queue.remove(resultIndex);
         SharedPreferences.Editor acknowledgementEditor = writeResultQueue(preferences.edit(), queue);
-        if ("VOID".equals(opType) && orderId.equals(preferences.getString(PENDING_ORDER, ""))) {
+        if ("SALE".equals(opType) && orderId.equals(preferences.getString(PENDING_ORDER, ""))) {
+            acknowledgementEditor
+                .putBoolean(SALE_ACKNOWLEDGED, true)
+                .putString(PENDING_OPERATION, "STATUS");
+        } else if ("VOID".equals(opType) && orderId.equals(preferences.getString(PENDING_ORDER, ""))) {
             acknowledgementEditor
                 .putString(PENDING_OPERATION, "STATUS")
                 .putBoolean(VOID_LAUNCHED, false);
@@ -506,15 +561,33 @@ public class RkjFiuuVtPlugin extends Plugin {
             call.reject("Order ID Fiuu VT tidak sepadan.", "FIUU_ATTEMPT_MISMATCH");
             return;
         }
-        if (hasBlockingResultBeforeStatus(loadResultQueue(preferences))) {
+        QueueLoadState storedResults = loadResultQueueState(preferences);
+        if (!storedResults.safeForMutation) {
+            call.reject(
+                "Storan keselamatan Fiuu VT belum dapat dipulihkan dengan selamat.",
+                "FIUU_STORAGE_RECOVERY_REQUIRED"
+            );
+            return;
+        }
+        if (storedResults.values.length() > 0) {
             call.reject("Keputusan Fiuu VT masih belum diproses.", "FIUU_RESULT_PENDING");
+            return;
+        }
+        if (hasBlockingQuarantinedResultForOrder(
+            loadQuarantinedResultQueue(preferences),
+            orderId
+        )) {
+            call.reject(
+                "Bukti callback Fiuu VT perlu direkonsiliasi melalui semakan STATUS.",
+                "FIUU_RECONCILIATION_REQUIRED"
+            );
             return;
         }
         // Migrate any pre-registry ACTIVE_* identity while its order/amount
         // context is still available, then retain it for a possible late
         // provider callback after the payment state is cleared.
         loadCallbackAttemptRegistry(preferences);
-        boolean cleared = preferences.edit()
+        SharedPreferences.Editor clearEditor = preferences.edit()
             .remove(PENDING_ORDER)
             .remove(PENDING_AMOUNT)
             .remove(PENDING_OPERATION)
@@ -526,10 +599,93 @@ public class RkjFiuuVtPlugin extends Plugin {
             .remove(VOID_LAUNCHED)
             .remove(SALE_ACKNOWLEDGED)
             .remove(LAST_LAUNCH_AT)
-            .remove(LAST_LAUNCH_OPERATION)
-            .commit();
+            .remove(LAST_LAUNCH_OPERATION);
+        boolean cleared = markCallbackAttemptsReleased(
+            preferences,
+            orderId,
+            clearEditor
+        );
         if (!cleared) {
             call.reject("Keadaan terminal Fiuu VT belum dapat dibersihkan.", "FIUU_CLEAR_PERSIST_FAILED");
+            return;
+        }
+        call.resolve();
+    }
+
+    @PluginMethod
+    public synchronized void recoverLegacyPendingState(PluginCall call) {
+        String requestedOrder = normalizedLegacyOrderId(call.getString("legacyOrderId", ""));
+        String reviewReference = safe(call.getString("reviewReference", ""));
+        boolean reviewed = Boolean.TRUE.equals(call.getBoolean("reviewed"));
+        SharedPreferences preferences = preferences();
+        String pendingOrder = preferences.getString(PENDING_ORDER, "");
+        if (!reviewed
+            || reviewReference.length() < 8
+            || requestedOrder == null
+            || normalizedOrderId(requestedOrder) != null
+            || !requestedOrder.equals(pendingOrder)) {
+            call.reject(
+                "Pemulihan legacy memerlukan semakan manusia dan rujukan audit yang sah.",
+                "FIUU_LEGACY_REVIEW_REQUIRED"
+            );
+            return;
+        }
+
+        QueueLoadState quarantineState = loadQuarantinedResultQueueState(preferences);
+        QueueLoadState resultState = loadResultQueueState(preferences);
+        JSONArray registry = loadCallbackAttemptRegistry(preferences);
+        long now = System.currentTimeMillis();
+        long latestEvidenceAt = latestLegacyRecoveryEvidenceAt(
+            quarantineState.values,
+            registry,
+            pendingOrder,
+            preferences.getLong(LAST_LAUNCH_AT, 0L)
+        );
+        if (!quarantineState.safeForMutation
+            || !resultState.safeForMutation
+            || resultState.values.length() > 0
+            || latestEvidenceAt <= 0L
+            || now - latestEvidenceAt < LEGACY_PENDING_RECOVERY_GRACE_MS) {
+            call.reject(
+                "Keadaan legacy masih terlalu baharu atau mempunyai keputusan yang belum diproses.",
+                "FIUU_LEGACY_RECOVERY_BLOCKED"
+            );
+            return;
+        }
+
+        JSONArray reviewedQuarantine = loadQuarantinedResultQueue(preferences);
+        if (!hasBlockingQuarantinedResultForOrder(reviewedQuarantine, pendingOrder)) {
+            JSONObject evidence = new JSONObject();
+            try {
+                evidence.put("pendingOrder", pendingOrder);
+                evidence.put("pendingAmount", preferences.getString(PENDING_AMOUNT, ""));
+                evidence.put("pendingOperation", preferences.getString(PENDING_OPERATION, ""));
+                evidence.put("lastLaunchAt", preferences.getLong(LAST_LAUNCH_AT, 0L));
+                evidence.put("lastLaunchOperation", preferences.getString(LAST_LAUNCH_OPERATION, ""));
+            } catch (JSONException ignored) {
+                // Preserve an empty evidence object if a platform JSON
+                // implementation unexpectedly rejects a primitive value.
+            }
+            appendQuarantinedResult(
+                reviewedQuarantine,
+                "INVALID_PENDING_ORDER",
+                pendingOrder,
+                evidence
+            );
+        }
+        if (!markLegacyPendingQuarantineReviewed(
+            reviewedQuarantine,
+            pendingOrder,
+            now,
+            reviewReference
+        )) {
+            call.reject("Bukti legacy tidak dapat ditanda sebagai disemak.", "FIUU_LEGACY_RECOVERY_BLOCKED");
+            return;
+        }
+        SharedPreferences.Editor recoveryEditor = legacyPendingReleaseEditor(preferences);
+        writeQuarantinedResultQueue(recoveryEditor, reviewedQuarantine);
+        if (!markCallbackAttemptsReleased(preferences, pendingOrder, recoveryEditor)) {
+            call.reject("Pemulihan legacy belum dapat disimpan.", "FIUU_LEGACY_RECOVERY_PERSIST_FAILED");
             return;
         }
         call.resolve();
@@ -557,7 +713,7 @@ public class RkjFiuuVtPlugin extends Plugin {
         String callbackAttemptId = normalizedAttemptId(callbackAttempt.optString("attemptId"));
         String registeredCallbackHost = normalizedCallbackHost(callbackAttempt.optString("callbackHost"));
         String registeredOperation = callbackAttempt.optString("operation");
-        String registeredOrder = normalizedOrderId(callbackAttempt.optString("orderId"));
+        String registeredOrder = normalizedLegacyOrderId(callbackAttempt.optString("orderId"));
         BigDecimal registeredAmount = normalizedAmount(callbackAttempt.optString("amount"));
         if (!isMatchingCallbackAttempt(callbackAttemptId, registeredCallbackHost)
             || !callbackHost.equals(registeredCallbackHost)
@@ -598,7 +754,9 @@ public class RkjFiuuVtPlugin extends Plugin {
         }
 
         String opType = safe(uri.getQueryParameter("opType")).toUpperCase(Locale.ROOT);
-        String orderId = safe(first(uri, "orderId", "orderid"));
+        String rawOrderId = first(uri, "orderId", "orderid");
+        String callbackOrderId = normalizedLegacyOrderId(rawOrderId);
+        String orderId = normalizedOrderId(rawOrderId);
         String transactionId = safe(first(uri, "tranID", "tranId", "transactionId"));
         String status = safe(uri.getQueryParameter("status"));
         String currency = safe(uri.getQueryParameter("currency")).toUpperCase(Locale.ROOT);
@@ -615,17 +773,56 @@ public class RkjFiuuVtPlugin extends Plugin {
             && hasExactlyOne(uri, "currency")
             && hasExactlyOne(uri, "channel")
             && hasAtMostOne(uri, "payDate", "paydate")
-            && ORDER_PATTERN.matcher(orderId).matches()
+            && callbackOrderId != null
             && TRANSACTION_PATTERN.matcher(transactionId).matches()
             && STATUS_CODES.contains(status)
             && "MYR".equals(currency)
             && CHANNEL.equals(channel)
+            && (payDate.isEmpty() || PAY_DATE_PATTERN.matcher(payDate).matches())
             && amount != null;
         if (!validPayload) return true;
 
         boolean callbackMatchesRegisteredAttempt = registeredOperation.equals(opType)
-            && orderId.equals(registeredOrder)
+            && callbackOrderId.equals(registeredOrder)
             && amount.compareTo(registeredAmount) == 0;
+
+        if (orderId == null) {
+            // Keep pre-v7 callback identities recognizable after an upgrade,
+            // but never pass a legacy order reference into the web fulfilment
+            // path. Preserve it as blocking evidence until support completes
+            // an authoritative reconciliation.
+            JSONObject evidence = new JSONObject();
+            try {
+                evidence.put("opType", opType);
+                evidence.put("orderId", callbackOrderId);
+                evidence.put("tranID", transactionId);
+                evidence.put("status", status);
+                evidence.put("amount", amount.toPlainString());
+                evidence.put("currency", currency);
+                evidence.put("channel", channel);
+                evidence.put("payDate", payDate.isEmpty() ? JSONObject.NULL : payDate);
+                evidence.put("callbackAttemptId", callbackAttemptId);
+                evidence.put("callbackHost", registeredCallbackHost);
+                evidence.put(
+                    "callbackValidation",
+                    callbackMatchesRegisteredAttempt ? "MATCHED" : "MISMATCH"
+                );
+            } catch (JSONException ignored) {
+                // Primitive values above are safe; retain an empty evidence
+                // object if a platform implementation rejects one.
+            }
+            JSONArray quarantine = loadQuarantinedResultQueue(preferences);
+            appendQuarantinedResult(
+                quarantine,
+                "LEGACY_CALLBACK_REQUIRES_REVIEW",
+                registeredOrder,
+                evidence
+            );
+            if (writeQuarantinedResultQueue(preferences.edit(), quarantine).commit()) {
+                markCallbackAttemptReceived(preferences, callbackAttemptId);
+            }
+            return true;
+        }
 
         JSObject result = new JSObject();
         result.put("opType", opType);
@@ -681,18 +878,47 @@ public class RkjFiuuVtPlugin extends Plugin {
     }
 
     private JSONArray loadResultQueue(SharedPreferences preferences) {
+        return loadResultQueueState(preferences).values;
+    }
+
+    private QueueLoadState loadResultQueueState(SharedPreferences preferences) {
         JSONArray cleanQueue = new JSONArray();
+        QueueLoadState quarantineState = loadQuarantinedResultQueueState(preferences);
+        JSONArray quarantine = quarantineState.values;
+        String blockingOrder = safe(preferences.getString(PENDING_ORDER, ""));
+        boolean safeForMutation = quarantineState.safeForMutation;
+        boolean changed = false;
         String rawQueue = preferences.getString(RESULT_QUEUE, "");
         if (!rawQueue.isEmpty()) {
             try {
                 JSONArray storedQueue = new JSONArray(rawQueue);
                 for (int index = 0; index < storedQueue.length(); index++) {
                     JSONObject entry = storedQueue.optJSONObject(index);
-                    if (entry != null && entry.optJSONObject("result") != null) cleanQueue.put(entry);
+                    if (isProcessableQueuedResult(entry)) {
+                        cleanQueue.put(entry);
+                    } else {
+                        appendQuarantinedResult(
+                            quarantine,
+                            "RESULT_QUEUE_INVALID",
+                            blockingOrder,
+                            entry
+                        );
+                        changed = true;
+                        safeForMutation = false;
+                    }
                 }
             } catch (JSONException ignored) {
-                // Discard only the malformed queue. The legacy slot below may
-                // still contain the callback saved by an older RKJ One build.
+                // Preserve forensic evidence, but fail this mutation attempt.
+                // A subsequent call can proceed only after the repair itself
+                // was durably committed and can be read back cleanly.
+                appendQuarantinedResult(
+                    quarantine,
+                    "RESULT_QUEUE_MALFORMED",
+                    blockingOrder,
+                    rawQueue
+                );
+                changed = true;
+                safeForMutation = false;
             }
         }
 
@@ -700,26 +926,416 @@ public class RkjFiuuVtPlugin extends Plugin {
         if (!legacyResult.isEmpty()) {
             try {
                 JSONObject legacyValue = new JSONObject(legacyResult);
-                if (findEquivalentResultIndex(cleanQueue, legacyValue) < 0) {
-                    JSONObject legacyEntry = new JSONObject();
-                    legacyEntry.put("receivedAt", preferences.getLong(LAST_RESULT_AT, System.currentTimeMillis()));
-                    legacyEntry.put("result", legacyValue);
+                JSONObject legacyEntry = new JSONObject();
+                legacyEntry.put("receivedAt", preferences.getLong(LAST_RESULT_AT, System.currentTimeMillis()));
+                legacyEntry.put("result", legacyValue);
+                if (isProcessableQueuedResult(legacyEntry)
+                    && findEquivalentResultIndex(cleanQueue, legacyValue) < 0) {
                     cleanQueue.put(legacyEntry);
+                } else if (!isProcessableQueuedResult(legacyEntry)) {
+                    appendQuarantinedResult(
+                        quarantine,
+                        "LEGACY_RESULT_INVALID",
+                        blockingOrder,
+                        legacyEntry
+                    );
+                    safeForMutation = false;
                 }
             } catch (JSONException ignored) {
-                // A malformed legacy value is ignored and removed on the next
-                // successful queue write or explicit attempt clear.
+                appendQuarantinedResult(
+                    quarantine,
+                    "LEGACY_RESULT_MALFORMED",
+                    blockingOrder,
+                    legacyResult
+                );
+                safeForMutation = false;
             }
+            // Migrate or quarantine the legacy slot exactly once.
+            changed = true;
         }
-        boolean queueWasTrimmed = false;
         while (cleanQueue.length() > RESULT_QUEUE_LIMIT) {
             int removableIndex = findSafestResultToDrop(cleanQueue);
             if (removableIndex < 0) break;
             cleanQueue.remove(removableIndex);
-            queueWasTrimmed = true;
+            changed = true;
         }
-        if (queueWasTrimmed) saveResultQueue(preferences, cleanQueue);
-        return cleanQueue;
+        if (changed) {
+            SharedPreferences.Editor editor = writeResultQueue(preferences.edit(), cleanQueue);
+            if (!writeQuarantinedResultQueue(editor, quarantine).commit()) {
+                safeForMutation = false;
+            }
+        }
+        return new QueueLoadState(cleanQueue, safeForMutation);
+    }
+
+    private boolean isProcessableQueuedResult(JSONObject entry) {
+        JSONObject value = entry == null ? null : entry.optJSONObject("result");
+        if (value == null) return false;
+
+        String orderId = normalizedOrderId(value.optString("orderId"));
+        String opType = safe(value.optString("opType")).toUpperCase(Locale.ROOT);
+        String attemptId = normalizedAttemptId(value.optString("callbackAttemptId"));
+        String callbackHost = normalizedCallbackHost(value.optString("callbackHost"));
+        String callbackValidation = value.optString("callbackValidation");
+        if (orderId == null
+            || !isFiuuOperation(opType)
+            || !isMatchingCallbackAttempt(attemptId, callbackHost)
+            || !("MATCHED".equals(callbackValidation) || "MISMATCH".equals(callbackValidation))) {
+            return false;
+        }
+
+        if ("ERROR".equals(value.optString("kind"))) {
+            return ERROR_CODE_PATTERN.matcher(value.optString("errorCode")).matches()
+                && normalizedErrorMessage(value.optString("errorMessage")) != null;
+        }
+        if (!value.optString("kind").isEmpty()) return false;
+
+        String payDate = safe(value.optString("payDate"));
+        return TRANSACTION_PATTERN.matcher(value.optString("tranID")).matches()
+            && STATUS_CODES.contains(value.optString("status"))
+            && normalizedAmount(value.optString("amount")) != null
+            && "MYR".equals(value.optString("currency"))
+            && CHANNEL.equals(value.optString("channel"))
+            && (payDate.isEmpty() || PAY_DATE_PATTERN.matcher(payDate).matches());
+    }
+
+    private JSONArray loadQuarantinedResultQueue(SharedPreferences preferences) {
+        return loadQuarantinedResultQueueState(preferences).values;
+    }
+
+    private QueueLoadState loadQuarantinedResultQueueState(SharedPreferences preferences) {
+        JSONArray quarantine = new JSONArray();
+        boolean safeForMutation = true;
+        boolean changed = false;
+        String pendingOrder = safe(preferences.getString(PENDING_ORDER, ""));
+        String rawQueue = preferences.getString(QUARANTINED_RESULT_QUEUE, "");
+        if (!rawQueue.isEmpty()) {
+            try {
+                JSONArray storedQueue = new JSONArray(rawQueue);
+                for (int index = 0; index < storedQueue.length(); index++) {
+                    JSONObject entry = storedQueue.optJSONObject(index);
+                    if (entry == null) {
+                        appendQuarantinedResult(
+                            quarantine,
+                            "QUARANTINE_ENTRY_INVALID",
+                            pendingOrder,
+                            "entry-index:" + index
+                        );
+                        changed = true;
+                        safeForMutation = false;
+                        continue;
+                    }
+                    quarantine.put(entry);
+                }
+            } catch (JSONException ignored) {
+                // Never interpret unreadable quarantine as "no evidence".
+                // Persist a non-callback safety record and make the current
+                // release/start attempt fail closed.
+                appendQuarantinedResult(
+                    quarantine,
+                    "QUARANTINE_QUEUE_MALFORMED",
+                    pendingOrder,
+                    rawQueue
+                );
+                changed = true;
+                safeForMutation = false;
+            }
+        }
+        while (quarantine.length() > QUARANTINED_RESULT_QUEUE_LIMIT) {
+            int removableIndex = findSafestQuarantinedResultToDrop(quarantine, pendingOrder);
+            if (removableIndex < 0) break;
+            quarantine.remove(removableIndex);
+            changed = true;
+        }
+        if (changed) {
+            if (!writeQuarantinedResultQueue(preferences.edit(), quarantine).commit()) {
+                safeForMutation = false;
+            }
+        }
+        return new QueueLoadState(quarantine, safeForMutation);
+    }
+
+    private int findSafestQuarantinedResultToDrop(JSONArray quarantine, String pendingOrder) {
+        String currentOrder = safe(pendingOrder);
+        for (int index = 0; index < quarantine.length(); index++) {
+            JSONObject entry = quarantine.optJSONObject(index);
+            if (entry != null && entry.optString("blockingOrderId").isEmpty()) return index;
+        }
+        for (int index = 0; index < quarantine.length(); index++) {
+            JSONObject entry = quarantine.optJSONObject(index);
+            if (entry != null && !currentOrder.equals(entry.optString("blockingOrderId"))) return index;
+        }
+        return -1;
+    }
+
+    private SharedPreferences.Editor writeQuarantinedResultQueue(
+        SharedPreferences.Editor editor,
+        JSONArray quarantine
+    ) {
+        if (quarantine.length() == 0) editor.remove(QUARANTINED_RESULT_QUEUE);
+        else editor.putString(QUARANTINED_RESULT_QUEUE, quarantine.toString());
+        return editor;
+    }
+
+    private void appendQuarantinedResult(
+        JSONArray quarantine,
+        String reason,
+        Object evidence
+    ) {
+        appendQuarantinedResult(quarantine, reason, null, evidence);
+    }
+
+    private void appendQuarantinedResult(
+        JSONArray quarantine,
+        String reason,
+        String blockingOrderId,
+        Object evidence
+    ) {
+        try {
+            JSONObject record = new JSONObject();
+            record.put("quarantinedAt", System.currentTimeMillis());
+            record.put("reason", reason);
+            String normalizedBlockingOrder = safe(blockingOrderId);
+            if (!normalizedBlockingOrder.isEmpty()) {
+                record.put("blockingOrderId", normalizedBlockingOrder);
+            }
+            if (evidence instanceof JSONObject || evidence instanceof JSONArray) {
+                record.put("evidence", evidence);
+            } else {
+                String rawEvidence = safe(evidence == null ? "" : evidence.toString());
+                record.put(
+                    "evidence",
+                    rawEvidence.length() <= 4096 ? rawEvidence : rawEvidence.substring(0, 4096)
+                );
+            }
+            quarantine.put(record);
+        } catch (JSONException ignored) {
+            // No provider callback is synthesized here. Callers that depend on
+            // this record still fail closed when the durable repair cannot be
+            // represented and committed.
+        }
+    }
+
+    private boolean hasBlockingQuarantinedResultForOrder(
+        JSONArray quarantine,
+        String orderId
+    ) {
+        String expectedOrder = safe(orderId);
+        if (expectedOrder.isEmpty()) return false;
+        for (int index = 0; index < quarantine.length(); index++) {
+            JSONObject entry = quarantine.optJSONObject(index);
+            if (entry != null && expectedOrder.equals(entry.optString("blockingOrderId"))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private JSONArray removeBlockingQuarantinedResultsForOrder(
+        JSONArray quarantine,
+        String orderId
+    ) {
+        String expectedOrder = safe(orderId);
+        if (expectedOrder.isEmpty()) return quarantine;
+        for (int index = quarantine.length() - 1; index >= 0; index--) {
+            JSONObject entry = quarantine.optJSONObject(index);
+            if (entry != null && expectedOrder.equals(entry.optString("blockingOrderId"))) {
+                quarantine.remove(index);
+            }
+        }
+        return quarantine;
+    }
+
+    private void quarantineInvalidPendingStateIfNeeded(SharedPreferences preferences) {
+        String pendingOrder = preferences.getString(PENDING_ORDER, "");
+        if (pendingOrder.isEmpty() || normalizedOrderId(pendingOrder) != null) return;
+
+        QueueLoadState quarantineState = loadQuarantinedResultQueueState(preferences);
+        if (!quarantineState.safeForMutation) return;
+        JSONArray quarantine = quarantineState.values;
+        boolean providerLaunchRecorded = preferences.getBoolean(SALE_LAUNCHED, false)
+            || preferences.getBoolean(STATUS_LAUNCHED, false)
+            || preferences.getBoolean(VOID_LAUNCHED, false)
+            || preferences.getLong(LAST_LAUNCH_AT, 0L) > 0L;
+        JSONObject evidence = new JSONObject();
+        try {
+            evidence.put("pendingOrder", pendingOrder);
+            evidence.put("pendingAmount", preferences.getString(PENDING_AMOUNT, ""));
+            evidence.put("pendingOperation", preferences.getString(PENDING_OPERATION, ""));
+            evidence.put("lastLaunchAt", preferences.getLong(LAST_LAUNCH_AT, 0L));
+            evidence.put("lastLaunchOperation", preferences.getString(LAST_LAUNCH_OPERATION, ""));
+        } catch (JSONException ignored) {
+            // JSONObject values above are primitives; retain an empty evidence
+            // object if a platform implementation unexpectedly rejects one.
+        }
+        if (!providerLaunchRecorded || !hasBlockingQuarantinedResultForOrder(quarantine, pendingOrder)) {
+            appendQuarantinedResult(
+                quarantine,
+                "INVALID_PENDING_ORDER",
+                providerLaunchRecorded ? pendingOrder : null,
+                evidence
+            );
+        }
+
+        if (providerLaunchRecorded) {
+            // First persist the migration blocker. This call must remain
+            // fail-closed even when the write fails; the raw pending order is
+            // deliberately left untouched in that case.
+            if (!writeQuarantinedResultQueue(preferences.edit(), quarantine).commit()) return;
+
+            JSONArray registry = loadCallbackAttemptRegistry(preferences);
+            long now = System.currentTimeMillis();
+            long latestEvidenceAt = latestLegacyRecoveryEvidenceAt(
+                quarantine,
+                registry,
+                pendingOrder,
+                preferences.getLong(LAST_LAUNCH_AT, 0L)
+            );
+            if (latestEvidenceAt <= 0L || now - latestEvidenceAt < LEGACY_PENDING_RECOVERY_GRACE_MS) {
+                return;
+            }
+
+            QueueLoadState resultState = loadResultQueueState(preferences);
+            if (!resultState.safeForMutation
+                || resultState.values.length() > 0
+                || hasLegacyProviderEvidence(quarantine, registry, pendingOrder)) {
+                return;
+            }
+
+            // An old legacy launch with no callback/result evidence is released
+            // only after the grace period. Its callback hosts remain retained
+            // as released registry entries so a genuinely late provider return
+            // is still quarantined rather than treated as a new SALE result.
+            if (!markLegacyPendingQuarantineReleased(quarantine, pendingOrder, now)) return;
+            SharedPreferences.Editor recoveryEditor = legacyPendingReleaseEditor(preferences);
+            writeQuarantinedResultQueue(recoveryEditor, quarantine);
+            if (!markCallbackAttemptsReleased(preferences, pendingOrder, recoveryEditor)) return;
+            return;
+        }
+
+        SharedPreferences.Editor editor = preferences.edit()
+            .remove(PENDING_ORDER)
+            .remove(PENDING_AMOUNT)
+            .remove(PENDING_OPERATION)
+            .remove(SALE_LAUNCHED)
+            .remove(STATUS_LAUNCHED)
+            .remove(VOID_LAUNCHED)
+            .remove(SALE_ACKNOWLEDGED)
+            .remove(LAST_LAUNCH_AT)
+            .remove(LAST_LAUNCH_OPERATION);
+        writeQuarantinedResultQueue(editor, quarantine).commit();
+    }
+
+    private long latestLegacyRecoveryEvidenceAt(
+        JSONArray quarantine,
+        JSONArray registry,
+        String pendingOrder,
+        long lastLaunchAt
+    ) {
+        long latest = lastLaunchAt;
+        for (int index = 0; index < quarantine.length(); index++) {
+            JSONObject entry = quarantine.optJSONObject(index);
+            if (entry != null
+                && pendingOrder.equals(entry.optString("blockingOrderId"))) {
+                latest = Math.max(latest, entry.optLong("quarantinedAt", 0L));
+            }
+        }
+        for (int index = 0; index < registry.length(); index++) {
+            JSONObject entry = registry.optJSONObject(index);
+            if (entry != null && pendingOrder.equals(entry.optString("orderId"))) {
+                latest = Math.max(latest, entry.optLong("registeredAt", 0L));
+                latest = Math.max(latest, entry.optLong("receivedAt", 0L));
+            }
+        }
+        return latest;
+    }
+
+    private boolean hasLegacyProviderEvidence(
+        JSONArray quarantine,
+        JSONArray registry,
+        String pendingOrder
+    ) {
+        for (int index = 0; index < quarantine.length(); index++) {
+            JSONObject entry = quarantine.optJSONObject(index);
+            if (entry == null || !pendingOrder.equals(entry.optString("blockingOrderId"))) continue;
+            if (!"INVALID_PENDING_ORDER".equals(entry.optString("reason"))) return true;
+        }
+        for (int index = 0; index < registry.length(); index++) {
+            JSONObject entry = registry.optJSONObject(index);
+            if (entry != null
+                && pendingOrder.equals(entry.optString("orderId"))
+                && entry.optBoolean("callbackReceived", false)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean markLegacyPendingQuarantineReleased(
+        JSONArray quarantine,
+        String pendingOrder,
+        long releasedAt
+    ) {
+        for (int index = 0; index < quarantine.length(); index++) {
+            JSONObject entry = quarantine.optJSONObject(index);
+            if (entry == null
+                || !pendingOrder.equals(entry.optString("blockingOrderId"))
+                || !"INVALID_PENDING_ORDER".equals(entry.optString("reason"))) {
+                continue;
+            }
+            try {
+                entry.put("reason", "LEGACY_PENDING_RELEASED_AFTER_GRACE");
+                entry.put("releasedAt", releasedAt);
+                entry.remove("blockingOrderId");
+            } catch (JSONException ignored) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean markLegacyPendingQuarantineReviewed(
+        JSONArray quarantine,
+        String pendingOrder,
+        long releasedAt,
+        String reviewReference
+    ) {
+        boolean reviewedEvidence = false;
+        for (int index = 0; index < quarantine.length(); index++) {
+            JSONObject entry = quarantine.optJSONObject(index);
+            if (entry == null || !pendingOrder.equals(entry.optString("blockingOrderId"))) {
+                continue;
+            }
+            try {
+                if (!entry.has("originalReason")) {
+                    entry.put("originalReason", entry.optString("reason", "UNKNOWN"));
+                }
+                entry.put("reason", "LEGACY_PENDING_RELEASED_AFTER_REVIEW");
+                entry.put("releasedAt", releasedAt);
+                entry.put("reviewReference", reviewReference);
+                entry.remove("blockingOrderId");
+                reviewedEvidence = true;
+            } catch (JSONException ignored) {
+                return false;
+            }
+        }
+        return reviewedEvidence;
+    }
+
+    private SharedPreferences.Editor legacyPendingReleaseEditor(SharedPreferences preferences) {
+        return preferences.edit()
+            .remove(PENDING_ORDER)
+            .remove(PENDING_AMOUNT)
+            .remove(PENDING_OPERATION)
+            .remove(RESULT_QUEUE)
+            .remove(LAST_RESULT)
+            .remove(LAST_RESULT_AT)
+            .remove(SALE_LAUNCHED)
+            .remove(STATUS_LAUNCHED)
+            .remove(VOID_LAUNCHED)
+            .remove(SALE_ACKNOWLEDGED)
+            .remove(LAST_LAUNCH_AT)
+            .remove(LAST_LAUNCH_OPERATION);
     }
 
     private boolean saveResultQueue(SharedPreferences preferences, JSONArray queue) {
@@ -943,7 +1559,7 @@ public class RkjFiuuVtPlugin extends Plugin {
             preferences.getString(ACTIVE_CALLBACK_HOST, "")
         );
         String legacyOperation = preferences.getString(ACTIVE_ATTEMPT_OPERATION, "");
-        String legacyOrderId = normalizedOrderId(preferences.getString(PENDING_ORDER, ""));
+        String legacyOrderId = normalizedLegacyOrderId(preferences.getString(PENDING_ORDER, ""));
         BigDecimal legacyAmount = normalizedAmount(preferences.getString(PENDING_AMOUNT, ""));
         if (isMatchingCallbackAttempt(legacyAttemptId, legacyCallbackHost)
             && isFiuuOperation(legacyOperation)
@@ -1004,8 +1620,13 @@ public class RkjFiuuVtPlugin extends Plugin {
         }
 
         JSONArray queuedResults = loadResultQueue(preferences);
+        String currentPendingOrder = preferences.getString(PENDING_ORDER, "");
         while (registry.length() >= CALLBACK_ATTEMPT_REGISTRY_LIMIT) {
-            int removableIndex = findSafestCallbackAttemptToDrop(registry, queuedResults);
+            int removableIndex = findSafestCallbackAttemptToDrop(
+                registry,
+                queuedResults,
+                currentPendingOrder
+            );
             // Never evict an unresolved host merely to admit a new launch. A
             // full unresolved registry fails closed instead of losing the only
             // identity capable of authenticating a late provider callback.
@@ -1050,6 +1671,25 @@ public class RkjFiuuVtPlugin extends Plugin {
             JSONObject entry = registry.optJSONObject(index);
             if (entry != null && callbackAttemptId.equals(entry.optString("attemptId"))) {
                 registry.remove(index);
+            }
+        }
+        return saveCallbackAttemptRegistry(preferences, registry, editor);
+    }
+
+    private boolean markCallbackAttemptsReleased(
+        SharedPreferences preferences,
+        String orderId,
+        SharedPreferences.Editor editor
+    ) {
+        JSONArray registry = loadCallbackAttemptRegistry(preferences);
+        long releasedAt = System.currentTimeMillis();
+        for (int index = 0; index < registry.length(); index++) {
+            JSONObject entry = registry.optJSONObject(index);
+            if (entry == null || !orderId.equals(entry.optString("orderId"))) continue;
+            try {
+                entry.put("releasedAt", releasedAt);
+            } catch (JSONException error) {
+                return false;
             }
         }
         return saveCallbackAttemptRegistry(preferences, registry, editor);
@@ -1138,6 +1778,7 @@ public class RkjFiuuVtPlugin extends Plugin {
             entry.put("generation", generation);
             entry.put("callbackReceived", callbackReceived);
             entry.put("registeredAt", registeredAt > 0L ? registeredAt : System.currentTimeMillis());
+            entry.put("releasedAt", 0L);
             return entry;
         } catch (JSONException error) {
             return null;
@@ -1150,7 +1791,7 @@ public class RkjFiuuVtPlugin extends Plugin {
         String callbackHost = normalizedCallbackHost(entry.optString("callbackHost"));
         return isMatchingCallbackAttempt(attemptId, callbackHost)
             && isFiuuOperation(entry.optString("operation"))
-            && normalizedOrderId(entry.optString("orderId")) != null
+            && normalizedLegacyOrderId(entry.optString("orderId")) != null
             && normalizedAmount(entry.optString("amount")) != null
             && entry.optInt("generation", 1) >= 1;
     }
@@ -1173,16 +1814,55 @@ public class RkjFiuuVtPlugin extends Plugin {
         return null;
     }
 
-    private int findSafestCallbackAttemptToDrop(JSONArray registry, JSONArray queuedResults) {
+    private int findSafestCallbackAttemptToDrop(
+        JSONArray registry,
+        JSONArray queuedResults,
+        String currentPendingOrder
+    ) {
         for (int index = 0; index < registry.length(); index++) {
             JSONObject entry = registry.optJSONObject(index);
             if (entry != null
+                && !isProtectedCallbackAttempt(entry, currentPendingOrder)
                 && entry.optBoolean("callbackReceived", false)
                 && hasQueuedResultForAttempt(queuedResults, entry.optString("attemptId"))) {
                 return index;
             }
         }
-        return -1;
+        long now = System.currentTimeMillis();
+        for (int index = 0; index < registry.length(); index++) {
+            JSONObject entry = registry.optJSONObject(index);
+            long releasedAt = entry == null ? 0L : entry.optLong("releasedAt", 0L);
+            if (entry != null
+                && !isProtectedCallbackAttempt(entry, currentPendingOrder)
+                && releasedAt > 0L
+                && now - releasedAt >= RELEASED_CALLBACK_RETENTION_MS) {
+                return index;
+            }
+        }
+
+        // At the high-water mark, compact the oldest explicitly released
+        // attempt even during the normal retention window. Active unresolved
+        // attempts (releasedAt == 0) and every attempt for the current pending
+        // order remain ineligible, so compaction can sustain normal checkout
+        // volume without sacrificing the identity of an in-flight payment.
+        int oldestReleasedIndex = -1;
+        long oldestReleasedAt = Long.MAX_VALUE;
+        for (int index = 0; index < registry.length(); index++) {
+            JSONObject entry = registry.optJSONObject(index);
+            if (entry == null || isProtectedCallbackAttempt(entry, currentPendingOrder)) continue;
+            long releasedAt = entry.optLong("releasedAt", 0L);
+            if (releasedAt > 0L && releasedAt < oldestReleasedAt) {
+                oldestReleasedAt = releasedAt;
+                oldestReleasedIndex = index;
+            }
+        }
+        return oldestReleasedIndex;
+    }
+
+    private boolean isProtectedCallbackAttempt(JSONObject entry, String currentPendingOrder) {
+        return entry.optLong("releasedAt", 0L) <= 0L
+            || (!safe(currentPendingOrder).isEmpty()
+                && safe(currentPendingOrder).equals(entry.optString("orderId")));
     }
 
     private boolean hasQueuedResultForAttempt(JSONArray queue, String attemptId) {
@@ -1338,8 +2018,13 @@ public class RkjFiuuVtPlugin extends Plugin {
     }
 
     private static String normalizedOrderId(String value) {
-        String normalized = safe(value);
+        String normalized = safe(value).toUpperCase(Locale.ROOT);
         return ORDER_PATTERN.matcher(normalized).matches() ? normalized : null;
+    }
+
+    private static String normalizedLegacyOrderId(String value) {
+        String normalized = safe(value);
+        return LEGACY_ORDER_PATTERN.matcher(normalized).matches() ? normalized : null;
     }
 
     private static BigDecimal normalizedAmount(String value) {

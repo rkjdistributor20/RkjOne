@@ -280,7 +280,13 @@ export async function createPosQrPayment(
     typeof data === 'object' && data !== null && 'mode' in data && typeof data.mode === 'string'
      ? data.mode
      : null;
-   throw new PosQrPaymentError(error.message, error.status, mode);
+   const retryAfterMs =
+    typeof data === 'object' && data !== null
+     && 'retry_after_ms' in data && typeof data.retry_after_ms === 'number'
+     && Number.isFinite(data.retry_after_ms)
+     ? Math.max(0, Math.min(30_000, Math.ceil(data.retry_after_ms)))
+     : null;
+   throw new PosQrPaymentError(error.message, error.status, mode, retryAfterMs);
   }
   throw error;
  }
@@ -306,7 +312,13 @@ export async function submitFiuuVtResult(
     typeof data === 'object' && data !== null && 'mode' in data && typeof data.mode === 'string'
      ? data.mode
      : null;
-   throw new PosQrPaymentError(error.message, error.status, mode);
+   const retryAfterMs =
+    typeof data === 'object' && data !== null
+     && 'retry_after_ms' in data && typeof data.retry_after_ms === 'number'
+     && Number.isFinite(data.retry_after_ms)
+     ? Math.max(0, Math.min(30_000, Math.ceil(data.retry_after_ms)))
+     : null;
+   throw new PosQrPaymentError(error.message, error.status, mode, retryAfterMs);
   }
   throw error;
  }

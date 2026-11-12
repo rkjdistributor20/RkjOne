@@ -16,17 +16,110 @@ const androidManifest = readFileSync(join(
 ), 'utf8');
 
 describe('Fiuu VT Android bridge resilience', () => {
- it('advertises bridge v6 and exposes the active one-time callback identity', () => {
-  expect(nativePlugin).toContain('private static final int BRIDGE_API_VERSION = 6;');
+ it('advertises bridge v8 and exposes the active one-time callback identity', () => {
+  expect(nativePlugin).toContain('private static final int BRIDGE_API_VERSION = 8;');
   expect(nativePlugin).toContain('result.put("bridgeApiVersion", BRIDGE_API_VERSION);');
   expect(nativePlugin).toContain('"pendingOperationStartedAt"');
   expect(nativePlugin).toContain('"activeCallbackAttemptId"');
   expect(nativePlugin).toContain('"activeCallbackHost"');
   expect(nativePlugin).toContain('preferences.getLong(LAST_LAUNCH_AT, 0L)');
   expect(nativeClient).toContain('pendingOperationStartedAt?: number | null;');
-  expect(nativeClient).toContain('FIUU_VT_BRIDGE_RESILIENCE_API_VERSION = 6');
-  expect(nativeClient).toContain('FIUU_VT_CALLBACK_ATTEMPT_API_VERSION = 6');
+  expect(nativeClient).toContain('FIUU_VT_BRIDGE_RESILIENCE_API_VERSION = 8');
+  expect(nativeClient).toContain('FIUU_VT_CALLBACK_ATTEMPT_API_VERSION = 8');
   expect(nativeClient).toContain('pendingOperationStartedAt: null');
+ });
+
+ it('quarantines malformed state and blocks release when it belongs to a launched sale', () => {
+  expect(nativePlugin).toContain('private static final String QUARANTINED_RESULT_QUEUE');
+  expect(nativePlugin).toContain('private static final int QUARANTINED_RESULT_QUEUE_LIMIT = 32;');
+  expect(nativePlugin).toContain('quarantineInvalidPendingStateIfNeeded(preferences)');
+  expect(nativePlugin).toContain('isProcessableQueuedResult(entry)');
+  expect(nativePlugin).toContain('"RESULT_QUEUE_INVALID",');
+  expect(nativePlugin).toContain('"INVALID_PENDING_ORDER",');
+  expect(nativePlugin).toContain('result.put("quarantinedResultCount"');
+  expect(nativePlugin).toContain('"quarantineBlocksRelease"');
+  expect(nativePlugin).toContain('hasBlockingQuarantinedResultForOrder(');
+  expect(nativePlugin).toContain('"FIUU_RECONCILIATION_REQUIRED"');
+  expect(nativePlugin).toContain('Pattern.compile("^RKJ_[A-F0-9]{32}$")');
+  expect(nativePlugin).toContain('safe(value).toUpperCase(Locale.ROOT)');
+  expect(nativeClient).toContain('quarantinedResultCount?: number;');
+  expect(nativeClient).toContain('quarantineBlocksRelease?: boolean;');
+  expect(nativeClient).toContain('quarantinedResultCount: 0');
+  expect(nativeClient).toContain('quarantineBlocksRelease: false');
+ });
+
+ it('fails closed for corrupt result or quarantine persistence without fabricating a callback', () => {
+  const saleStart = nativePlugin.indexOf('public synchronized void startSale');
+  const saleEnd = nativePlugin.indexOf('public synchronized void acknowledgeResult', saleStart);
+  const saleFlow = nativePlugin.slice(saleStart, saleEnd);
+  const clearStart = nativePlugin.indexOf('public synchronized void clearPendingResult');
+  const clearEnd = nativePlugin.indexOf('public synchronized boolean handleDeepLink', clearStart);
+  const clearFlow = nativePlugin.slice(clearStart, clearEnd);
+  const resultLoadStart = nativePlugin.indexOf('private QueueLoadState loadResultQueueState');
+  const resultLoadEnd = nativePlugin.indexOf('private boolean isProcessableQueuedResult', resultLoadStart);
+  const resultLoad = nativePlugin.slice(resultLoadStart, resultLoadEnd);
+  const quarantineLoadStart = nativePlugin.indexOf('private QueueLoadState loadQuarantinedResultQueueState');
+  const quarantineLoadEnd = nativePlugin.indexOf('private SharedPreferences.Editor writeQuarantinedResultQueue', quarantineLoadStart);
+  const quarantineLoad = nativePlugin.slice(quarantineLoadStart, quarantineLoadEnd);
+
+  expect(saleFlow).toContain('QueueLoadState storedResults = loadResultQueueState(preferences);');
+  expect(saleFlow).toContain('if (!storedResults.safeForMutation)');
+  expect(clearFlow).toContain('if (!storedResults.safeForMutation)');
+  expect(nativePlugin.match(/"FIUU_STORAGE_RECOVERY_REQUIRED"/g)).toHaveLength(2);
+  expect(resultLoad).toContain('if (!writeQuarantinedResultQueue(editor, quarantine).commit())');
+  expect(resultLoad).toContain('safeForMutation = false;');
+  expect(quarantineLoad).toContain('"QUARANTINE_QUEUE_MALFORMED"');
+  expect(quarantineLoad).toContain('if (!writeQuarantinedResultQueue(preferences.edit(), quarantine).commit())');
+  expect(quarantineLoad).not.toContain('enqueueResult(');
+  expect(resultLoad).not.toContain('markCallbackAttemptReceived(');
+ });
+
+ it('validates provider payDate and preserves legacy callback identity for reconciliation', () => {
+  expect(nativePlugin).toContain('private static final Pattern PAY_DATE_PATTERN');
+  expect(nativePlugin).toContain('(payDate.isEmpty() || PAY_DATE_PATTERN.matcher(payDate).matches())');
+  expect(nativePlugin).toContain('normalizedLegacyOrderId(callbackAttempt.optString("orderId"))');
+  expect(nativePlugin).toContain('"LEGACY_CALLBACK_REQUIRES_REVIEW"');
+  expect(nativePlugin).toContain('markCallbackAttemptReceived(preferences, callbackAttemptId)');
+  expect(nativeClient).toContain("console.error('[fiuu-vt] rejected_native_callback', error)");
+ });
+
+ it('releases only aged legacy launches that have no callback or queued payment evidence', () => {
+  const migrationStart = nativePlugin.indexOf('private void quarantineInvalidPendingStateIfNeeded');
+  const migrationEnd = nativePlugin.indexOf('private boolean saveResultQueue', migrationStart);
+  const migrationFlow = nativePlugin.slice(migrationStart, migrationEnd);
+
+  expect(nativePlugin).toContain('private static final long LEGACY_PENDING_RECOVERY_GRACE_MS');
+  expect(migrationFlow).toContain('latestLegacyRecoveryEvidenceAt(');
+  expect(migrationFlow).toContain('now - latestEvidenceAt < LEGACY_PENDING_RECOVERY_GRACE_MS');
+  expect(migrationFlow).toContain('resultState.values.length() > 0');
+  expect(migrationFlow).toContain('hasLegacyProviderEvidence(quarantine, registry, pendingOrder)');
+  expect(migrationFlow).toContain('entry.optBoolean("callbackReceived", false)');
+  expect(migrationFlow).toContain('"LEGACY_PENDING_RELEASED_AFTER_GRACE"');
+  expect(migrationFlow).toContain('markCallbackAttemptsReleased(preferences, pendingOrder, recoveryEditor)');
+  expect(migrationFlow).toContain('.remove(PENDING_ORDER)');
+ });
+
+ it('requires explicit reviewed recovery for aged legacy evidence and preserves its audit trail', () => {
+  const recoveryStart = nativePlugin.indexOf('public synchronized void recoverLegacyPendingState');
+  const recoveryEnd = nativePlugin.indexOf('public synchronized boolean handleDeepLink', recoveryStart);
+  const recoveryFlow = nativePlugin.slice(recoveryStart, recoveryEnd);
+  const reviewStart = nativePlugin.indexOf('private boolean markLegacyPendingQuarantineReviewed');
+  const reviewEnd = nativePlugin.indexOf('private SharedPreferences.Editor legacyPendingReleaseEditor', reviewStart);
+  const reviewFlow = nativePlugin.slice(reviewStart, reviewEnd);
+
+  expect(recoveryFlow).toContain('Boolean.TRUE.equals(call.getBoolean("reviewed"))');
+  expect(recoveryFlow).toContain('reviewReference.length() < 8');
+  expect(recoveryFlow).toContain('"FIUU_LEGACY_REVIEW_REQUIRED"');
+  expect(recoveryFlow).toContain('now - latestEvidenceAt < LEGACY_PENDING_RECOVERY_GRACE_MS');
+  expect(recoveryFlow).toContain('resultState.values.length() > 0');
+  expect(recoveryFlow).toContain('markLegacyPendingQuarantineReviewed(');
+  expect(recoveryFlow).toContain('markCallbackAttemptsReleased(preferences, pendingOrder, recoveryEditor)');
+  expect(nativePlugin).toContain('latest = Math.max(latest, entry.optLong("quarantinedAt", 0L));');
+  expect(nativePlugin).toContain('latest = Math.max(latest, entry.optLong("receivedAt", 0L));');
+  expect(reviewFlow).toContain('entry.put("originalReason", entry.optString("reason", "UNKNOWN"))');
+  expect(reviewFlow).toContain('"LEGACY_PENDING_RELEASED_AFTER_REVIEW"');
+  expect(reviewFlow).toContain('entry.put("reviewReference", reviewReference)');
+  expect(reviewFlow).toContain('entry.remove("blockingOrderId")');
  });
 
  it('requires a server-issued attempt and launches Fiuu with its dynamic host', () => {
@@ -99,8 +192,10 @@ describe('Fiuu VT Android bridge resilience', () => {
   expect(acknowledgeResult).toContain(
    'removeCallbackAttempt(preferences, callbackAttemptId, acknowledgementEditor)',
   );
-  expect(clearPendingResult).toContain('boolean cleared = preferences.edit()');
-  expect(clearPendingResult).toContain('.commit();');
+  expect(clearPendingResult).toContain('SharedPreferences.Editor clearEditor = preferences.edit()');
+  expect(clearPendingResult).toContain('boolean cleared = markCallbackAttemptsReleased(');
+  expect(clearPendingResult).toContain('clearEditor');
+  expect(nativePlugin).toContain('return saveCallbackAttemptRegistry(preferences, registry, editor);');
   expect(clearPendingResult).toContain('FIUU_CLEAR_PERSIST_FAILED');
  });
 
@@ -120,6 +215,29 @@ describe('Fiuu VT Android bridge resilience', () => {
   expect(evictionFlow).toContain('"MATCHED".equals(value.optString("callbackValidation"))');
   expect(evictionFlow).toContain('normalizedAttemptId(value.optString("callbackAttemptId"))');
   expect(evictionFlow).toContain('return isFiuuOperation(value.optString("opType"));');
+ });
+
+ it('retains released callback hosts long enough for late callbacks and never evicts unresolved hosts', () => {
+  expect(nativePlugin).toContain('private static final int CALLBACK_ATTEMPT_REGISTRY_LIMIT = 256;');
+  expect(nativePlugin).toContain('private static final long RELEASED_CALLBACK_RETENTION_MS');
+  expect(nativePlugin).toContain('entry.put("releasedAt", releasedAt)');
+  expect(nativePlugin).toContain('if (removableIndex < 0) {');
+  expect(nativePlugin).toContain('throw new IllegalStateException("Fiuu callback registry is full")');
+  expect(nativePlugin).toContain('normalizedLegacyOrderId(preferences.getString(PENDING_ORDER, ""))');
+ });
+
+ it('compacts released registry entries at high water without evicting unresolved or current attempts', () => {
+  const compactionStart = nativePlugin.indexOf('private int findSafestCallbackAttemptToDrop');
+  const compactionEnd = nativePlugin.indexOf('private boolean hasQueuedResultForAttempt', compactionStart);
+  const compactionFlow = nativePlugin.slice(compactionStart, compactionEnd);
+
+  expect(nativePlugin).toContain('String currentPendingOrder = preferences.getString(PENDING_ORDER, "");');
+  expect(nativePlugin).toContain('findSafestCallbackAttemptToDrop(\n                registry,\n                queuedResults,\n                currentPendingOrder');
+  expect(compactionFlow).toContain('isProtectedCallbackAttempt(entry, currentPendingOrder)');
+  expect(compactionFlow).toContain('long oldestReleasedAt = Long.MAX_VALUE;');
+  expect(compactionFlow).toContain('releasedAt > 0L && releasedAt < oldestReleasedAt');
+  expect(compactionFlow).toContain('entry.optLong("releasedAt", 0L) <= 0L');
+  expect(compactionFlow).toContain('safe(currentPendingOrder).equals(entry.optString("orderId"))');
  });
 
  it('returns stale VOID operations to STATUS while keeping fresh VOID launches isolated', () => {

@@ -26,6 +26,8 @@ export type FiuuVtNativeStatus = {
  activeCallbackAttemptId?: string | null;
  activeCallbackHost?: string | null;
  resultAvailable: boolean;
+ quarantinedResultCount?: number;
+ quarantineBlocksRelease?: boolean;
  resultReceivedAt?: number | null;
 };
 
@@ -91,8 +93,8 @@ const NativeFiuuVt = registerPlugin<FiuuVtPlugin>('RkjFiuuVt');
 
 const RESULT_ACKNOWLEDGEMENT_API_VERSION = 5;
 const VOID_API_VERSION = 3;
-export const FIUU_VT_BRIDGE_RESILIENCE_API_VERSION = 6;
-export const FIUU_VT_CALLBACK_ATTEMPT_API_VERSION = 6;
+export const FIUU_VT_BRIDGE_RESILIENCE_API_VERSION = 8;
+export const FIUU_VT_CALLBACK_ATTEMPT_API_VERSION = 8;
 export const FIUU_VT_BRIDGE_TIMEOUT_CODE = 'FIUU_VT_BRIDGE_TIMEOUT';
 const NATIVE_READ_TIMEOUT_MS = 8_000;
 const NATIVE_LAUNCH_TIMEOUT_MS = 12_000;
@@ -268,6 +270,8 @@ export async function readFiuuVtStatus(): Promise<FiuuVtNativeStatus> {
    activeCallbackAttemptId: null,
    activeCallbackHost: null,
    resultAvailable: false,
+   quarantinedResultCount: 0,
+    quarantineBlocksRelease: false,
     resultReceivedAt: null,
   };
  }
@@ -367,8 +371,10 @@ export async function listenForFiuuVtResult(
  return NativeFiuuVt.addListener('fiuuVtResult', (result) => {
   try {
    listener(parseNativeCallbackResult(result));
-  } catch {
-   // Native validation already rejected malformed callbacks. Ignore stale data.
+  } catch (error) {
+   // Native and web validators should agree. Surface any version-skew residue
+   // for diagnostics; polling/quarantine keeps it from blocking silently.
+   console.error('[fiuu-vt] rejected_native_callback', error);
   }
  });
 }

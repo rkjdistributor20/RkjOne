@@ -546,6 +546,11 @@ describe('Fiuu VT one-time callback reconciliation', () => {
   const response = await invoke(result);
 
   expect(response.status).toBe(409);
+  const body = await response.json();
+  expect(body).toMatchObject({
+   mode: 'FIUU_VT_CALLBACK_ACTIVE',
+  });
+  expect(body.retry_after_ms).toBeGreaterThan(0);
   expect(state.payment).toMatchObject({ status: 'PENDING' });
   expect(state.paymentUpdates).toHaveLength(0);
   expect(state.attempt).toMatchObject({ state: 'RECEIVED' });

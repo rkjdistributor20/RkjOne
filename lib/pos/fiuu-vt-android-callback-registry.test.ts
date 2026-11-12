@@ -97,7 +97,7 @@ describe('Fiuu VT Android historical callback registry', () => {
    'private static final String CALLBACK_ATTEMPT_REGISTRY = "callback_attempt_registry";',
   );
   expect(plugin).toContain(
-   'private static final int CALLBACK_ATTEMPT_REGISTRY_LIMIT = 128;',
+   'private static final int CALLBACK_ATTEMPT_REGISTRY_LIMIT = 256;',
   );
 
   const saveRegistry = methodBody(

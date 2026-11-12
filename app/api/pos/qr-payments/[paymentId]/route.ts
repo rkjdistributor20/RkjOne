@@ -8,9 +8,6 @@ import {
 } from '@/lib/pos/access';
 import { isFiuuReconciliationExpired } from '@/lib/pos/fiuu';
 import {
- recoverReportedFiuuVtPayment,
-} from '@/lib/pos/fiuu-vt-reliability';
-import {
  buildFiuuCloudEcrReferenceId,
  type FiuuCloudEcrResponse,
 } from '@/lib/pos/fiuu-cloudecr';
@@ -61,23 +58,6 @@ export async function GET(
   return NextResponse.json(
    { error: err instanceof Error ? err.message : 'Akses cawangan ditolak' },
    { status: posAccessErrorStatus(err) });
- }
-
- if (data.provider === 'fiuu_vt' && data.status === 'REPORTED') {
-  const recovery = await recoverReportedFiuuVtPayment(service, data);
-  if (recovery === 'retryable') {
-   console.error('[pos-fiuu-vt] reported_fulfillment_retry_failed', {
-    paymentId: data.id,
-   });
-  } else if (recovery === 'invalid_evidence') {
-   console.error('[pos-fiuu-vt] reported_fulfillment_evidence_invalid', {
-    paymentId: data.id,
-   });
-  }
-
-  const refreshed = await service.from('pos_online_payments').select(paymentSelect)
-   .eq('id', paymentId).eq('organization_id', profile.organization_id).maybeSingle();
-  if (!refreshed.error && refreshed.data) data = refreshed.data;
  }
 
  if (data.provider === 'fiuu' && data.status === 'REPORTED' && data.gateway_ref) {
