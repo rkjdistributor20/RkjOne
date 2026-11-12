@@ -149,7 +149,7 @@ Before enabling `fiuu_vt` in Preview, all of the following must be true:
 - the official tablet reports the standard VT package installed and trusted;
 - RKJ One native Android 1.7.0 is installed; Chrome/PWA is not used for App-to-App launch;
 - migration `20261027120000_harden_fiuu_vt_br001_pilot.sql` is applied to staging;
-- Preview contains exactly `POS_QR_PAYMENT_MODE=fiuu_vt`, `POS_FIUU_VT_BRANCHES=BR001` and `POS_FIUU_VT_VALIDITY_SECONDS=900`; and
+- Preview contains exactly `POS_QR_PAYMENT_MODE=fiuu_vt`, `POS_FIUU_VT_BRANCHES=BR001` and `POS_FIUU_VT_VALIDITY_SECONDS=180`; and
 - there is no unresolved `PENDING` or `REPORTED` Fiuu payment for the BR001 shift/device.
 
 The VT activation screen's four fields are an activation code, not the Merchant

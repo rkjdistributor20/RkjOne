@@ -105,8 +105,10 @@ The VT deep-link response does **not** contain HMAC, a digital signature, nonce 
 
 - SALE never creates a sale, receipt or stock movement;
 - STATUS must match the random order ID, Transaction ID, amount, `MYR` and exact DuitNow channel;
-- `22`, `33` and `45` remain pending; `11`, `44` and `55` enter a three-second final-status settlement hold before the attempt is released;
-- a matching concurrent STATUS `00` wins that short hold, while creation of a second payable attempt is blocked; after the hold a confirmed `55` preserves the cart and lets staff start a fresh payment immediately;
+- `22`, `33` and `45` remain pending; the first `11`, `44` or `55` response remains pending and triggers a fresh STATUS request;
+- only a second matching STATUS response carrying the server-issued one-time confirmation token releases the counter, while any STATUS `00` wins immediately as durable success evidence and creation of a second payable attempt remains blocked;
+- VOID never proves payment success or releases the counter by itself; it always triggers a fresh STATUS request;
+- the local QR countdown never expires an unresolved VT payment by itself; RKJ One retries STATUS until Fiuu supplies an authoritative success, cancellation or expiry result;
 - STATUS is rejected unless the matching SALE result and immutable Transaction ID were recorded first;
 - STATUS `00` is recorded durably as `REPORTED`, cannot be expired into a second payable attempt and immediately directs the RKJ One client to automatic fulfillment;
 - the automatic request still requires the same authenticated user, official device, branch and active shift, plus a fresh exact STATUS match;
@@ -122,7 +124,7 @@ This is automatic operational confirmation, not cryptographic provider verificat
 ```dotenv
 POS_QR_PAYMENT_MODE=fiuu_vt
 POS_FIUU_VT_BRANCHES=BR001,BR002,BR003,BR004,BR005,BR006,BR007,BR008,BR009,BR010,BR011,BR012,BR013,BR014,BR015,BR016,BR017,BR018,BR019,BR020,BR021,BR022,BR023,BR024,BR025,BR026,BR027,BR028,BR029,BR030,BR031,BR032,BR033,BR034,BR035,BR036
-POS_FIUU_VT_VALIDITY_SECONDS=900
+POS_FIUU_VT_VALIDITY_SECONDS=180
 ```
 
 Allowlisting is not enrollment and does not make an outlet payment-ready. The native RKJ One Android build and official Fiuu VT app are required; the web/PWA alone cannot launch and validate the Fiuu VT app. Never copy a registered tablet session to another device or cawangan.

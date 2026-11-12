@@ -74,6 +74,9 @@ vi.mock('@/lib/pos/fiuu-cloudecr-server', () => ({
 vi.mock('@/lib/pos/fiuu-vt', () => ({
  buildFiuuVtOrderId: vi.fn(),
 }));
+vi.mock('@/lib/pos/fiuu-vt-reliability', () => ({
+ FIUU_VT_RECONCILIATION_QUARANTINE_MS: 30_000,
+}));
 vi.mock('@/lib/pos/fiuu-vt-server', () => ({
  getFiuuVtValiditySeconds: vi.fn(),
  isFiuuVtEnabledForBranch: vi.fn(() => false),

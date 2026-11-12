@@ -86,7 +86,7 @@ POS Fiuu DuitNow QR variables:
 | `FIUU_RECONCILIATION_ENABLED` | Yes for the OPA recovery worker | Server only; fail-closed default `false` |
 | `FIUU_RECONCILIATION_SECRET` | When the OPA recovery worker is enabled | Server-only secret of at least 32 random characters; leave unset while disabled |
 | `POS_FIUU_VT_BRANCHES` | When VT App-to-App is enabled | Server; explicit comma-separated canonical `BR001`-`BR036` allowlist, no wildcard or duplicate; each branch remains static/manual until its verified official tablet is registered |
-| `POS_FIUU_VT_VALIDITY_SECONDS` | Optional | Server; 60-3600 seconds, default 900 |
+| `POS_FIUU_VT_VALIDITY_SECONDS` | Optional | Server; 60-3600 seconds, default 180 |
 
 The OPA mapping is keyed by canonical branch code and is tenant-bound:
 

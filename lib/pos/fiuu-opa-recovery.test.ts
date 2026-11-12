@@ -99,7 +99,8 @@ describe('Fiuu OPA inquiry recovery migration', () => {
  it('does not auto-reverse and does not silently expire an unresolved OPA payment', () => {
   expect(statusRoute).not.toContain('reverseFiuuOpaPayment');
   expect(statusRoute).toContain("data.provider !== 'fiuu'");
-  expect(createRoute).toContain(".in('provider', ['fiuu_vt', 'fiuu_cloudecr'])");
+  expect(createRoute).toContain(".eq('provider', 'fiuu_cloudecr')");
+  expect(createRoute).not.toContain(".in('provider', ['fiuu_vt', 'fiuu_cloudecr'])");
   expect(migration).toContain("payment.provider = 'fiuu'");
   expect(migration).toContain("payment.status = 'PENDING'");
  });

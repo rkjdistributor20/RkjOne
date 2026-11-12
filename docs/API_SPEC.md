@@ -4,7 +4,7 @@
 
 `GET /api/pos/qr-config?branch_id=<uuid>` requires an authenticated RKJ One profile and applies the standard POS branch-scope check. It returns the active QR mode, selected branch identity, and the versioned static Fiuu QR descriptor where configured. It advertises dynamic OPA only after `is_pos_fiuu_opa_branch_active` returns `true` for the exact tenant, branch and full rollout configuration fingerprint. A missing RPC, RPC error, `false` result or non-`ACTIVE` rollout fails closed and does not advertise dynamic QR. No Fiuu secret or server credential is returned.
 
-Last updated: 2026-11-04
+Last updated: 2026-11-12
 
 Base URL:
 
@@ -66,9 +66,25 @@ proof.
 
 Accepts only a normalized transaction result captured by the native RKJ One bridge on the same official device, user, branch and shift that created the intent. SALE never fulfills a transaction and always leads to a STATUS request. STATUS `22`, `33`, `45` and `55` remain locked pending during the bounded reconciliation window; `11` and `44` close the attempt. Unsigned STATUS `00` records the durable database state `REPORTED` and directs the client to invoke automatic fulfillment. The official VT error callback contains only `errorCode` and `errorMsg`; the native bridge associates it with the current pending order, keeps it local, and asks the authenticated RKJ status endpoint to reconcile the durable attempt. An error callback alone never creates a sale, receipt, stock movement or paid status.
 
+### POST/PATCH `/api/pos/qr-payments/[paymentId]/vt-attempt`
+
+Creates and advances a one-time native callback attempt for `SALE`, `STATUS` or `VOID`. The attempt is bound to the exact payment, official tablet, user, shift and random callback host. `SALE` is never retried. A missing STATUS callback becomes safely retryable only after a 25-second lease and reuses the existing operation generation; concurrent STATUS and VOID requests are serialized under the payment-row lock. `PATCH` records only a successful native launch or a proven pre-launch failure. Provider credentials are never returned.
+
+### POST `/api/pos/qr-payments/[paymentId]/vt-prelaunch-cancel`
+
+Atomically cancels only a SALE attempt that is still proven unlaunched and has no provider or callback evidence. It requires the same authenticated official tablet, user, branch and shift. Ambiguous, launched, paid, reported or mismatched attempts fail closed and remain locked for reconciliation. A successful cancellation releases the cashier while preserving the cart.
+
 ### POST `/api/pos/qr-payments/[paymentId]/vt-confirm`
 
 Requires the same authenticated official device and a fresh matching STATUS `00` result. The client invokes it automatically; a visible retry remains available only for interrupted recovery. It invokes a service-role-only, row-locked RPC that creates at most one sale, receipt and stock movement. This is automatic operational confirmation, not cryptographic proof from Fiuu.
+
+### GET `/api/cron/fiuu-vt-recover`
+
+Vercel Cron entry point for one-minute server recovery of durable VT `REPORTED` payments. The route requires the platform cron secret, processes a bounded batch and delegates to the same exact-once fulfillment path used by authenticated polling. It never creates a new provider SALE.
+
+### POST `/api/internal/pos/fiuu-vt/recover`
+
+Restricted operational recovery endpoint for the same bounded worker. It requires the configured internal recovery secret and returns sanitized counts only. It exists for monitored staging/incident recovery and must not expose payment credentials or raw callback payloads.
 
 Response convention:
 

@@ -1,13 +1,19 @@
 # Changelog
 
-## 2026-11-12 - Prepare Android 1.8.0 Fiuu VT checkout recovery
+## 2026-11-12 - Prepare Android 1.8.1 Fiuu VT checkout resilience
 
-- Prepared Google Play version `1.8.0` (`versionCode 18`) with the signed company upload key for a coordinated Production release.
+- Prepared Google Play version `1.8.1` (`versionCode 19`) with the signed company upload key for a coordinated Production release.
 - Added an explicit cashier escape path for expired, cancelled and abandoned Fiuu VT attempts so the next customer can be served without waiting for a stale QR window.
 - Reconciled late provider callbacks before cancellation and preserved exact-once receipt, stock and fulfillment protections when a payment succeeds near the expiry boundary.
-- Hardened native callback recovery across app resume/restart, repeated callbacks and stale pending state without reopening a completed sale.
+- Hardened native callback recovery across app resume/restart, repeated callbacks, a missing VOID callback and stale pending state without reopening a completed sale.
+- Prevented timer-only expiry from releasing an unresolved VT payment; two consecutive matching provider STATUS results are now required before a failed, cancelled or expired attempt releases the counter, while any STATUS `00` remains durable success evidence.
+- Added jittered foreground/online polling, retrying STATUS recovery, stale-response isolation and automatic receipt recovery when payment fulfillment completed before the receipt reached the tablet.
+- Added a protected one-minute server recovery job for durable `REPORTED` successes so exact-once receipt and stock fulfillment no longer depends on the cashier keeping the payment screen open.
+- Reduced the default customer payment window from 15 minutes to 180 seconds and added clear pre-launch, active-pending and expired-payment release actions so a cashier can recover the counter without losing the cart.
+- Added a server-arbitrated 25-second STATUS retry lease: a missing STATUS callback can be retried safely, STATUS and VOID cannot race each other, and the original SALE is never submitted a second time.
+- Persisted every native Fiuu callback by payment attempt across Android activity recreation and app restart so older late callbacks cannot be replaced by a newer checkout attempt.
 - Retained branch, tablet, user, shift, amount, currency and DuitNow channel matching for registered `BR001`-`BR036` devices.
-- The release remains gated by the matching `rkj.one` server deployment and final Play Console rollout confirmation.
+- Local/Preview validation is required before the matching `rkj.one` server deployment and final Play Console rollout confirmation; this entry does not record a Production change.
 
 ## 2026-11-04 - Prepare registered-device Fiuu VT for BR001-BR036
 

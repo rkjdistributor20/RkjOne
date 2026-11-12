@@ -41,7 +41,6 @@ import {
 } from '@/lib/pos/fiuu-cloudecr-server';
 import {
  buildFiuuVtOrderId,
- FIUU_VT_TERMINAL_SETTLE_MS,
 } from '@/lib/pos/fiuu-vt';
 import {
  getFiuuVtValiditySeconds,
@@ -491,8 +490,11 @@ export async function POST(request: Request) {
  };
  const existingSelect = 'id, amount_rm, branch_id, shift_id, created_by, provider, status, sale_payload, gateway_ref, checkout_url, expires_at, provider_order_id';
 
- // A provider success cannot be accepted after this bounded grace. Expire only
- // those stale rows before checking the server-side one-active-intent guard.
+ // cloudECR has a server-to-server reconciliation path, so an unresolved row
+ // may be released after the bounded grace. Legacy Fiuu VT is different: a
+ // late STATUS=00 can still arrive from the terminal after the display timer
+ // ends. Never time-expire that row here, otherwise a cashier could create a
+ // second SALE while the first one actually succeeded at the provider.
  const reconciliationCutoff = new Date(Date.now() - FIUU_CALLBACK_GRACE_MS).toISOString();
  const { error: expireError } = await admin
   .from('pos_online_payments')
@@ -500,7 +502,7 @@ export async function POST(request: Request) {
   .eq('organization_id', profile.organization_id)
   .eq('branch_id', body.branchId)
   .eq('shift_id', body.shiftId)
- .in('provider', ['fiuu_vt', 'fiuu_cloudecr'])
+  .eq('provider', 'fiuu_cloudecr')
   .eq('status', 'PENDING')
   .lte('expires_at', reconciliationCutoff);
  if (expireError) {
@@ -518,38 +520,6 @@ export async function POST(request: Request) {
  }
  if (existingPayment) {
   return existingPaymentResponse(existingPayment, expectedIntent, transport);
- }
-
- // A non-success STATUS result is held for a few seconds so an in-flight
- // matching STATUS=00 can win safely. Do not let another tab create a second
- // charge during that final provider-settlement window.
- if (transport.integration === 'vt_app') {
-  const settleCutoff = new Date(Date.now() - FIUU_VT_TERMINAL_SETTLE_MS).toISOString();
-  const { data: settlingPayment, error: settlingError } = await admin
-   .from('pos_online_payments')
-   .select('id')
-   .eq('organization_id', profile.organization_id)
-   .eq('branch_id', body.branchId)
-   .eq('shift_id', body.shiftId)
-   .eq('created_by', profile.id)
-   .eq('provider', 'fiuu_vt')
-   .in('status', ['FAILED', 'EXPIRED', 'CANCELLED'])
-   .gte('provider_status_checked_at', settleCutoff)
-   .order('provider_status_checked_at', { ascending: false })
-   .limit(1)
-   .maybeSingle();
-  if (settlingError) {
-   return NextResponse.json({ error: 'Status akhir Fiuu VT tidak dapat disahkan' }, { status: 400 });
-  }
-  if (settlingPayment) {
-   return NextResponse.json(
-    {
-     error: 'Tunggu beberapa saat sementara status akhir Fiuu disahkan.',
-     mode: 'FIUU_FINAL_STATUS_SETTLING',
-    },
-    { status: 409 },
-   );
-  }
  }
 
  const { data: activePayment, error: activeError } = await admin

@@ -6,9 +6,10 @@ import {
  assertCanAccessPosBranch,
  posAccessErrorStatus,
 } from '@/lib/pos/access';
-import { FIUU_CALLBACK_GRACE_MS, isFiuuReconciliationExpired } from '@/lib/pos/fiuu';
-import { FIUU_VT_TERMINAL_SETTLE_MS } from '@/lib/pos/fiuu-vt';
-import { getFiuuVtLateRecoveryMs } from '@/lib/pos/fiuu-vt-server';
+import { isFiuuReconciliationExpired } from '@/lib/pos/fiuu';
+import {
+ recoverReportedFiuuVtPayment,
+} from '@/lib/pos/fiuu-vt-reliability';
 import {
  buildFiuuCloudEcrReferenceId,
  type FiuuCloudEcrResponse,
@@ -45,7 +46,7 @@ export async function GET(
  const { paymentId } = await context.params;
  const service = createAdminClient();
  const paymentSelect =
-  'id, branch_id, shift_id, amount_rm, status, provider, gateway_ref, paid_at, transaction_id, expires_at, provider_result, provider_order_id, provider_status_checked_at' as const;
+  'id, branch_id, shift_id, amount_rm, status, provider, gateway_ref, paid_at, transaction_id, expires_at, created_by, provider_result, provider_order_id, provider_transaction_id, provider_sale_reported_at, provider_status_checked_at, fiuu_vt_review_required, fiuu_vt_reconciliation_state' as const;
  const initial = await service.from('pos_online_payments').select(paymentSelect)
   .eq('id', paymentId).eq('organization_id', profile.organization_id).maybeSingle();
 
@@ -59,6 +60,23 @@ export async function GET(
   return NextResponse.json(
    { error: err instanceof Error ? err.message : 'Akses cawangan ditolak' },
    { status: posAccessErrorStatus(err) });
+ }
+
+ if (data.provider === 'fiuu_vt' && data.status === 'REPORTED') {
+  const recovery = await recoverReportedFiuuVtPayment(service, data);
+  if (recovery === 'retryable') {
+   console.error('[pos-fiuu-vt] reported_fulfillment_retry_failed', {
+    paymentId: data.id,
+   });
+  } else if (recovery === 'invalid_evidence') {
+   console.error('[pos-fiuu-vt] reported_fulfillment_evidence_invalid', {
+    paymentId: data.id,
+   });
+  }
+
+  const refreshed = await service.from('pos_online_payments').select(paymentSelect)
+   .eq('id', paymentId).eq('organization_id', profile.organization_id).maybeSingle();
+  if (!refreshed.error && refreshed.data) data = refreshed.data;
  }
 
  if (data.provider === 'fiuu' && data.status === 'REPORTED' && data.gateway_ref) {
@@ -184,27 +202,11 @@ export async function GET(
   && data.status === 'PENDING'
   && providerResult?.opType === 'STATUS'
   && providerResult?.status === '00';
- const terminalCheckedAtMs = data.provider_status_checked_at
-  ? new Date(data.provider_status_checked_at).getTime()
-  : Number.NaN;
- const vtTerminalSettling = data.provider === 'fiuu_vt'
-  && (data.status === 'EXPIRED' || data.status === 'FAILED' || data.status === 'CANCELLED')
-  && Number.isFinite(terminalCheckedAtMs)
-  && Date.now() - terminalCheckedAtMs < FIUU_VT_TERMINAL_SETTLE_MS;
  const reconciliationExpired = data.provider === 'fiuu_vt'
   && data.status === 'PENDING'
   && Boolean(data.expires_at && isFiuuReconciliationExpired(data.expires_at));
- const vtLateRecoveryExpired = reconciliationExpired
-  && Boolean(data.expires_at
-   && Date.now() > new Date(data.expires_at).getTime()
-    + FIUU_CALLBACK_GRACE_MS
-    + getFiuuVtLateRecoveryMs());
  const payment = vtReported
   ? { ...data, status: 'REPORTED' }
-  : vtTerminalSettling
-   ? { ...data, status: 'PENDING' }
-  : data.provider === 'fiuu_vt' && vtLateRecoveryExpired
-   ? { ...data, status: 'EXPIRED' }
   : data.provider !== 'fiuu'
   && data.provider !== 'fiuu_vt'
   && data.status === 'PENDING'
@@ -237,6 +239,8 @@ export async function GET(
    transaction_id: payment.transaction_id,
    expires_at: payment.expires_at,
    reconciliation_expired: reconciliationExpired,
+   fiuu_vt_review_required: payment.fiuu_vt_review_required,
+   fiuu_vt_reconciliation_state: payment.fiuu_vt_reconciliation_state,
   },
   result,
  });

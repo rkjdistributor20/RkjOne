@@ -20,6 +20,7 @@ import type {
  SaleResult,
 } from './types';
 import type { Product } from '@/types/database';
+import type { FiuuVtOperation } from '@/lib/pos/fiuu-vt';
 
 const referenceCache = new Map<string, { expiresAt: number; value: unknown }>();
 
@@ -285,15 +286,142 @@ export async function createPosQrPayment(
  }
 }
 
-export async function submitFiuuVtResult(paymentId: string, result: unknown) {
+export async function submitFiuuVtResult(
+ paymentId: string,
+ result: unknown,
+) {
  try {
   return await fetchJson<{
    payment: { id: string; status: 'PENDING' | 'REPORTED' | 'PAID' | 'FAILED' | 'EXPIRED' | 'CANCELLED' };
-   next_action: 'CHECK_STATUS' | 'CHECK_STATUS_LATER' | 'AUTO_CONFIRMATION' | 'COMPLETE';
+   next_action: 'CHECK_STATUS' | 'CHECK_STATUS_LATER' | 'AUTO_CONFIRMATION' | 'COMPLETE' | 'ACK_ONLY' | 'ACK_AND_QUARANTINE';
    warning?: string;
   }>(`/api/pos/qr-payments/${encodeURIComponent(paymentId)}/vt-result`, {
    method: 'POST',
    body: JSON.stringify({ result }),
+  });
+ } catch (error) {
+  if (error instanceof ClientJsonError) {
+   const data = error.data;
+   const mode =
+    typeof data === 'object' && data !== null && 'mode' in data && typeof data.mode === 'string'
+     ? data.mode
+     : null;
+   throw new PosQrPaymentError(error.message, error.status, mode);
+  }
+  throw error;
+ }
+}
+
+export async function createFiuuVtAttempt(
+ paymentId: string,
+ opType: FiuuVtOperation,
+) {
+ try {
+  return await fetchJson<{
+   attempt: {
+    id: string;
+    callback_host: string;
+    expires_at: string;
+    op_type: FiuuVtOperation;
+   };
+   reused?: boolean;
+   retry_lease?: {
+    generation: number;
+    expires_at: string;
+   };
+  }>(`/api/pos/qr-payments/${encodeURIComponent(paymentId)}/vt-attempt`, {
+   method: 'POST',
+   body: JSON.stringify({ op_type: opType }),
+  });
+ } catch (error) {
+  if (error instanceof ClientJsonError) {
+   const data = error.data;
+   const mode =
+    typeof data === 'object' && data !== null && 'mode' in data && typeof data.mode === 'string'
+     ? data.mode
+     : null;
+   const retryAfterMs =
+    typeof data === 'object' && data !== null
+     && 'retry_after_ms' in data && typeof data.retry_after_ms === 'number'
+     && Number.isFinite(data.retry_after_ms)
+     ? Math.max(0, Math.min(30_000, Math.ceil(data.retry_after_ms)))
+     : null;
+   throw new PosQrPaymentError(error.message, error.status, mode, retryAfterMs);
+  }
+  throw error;
+ }
+}
+
+async function updateFiuuVtAttempt(
+ paymentId: string,
+ payload: {
+  action: 'MARK_LAUNCHED' | 'ABANDON_UNLAUNCHED';
+  attempt_id: string;
+  error_code?: string;
+ },
+) {
+ try {
+  return await fetchJson<{
+   attempt: {
+    id: string;
+    state: string;
+    op_type: FiuuVtOperation;
+    launched_at: string | null;
+    abandoned_at: string | null;
+    launch_error_code: string | null;
+   };
+   reused?: boolean;
+  }>(`/api/pos/qr-payments/${encodeURIComponent(paymentId)}/vt-attempt`, {
+   method: 'PATCH',
+   body: JSON.stringify(payload),
+  });
+ } catch (error) {
+  if (error instanceof ClientJsonError) {
+   const data = error.data;
+   const mode =
+    typeof data === 'object' && data !== null && 'mode' in data && typeof data.mode === 'string'
+     ? data.mode
+     : null;
+   throw new PosQrPaymentError(error.message, error.status, mode);
+  }
+  throw error;
+ }
+}
+
+export async function markFiuuVtAttemptLaunched(paymentId: string, attemptId: string) {
+ return updateFiuuVtAttempt(paymentId, {
+  action: 'MARK_LAUNCHED',
+  attempt_id: attemptId,
+ });
+}
+
+export async function abandonUnlaunchedFiuuVtAttempt(
+ paymentId: string,
+ attemptId: string,
+ errorCode: string,
+) {
+ return updateFiuuVtAttempt(paymentId, {
+  action: 'ABANDON_UNLAUNCHED',
+  attempt_id: attemptId,
+  error_code: errorCode,
+ });
+}
+
+export async function cancelUnlaunchedFiuuVtPayment(
+ paymentId: string,
+ attemptId: string,
+ errorCode: string,
+) {
+ try {
+  return await fetchJson<{
+   payment: { id: string; status: 'CANCELLED' };
+   reused?: boolean;
+  }>(`/api/pos/qr-payments/${encodeURIComponent(paymentId)}/vt-prelaunch-cancel`, {
+   method: 'POST',
+   body: JSON.stringify({
+    attempt_id: attemptId,
+    error_code: errorCode,
+   }),
   });
  } catch (error) {
   if (error instanceof ClientJsonError) {
@@ -331,6 +459,7 @@ export class PosQrPaymentError extends Error {
   message: string,
   readonly status: number,
   readonly mode: string | null,
+  readonly retryAfterMs: number | null = null,
  ) {
   super(message);
   this.name = 'PosQrPaymentError';
@@ -350,6 +479,8 @@ export async function fetchPosQrPayment(paymentId: string) {
  transaction_id: string | null;
  expires_at: string | null;
   reconciliation_expired: boolean;
+  fiuu_vt_review_required: boolean;
+  fiuu_vt_reconciliation_state: string | null;
  };
  result: SaleResult | null;
  }>('/api/pos/qr-payments/' + encodeURIComponent(paymentId));

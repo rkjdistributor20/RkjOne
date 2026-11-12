@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+ buildFiuuVtCallbackHost,
  buildFiuuVtOrderId,
  buildFiuuVtRequestUrl,
  FIUU_VT_DUITNOW_CHANNEL,
- FIUU_VT_TERMINAL_SETTLE_MS,
  getFiuuVtStatusDisposition,
+ getFiuuVtVoidDisposition,
  isFiuuVtErrorResult,
  isFiuuVtPendingStatus,
  parseFiuuVtCallbackResult,
@@ -21,6 +22,12 @@ import {
 } from './fiuu-vt-server';
 
 const ORIGINAL_ENV = { ...process.env };
+const CALLBACK_ATTEMPT_ID = '123e4567-e89b-42d3-a456-426614174000';
+const CALLBACK_HOST = buildFiuuVtCallbackHost(CALLBACK_ATTEMPT_ID);
+const CALLBACK_IDENTITY = {
+ callbackAttemptId: CALLBACK_ATTEMPT_ID,
+ callbackHost: CALLBACK_HOST,
+};
 
 afterEach(() => {
  process.env = { ...ORIGINAL_ENV };
@@ -33,12 +40,13 @@ describe('Fiuu VT request contract', () => {
    opType: 'SALE',
    orderId,
    amountRm: 12.5,
+   callbackHost: CALLBACK_HOST,
   }));
 
   expect(url.protocol).toBe('razervt:');
   expect(url.host).toBe('merchant.razer.com');
   expect(url.searchParams.get('merchantUrlScheme')).toBe('com.rkjone.staff');
-  expect(url.searchParams.get('merchantHost')).toBe('fiuu-vt.rkj.one');
+  expect(url.searchParams.get('merchantHost')).toBe(CALLBACK_HOST);
   expect(url.searchParams.get('opType')).toBe('SALE');
   expect(url.searchParams.get('currency')).toBe('MYR');
   expect(url.searchParams.get('amount')).toBe('12.50');
@@ -51,8 +59,22 @@ describe('Fiuu VT request contract', () => {
   const url = new URL(buildFiuuVtRequestUrl({
    opType: 'STATUS',
    orderId: 'RKJ_ORDER_001',
+   callbackHost: CALLBACK_HOST,
   }));
   expect(url.searchParams.get('opType')).toBe('STATUS');
+  expect(url.searchParams.get('orderId')).toBe('RKJ_ORDER_001');
+  expect(url.searchParams.has('amount')).toBe(false);
+  expect(url.searchParams.has('currency')).toBe(false);
+  expect(url.searchParams.has('payType')).toBe(false);
+ });
+
+ it('builds VOID for the original order without adding SALE-only parameters', () => {
+  const url = new URL(buildFiuuVtRequestUrl({
+   opType: 'VOID',
+   orderId: 'RKJ_ORDER_001',
+   callbackHost: CALLBACK_HOST,
+  }));
+  expect(url.searchParams.get('opType')).toBe('VOID');
   expect(url.searchParams.get('orderId')).toBe('RKJ_ORDER_001');
   expect(url.searchParams.has('amount')).toBe(false);
   expect(url.searchParams.has('currency')).toBe(false);
@@ -64,11 +86,13 @@ describe('Fiuu VT request contract', () => {
    opType: 'SALE',
    orderId: 'bad order',
    amountRm: 1,
+   callbackHost: CALLBACK_HOST,
   })).toThrow('ID pesanan Fiuu VT tidak sah');
   expect(() => buildFiuuVtRequestUrl({
    opType: 'SALE',
    orderId: 'RKJ_ORDER_001',
    amountRm: Number.NaN,
+   callbackHost: CALLBACK_HOST,
   })).toThrow('Amaun Fiuu VT tidak sah');
  });
 
@@ -82,6 +106,7 @@ describe('Fiuu VT request contract', () => {
 
 describe('Fiuu VT callback validation', () => {
  const valid = {
+  ...CALLBACK_IDENTITY,
   opType: 'STATUS',
   orderid: 'RKJ_ORDER_001',
   tranID: 'VT_778899',
@@ -94,6 +119,7 @@ describe('Fiuu VT callback validation', () => {
 
  it('normalizes a complete matching result', () => {
   expect(parseFiuuVtResult(valid)).toEqual({
+   ...CALLBACK_IDENTITY,
    opType: 'STATUS',
    orderId: 'RKJ_ORDER_001',
    transactionId: 'VT_778899',
@@ -103,10 +129,12 @@ describe('Fiuu VT callback validation', () => {
    channel: FIUU_VT_DUITNOW_CHANNEL,
    payDate: '2026-10-15 10:30:00',
   });
+
  });
 
  it('accepts the sanitized result shape stored for confirmation', () => {
   expect(parseFiuuVtResult({
+   ...CALLBACK_IDENTITY,
    opType: 'STATUS',
    orderId: 'RKJ_ORDER_001',
    transactionId: 'VT_778899',
@@ -125,6 +153,7 @@ describe('Fiuu VT callback validation', () => {
 
  it('normalizes the documented error callback using the pending attempt context', () => {
   const result = parseFiuuVtCallbackResult({
+   ...CALLBACK_IDENTITY,
    kind: 'ERROR',
    opType: 'STATUS',
    orderId: 'RKJ_ORDER_001',
@@ -134,6 +163,7 @@ describe('Fiuu VT callback validation', () => {
 
   expect(isFiuuVtErrorResult(result)).toBe(true);
   expect(result).toEqual({
+   ...CALLBACK_IDENTITY,
    kind: 'ERROR',
    opType: 'STATUS',
    orderId: 'RKJ_ORDER_001',
@@ -142,12 +172,36 @@ describe('Fiuu VT callback validation', () => {
   });
  });
 
+ it('accepts provider-confirmed VOID cancellation and its error callback', () => {
+  expect(parseFiuuVtResult({
+   ...valid,
+   opType: 'VOID',
+   status: '44',
+  })).toMatchObject({
+   opType: 'VOID',
+   orderId: 'RKJ_ORDER_001',
+   status: '44',
+  });
+  expect(parseFiuuVtCallbackResult({
+   ...CALLBACK_IDENTITY,
+   kind: 'ERROR',
+   opType: 'VOID',
+   orderId: 'RKJ_ORDER_001',
+   errorCode: '310',
+   errorMessage: 'Cancel failed',
+  })).toMatchObject({
+   kind: 'ERROR',
+   opType: 'VOID',
+   errorCode: '310',
+  });
+ });
+
  it.each([
-  { opType: 'STATUS', orderId: 'RKJ_ORDER_001', errorCode: '', errorMessage: 'Time out' },
-  { opType: 'STATUS', orderId: 'bad order', errorCode: '310', errorMessage: 'Time out' },
-  { opType: 'STATUS', orderId: 'RKJ_ORDER_001', errorCode: '310', errorMessage: 'Bad\nmessage' },
+  { ...CALLBACK_IDENTITY, opType: 'STATUS', orderId: 'RKJ_ORDER_001', errorCode: '', errorMessage: 'Time out' },
+  { ...CALLBACK_IDENTITY, opType: 'STATUS', orderId: 'bad order', errorCode: '310', errorMessage: 'Time out' },
+  { ...CALLBACK_IDENTITY, opType: 'STATUS', orderId: 'RKJ_ORDER_001', errorCode: '310', errorMessage: 'Bad\nmessage' },
   {
-   opType: 'STATUS', orderId: 'RKJ_ORDER_001', errorCode: '310', errorMessage: 'Time out',
+   ...CALLBACK_IDENTITY, opType: 'STATUS', orderId: 'RKJ_ORDER_001', errorCode: '310', errorMessage: 'Time out',
    status: '00',
   },
  ])('rejects a malformed error callback %#', (value) => {
@@ -179,13 +233,19 @@ describe('Fiuu VT callback validation', () => {
   expect(getFiuuVtStatusDisposition('44')).toBe('CANCELLED');
   expect(getFiuuVtStatusDisposition('55')).toBe('EXPIRED');
  });
+
+it('never treats a VOID response as payment success', () => {
+ expect(getFiuuVtVoidDisposition('00')).toBe('PENDING');
+ expect(getFiuuVtVoidDisposition('11')).toBe('PENDING');
+ expect(getFiuuVtVoidDisposition('22')).toBe('PENDING');
+ expect(getFiuuVtVoidDisposition('33')).toBe('PENDING');
+ expect(getFiuuVtVoidDisposition('45')).toBe('PENDING');
+ expect(getFiuuVtVoidDisposition('44')).toBe('CANCELLED');
+ expect(getFiuuVtVoidDisposition('55')).toBe('EXPIRED');
+});
 });
 
 describe('Fiuu VT STATUS recovery', () => {
- it('uses only a short final-status settlement hold', () => {
-  expect(FIUU_VT_TERMINAL_SETTLE_MS).toBe(3_000);
- });
-
  it('launches provider STATUS only after RKJ authoritatively remains pending', () => {
   expect(shouldLaunchFiuuVtStatusAfterReconcile('PENDING')).toBe(true);
   expect(shouldLaunchFiuuVtStatusAfterReconcile(null)).toBe(false);
@@ -254,7 +314,7 @@ describe('Fiuu VT registered-branch gate', () => {
 
  it('bounds validity', () => {
   process.env.POS_FIUU_VT_VALIDITY_SECONDS = '30';
-  expect(getFiuuVtValiditySeconds()).toBe(900);
+  expect(getFiuuVtValiditySeconds()).toBe(180);
   process.env.POS_FIUU_VT_VALIDITY_SECONDS = '1200';
   expect(getFiuuVtValiditySeconds()).toBe(1200);
  });

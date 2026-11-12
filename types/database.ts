@@ -6881,6 +6881,77 @@ export type Database = {
           },
         ]
       }
+      pos_fiuu_vt_attempts: {
+        Row: {
+          abandoned_at: string | null
+          callback_host: string
+          consumed_at: string | null
+          created_at: string
+          expired_at: string | null
+          expires_at: string
+          id: string
+          launch_error_code: string | null
+          launched_at: string | null
+          op_type: string
+          payment_id: string
+          provider_order_id: string
+          quarantined_at: string | null
+          received_at: string | null
+          result_fingerprint: string | null
+          result_json: Json | null
+          state: string
+          updated_at: string
+        }
+        Insert: {
+          abandoned_at?: string | null
+          callback_host: string
+          consumed_at?: string | null
+          created_at?: string
+          expired_at?: string | null
+          expires_at: string
+          id?: string
+          launch_error_code?: string | null
+          launched_at?: string | null
+          op_type: string
+          payment_id: string
+          provider_order_id: string
+          quarantined_at?: string | null
+          received_at?: string | null
+          result_fingerprint?: string | null
+          result_json?: Json | null
+          state?: string
+          updated_at?: string
+        }
+        Update: {
+          abandoned_at?: string | null
+          callback_host?: string
+          consumed_at?: string | null
+          created_at?: string
+          expired_at?: string | null
+          expires_at?: string
+          id?: string
+          launch_error_code?: string | null
+          launched_at?: string | null
+          op_type?: string
+          payment_id?: string
+          provider_order_id?: string
+          quarantined_at?: string | null
+          received_at?: string | null
+          result_fingerprint?: string | null
+          result_json?: Json | null
+          state?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_fiuu_vt_attempts_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "pos_online_payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pos_online_payments: {
         Row: {
           amount_rm: number
@@ -6898,6 +6969,13 @@ export type Database = {
           fiuu_opa_reconcile_state: string | null
           fiuu_opa_reversal_reference_id: string | null
           fiuu_opa_reversed_at: string | null
+          fiuu_vt_reconciliation_state: string | null
+          fiuu_vt_recovery_attempted_at: string | null
+          fiuu_vt_recovery_attempts: number
+          fiuu_vt_recovery_last_error: string | null
+          fiuu_vt_recovery_next_at: string | null
+          fiuu_vt_review_evidence: Json | null
+          fiuu_vt_review_required: boolean
           gateway_ref: string | null
           id: string
           idempotency_key: string | null
@@ -6935,6 +7013,13 @@ export type Database = {
           fiuu_opa_reconcile_state?: string | null
           fiuu_opa_reversal_reference_id?: string | null
           fiuu_opa_reversed_at?: string | null
+          fiuu_vt_reconciliation_state?: string | null
+          fiuu_vt_recovery_attempted_at?: string | null
+          fiuu_vt_recovery_attempts?: number
+          fiuu_vt_recovery_last_error?: string | null
+          fiuu_vt_recovery_next_at?: string | null
+          fiuu_vt_review_evidence?: Json | null
+          fiuu_vt_review_required?: boolean
           gateway_ref?: string | null
           id?: string
           idempotency_key?: string | null
@@ -6972,6 +7057,13 @@ export type Database = {
           fiuu_opa_reconcile_state?: string | null
           fiuu_opa_reversal_reference_id?: string | null
           fiuu_opa_reversed_at?: string | null
+          fiuu_vt_reconciliation_state?: string | null
+          fiuu_vt_recovery_attempted_at?: string | null
+          fiuu_vt_recovery_attempts?: number
+          fiuu_vt_recovery_last_error?: string | null
+          fiuu_vt_recovery_next_at?: string | null
+          fiuu_vt_review_evidence?: Json | null
+          fiuu_vt_review_required?: boolean
           gateway_ref?: string | null
           id?: string
           idempotency_key?: string | null
@@ -11189,6 +11281,23 @@ export type Database = {
         Returns: Json
       }
       mark_expired_roti_batches: { Args: never; Returns: undefined }
+      mark_pos_fiuu_vt_review: {
+        Args: {
+          p_evidence: Json
+          p_payment_id: string
+          p_state: string
+        }
+        Returns: Json
+      }
+      cancel_pos_fiuu_vt_prelaunch: {
+        Args: {
+          p_actor_id: string
+          p_attempt_id: string
+          p_error_code: string
+          p_payment_id: string
+        }
+        Returns: Json
+      }
       next_agent_order_number: { Args: { p_org_id: string }; Returns: string }
       next_agent_receipt_number: { Args: { p_org_id: string }; Returns: string }
       next_maintenance_report_number: {

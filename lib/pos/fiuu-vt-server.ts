@@ -42,8 +42,8 @@ export function isFiuuVtEnabledForBranch(branchCode: string): boolean {
 }
 
 export function getFiuuVtValiditySeconds(): number {
- const value = Number(process.env.POS_FIUU_VT_VALIDITY_SECONDS ?? 900);
- return Number.isInteger(value) && value >= 60 && value <= 3600 ? value : 900;
+ const value = Number(process.env.POS_FIUU_VT_VALIDITY_SECONDS ?? 180);
+ return Number.isInteger(value) && value >= 60 && value <= 3600 ? value : 180;
 }
 
 export function getFiuuVtLateRecoveryMs(): number {

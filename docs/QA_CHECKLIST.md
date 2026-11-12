@@ -124,6 +124,19 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [ ] Owner gives fresh confirmation immediately before any Production migration, credential, environment or deployment change.
 - [ ] The ordered nine-migration Fiuu chain is applied to Production only after a current recovery point, rollback owner, maintenance window, complete BR001 evidence and per-branch rollout prerequisites are recorded.
 
+## Fiuu VT cashier-release resilience — 2026-11-12
+
+- [x] Automated tests cover pre-launch cancellation, active-pending release, expired-payment release, bounded late STATUS success, missing STATUS retry and STATUS/VOID arbitration.
+- [x] The server retry lease waits at least 25 seconds, reuses the existing attempt and never submits a second SALE.
+- [x] Native callbacks are stored by payment attempt across activity recreation/app restart; a later attempt cannot overwrite an older callback.
+- [x] A durable `REPORTED` success can be fulfilled exactly once by the protected recovery worker without the cashier screen remaining open.
+- [x] The default VT customer payment window is 180 seconds in code and deployment documentation.
+- [ ] Install the exact Preview APK on the enrolled BR001 tablet and prove that the cashier can cancel before handoff, release an active unpaid attempt, and release an expired attempt while preserving the cart.
+- [ ] Prove on the physical tablet that a late successful callback wins over cancellation and creates exactly one receipt, stock movement and shift total.
+- [ ] Prove app-kill/reopen and offline/online recovery without a duplicate SALE or a permanently blocked counter.
+- [ ] Verify the paired 58 mm printer still prints once and that QR-only payment never opens the cash drawer.
+- [ ] Record Preview runtime logs, migration target and rollback evidence. Production and Play remain unchanged until fresh action-time confirmation.
+
 ## Deployment Review
 
 - [ ] Migration applied to Supabase if schema changed.

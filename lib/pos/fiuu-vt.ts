@@ -3,19 +3,21 @@ export const FIUU_VT_SCHEME = 'razervt';
 export const FIUU_VT_HOST = 'merchant.razer.com';
 export const RKJ_FIUU_CALLBACK_SCHEME = 'com.rkjone.staff';
 export const RKJ_FIUU_CALLBACK_HOST = 'fiuu-vt.rkj.one';
+export const RKJ_FIUU_CALLBACK_HOST_SUFFIX = '.fiuu-vt.rkj.one';
 export const FIUU_VT_DUITNOW_CHANNEL = 'RPP_DuitNowQR-Offline';
-// Keep a just-closed attempt unavailable for a few seconds so a concurrent
-// STATUS=00 response can take precedence over a non-success terminal result.
-// This is deliberately short enough not to hold up the next customer.
-export const FIUU_VT_TERMINAL_SETTLE_MS = 3_000;
 
 export const FIUU_VT_PENDING_STATUSES = ['22', '33', '45'] as const;
 export const FIUU_VT_TERMINAL_STATUSES = ['00', '11', '44', '55'] as const;
 
-export type FiuuVtOperation = 'SALE' | 'STATUS';
+export type FiuuVtOperation = 'SALE' | 'STATUS' | 'VOID';
 export type FiuuVtStatusCode = '00' | '11' | '22' | '33' | '44' | '45' | '55';
 
-export type FiuuVtResult = {
+export type FiuuVtCallbackAttempt = {
+ callbackAttemptId: string;
+ callbackHost: string;
+};
+
+export type FiuuVtResult = FiuuVtCallbackAttempt & {
  opType: FiuuVtOperation;
  orderId: string;
  transactionId: string;
@@ -26,7 +28,7 @@ export type FiuuVtResult = {
  payDate: string | null;
 };
 
-export type FiuuVtErrorResult = {
+export type FiuuVtErrorResult = FiuuVtCallbackAttempt & {
  kind: 'ERROR';
  opType: FiuuVtOperation;
  orderId: string;
@@ -37,6 +39,7 @@ export type FiuuVtErrorResult = {
 export type FiuuVtCallbackResult = FiuuVtResult | FiuuVtErrorResult;
 
 export type FiuuVtStatusDisposition = 'REPORTED' | 'PENDING' | 'FAILED' | 'CANCELLED' | 'EXPIRED';
+export type FiuuVtVoidDisposition = 'PENDING' | 'CANCELLED' | 'EXPIRED';
 
 export function shouldLaunchFiuuVtStatusAfterReconcile(
  serverStatus: 'PENDING' | 'REPORTED' | 'PAID' | 'FAILED' | 'EXPIRED' | 'CANCELLED' | null,
@@ -49,6 +52,8 @@ export function shouldLaunchFiuuVtStatusAfterReconcile(
 }
 
 const ORDER_ID_PATTERN = /^[A-Za-z0-9_-]{4,64}$/;
+const CALLBACK_ATTEMPT_ID_PATTERN = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
+const CALLBACK_HOST_PATTERN = /^a-([a-f0-9]{32})\.fiuu-vt\.rkj\.one$/;
 const TRANSACTION_ID_PATTERN = /^[A-Za-z0-9_-]{1,80}$/;
 const PAY_DATE_PATTERN = /^[0-9T:+.\-/ ]{6,40}$/;
 const ERROR_CODE_PATTERN = /^[A-Za-z0-9_-]{1,32}$/;
@@ -100,16 +105,45 @@ export function paymentIdFromFiuuVtOrderId(orderId: string): string | null {
  ].join('-').toLowerCase();
 }
 
+export function buildFiuuVtCallbackHost(callbackAttemptId: string): string {
+ const normalizedAttemptId = callbackAttemptId.trim().toLowerCase();
+ if (!CALLBACK_ATTEMPT_ID_PATTERN.test(normalizedAttemptId)) {
+  throw new Error('ID percubaan callback Fiuu VT tidak sah');
+ }
+ return `a-${normalizedAttemptId.replaceAll('-', '')}${RKJ_FIUU_CALLBACK_HOST_SUFFIX}`;
+}
+
+export function validateFiuuVtCallbackAttempt(
+ callbackAttemptId: string,
+ callbackHost: string,
+): FiuuVtCallbackAttempt {
+ const normalizedAttemptId = callbackAttemptId.trim().toLowerCase();
+ const normalizedHost = callbackHost.trim().toLowerCase();
+ if (!CALLBACK_ATTEMPT_ID_PATTERN.test(normalizedAttemptId)
+  || !CALLBACK_HOST_PATTERN.test(normalizedHost)
+  || buildFiuuVtCallbackHost(normalizedAttemptId) !== normalizedHost) {
+  throw new Error('Identiti callback Fiuu VT tidak sah');
+ }
+ return {
+  callbackAttemptId: normalizedAttemptId,
+  callbackHost: normalizedHost,
+ };
+}
+
 export function buildFiuuVtRequestUrl(input: {
  opType: FiuuVtOperation;
  orderId: string;
  amountRm?: number;
  callbackScheme?: string;
+ callbackHost: string;
 }): string {
  if (!ORDER_ID_PATTERN.test(input.orderId)) throw new Error('ID pesanan Fiuu VT tidak sah');
+ if (!CALLBACK_HOST_PATTERN.test(input.callbackHost.trim().toLowerCase())) {
+  throw new Error('Host callback Fiuu VT tidak sah');
+ }
  const url = new URL(`${FIUU_VT_SCHEME}://${FIUU_VT_HOST}`);
  url.searchParams.set('merchantUrlScheme', input.callbackScheme ?? RKJ_FIUU_CALLBACK_SCHEME);
- url.searchParams.set('merchantHost', RKJ_FIUU_CALLBACK_HOST);
+ url.searchParams.set('merchantHost', input.callbackHost.trim().toLowerCase());
  url.searchParams.set('opType', input.opType);
  url.searchParams.set('orderId', input.orderId);
  if (input.opType === 'SALE') {
@@ -127,8 +161,14 @@ export function parseFiuuVtResult(input: unknown): FiuuVtResult {
   throw new Error('Keputusan Fiuu VT tidak sah');
  }
  const value = input as Record<string, unknown>;
+ const callbackAttempt = validateFiuuVtCallbackAttempt(
+  requiredString(recordValue(value, 'callbackAttemptId'), 'ID percubaan callback', 64),
+  requiredString(recordValue(value, 'callbackHost'), 'host callback', 96),
+ );
  const opType = requiredString(recordValue(value, 'opType', 'optype'), 'operasi', 16).toUpperCase();
- if (opType !== 'SALE' && opType !== 'STATUS') throw new Error('Operasi Fiuu VT tidak disokong');
+ if (opType !== 'SALE' && opType !== 'STATUS' && opType !== 'VOID') {
+  throw new Error('Operasi Fiuu VT tidak disokong');
+ }
 
  const orderId = requiredString(recordValue(value, 'orderId', 'orderid'), 'Order ID', 64);
  if (!ORDER_ID_PATTERN.test(orderId)) throw new Error('Order ID Fiuu VT tidak sah');
@@ -159,6 +199,7 @@ export function parseFiuuVtResult(input: unknown): FiuuVtResult {
  if (payDate && !PAY_DATE_PATTERN.test(payDate)) throw new Error('Tarikh bayaran Fiuu VT tidak sah');
 
  return {
+  ...callbackAttempt,
   opType,
   orderId,
   transactionId,
@@ -186,10 +227,17 @@ export function parseFiuuVtCallbackResult(input: unknown): FiuuVtCallbackResult 
  if (hasTransactionResponse) throw new Error('Respons Fiuu VT bercampur tidak sah');
 
  const opType = requiredString(recordValue(value, 'opType', 'optype'), 'operasi', 16).toUpperCase();
- if (opType !== 'SALE' && opType !== 'STATUS') throw new Error('Operasi Fiuu VT tidak disokong');
+ if (opType !== 'SALE' && opType !== 'STATUS' && opType !== 'VOID') {
+  throw new Error('Operasi Fiuu VT tidak disokong');
+ }
 
  const orderId = requiredString(recordValue(value, 'orderId', 'orderid'), 'Order ID', 64);
  if (!ORDER_ID_PATTERN.test(orderId)) throw new Error('Order ID Fiuu VT tidak sah');
+
+ const callbackAttempt = validateFiuuVtCallbackAttempt(
+  requiredString(recordValue(value, 'callbackAttemptId'), 'ID percubaan callback', 64),
+  requiredString(recordValue(value, 'callbackHost'), 'host callback', 96),
+ );
 
  const errorCode = requiredString(recordValue(value, 'errorCode'), 'kod ralat', 32);
  if (!ERROR_CODE_PATTERN.test(errorCode)) throw new Error('Kod ralat Fiuu VT tidak sah');
@@ -204,6 +252,7 @@ export function parseFiuuVtCallbackResult(input: unknown): FiuuVtCallbackResult 
  }
 
  return {
+  ...callbackAttempt,
   kind: 'ERROR',
   opType,
   orderId,
@@ -231,6 +280,20 @@ export function getFiuuVtStatusDisposition(
  // Fiuu VT App-to-App v1.2 defines 55 as "QR expired". Treating it as
  // pending leaves the cashier locked even though the provider has already
  // closed the QR and no longer accepts a payment for it.
+ if (status === '55') return 'EXPIRED';
+ return 'PENDING';
+}
+
+/**
+ * VOID responses are cancellation evidence, never payment-success evidence.
+ * Fiuu App-to-App v1.2 reports 44 after a completed cancellation and 55 when
+ * the QR has already expired. Every other response must be reconciled with a
+ * fresh STATUS request so an ambiguous VOID can never mark a sale as paid.
+ */
+export function getFiuuVtVoidDisposition(
+ status: FiuuVtStatusCode,
+): FiuuVtVoidDisposition {
+ if (status === '44') return 'CANCELLED';
  if (status === '55') return 'EXPIRED';
  return 'PENDING';
 }
