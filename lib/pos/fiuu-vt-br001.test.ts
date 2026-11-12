@@ -30,6 +30,10 @@ const nativePlugin = readFileSync(join(
  process.cwd(),
  'android/app/src/main/java/com/rkjone/staff/RkjFiuuVtPlugin.java',
 ), 'utf8');
+const nativeClient = readFileSync(join(
+ process.cwd(),
+ 'lib/pos/fiuu-vt-client.ts',
+), 'utf8');
 
 describe('Fiuu VT registered-branch database boundary', () => {
  it('checks both the payment payload and authoritative branch row', () => {
@@ -173,6 +177,13 @@ describe('Fiuu VT BR001 bounded Preview recovery', () => {
   expect(nativePlugin).toContain('FIUU_ACTIVE_ATTEMPT_EXISTS');
   expect(resultFlow).toContain("response.next_action === 'CHECK_STATUS_LATER'");
   expect(resultFlow).toContain('Bayaran masih diproses oleh Fiuu. Tekan butang semakan sebentar lagi.');
+ });
+
+ it('keeps the new web checkout compatible with the installed 1.7.0 bridge during rollout', () => {
+  expect(nativePlugin).toContain('result.put("bridgeApiVersion", 2)');
+  expect(nativeClient).toContain('RESULT_ACKNOWLEDGEMENT_API_VERSION = 2');
+  expect(nativeClient).toContain('rememberBridgeApiVersion(await NativeFiuuVt.getStatus())');
+  expect(nativeClient).toContain('if (!await supportsResultAcknowledgement()) return;');
  });
 
  it('preserves successful evidence when a later non-success STATUS contradicts it', () => {

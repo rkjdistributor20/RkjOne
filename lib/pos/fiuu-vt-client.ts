@@ -13,6 +13,7 @@ import {
 } from '@/lib/pos/fiuu-vt';
 
 export type FiuuVtNativeStatus = {
+ bridgeApiVersion?: number;
  nativeAndroid: boolean;
  installed: boolean;
  trustedInstall: boolean;
@@ -50,6 +51,24 @@ type FiuuVtPlugin = {
 
 const NativeFiuuVt = registerPlugin<FiuuVtPlugin>('RkjFiuuVt');
 
+const RESULT_ACKNOWLEDGEMENT_API_VERSION = 2;
+let detectedBridgeApiVersion: number | null = null;
+
+function rememberBridgeApiVersion(status: FiuuVtNativeStatus): FiuuVtNativeStatus {
+ detectedBridgeApiVersion = Number.isInteger(status.bridgeApiVersion)
+  ? Math.max(status.bridgeApiVersion ?? 1, 1)
+  : 1;
+ return status;
+}
+
+async function supportsResultAcknowledgement(): Promise<boolean> {
+ if (!supportsFiuuVtApp()) return false;
+ if (detectedBridgeApiVersion === null) {
+  rememberBridgeApiVersion(await NativeFiuuVt.getStatus());
+ }
+ return (detectedBridgeApiVersion ?? 1) >= RESULT_ACKNOWLEDGEMENT_API_VERSION;
+}
+
 export function supportsFiuuVtApp(): boolean {
  return Capacitor.isNativePlatform()
   && Capacitor.getPlatform() === 'android'
@@ -59,6 +78,7 @@ export function supportsFiuuVtApp(): boolean {
 export async function readFiuuVtStatus(): Promise<FiuuVtNativeStatus> {
  if (!supportsFiuuVtApp()) {
   return {
+   bridgeApiVersion: 0,
    nativeAndroid: false,
    installed: false,
    trustedInstall: false,
@@ -71,7 +91,7 @@ export async function readFiuuVtStatus(): Promise<FiuuVtNativeStatus> {
     resultReceivedAt: null,
   };
  }
- return NativeFiuuVt.getStatus();
+ return rememberBridgeApiVersion(await NativeFiuuVt.getStatus());
 }
 
 export async function launchFiuuVtSale(orderId: string, amountRm: number) {
@@ -84,6 +104,7 @@ export async function launchFiuuVtStatus(orderId: string) {
 
 export async function acknowledgeFiuuVtResult(result: FiuuVtResult) {
  if (!supportsFiuuVtApp()) return;
+ if (!await supportsResultAcknowledgement()) return;
  await NativeFiuuVt.acknowledgeResult({
   orderId: result.orderId,
   opType: result.opType,
@@ -94,6 +115,7 @@ export async function acknowledgeFiuuVtResult(result: FiuuVtResult) {
 
 export async function acknowledgeFiuuVtError(result: FiuuVtErrorResult) {
  if (!supportsFiuuVtApp()) return;
+ if (!await supportsResultAcknowledgement()) return;
  await NativeFiuuVt.acknowledgeError({
   orderId: result.orderId,
   opType: result.opType,

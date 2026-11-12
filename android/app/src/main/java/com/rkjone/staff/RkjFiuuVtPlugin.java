@@ -60,6 +60,7 @@ public class RkjFiuuVtPlugin extends Plugin {
     public synchronized void getStatus(PluginCall call) {
         JSObject result = new JSObject();
         SharedPreferences preferences = preferences();
+        result.put("bridgeApiVersion", 2);
         result.put("nativeAndroid", true);
         result.put("installed", isPackageInstalled(LEGACY_FIUU_PACKAGE));
         result.put("trustedInstall", isTrustedInstall(LEGACY_FIUU_PACKAGE));
