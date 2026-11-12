@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { getCurrentProfile } from '@/lib/auth/session';
 import {
@@ -30,6 +30,44 @@ type NextAction =
  | 'COMPLETE'
  | 'ACK_ONLY'
  | 'ACK_AND_QUARANTINE';
+type CallbackClaimOutcome =
+ | 'CLAIMED'
+ | 'ACTIVE'
+ | 'CONSUMED'
+ | 'CONFLICT'
+ | 'INELIGIBLE'
+ | 'NOT_FOUND';
+type CallbackClaimDecision = {
+ outcome: CallbackClaimOutcome;
+ retryAfterMs: number;
+ existingResult: Json | null;
+};
+type ClaimCallbackProcessingRpc = (
+ functionName: 'claim_pos_fiuu_vt_callback_processing',
+ parameters: {
+  p_payment_id: string;
+  p_attempt_id: string;
+  p_result_fingerprint: string;
+  p_result_json: Json;
+  p_processing_token: string;
+  p_allow_expired: boolean;
+ },
+) => Promise<{
+ data: unknown;
+ error: { message?: string } | null;
+}>;
+type CompleteCallbackProcessingRpc = (
+ functionName: 'complete_pos_fiuu_vt_callback_processing',
+ parameters: {
+  p_payment_id: string;
+  p_attempt_id: string;
+  p_result_fingerprint: string;
+  p_processing_token: string;
+ },
+) => Promise<{
+ data: unknown;
+ error: { message?: string } | null;
+}>;
 
 const TERMINAL_PAYMENT_STATUSES = new Set<PaymentStatus>(['FAILED', 'EXPIRED', 'CANCELLED']);
 const LATE_STATUS_SUCCESS_GRACE_MS = 2 * 60 * 1000;
@@ -38,6 +76,37 @@ function jsonRecord(value: Json | null): Record<string, unknown> | null {
  return value && typeof value === 'object' && !Array.isArray(value)
   ? value as Record<string, unknown>
   : null;
+}
+
+function parseCallbackClaimDecision(input: unknown): CallbackClaimDecision | null {
+ if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
+ const raw = input as Record<string, unknown>;
+ const outcome = raw.outcome;
+ if (outcome !== 'CLAIMED'
+  && outcome !== 'ACTIVE'
+  && outcome !== 'CONSUMED'
+  && outcome !== 'CONFLICT'
+  && outcome !== 'INELIGIBLE'
+  && outcome !== 'NOT_FOUND') {
+  return null;
+ }
+ const retryAfterMs = typeof raw.retry_after_ms === 'number'
+  && Number.isFinite(raw.retry_after_ms)
+  ? Math.max(0, Math.round(raw.retry_after_ms))
+  : 0;
+ const existingResult = raw.existing_result
+  && typeof raw.existing_result === 'object'
+  && !Array.isArray(raw.existing_result)
+  ? raw.existing_result as Json
+  : null;
+ return { outcome, retryAfterMs, existingResult };
+}
+
+function isCallbackCompletion(input: unknown): boolean {
+ return Boolean(input
+  && typeof input === 'object'
+  && !Array.isArray(input)
+  && (input as Record<string, unknown>).outcome === 'COMPLETED');
 }
 
 function sanitizedCallback(result: FiuuVtCallbackResult): Record<string, Json> {
@@ -176,6 +245,9 @@ export async function POST(
  const safeResult = sanitizedCallback(result);
  const fingerprint = callbackFingerprint(safeResult);
  const observedAt = new Date().toISOString();
+ const processingToken = randomUUID();
+ const claimCallbackProcessing = service.rpc.bind(service) as unknown as ClaimCallbackProcessingRpc;
+ const completeCallbackProcessing = service.rpc.bind(service) as unknown as CompleteCallbackProcessingRpc;
 
  const markReview = async (
   state: ReviewState,
@@ -216,18 +288,21 @@ export async function POST(
   .select('id')
   .maybeSingle();
 
- const consumeAttempt = async (attemptId: string) => service
-  .from('pos_fiuu_vt_attempts')
-  .update({
-   state: 'CONSUMED',
-   consumed_at: observedAt,
-   updated_at: observedAt,
-  })
-  .eq('id', attemptId)
-  .eq('payment_id', payment.id)
-  .in('state', ['PREPARED', 'LAUNCHED', 'RECEIVED'])
-  .select('id')
-  .maybeSingle();
+ const completeAttempt = async (attemptId: string) => {
+  const completion = await completeCallbackProcessing(
+   'complete_pos_fiuu_vt_callback_processing',
+   {
+    p_payment_id: payment.id,
+    p_attempt_id: attemptId,
+    p_result_fingerprint: fingerprint,
+    p_processing_token: processingToken,
+   },
+  );
+  return {
+   ok: !completion.error && isCallbackCompletion(completion.data),
+   error: completion.error,
+  };
+ };
 
  const { data: attempt, error: attemptError } = await service
   .from('pos_fiuu_vt_attempts')
@@ -280,14 +355,9 @@ export async function POST(
   );
  }
 
- if (attempt.state === 'CONSUMED' && attempt.result_fingerprint === fingerprint) {
-  return responseForStatus(payment.id, payment.status as PaymentStatus, 'ACK_ONLY');
- }
- if ((attempt.state === 'CONSUMED' || attempt.state === 'RECEIVED')
-  && attempt.result_fingerprint
-  && attempt.result_fingerprint !== fingerprint) {
+ const quarantineReplayConflict = async (firstEvidence: Json | null) => {
   const conflictingEvidence: Json = {
-   first: attempt.result_json,
+   first: firstEvidence,
    conflicting: safeResult,
    observedAt,
   };
@@ -306,15 +376,15 @@ export async function POST(
    'ACK_AND_QUARANTINE',
    'Callback Fiuu VT bercanggah dan memerlukan semakan HQ.',
   );
- }
+ };
 
- // RECEIVED is an ownership claim by another request. Never let an exact
- // concurrent replay advance the payment or trigger fulfilment a second time.
- if (attempt.state === 'RECEIVED') {
-  return NextResponse.json(
-   { error: 'Callback Fiuu VT sedang diproses. Cuba semula.' },
-   { status: 409 },
-  );
+ if (attempt.state === 'CONSUMED' && attempt.result_fingerprint === fingerprint) {
+  return responseForStatus(payment.id, payment.status as PaymentStatus, 'ACK_ONLY');
+ }
+ if ((attempt.state === 'CONSUMED' || attempt.state === 'RECEIVED')
+  && attempt.result_fingerprint
+  && attempt.result_fingerprint !== fingerprint) {
+  return quarantineReplayConflict(attempt.result_json);
  }
 
  const paymentDetailsMismatch = result.orderId !== payment.provider_order_id
@@ -353,92 +423,85 @@ export async function POST(
   && !isFiuuVtErrorResult(result)
   && result.opType === 'STATUS'
   && result.status === '00';
- let lateStatusSuccessClaimed = false;
- if (attempt.state === 'EXPIRED'
+ const callbackAttemptIsClosed = attempt.state === 'EXPIRED'
   || attempt.state === 'ABANDONED'
   || attempt.state === 'QUARANTINED'
-  || attemptExpired) {
-  if (lateStatusSuccessIsRecoverable) {
-   const { data: claimed, error: claimError } = await service
-    .from('pos_fiuu_vt_attempts')
-    .update({
-     state: 'RECEIVED',
-     result_fingerprint: fingerprint,
-     result_json: safeResult,
-     received_at: observedAt,
-     updated_at: observedAt,
-    })
-    .eq('id', attempt.id)
-    .eq('payment_id', payment.id)
-    .in('state', ['PREPARED', 'LAUNCHED', 'EXPIRED'])
-    .select('id')
-    .maybeSingle();
-   if (claimError) {
-    return NextResponse.json({ error: 'Callback lewat Fiuu VT tidak dapat dituntut' }, { status: 400 });
-   }
-   if (!claimed) {
-    return NextResponse.json(
-     { error: 'Callback Fiuu VT sedang diproses. Cuba semula.' },
-     { status: 409 },
-    );
-   }
-   lateStatusSuccessClaimed = true;
-  } else {
-   const isLateSuccess = !isFiuuVtErrorResult(result)
-    && result.opType !== 'VOID'
-    && result.status === '00';
-   const isPossibleReversal = !isFiuuVtErrorResult(result)
-    && (result.opType === 'VOID'
-     || ((payment.status === 'PAID' || payment.status === 'REPORTED') && result.status !== '00'));
-   const quarantined = await quarantineAttempt(attempt.id);
-   let reviewError: unknown = null;
-   if (isLateSuccess || isPossibleReversal) {
-    const review = await markReview(
-     isLateSuccess ? 'LATE_SUCCESS_REVIEW' : 'REVERSAL_REVIEW',
-     isLateSuccess ? 'CALLBACK_AFTER_ATTEMPT_EXPIRY' : 'REVERSAL_AFTER_ATTEMPT_EXPIRY',
-     attempt.id,
-    );
-    reviewError = review.error;
-   }
-   if (quarantined.error || reviewError) {
-    return NextResponse.json({ error: 'Callback lewat Fiuu VT tidak dapat dikuarantin' }, { status: 400 });
-   }
-   return responseForStatus(
-    payment.id,
-    payment.status as PaymentStatus,
-    'ACK_AND_QUARANTINE',
-    isLateSuccess || isPossibleReversal
-     ? 'Callback lewat disimpan untuk semakan HQ. Jangan ulang caj pelanggan.'
-     : 'Callback lewat diabaikan dengan selamat. Jalankan semakan STATUS baharu.',
+  // Once the callback evidence is RECEIVED, its processing lease owns
+  // concurrency; the provider-attempt deadline must not prevent recovery.
+  || (attemptExpired && attempt.state !== 'RECEIVED');
+ if (callbackAttemptIsClosed && !lateStatusSuccessIsRecoverable) {
+  const isLateSuccess = !isFiuuVtErrorResult(result)
+   && result.opType !== 'VOID'
+   && result.status === '00';
+  const isPossibleReversal = !isFiuuVtErrorResult(result)
+   && (result.opType === 'VOID'
+    || ((payment.status === 'PAID' || payment.status === 'REPORTED') && result.status !== '00'));
+  const quarantined = await quarantineAttempt(attempt.id);
+  let reviewError: unknown = null;
+  if (isLateSuccess || isPossibleReversal) {
+   const review = await markReview(
+    isLateSuccess ? 'LATE_SUCCESS_REVIEW' : 'REVERSAL_REVIEW',
+    isLateSuccess ? 'CALLBACK_AFTER_ATTEMPT_EXPIRY' : 'REVERSAL_AFTER_ATTEMPT_EXPIRY',
+    attempt.id,
    );
+   reviewError = review.error;
   }
+  if (quarantined.error || reviewError) {
+   return NextResponse.json({ error: 'Callback lewat Fiuu VT tidak dapat dikuarantin' }, { status: 400 });
+  }
+  return responseForStatus(
+   payment.id,
+   payment.status as PaymentStatus,
+   'ACK_AND_QUARANTINE',
+   isLateSuccess || isPossibleReversal
+    ? 'Callback lewat disimpan untuk semakan HQ. Jangan ulang caj pelanggan.'
+    : 'Callback lewat diabaikan dengan selamat. Jalankan semakan STATUS baharu.',
+  );
  }
 
- if (!lateStatusSuccessClaimed
-  && (attempt.state === 'PREPARED' || attempt.state === 'LAUNCHED')) {
-  const { data: claimed, error: claimError } = await service
-   .from('pos_fiuu_vt_attempts')
-   .update({
-    state: 'RECEIVED',
-    result_fingerprint: fingerprint,
-    result_json: safeResult,
-    received_at: observedAt,
-    updated_at: observedAt,
-   })
-   .eq('id', attempt.id)
-   .eq('payment_id', payment.id)
-   .in('state', ['PREPARED', 'LAUNCHED'])
-   .select('id')
-   .maybeSingle();
-  if (claimError) {
-   return NextResponse.json({ error: 'Callback Fiuu VT tidak dapat dituntut' }, { status: 400 });
-  }
-  if (!claimed) {
-   return NextResponse.json(
-    { error: 'Callback Fiuu VT sedang diproses. Cuba semula.' },
-    { status: 409 },
-   );
-  }
+ const { data: claimData, error: claimError } = await claimCallbackProcessing(
+  'claim_pos_fiuu_vt_callback_processing',
+  {
+   p_payment_id: payment.id,
+   p_attempt_id: attempt.id,
+   p_result_fingerprint: fingerprint,
+   p_result_json: safeResult,
+   p_processing_token: processingToken,
+   p_allow_expired: lateStatusSuccessIsRecoverable,
+  },
+ );
+ if (claimError) {
+  return NextResponse.json({ error: 'Callback Fiuu VT tidak dapat dituntut' }, { status: 400 });
+ }
+ const claimDecision = parseCallbackClaimDecision(claimData);
+ if (!claimDecision) {
+  return NextResponse.json({ error: 'Respons tuntutan callback Fiuu VT tidak sah' }, { status: 400 });
+ }
+ if (claimDecision.outcome === 'CONSUMED') {
+  return responseForStatus(payment.id, payment.status as PaymentStatus, 'ACK_ONLY');
+ }
+ if (claimDecision.outcome === 'CONFLICT') {
+  return quarantineReplayConflict(claimDecision.existingResult);
+ }
+ if (claimDecision.outcome === 'ACTIVE') {
+  return NextResponse.json(
+   {
+    error: 'Callback Fiuu VT sedang diproses. Cuba semula.',
+    retry_after_ms: claimDecision.retryAfterMs,
+   },
+   {
+    status: 409,
+    headers: claimDecision.retryAfterMs > 0
+     ? { 'Retry-After': String(Math.max(1, Math.ceil(claimDecision.retryAfterMs / 1000))) }
+     : undefined,
+   },
+  );
+ }
+ if (claimDecision.outcome !== 'CLAIMED') {
+  return NextResponse.json(
+   { error: 'Callback Fiuu VT tidak lagi layak diproses' },
+   { status: 409 },
+  );
  }
 
  if (payment.fiuu_vt_review_required) {
@@ -467,8 +530,8 @@ export async function POST(
     'Fiuu melaporkan keputusan bercanggah selepas kejayaan. Resit dan stok dikekalkan untuk semakan HQ.',
    );
   }
-  const consumed = await consumeAttempt(attempt.id);
-  if (consumed.error || !consumed.data) {
+  const completion = await completeAttempt(attempt.id);
+  if (!completion.ok) {
    return NextResponse.json({ error: 'Callback Fiuu VT tidak dapat ditandakan selesai' }, { status: 400 });
   }
   return responseForStatus(
@@ -495,8 +558,8 @@ export async function POST(
     'Fiuu melaporkan kejayaan selepas transaksi ditutup. Jangan ulang caj pelanggan; HQ perlu menyemak.',
    );
   }
-  const consumed = await consumeAttempt(attempt.id);
-  if (consumed.error || !consumed.data) {
+  const completion = await completeAttempt(attempt.id);
+  if (!completion.ok) {
    return NextResponse.json({ error: 'Callback Fiuu VT tidak dapat ditandakan selesai' }, { status: 400 });
   }
   return responseForStatus(payment.id, payment.status as PaymentStatus, 'COMPLETE');
@@ -526,8 +589,8 @@ export async function POST(
   if (updateError) {
    return NextResponse.json({ error: 'Ralat Fiuu VT tidak dapat direkod' }, { status: 400 });
   }
-  const consumed = await consumeAttempt(attempt.id);
-  if (consumed.error || !consumed.data) {
+  const completion = await completeAttempt(attempt.id);
+  if (!completion.ok) {
    return NextResponse.json({ error: 'Callback ralat Fiuu VT tidak dapat ditandakan selesai' }, { status: 400 });
   }
   return responseForStatus(
@@ -628,8 +691,8 @@ export async function POST(
     'Transaksi berubah kepada semakan HQ semasa callback diproses.',
    );
   }
-  const consumed = await consumeAttempt(attempt.id);
-  if (consumed.error || !consumed.data) {
+  const completion = await completeAttempt(attempt.id);
+  if (!completion.ok) {
    return NextResponse.json({ error: 'Callback Fiuu VT tidak dapat ditandakan selesai' }, { status: 400 });
   }
   return responseForStatus(
@@ -639,8 +702,8 @@ export async function POST(
   );
  }
 
- const consumed = await consumeAttempt(attempt.id);
- if (consumed.error || !consumed.data) {
+ const completion = await completeAttempt(attempt.id);
+ if (!completion.ok) {
   return NextResponse.json({ error: 'Callback Fiuu VT tidak dapat ditandakan selesai' }, { status: 400 });
  }
  return responseForStatus(payment.id, nextStatus, nextAction, warning);

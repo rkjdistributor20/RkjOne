@@ -87,6 +87,9 @@ function attempt(overrides: Row = {}): Row {
   state: 'PREPARED',
   result_fingerprint: null,
   result_json: null,
+  processing_lease_token: null,
+  processing_lease_expires_at: null,
+  processing_lease_generation: 0,
   expires_at: new Date(Date.now() + 60_000).toISOString(),
   ...overrides,
  };
@@ -191,6 +194,94 @@ function makeAdmin(
   from: vi.fn((table: 'pos_online_payments' | 'pos_fiuu_vt_attempts') => query(table)),
   rpc: vi.fn(async (name: string, args: Row) => {
    state.rpcCalls.push({ name, args: { ...args } });
+   if (name === 'claim_pos_fiuu_vt_callback_processing') {
+    const current = state.attempt;
+    if (!current
+     || current.id !== args.p_attempt_id
+     || current.payment_id !== args.p_payment_id) {
+     return { data: { outcome: 'NOT_FOUND' }, error: null };
+    }
+    if (current.state === 'CONSUMED') {
+     return {
+      data: current.result_fingerprint === args.p_result_fingerprint
+       ? { outcome: 'CONSUMED' }
+       : { outcome: 'CONFLICT', existing_result: current.result_json },
+      error: null,
+     };
+    }
+    if (current.state === 'RECEIVED') {
+     if (current.result_fingerprint !== args.p_result_fingerprint) {
+      return {
+       data: { outcome: 'CONFLICT', existing_result: current.result_json },
+       error: null,
+      };
+     }
+     const leaseExpiresAt = typeof current.processing_lease_expires_at === 'string'
+      ? Date.parse(current.processing_lease_expires_at)
+      : Number.NaN;
+     if (current.processing_lease_token && leaseExpiresAt > Date.now()) {
+      return {
+       data: {
+        outcome: 'ACTIVE',
+        retry_after_ms: Math.max(0, leaseExpiresAt - Date.now()),
+       },
+       error: null,
+      };
+     }
+     const resumedUpdate = {
+      processing_lease_token: args.p_processing_token,
+      processing_lease_expires_at: new Date(Date.now() + 30_000).toISOString(),
+      processing_lease_generation: Number(current.processing_lease_generation ?? 0) + 1,
+     };
+     Object.assign(current, resumedUpdate);
+     state.attemptUpdates.push(resumedUpdate);
+     return { data: { outcome: 'CLAIMED', resumed: true }, error: null };
+    }
+    const claimable = current.state === 'PREPARED'
+     || current.state === 'LAUNCHED'
+     || (current.state === 'EXPIRED' && args.p_allow_expired === true);
+    if (!claimable) {
+     return { data: { outcome: 'INELIGIBLE' }, error: null };
+    }
+    const claimedUpdate = {
+     state: 'RECEIVED',
+     result_fingerprint: args.p_result_fingerprint,
+     result_json: args.p_result_json,
+     received_at: new Date().toISOString(),
+     processing_lease_token: args.p_processing_token,
+     processing_lease_expires_at: new Date(Date.now() + 30_000).toISOString(),
+     processing_lease_generation: Number(current.processing_lease_generation ?? 0) + 1,
+    };
+    Object.assign(current, claimedUpdate);
+    state.attemptUpdates.push(claimedUpdate);
+    return { data: { outcome: 'CLAIMED', resumed: false }, error: null };
+   }
+   if (name === 'complete_pos_fiuu_vt_callback_processing') {
+    const current = state.attempt;
+    if (!current
+     || current.id !== args.p_attempt_id
+     || current.payment_id !== args.p_payment_id) {
+     return { data: { outcome: 'NOT_FOUND' }, error: null };
+    }
+    if (current.state === 'CONSUMED'
+     && current.result_fingerprint === args.p_result_fingerprint) {
+     return { data: { outcome: 'COMPLETED', already_completed: true }, error: null };
+    }
+    if (current.state !== 'RECEIVED'
+     || current.result_fingerprint !== args.p_result_fingerprint
+     || current.processing_lease_token !== args.p_processing_token) {
+     return { data: { outcome: 'LOST_LEASE' }, error: null };
+    }
+    const completedUpdate = {
+     state: 'CONSUMED',
+     consumed_at: new Date().toISOString(),
+     processing_lease_token: null,
+     processing_lease_expires_at: null,
+    };
+    Object.assign(current, completedUpdate);
+    state.attemptUpdates.push(completedUpdate);
+    return { data: { outcome: 'COMPLETED', already_completed: false }, error: null };
+   }
    if (name !== 'mark_pos_fiuu_vt_review'
     || !state.payment
     || state.payment.id !== args.p_payment_id) {
@@ -320,7 +411,7 @@ describe('Fiuu VT one-time callback reconciliation', () => {
    state: 'CONSUMED',
    result_fingerprint: expect.any(String),
   });
-  expect(state.rpcCalls).toHaveLength(0);
+  expect(state.rpcCalls.filter((call) => call.name === 'mark_pos_fiuu_vt_review')).toHaveLength(0);
  });
 
  it('quarantines STATUS=00 beyond the bounded late-callback grace', async () => {
@@ -445,6 +536,9 @@ describe('Fiuu VT one-time callback reconciliation', () => {
     state: 'RECEIVED',
     result_fingerprint: callbackFingerprint(result),
     result_json: result,
+    processing_lease_token: '123e4567-e89b-42d3-a456-426614174111',
+    processing_lease_expires_at: new Date(Date.now() + 30_000).toISOString(),
+    processing_lease_generation: 1,
    }),
   );
   mocks.createAdminClient.mockReturnValue(admin);
@@ -455,6 +549,68 @@ describe('Fiuu VT one-time callback reconciliation', () => {
   expect(state.payment).toMatchObject({ status: 'PENDING' });
   expect(state.paymentUpdates).toHaveLength(0);
   expect(state.attempt).toMatchObject({ state: 'RECEIVED' });
+ });
+
+ it('resumes an exact RECEIVED callback after its processing lease expires', async () => {
+  const result = callback('STATUS', '00');
+  const { admin, state } = makeAdmin(
+   payment(),
+   attempt({
+    state: 'RECEIVED',
+    result_fingerprint: callbackFingerprint(result),
+    result_json: result,
+    processing_lease_token: '123e4567-e89b-42d3-a456-426614174222',
+    processing_lease_expires_at: new Date(Date.now() - 1_000).toISOString(),
+    processing_lease_generation: 1,
+   }),
+  );
+  mocks.createAdminClient.mockReturnValue(admin);
+
+  const response = await invoke(result);
+
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({
+   payment: { status: 'REPORTED' },
+   next_action: 'AUTO_CONFIRMATION',
+  });
+  expect(state.payment).toMatchObject({ status: 'REPORTED' });
+  expect(state.attempt).toMatchObject({
+   state: 'CONSUMED',
+   processing_lease_generation: 2,
+   processing_lease_token: null,
+  });
+  expect(state.rpcCalls.map((call) => call.name)).toEqual([
+   'claim_pos_fiuu_vt_callback_processing',
+   'complete_pos_fiuu_vt_callback_processing',
+  ]);
+ });
+
+ it('finishes a stale RECEIVED attempt after payment evidence was already persisted', async () => {
+  const result = callback('STATUS', '00');
+  const { admin, state } = makeAdmin(
+   payment({ status: 'REPORTED', provider_transaction_id: TRANSACTION_ID }),
+   attempt({
+    state: 'RECEIVED',
+    result_fingerprint: callbackFingerprint(result),
+    result_json: result,
+    processing_lease_token: '123e4567-e89b-42d3-a456-426614174333',
+    processing_lease_expires_at: new Date(Date.now() - 1_000).toISOString(),
+    processing_lease_generation: 1,
+   }),
+  );
+  mocks.createAdminClient.mockReturnValue(admin);
+
+  const response = await invoke(result);
+
+  expect(await response.json()).toMatchObject({
+   payment: { status: 'REPORTED' },
+   next_action: 'ACK_ONLY',
+  });
+  expect(state.paymentUpdates).toHaveLength(0);
+  expect(state.attempt).toMatchObject({
+   state: 'CONSUMED',
+   processing_lease_generation: 2,
+  });
  });
 
  it('acknowledges an exact replay without mutating payment twice', async () => {
