@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-11-12 - Prepare Android 1.8.0 Fiuu VT checkout recovery
+
+- Prepared Google Play version `1.8.0` (`versionCode 18`) with the signed company upload key for a coordinated Production release.
+- Added an explicit cashier escape path for expired, cancelled and abandoned Fiuu VT attempts so the next customer can be served without waiting for a stale QR window.
+- Reconciled late provider callbacks before cancellation and preserved exact-once receipt, stock and fulfillment protections when a payment succeeds near the expiry boundary.
+- Hardened native callback recovery across app resume/restart, repeated callbacks and stale pending state without reopening a completed sale.
+- Retained branch, tablet, user, shift, amount, currency and DuitNow channel matching for registered `BR001`-`BR036` devices.
+- The release remains gated by the matching `rkj.one` server deployment and final Play Console rollout confirmation.
+
 ## 2026-11-04 - Prepare registered-device Fiuu VT for BR001-BR036
 
 - Generalized the explicit Fiuu VT App-to-App allowlist from the BR001 pilot to canonical `BR001`-`BR036` codes without adding a wildcard or bulk-activating tablets.
