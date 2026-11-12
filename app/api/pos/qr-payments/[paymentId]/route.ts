@@ -16,6 +16,7 @@ import {
 } from '@/lib/pos/fiuu-cloudecr';
 import { reconcileFiuuCloudEcrLast } from '@/lib/pos/fiuu-cloudecr-runtime';
 import type { Json } from '@/types/database';
+import { posPaymentFingerprintFromSalePayload } from '@/lib/pos/payment-fingerprint';
 
 export const maxDuration = 100;
 
@@ -46,7 +47,7 @@ export async function GET(
  const { paymentId } = await context.params;
  const service = createAdminClient();
  const paymentSelect =
-  'id, branch_id, shift_id, amount_rm, status, provider, gateway_ref, paid_at, transaction_id, expires_at, created_by, provider_result, provider_order_id, provider_transaction_id, provider_sale_reported_at, provider_status_checked_at, fiuu_vt_review_required, fiuu_vt_reconciliation_state' as const;
+  'id, branch_id, shift_id, amount_rm, status, provider, gateway_ref, paid_at, transaction_id, expires_at, created_by, provider_result, provider_order_id, provider_transaction_id, provider_sale_reported_at, provider_status_checked_at, fiuu_vt_review_required, fiuu_vt_reconciliation_state, sale_payload' as const;
  const initial = await service.from('pos_online_payments').select(paymentSelect)
   .eq('id', paymentId).eq('organization_id', profile.organization_id).maybeSingle();
 
@@ -241,6 +242,7 @@ export async function GET(
    reconciliation_expired: reconciliationExpired,
    fiuu_vt_review_required: payment.fiuu_vt_review_required,
    fiuu_vt_reconciliation_state: payment.fiuu_vt_reconciliation_state,
+   cart_fingerprint: posPaymentFingerprintFromSalePayload(payment.sale_payload),
   },
   result,
  });

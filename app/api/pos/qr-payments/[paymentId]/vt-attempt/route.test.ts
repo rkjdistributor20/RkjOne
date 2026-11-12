@@ -42,6 +42,8 @@ import { POST } from './route';
 const PAYMENT_ID = '0122709a-a1f6-4c94-a8c7-dda63262a474';
 const ATTEMPT_ID = '123e4567-e89b-42d3-a456-426614174000';
 const CALLBACK_HOST = buildFiuuVtCallbackHost(ATTEMPT_ID);
+const RETRY_ATTEMPT_ID = '223e4567-e89b-42d3-a456-426614174000';
+const RETRY_CALLBACK_HOST = buildFiuuVtCallbackHost(RETRY_ATTEMPT_ID);
 const ORDER_ID = 'RKJ_0122709AA1F64C94A8C7DDA63262A474';
 const PROFILE = {
  id: '123e4567-e89b-42d3-a456-426614174111',
@@ -225,14 +227,16 @@ describe('Fiuu VT launch retry leases', () => {
   ))).toBe(true);
  });
 
- it('relaunches the same STATUS identity after the bounded lease expires', async () => {
+ it('rotates to a fresh STATUS callback identity after the bounded lease expires', async () => {
   let call = 0;
   const { admin } = makeAdmin(async () => {
    call += 1;
    if (call === 1) return launchDecision('STATUS');
    if (call === 2) return activeDecision('STATUS');
    return launchDecision('STATUS', {
-    lease_generation: 2,
+    id: RETRY_ATTEMPT_ID,
+    callback_host: RETRY_CALLBACK_HOST,
+    lease_generation: 1,
     lease_expires_at: new Date(Date.now() + 25_000).toISOString(),
    });
   });
@@ -253,14 +257,16 @@ describe('Fiuu VT launch retry leases', () => {
   });
   expect(retry.status).toBe(200);
   expect(retryBody).toMatchObject({
-   reused: true,
+   reused: false,
    attempt: {
-    id: firstBody.attempt.id,
-    callback_host: firstBody.attempt.callback_host,
+    id: RETRY_ATTEMPT_ID,
+    callback_host: RETRY_CALLBACK_HOST,
     op_type: 'STATUS',
-    lease_generation: 2,
+    lease_generation: 1,
    },
   });
+  expect(retryBody.attempt.id).not.toBe(firstBody.attempt.id);
+  expect(retryBody.attempt.callback_host).not.toBe(firstBody.attempt.callback_host);
  });
 
  it.each([
@@ -336,10 +342,17 @@ describe('Fiuu VT launch retry leases', () => {
 });
 
 describe('Fiuu VT retry lease database contract', () => {
- const migration = readFileSync(
+ const leaseMigration = readFileSync(
   resolve(
    process.cwd(),
    'supabase/migrations/20261112140000_arbitrate_fiuu_vt_retry_leases.sql',
+  ),
+  'utf8',
+ );
+ const rotationMigration = readFileSync(
+  resolve(
+   process.cwd(),
+   'supabase/migrations/20261112160000_rotate_fiuu_vt_retry_callback_identity.sql',
   ),
   'utf8',
  );
@@ -353,39 +366,37 @@ describe('Fiuu VT retry lease database contract', () => {
  );
 
  it('serializes claims and bounds missing-callback retry to at most 25 seconds', () => {
-  expect(migration).toContain('claim_pos_fiuu_vt_launch_lease');
-  expect(migration).toContain('FOR UPDATE');
-  expect(migration).toContain("interval '25 seconds'");
-  expect(migration).toContain('launch_lease_generation = launch_lease_generation + 1');
+  expect(leaseMigration).toContain('claim_pos_fiuu_vt_launch_lease');
+  expect(rotationMigration).toContain('FOR UPDATE');
+  expect(leaseMigration).toContain("interval '25 seconds'");
+  expect(rotationMigration).toContain("'reason', 'MISSING_CALLBACK_ROTATED'");
   expect(attemptRoute).toContain("'claim_pos_fiuu_vt_launch_lease'");
  });
 
  it('enforces one STATUS-or-VOID reconciliation operation per payment', () => {
-  const reconciliationIndex = migration.match(
+  const reconciliationIndex = leaseMigration.match(
    /CREATE UNIQUE INDEX IF NOT EXISTS idx_pos_fiuu_vt_attempts_one_active_reconciliation[\s\S]*?;/,
   )?.[0];
   expect(reconciliationIndex).toContain('ON public.pos_fiuu_vt_attempts(payment_id)');
   expect(reconciliationIndex).toContain("op_type IN ('STATUS', 'VOID')");
   expect(reconciliationIndex).toContain("state IN ('PREPARED', 'LAUNCHED', 'RECEIVED')");
-  expect(migration).toContain("'reason', 'OPERATION_CONFLICT'");
+  expect(leaseMigration).toContain("'reason', 'OPERATION_CONFLICT'");
  });
 
- it('reuses an attempt identity instead of inserting during a retry lease handoff', () => {
-  const retryStart = migration.indexOf('-- Missing callback:');
-  const retryEnd = migration.indexOf('v_attempt_duration :=', retryStart);
-  const retryFlow = migration.slice(retryStart, retryEnd);
-  expect(retryStart).toBeGreaterThan(-1);
-  expect(retryEnd).toBeGreaterThan(retryStart);
-  expect(retryFlow).toContain('WHERE id = v_active.id');
-  expect(retryFlow).toContain("'id', v_active.id");
-  expect(retryFlow).toContain("'callback_host', v_active.callback_host");
-  expect(retryFlow).not.toContain('INSERT INTO public.pos_fiuu_vt_attempts');
+ it('expires the old lease before inserting a retry with a fresh callback identity', () => {
+  expect(rotationMigration).toContain("SET state = 'EXPIRED'");
+  expect(rotationMigration).toContain('expires_at = LEAST(expires_at, v_now)');
+  expect(rotationMigration).toContain("state IN ('PREPARED', 'LAUNCHED')");
+  expect(rotationMigration).toContain('launch_lease_expires_at <= v_now');
+  expect(rotationMigration).toContain('claim_pos_fiuu_vt_launch_lease_reused_identity(');
+  expect(rotationMigration).toContain("'reused', false");
+  expect(rotationMigration).not.toContain('launch_lease_generation = launch_lease_generation + 1');
  });
 
  it('keeps superseded callback identities processable and preserves lifecycle states', () => {
-  expect(migration).not.toContain('DELETE FROM public.pos_fiuu_vt_attempts');
-  expect(migration).not.toContain('SUPERSEDED');
-  expect(migration).toContain("SET state = 'EXPIRED'");
+  expect(rotationMigration).not.toContain('DELETE FROM public.pos_fiuu_vt_attempts');
+  expect(rotationMigration).not.toContain('SUPERSEDED');
+  expect(rotationMigration).toContain("SET state = 'EXPIRED'");
   expect(resultRoute).toContain("['PREPARED', 'LAUNCHED', 'EXPIRED']");
   expect(attemptRoute).toContain("action: 'MARK_LAUNCHED' | 'ABANDON_UNLAUNCHED'");
   expect(attemptRoute).toContain(".eq('state', 'PREPARED')");

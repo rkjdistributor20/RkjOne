@@ -40,6 +40,44 @@ export type FiuuVtCallbackResult = FiuuVtResult | FiuuVtErrorResult;
 
 export type FiuuVtStatusDisposition = 'REPORTED' | 'PENDING' | 'FAILED' | 'CANCELLED' | 'EXPIRED';
 export type FiuuVtVoidDisposition = 'PENDING' | 'CANCELLED' | 'EXPIRED';
+export type FiuuVtRecoveredPaymentStatus =
+ | 'PENDING'
+ | 'REPORTED'
+ | 'PAID'
+ | 'FAILED'
+ | 'EXPIRED'
+ | 'CANCELLED';
+
+export function canFinalizeFiuuVtPayment(
+ callbackDrainInProgress: boolean,
+ reviewRequired: boolean,
+): boolean {
+ // A server-side REPORTED value is not sufficient while Android may still
+ // hold a later, contradictory callback. Finalisation is allowed only after
+ // that durable queue is empty and the transaction is not quarantined.
+ return !callbackDrainInProgress && !reviewRequired;
+}
+
+export function canReleaseFiuuVtCallbackDrain(
+ queueReadProvedEmpty: boolean,
+ queueReadsInProgress: number,
+ callbacksProcessing: number,
+): boolean {
+ return queueReadProvedEmpty
+  && queueReadsInProgress === 0
+  && callbacksProcessing === 0;
+}
+
+export function getRecoveredFiuuVtLocalStatus(
+ serverStatus: FiuuVtRecoveredPaymentStatus,
+): FiuuVtRecoveredPaymentStatus {
+ // A recovered server snapshot can be older than a callback still queued in
+ // Android. Keep successful-looking states pollable until a fresh native
+ // queue read proves that no contradictory callback remains.
+ return serverStatus === 'REPORTED' || serverStatus === 'PAID'
+  ? 'PENDING'
+  : serverStatus;
+}
 
 export function shouldLaunchFiuuVtStatusAfterReconcile(
  serverStatus: 'PENDING' | 'REPORTED' | 'PAID' | 'FAILED' | 'EXPIRED' | 'CANCELLED' | null,

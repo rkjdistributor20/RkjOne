@@ -26,6 +26,7 @@ type Attempt = {
  operation: Operation;
  orderId: string;
  amount: string;
+ generation: number;
  callbackReceived: boolean;
 };
 
@@ -76,6 +77,7 @@ const saleA = {
  operation: 'SALE' as const,
  orderId: 'ORDER_A',
  amount: '2.50',
+ generation: 1,
 };
 
 const statusB = {
@@ -84,6 +86,7 @@ const statusB = {
  operation: 'STATUS' as const,
  orderId: 'ORDER_A',
  amount: '2.50',
+ generation: 1,
 };
 
 const voidB = { ...statusB, operation: 'VOID' as const };
@@ -144,6 +147,32 @@ describe('Fiuu VT Android historical callback registry', () => {
   }
   expect(checkStatus).toContain('"STATUS"');
   expect(cancelSale).toContain('"VOID"');
+ });
+
+ it('rejects callback identity reuse so every provider retry has a fresh host', () => {
+  const register = methodBody(
+   'private boolean registerCallbackAttempt(',
+   'private boolean removeCallbackAttempt(',
+  );
+  expect(register).toContain('Fiuu callback attempt collision');
+  expect(register).not.toContain('existingAttempt.put("generation", generation)');
+  expect(register).not.toContain('Unable to renew Fiuu callback attempt');
+
+  const model = new DurableRegistryModel();
+  model.launch(statusB);
+  const statusRetry = {
+   ...statusB,
+   attemptId: '33333333-3333-4333-8333-333333333333',
+   callbackHost: 'a-33333333333343338333333333333333.fiuu-vt.rkj.one',
+  };
+  model.launch(statusRetry);
+  model.callback(statusB.callbackHost);
+  model.callback(statusRetry.callbackHost);
+  expect(model.retainedAttemptIds()).toEqual([statusB.attemptId, statusRetry.attemptId]);
+  expect(model.queued.map((result) => result.attemptId)).toEqual([
+   statusB.attemptId,
+   statusRetry.attemptId,
+  ]);
  });
 
  it('resolves historical hosts and queues their own registered identity', () => {
@@ -240,7 +269,11 @@ describe('Fiuu VT Android historical callback registry', () => {
    'public synchronized void acknowledgeError(PluginCall call)',
   );
   expect(acknowledgeResult).toContain(
-   'removeCallbackAttempt(preferences, callbackAttemptId)',
+   'SharedPreferences.Editor acknowledgementEditor = writeResultQueue(preferences.edit(), queue)',
   );
+  expect(acknowledgeResult).toContain(
+   'removeCallbackAttempt(preferences, callbackAttemptId, acknowledgementEditor)',
+  );
+  expect(acknowledgeResult).toContain('FIUU_RESULT_ACK_PERSIST_FAILED');
  });
 });

@@ -31,6 +31,9 @@ vi.mock('@/lib/pos/fiuu-cloudecr', () => ({
 vi.mock('@/lib/pos/fiuu-cloudecr-runtime', () => ({
  reconcileFiuuCloudEcrLast: vi.fn(),
 }));
+vi.mock('@/lib/pos/payment-fingerprint', () => ({
+ posPaymentFingerprintFromSalePayload: vi.fn(() => null),
+}));
 
 import { GET } from './route';
 

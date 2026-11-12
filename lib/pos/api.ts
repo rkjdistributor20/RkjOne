@@ -323,6 +323,7 @@ export async function createFiuuVtAttempt(
     callback_host: string;
     expires_at: string;
     op_type: FiuuVtOperation;
+    lease_generation: number;
    };
    reused?: boolean;
    retry_lease?: {
@@ -481,6 +482,7 @@ export async function fetchPosQrPayment(paymentId: string) {
   reconciliation_expired: boolean;
   fiuu_vt_review_required: boolean;
   fiuu_vt_reconciliation_state: string | null;
+  cart_fingerprint: string | null;
  };
  result: SaleResult | null;
  }>('/api/pos/qr-payments/' + encodeURIComponent(paymentId));

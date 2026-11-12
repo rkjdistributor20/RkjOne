@@ -16,29 +16,45 @@ const androidManifest = readFileSync(join(
 ), 'utf8');
 
 describe('Fiuu VT Android bridge resilience', () => {
- it('advertises bridge v5 and exposes the active one-time callback identity', () => {
-  expect(nativePlugin).toContain('private static final int BRIDGE_API_VERSION = 5;');
+ it('advertises bridge v6 and exposes the active one-time callback identity', () => {
+  expect(nativePlugin).toContain('private static final int BRIDGE_API_VERSION = 6;');
   expect(nativePlugin).toContain('result.put("bridgeApiVersion", BRIDGE_API_VERSION);');
   expect(nativePlugin).toContain('"pendingOperationStartedAt"');
   expect(nativePlugin).toContain('"activeCallbackAttemptId"');
   expect(nativePlugin).toContain('"activeCallbackHost"');
   expect(nativePlugin).toContain('preferences.getLong(LAST_LAUNCH_AT, 0L)');
   expect(nativeClient).toContain('pendingOperationStartedAt?: number | null;');
-  expect(nativeClient).toContain('FIUU_VT_BRIDGE_RESILIENCE_API_VERSION = 5');
-  expect(nativeClient).toContain('FIUU_VT_CALLBACK_ATTEMPT_API_VERSION = 5');
+  expect(nativeClient).toContain('FIUU_VT_BRIDGE_RESILIENCE_API_VERSION = 6');
+  expect(nativeClient).toContain('FIUU_VT_CALLBACK_ATTEMPT_API_VERSION = 6');
   expect(nativeClient).toContain('pendingOperationStartedAt: null');
  });
 
  it('requires a server-issued attempt and launches Fiuu with its dynamic host', () => {
   expect(nativePlugin.match(/call\.getString\("attemptId", ""\)/g)).toHaveLength(3);
   expect(nativePlugin.match(/call\.getString\("callbackHost", ""\)/g)).toHaveLength(3);
+  expect(nativePlugin.match(/call\.getInt\("generation"\)/g)).toHaveLength(3);
+  expect(nativePlugin.match(/call\.getString\("amount", ""\)/g)).toHaveLength(2);
   expect(nativePlugin.match(/appendQueryParameter\("merchantHost", callbackHost\)/g)).toHaveLength(3);
   expect(nativePlugin).toContain('isMatchingCallbackAttempt(attemptId, callbackHost)');
   expect(nativeClient).toContain('attempt: FiuuVtCallbackAttempt');
   expect(nativeClient).toContain('normalizedCallbackAttempt(attempt)');
+  expect(nativeClient).toContain('Number.isSafeInteger(attempt.generation)');
   expect(nativeClient).toContain('requireCallbackAttemptBridge()');
   expect(androidManifest).toContain('<data android:scheme="${applicationId}" />');
   expect(androidManifest).not.toContain('android:host="fiuu-vt.rkj.one"');
+ });
+
+ it('rehydrates a lost native STATUS context without opening a second SALE', () => {
+  const statusStart = nativePlugin.indexOf('public synchronized void checkStatus');
+  const statusEnd = nativePlugin.indexOf('public synchronized void cancelSale', statusStart);
+  const statusFlow = nativePlugin.slice(statusStart, statusEnd);
+
+  expect(statusFlow).toContain('recoveringWithoutPendingNativeState');
+  expect(statusFlow).toContain('.putString(PENDING_ORDER, orderId)');
+  expect(statusFlow).toContain('.putString(PENDING_AMOUNT, statusAmount.toPlainString())');
+  expect(statusFlow).toContain('.appendQueryParameter("opType", "STATUS")');
+  expect(statusFlow).not.toContain('.appendQueryParameter("opType", "SALE")');
+  expect(nativeClient).toContain('amount: amountRm.toFixed(2)');
  });
 
  it('resolves callbacks through the durable historical host registry', () => {
@@ -63,9 +79,29 @@ describe('Fiuu VT Android bridge resilience', () => {
   expect(nativePlugin).toContain('callbackMatchesRegisteredAttempt ? "MATCHED" : "MISMATCH"');
   expect(nativePlugin).toContain('call.getString("callbackAttemptId", "")');
   expect(nativePlugin).toContain('!callbackAttemptId.equals(value.optString("callbackAttemptId"))');
-  expect(nativePlugin).toContain('removeCallbackAttempt(preferences, callbackAttemptId)');
+  expect(nativePlugin).toContain(
+   'removeCallbackAttempt(preferences, callbackAttemptId, acknowledgementEditor)',
+  );
+  expect(nativePlugin).toContain('FIUU_RESULT_ACK_PERSIST_FAILED');
   expect(nativeClient).toContain('callbackAttemptId: result.callbackAttemptId');
   expect(nativeClient).toContain("callbackValidation: 'MATCHED' | 'MISMATCH'");
+ });
+
+ it('persists result acknowledgement and terminal cleanup atomically', () => {
+  const acknowledgeResultStart = nativePlugin.indexOf('public synchronized void acknowledgeResult');
+  const acknowledgeResultEnd = nativePlugin.indexOf('public synchronized void acknowledgeError', acknowledgeResultStart);
+  const acknowledgeResult = nativePlugin.slice(acknowledgeResultStart, acknowledgeResultEnd);
+  const clearStart = nativePlugin.indexOf('public synchronized void clearPendingResult');
+  const clearEnd = nativePlugin.indexOf('public synchronized boolean handleDeepLink', clearStart);
+  const clearPendingResult = nativePlugin.slice(clearStart, clearEnd);
+
+  expect(acknowledgeResult).toContain('writeResultQueue(preferences.edit(), queue)');
+  expect(acknowledgeResult).toContain(
+   'removeCallbackAttempt(preferences, callbackAttemptId, acknowledgementEditor)',
+  );
+  expect(clearPendingResult).toContain('boolean cleared = preferences.edit()');
+  expect(clearPendingResult).toContain('.commit();');
+  expect(clearPendingResult).toContain('FIUU_CLEAR_PERSIST_FAILED');
  });
 
  it('bounds low-value entries without evicting authoritative payment evidence', () => {

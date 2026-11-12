@@ -32,6 +32,7 @@ export type FiuuVtNativeStatus = {
 export type FiuuVtCallbackAttempt = {
  attemptId: string;
  callbackHost: string;
+ generation: number;
 };
 
 export type FiuuVtNativeCallbackIdentity = {
@@ -50,6 +51,7 @@ type FiuuVtPlugin = {
   amount: string;
   attemptId: string;
   callbackHost: string;
+  generation: number;
  }): Promise<{ launched: true }>;
  acknowledgeResult(options: {
   callbackAttemptId: string;
@@ -66,13 +68,16 @@ type FiuuVtPlugin = {
  }): Promise<void>;
  checkStatus(options: {
   orderId: string;
+  amount: string;
   attemptId: string;
   callbackHost: string;
+  generation: number;
  }): Promise<{ launched: true }>;
  cancelSale(options: {
   orderId: string;
   attemptId: string;
   callbackHost: string;
+  generation: number;
  }): Promise<{ launched: true }>;
  getPendingResult(): Promise<{ result: unknown | null; receivedAt?: number }>;
  clearPendingResult(options: { orderId: string }): Promise<void>;
@@ -86,8 +91,8 @@ const NativeFiuuVt = registerPlugin<FiuuVtPlugin>('RkjFiuuVt');
 
 const RESULT_ACKNOWLEDGEMENT_API_VERSION = 5;
 const VOID_API_VERSION = 3;
-export const FIUU_VT_BRIDGE_RESILIENCE_API_VERSION = 5;
-export const FIUU_VT_CALLBACK_ATTEMPT_API_VERSION = 5;
+export const FIUU_VT_BRIDGE_RESILIENCE_API_VERSION = 6;
+export const FIUU_VT_CALLBACK_ATTEMPT_API_VERSION = 6;
 export const FIUU_VT_BRIDGE_TIMEOUT_CODE = 'FIUU_VT_BRIDGE_TIMEOUT';
 const NATIVE_READ_TIMEOUT_MS = 8_000;
 const NATIVE_LAUNCH_TIMEOUT_MS = 12_000;
@@ -171,9 +176,9 @@ async function supportsResultAcknowledgement(): Promise<boolean> {
  return (detectedBridgeApiVersion ?? 1) >= RESULT_ACKNOWLEDGEMENT_API_VERSION;
 }
 
-function normalizedCallbackAttempt(attempt: FiuuVtCallbackAttempt): FiuuVtCallbackAttempt {
- const attemptId = attempt.attemptId.trim().toLowerCase();
- const callbackHost = attempt.callbackHost.trim().toLowerCase();
+function normalizedCallbackIdentity(attemptIdValue: string, callbackHostValue: string) {
+ const attemptId = attemptIdValue.trim().toLowerCase();
+ const callbackHost = callbackHostValue.trim().toLowerCase();
  const expectedHost = `a-${attemptId.replaceAll('-', '')}.fiuu-vt.rkj.one`;
  if (!ATTEMPT_ID_PATTERN.test(attemptId)
   || !CALLBACK_HOST_PATTERN.test(callbackHost)
@@ -184,6 +189,19 @@ function normalizedCallbackAttempt(attempt: FiuuVtCallbackAttempt): FiuuVtCallba
   );
  }
  return { attemptId, callbackHost };
+}
+
+function normalizedCallbackAttempt(attempt: FiuuVtCallbackAttempt): FiuuVtCallbackAttempt {
+ const identity = normalizedCallbackIdentity(attempt.attemptId, attempt.callbackHost);
+ if (!Number.isSafeInteger(attempt.generation)
+  || attempt.generation < 1
+  || attempt.generation > 2_147_483_647) {
+  throw codedNativeError(
+   'Generasi cubaan callback Fiuu VT daripada pelayan tidak sah.',
+   'INVALID_FIUU_REQUEST',
+  );
+ }
+ return { ...identity, generation: attempt.generation };
 }
 
 async function requireCallbackAttemptBridge(): Promise<void> {
@@ -219,7 +237,7 @@ function parseNativeCallbackResult(input: unknown): FiuuVtNativeCallbackResult {
   throw new Error('Status pengesahan callback Fiuu VT tidak sah.');
  }
  const callbackValidation = raw.callbackValidation;
- normalizedCallbackAttempt({ attemptId: callbackAttemptId, callbackHost });
+ normalizedCallbackIdentity(callbackAttemptId, callbackHost);
  return {
   ...parseFiuuVtCallbackResult(input),
   callbackAttemptId,
@@ -272,11 +290,16 @@ export async function launchFiuuVtSale(
 
 export async function launchFiuuVtStatus(
  orderId: string,
+ amountRm: number,
  attempt: FiuuVtCallbackAttempt,
 ) {
  await requireCallbackAttemptBridge();
  return nativeCallWithDeadline(
-  () => NativeFiuuVt.checkStatus({ orderId, ...normalizedCallbackAttempt(attempt) }),
+  () => NativeFiuuVt.checkStatus({
+   orderId,
+   amount: amountRm.toFixed(2),
+   ...normalizedCallbackAttempt(attempt),
+  }),
   NATIVE_LAUNCH_TIMEOUT_MS,
  );
 }

@@ -52,7 +52,7 @@ public class RkjFiuuVtPlugin extends Plugin {
     private static final String ACTIVE_ATTEMPT_OPERATION = "active_attempt_operation";
     private static final String ACTIVE_CALLBACK_RECEIVED = "active_callback_received";
     private static final String CALLBACK_ATTEMPT_REGISTRY = "callback_attempt_registry";
-    private static final int BRIDGE_API_VERSION = 5;
+    private static final int BRIDGE_API_VERSION = 6;
     private static final long MIN_LAUNCH_INTERVAL_MS = 3000L;
     private static final long STALE_VOID_RECOVERY_MS = 30000L;
     private static final int RESULT_QUEUE_LIMIT = 128;
@@ -161,7 +161,9 @@ public class RkjFiuuVtPlugin extends Plugin {
         BigDecimal amount = normalizedAmount(call.getString("amount", ""));
         String attemptId = normalizedAttemptId(call.getString("attemptId", ""));
         String callbackHost = normalizedCallbackHost(call.getString("callbackHost", ""));
-        if (orderId == null || amount == null || !isMatchingCallbackAttempt(attemptId, callbackHost)) {
+        Integer generation = call.getInt("generation");
+        if (orderId == null || amount == null || generation == null || generation < 1
+            || !isMatchingCallbackAttempt(attemptId, callbackHost)) {
             call.reject("Order ID, amaun atau cubaan callback Fiuu VT tidak sah.", "INVALID_FIUU_REQUEST");
             return;
         }
@@ -196,6 +198,7 @@ public class RkjFiuuVtPlugin extends Plugin {
                 "SALE",
                 orderId,
                 amount.toPlainString(),
+                generation,
                 preferences.edit()
                     .putString(PENDING_ORDER, orderId)
                     .putString(PENDING_AMOUNT, amount.toPlainString())
@@ -258,22 +261,23 @@ public class RkjFiuuVtPlugin extends Plugin {
         }
 
         queue.remove(resultIndex);
-        saveResultQueue(preferences, queue);
-        removeCallbackAttempt(preferences, callbackAttemptId);
+        SharedPreferences.Editor acknowledgementEditor = writeResultQueue(preferences.edit(), queue);
         if ("SALE".equals(opType) && orderId.equals(preferences.getString(PENDING_ORDER, ""))) {
-            preferences.edit()
+            acknowledgementEditor
                 .putBoolean(SALE_ACKNOWLEDGED, true)
-                .putString(PENDING_OPERATION, "STATUS")
-                .commit();
+                .putString(PENDING_OPERATION, "STATUS");
         } else if ("VOID".equals(opType) && orderId.equals(preferences.getString(PENDING_ORDER, ""))) {
             // A VOID callback is not authoritative payment evidence. Return
             // the bridge to STATUS mode so RKJ One can immediately reconcile
             // the original order instead of leaving the cashier stranded in
             // a permanent pendingOperation=VOID state.
-            preferences.edit()
+            acknowledgementEditor
                 .putString(PENDING_OPERATION, "STATUS")
-                .putBoolean(VOID_LAUNCHED, false)
-                .commit();
+                .putBoolean(VOID_LAUNCHED, false);
+        }
+        if (!removeCallbackAttempt(preferences, callbackAttemptId, acknowledgementEditor)) {
+            call.reject("Keputusan Fiuu VT belum dapat disimpan dengan selamat.", "FIUU_RESULT_ACK_PERSIST_FAILED");
+            return;
         }
         call.resolve();
     }
@@ -310,13 +314,15 @@ public class RkjFiuuVtPlugin extends Plugin {
             return;
         }
         queue.remove(resultIndex);
-        saveResultQueue(preferences, queue);
-        removeCallbackAttempt(preferences, callbackAttemptId);
+        SharedPreferences.Editor acknowledgementEditor = writeResultQueue(preferences.edit(), queue);
         if ("VOID".equals(opType) && orderId.equals(preferences.getString(PENDING_ORDER, ""))) {
-            preferences.edit()
+            acknowledgementEditor
                 .putString(PENDING_OPERATION, "STATUS")
-                .putBoolean(VOID_LAUNCHED, false)
-                .commit();
+                .putBoolean(VOID_LAUNCHED, false);
+        }
+        if (!removeCallbackAttempt(preferences, callbackAttemptId, acknowledgementEditor)) {
+            call.reject("Ralat Fiuu VT belum dapat disimpan dengan selamat.", "FIUU_RESULT_ACK_PERSIST_FAILED");
+            return;
         }
         call.resolve();
     }
@@ -324,17 +330,28 @@ public class RkjFiuuVtPlugin extends Plugin {
     @PluginMethod
     public synchronized void checkStatus(PluginCall call) {
         String orderId = normalizedOrderId(call.getString("orderId", ""));
+        BigDecimal requestedAmount = normalizedAmount(call.getString("amount", ""));
         String attemptId = normalizedAttemptId(call.getString("attemptId", ""));
         String callbackHost = normalizedCallbackHost(call.getString("callbackHost", ""));
+        Integer generation = call.getInt("generation");
         SharedPreferences preferences = preferences();
         String pendingOrder = preferences.getString(PENDING_ORDER, "");
         BigDecimal pendingAmount = normalizedAmount(preferences.getString(PENDING_AMOUNT, ""));
-        if (orderId == null || !orderId.equals(pendingOrder)
-            || pendingAmount == null
+        boolean recoveringWithoutPendingNativeState = pendingOrder.isEmpty()
+            && preferences.getString(PENDING_AMOUNT, "").isEmpty();
+        if (orderId == null || requestedAmount == null
+            || generation == null || generation < 1
+            || (!recoveringWithoutPendingNativeState
+                && (!orderId.equals(pendingOrder)
+                    || pendingAmount == null
+                    || pendingAmount.compareTo(requestedAmount) != 0))
             || !isMatchingCallbackAttempt(attemptId, callbackHost)) {
             call.reject("Percubaan Fiuu VT tidak sepadan dengan transaksi aktif.", "FIUU_ATTEMPT_MISMATCH");
             return;
         }
+        final BigDecimal statusAmount = recoveringWithoutPendingNativeState
+            ? requestedAmount
+            : pendingAmount;
         String pendingOperation = recoverStaleVoidIfNeeded(preferences, System.currentTimeMillis());
         if ("VOID".equals(pendingOperation)) {
             call.reject(
@@ -349,6 +366,8 @@ public class RkjFiuuVtPlugin extends Plugin {
             return;
         }
 
+        String previousOrder = pendingOrder;
+        String previousAmount = preferences.getString(PENDING_AMOUNT, "");
         String previousOperation = preferences.getString(PENDING_OPERATION, "SALE");
         boolean previousStatusLaunched = preferences.getBoolean(STATUS_LAUNCHED, false);
         Uri uri = new Uri.Builder()
@@ -370,15 +389,29 @@ public class RkjFiuuVtPlugin extends Plugin {
                 callbackHost,
                 "STATUS",
                 orderId,
-                pendingAmount.toPlainString(),
+                statusAmount.toPlainString(),
+                generation,
                 preferences.edit()
+                    .putString(PENDING_ORDER, orderId)
+                    .putString(PENDING_AMOUNT, statusAmount.toPlainString())
                     .putString(PENDING_OPERATION, "STATUS")
                     .putBoolean(STATUS_LAUNCHED, true)
             ),
             () -> {
-                SharedPreferences.Editor rollbackEditor = preferences.edit()
-                    .putString(PENDING_OPERATION, previousOperation)
-                    .putBoolean(STATUS_LAUNCHED, previousStatusLaunched);
+                SharedPreferences.Editor rollbackEditor = preferences.edit();
+                if (recoveringWithoutPendingNativeState) {
+                    rollbackEditor
+                        .remove(PENDING_ORDER)
+                        .remove(PENDING_AMOUNT)
+                        .remove(PENDING_OPERATION)
+                        .remove(STATUS_LAUNCHED);
+                } else {
+                    rollbackEditor
+                        .putString(PENDING_ORDER, previousOrder)
+                        .putString(PENDING_AMOUNT, previousAmount)
+                        .putString(PENDING_OPERATION, previousOperation)
+                        .putBoolean(STATUS_LAUNCHED, previousStatusLaunched);
+                }
                 if (callbackAttemptRegistered[0]) {
                     removeCallbackAttempt(preferences, attemptId, rollbackEditor);
                 } else {
@@ -393,11 +426,13 @@ public class RkjFiuuVtPlugin extends Plugin {
         String orderId = normalizedOrderId(call.getString("orderId", ""));
         String attemptId = normalizedAttemptId(call.getString("attemptId", ""));
         String callbackHost = normalizedCallbackHost(call.getString("callbackHost", ""));
+        Integer generation = call.getInt("generation");
         SharedPreferences preferences = preferences();
         String pendingOrder = preferences.getString(PENDING_ORDER, "");
         BigDecimal pendingAmount = normalizedAmount(preferences.getString(PENDING_AMOUNT, ""));
         if (orderId == null || !orderId.equals(pendingOrder)
             || pendingAmount == null
+            || generation == null || generation < 1
             || !isMatchingCallbackAttempt(attemptId, callbackHost)) {
             call.reject("Percubaan Fiuu VT tidak sepadan dengan transaksi aktif.", "FIUU_ATTEMPT_MISMATCH");
             return;
@@ -430,6 +465,7 @@ public class RkjFiuuVtPlugin extends Plugin {
                 "VOID",
                 orderId,
                 pendingAmount.toPlainString(),
+                generation,
                 preferences.edit()
                     .putString(PENDING_OPERATION, "VOID")
                     .putBoolean(VOID_LAUNCHED, true)
@@ -478,7 +514,7 @@ public class RkjFiuuVtPlugin extends Plugin {
         // context is still available, then retain it for a possible late
         // provider callback after the payment state is cleared.
         loadCallbackAttemptRegistry(preferences);
-        preferences.edit()
+        boolean cleared = preferences.edit()
             .remove(PENDING_ORDER)
             .remove(PENDING_AMOUNT)
             .remove(PENDING_OPERATION)
@@ -492,6 +528,10 @@ public class RkjFiuuVtPlugin extends Plugin {
             .remove(LAST_LAUNCH_AT)
             .remove(LAST_LAUNCH_OPERATION)
             .commit();
+        if (!cleared) {
+            call.reject("Keadaan terminal Fiuu VT belum dapat dibersihkan.", "FIUU_CLEAR_PERSIST_FAILED");
+            return;
+        }
         call.resolve();
     }
 
@@ -683,12 +723,19 @@ public class RkjFiuuVtPlugin extends Plugin {
     }
 
     private boolean saveResultQueue(SharedPreferences preferences, JSONArray queue) {
-        SharedPreferences.Editor editor = preferences.edit()
+        return writeResultQueue(preferences.edit(), queue).commit();
+    }
+
+    private SharedPreferences.Editor writeResultQueue(
+        SharedPreferences.Editor editor,
+        JSONArray queue
+    ) {
+        editor
             .remove(LAST_RESULT)
             .remove(LAST_RESULT_AT);
         if (queue.length() == 0) editor.remove(RESULT_QUEUE);
         else editor.putString(RESULT_QUEUE, queue.toString());
-        return editor.commit();
+        return editor;
     }
 
     private JSONObject peekQueuedResult(SharedPreferences preferences) {
@@ -910,6 +957,7 @@ public class RkjFiuuVtPlugin extends Plugin {
                 legacyOperation,
                 legacyOrderId,
                 legacyAmount.toPlainString(),
+                1,
                 preferences.getBoolean(ACTIVE_CALLBACK_RECEIVED, false),
                 preferences.getLong(LAST_LAUNCH_AT, System.currentTimeMillis())
             );
@@ -932,6 +980,7 @@ public class RkjFiuuVtPlugin extends Plugin {
         String operation,
         String orderId,
         String amount,
+        int generation,
         SharedPreferences.Editor editor
     ) {
         String normalizedOrder = normalizedOrderId(orderId);
@@ -939,7 +988,8 @@ public class RkjFiuuVtPlugin extends Plugin {
         if (!isMatchingCallbackAttempt(normalizedAttemptId(attemptId), normalizedCallbackHost(callbackHost))
             || !isFiuuOperation(operation)
             || normalizedOrder == null
-            || normalizedPaymentAmount == null) {
+            || normalizedPaymentAmount == null
+            || generation < 1) {
             throw new IllegalStateException("Invalid Fiuu callback attempt");
         }
 
@@ -947,6 +997,9 @@ public class RkjFiuuVtPlugin extends Plugin {
         JSONObject existingAttempt = findCallbackAttemptById(registry, attemptId);
         JSONObject existingHost = findCallbackAttemptByHost(registry, callbackHost);
         if (existingAttempt != null || existingHost != null) {
+            // A provider callback host is single-use. Reusing it for a retry
+            // lets a late callback from the earlier launch consume the newer
+            // result, so every retry must arrive with a fresh server identity.
             throw new IllegalStateException("Fiuu callback attempt collision");
         }
 
@@ -968,6 +1021,7 @@ public class RkjFiuuVtPlugin extends Plugin {
             operation,
             normalizedOrder,
             normalizedPaymentAmount.toPlainString(),
+            generation,
             false,
             System.currentTimeMillis()
         );
@@ -1070,6 +1124,7 @@ public class RkjFiuuVtPlugin extends Plugin {
         String operation,
         String orderId,
         String amount,
+        int generation,
         boolean callbackReceived,
         long registeredAt
     ) {
@@ -1080,6 +1135,7 @@ public class RkjFiuuVtPlugin extends Plugin {
             entry.put("operation", operation);
             entry.put("orderId", orderId);
             entry.put("amount", amount);
+            entry.put("generation", generation);
             entry.put("callbackReceived", callbackReceived);
             entry.put("registeredAt", registeredAt > 0L ? registeredAt : System.currentTimeMillis());
             return entry;
@@ -1095,7 +1151,8 @@ public class RkjFiuuVtPlugin extends Plugin {
         return isMatchingCallbackAttempt(attemptId, callbackHost)
             && isFiuuOperation(entry.optString("operation"))
             && normalizedOrderId(entry.optString("orderId")) != null
-            && normalizedAmount(entry.optString("amount")) != null;
+            && normalizedAmount(entry.optString("amount")) != null
+            && entry.optInt("generation", 1) >= 1;
     }
 
     private JSONObject findCallbackAttemptById(JSONArray registry, String attemptId) {

@@ -3,7 +3,10 @@ import {
  buildFiuuVtCallbackHost,
  buildFiuuVtOrderId,
  buildFiuuVtRequestUrl,
+ canFinalizeFiuuVtPayment,
+ canReleaseFiuuVtCallbackDrain,
  FIUU_VT_DUITNOW_CHANNEL,
+ getRecoveredFiuuVtLocalStatus,
  getFiuuVtStatusDisposition,
  getFiuuVtVoidDisposition,
  isFiuuVtErrorResult,
@@ -20,6 +23,70 @@ import {
  isFiuuVtEnabledForBranch,
  normalizeFiuuVtBranchCode,
 } from './fiuu-vt-server';
+
+describe('Fiuu VT callback-drain finalisation gate', () => {
+ it.each(['REPORTED', 'PAID'] as const)(
+  'keeps a recovered %s payment pollable until the native queue is drained',
+  (serverStatus) => {
+   expect(getRecoveredFiuuVtLocalStatus(serverStatus)).toBe('PENDING');
+  },
+ );
+
+ it.each(['PENDING', 'FAILED', 'EXPIRED', 'CANCELLED'] as const)(
+  'preserves a recovered %s payment status',
+  (serverStatus) => {
+   expect(getRecoveredFiuuVtLocalStatus(serverStatus)).toBe(serverStatus);
+  },
+ );
+
+ it('blocks a concurrent REPORTED poll when a later callback is quarantined', async () => {
+  let callbackDrainInProgress = true;
+  let reviewRequired = false;
+  let finalizeCount = 0;
+  let releasePoll!: () => void;
+  const pollResponse = new Promise<void>((resolve) => { releasePoll = resolve; });
+  const concurrentPoll = (async () => {
+   await pollResponse;
+   if (canFinalizeFiuuVtPayment(callbackDrainInProgress, reviewRequired)) finalizeCount += 1;
+  })();
+
+  // A contradictory callback is observed before the in-flight polling response
+  // is allowed to publish the server's REPORTED status.
+  reviewRequired = true;
+  callbackDrainInProgress = false;
+  releasePoll();
+  await concurrentPoll;
+
+  expect(finalizeCount).toBe(0);
+  expect(canFinalizeFiuuVtPayment(false, false)).toBe(true);
+ });
+
+ it('keeps the drain latched when the first native queue read fails', async () => {
+  let callbackDrainInProgress = false;
+  let queueReadProvedEmpty = false;
+  callbackDrainInProgress = true;
+
+  try {
+   await Promise.reject(new Error('bridge timeout'));
+  } catch {
+   queueReadProvedEmpty = false;
+  }
+
+  if (canReleaseFiuuVtCallbackDrain(queueReadProvedEmpty, 0, 0)) {
+   callbackDrainInProgress = false;
+  }
+
+  expect(callbackDrainInProgress).toBe(true);
+  expect(canFinalizeFiuuVtPayment(callbackDrainInProgress, false)).toBe(false);
+ });
+
+ it('releases the drain only after a successful empty read with no concurrent work', () => {
+  expect(canReleaseFiuuVtCallbackDrain(false, 0, 0)).toBe(false);
+  expect(canReleaseFiuuVtCallbackDrain(true, 1, 0)).toBe(false);
+  expect(canReleaseFiuuVtCallbackDrain(true, 0, 1)).toBe(false);
+  expect(canReleaseFiuuVtCallbackDrain(true, 0, 0)).toBe(true);
+ });
+});
 
 const ORIGINAL_ENV = { ...process.env };
 const CALLBACK_ATTEMPT_ID = '123e4567-e89b-42d3-a456-426614174000';
