@@ -322,7 +322,12 @@ function makeAdmin(
     return {
      data: {
       error_count: nextCount,
-      park_available: nextCount >= 3 && expiresAt <= Date.parse(String(args.p_observed_at)),
+      park_available: nextCount >= 3
+       && expiresAt <= Date.parse(String(args.p_observed_at))
+       && state.payment.provider_transaction_id == null
+       && state.payment.provider_sale_reported_at == null
+       && state.payment.transaction_id == null
+       && state.payment.paid_at == null,
      },
      error: null,
     };
@@ -767,7 +772,7 @@ describe('Fiuu VT one-time callback reconciliation', () => {
   expect(state.attempt).toMatchObject({ state: 'CONSUMED' });
  });
 
- it('keeps checkout locked after the third STATUS error because provider cancellation is unproven', async () => {
+ it('offers safe quarantine after the third expired STATUS error with no payment evidence', async () => {
   const errorResult = {
    callbackAttemptId: ATTEMPT_ID,
    callbackHost: CALLBACK_HOST,
@@ -780,6 +785,44 @@ describe('Fiuu VT one-time callback reconciliation', () => {
   };
   const { admin, state } = makeAdmin(payment({
    expires_at: new Date(Date.now() - 1_000).toISOString(),
+   provider_sale_reported_at: null,
+   provider_transaction_id: null,
+   transaction_id: null,
+   paid_at: null,
+   fiuu_vt_provider_error_code: '5000',
+   fiuu_vt_provider_error_count: 2,
+   fiuu_vt_provider_error_at: new Date().toISOString(),
+  }));
+  mocks.createAdminClient.mockReturnValue(admin);
+
+  const response = await invoke(errorResult);
+
+  expect(await response.json()).toMatchObject({
+   payment: { status: 'PENDING' },
+   next_action: 'PARK_AVAILABLE',
+  });
+  expect(state.payment).toMatchObject({
+   status: 'PENDING',
+   fiuu_vt_provider_error_code: '5000',
+   fiuu_vt_provider_error_count: 3,
+  });
+  expect(state.attempt).toMatchObject({ state: 'CONSUMED' });
+ });
+
+ it('keeps checkout locked when repeated STATUS errors coexist with SALE evidence', async () => {
+  const errorResult = {
+   callbackAttemptId: ATTEMPT_ID,
+   callbackHost: CALLBACK_HOST,
+   callbackValidation: 'MATCHED',
+   kind: 'ERROR',
+   opType: 'STATUS',
+   orderId: ORDER_ID,
+   errorCode: '5000',
+   errorMessage: 'Provider STATUS unavailable',
+  };
+  const { admin, state } = makeAdmin(payment({
+   expires_at: new Date(Date.now() - 1_000).toISOString(),
+   provider_sale_reported_at: new Date().toISOString(),
    fiuu_vt_provider_error_code: '5000',
    fiuu_vt_provider_error_count: 2,
    fiuu_vt_provider_error_at: new Date().toISOString(),
@@ -794,7 +837,6 @@ describe('Fiuu VT one-time callback reconciliation', () => {
   });
   expect(state.payment).toMatchObject({
    status: 'PENDING',
-   fiuu_vt_provider_error_code: '5000',
    fiuu_vt_provider_error_count: 3,
   });
   expect(state.attempt).toMatchObject({ state: 'CONSUMED' });

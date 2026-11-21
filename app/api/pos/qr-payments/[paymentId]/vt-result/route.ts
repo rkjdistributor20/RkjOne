@@ -593,6 +593,7 @@ export async function POST(
  }
 
  if (isFiuuVtErrorResult(result)) {
+  let parkAvailable = false;
   if (result.opType === 'STATUS') {
    const { data: errorRecord, error: recordError } = await service.rpc(
     'record_pos_fiuu_vt_provider_error',
@@ -607,10 +608,11 @@ export async function POST(
    if (recordError) {
     return NextResponse.json({ error: 'Ralat STATUS Fiuu VT tidak dapat direkod' }, { status: 400 });
    }
-   // Keep the repeated provider error as durable recovery evidence, but do
-   // not release the checkout lane from a browser callback alone. A STATUS
-   // transport error is not proof that Fiuu cancelled the underlying charge.
-   void jsonRecord(errorRecord as Json | null);
+   // A STATUS transport error is not proof that Fiuu cancelled the charge.
+   // The hardened RPC offers parking only after three distinct errors, expiry,
+   // and the absence of every SALE/transaction/payment signal. Parking keeps
+   // the payment quarantined for Finance/HQ instead of treating it as cancelled.
+   parkAvailable = jsonRecord(errorRecord as Json | null)?.park_available === true;
   } else {
    const { error: updateError } = await service
     .from('pos_online_payments')
@@ -632,8 +634,14 @@ export async function POST(
   return responseForStatus(
    payment.id,
    'PENDING',
-   result.opType === 'STATUS' ? 'CHECK_STATUS_LATER' : 'CHECK_STATUS',
-   `Fiuu VT memulangkan ralat ${result.errorCode}. Semak STATUS; jangan buka SALE kedua.`,
+   result.opType === 'STATUS' && parkAvailable
+    ? 'PARK_AVAILABLE'
+    : result.opType === 'STATUS'
+     ? 'CHECK_STATUS_LATER'
+     : 'CHECK_STATUS',
+   parkAvailable
+    ? 'QR telah tamat dan semakan STATUS Fiuu VT gagal berulang tanpa bukti transaksi. Kuarantin untuk semakan Finance/HQ dan teruskan pelanggan seterusnya; jangan caj semula pelanggan yang sama.'
+    : `Fiuu VT memulangkan ralat ${result.errorCode}. Semak STATUS; jangan buka SALE kedua.`,
   );
  }
 

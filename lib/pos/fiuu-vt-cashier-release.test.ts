@@ -22,6 +22,10 @@ const providerErrorRoute = readFileSync(join(
  process.cwd(),
  'app/api/pos/qr-payments/[paymentId]/vt-park/route.ts',
 ), 'utf8');
+const vtResultRoute = readFileSync(join(
+ process.cwd(),
+ 'app/api/pos/qr-payments/[paymentId]/vt-result/route.ts',
+), 'utf8').replace(/\r\n/g, '\n');
 const paymentDialog = readFileSync(join(
  process.cwd(),
  'components/pos/payment-dialog.tsx',
@@ -101,6 +105,8 @@ describe('Fiuu VT cashier release safety contract', () => {
  });
 
  it('stops automatic STATUS retries once safe parking is offered', () => {
+  expect(vtResultRoute).toContain("? 'PARK_AVAILABLE'");
+  expect(vtResultRoute).toContain('park_available === true');
   expect(paymentDialog).toContain("response.next_action === 'PARK_AVAILABLE'");
   expect(paymentDialog).toContain('setVtStatusRetryPending(false)');
   expect(paymentDialog).toContain('setVtParkAvailable(true)');
