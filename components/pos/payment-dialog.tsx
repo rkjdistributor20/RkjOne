@@ -132,6 +132,10 @@ type StoredQrPayment = {
 const FIUU_VT_STATUS_RETRY_MS = 25_000;
 const FIUU_VT_QUEUE_QUIESCENCE_MS = 250;
 
+function waitForFiuuVtQueueQuiescence(): Promise<void> {
+ return new Promise((resolve) => window.setTimeout(resolve, FIUU_VT_QUEUE_QUIESCENCE_MS));
+}
+
 async function prepareFiuuVtCallbackAttempt(
  paymentId: string,
  opType: FiuuVtOperation,
@@ -1555,11 +1559,19 @@ export function PaymentDialog({
    setQrPollError(null);
    vtResultFingerprintRef.current = null;
    try {
-    const pendingResult = await readActiveFiuuVtResult(qrPayment.id);
+    let pendingResult = await readActiveFiuuVtResult(qrPayment.id);
+     if (!pendingResult) {
+      // A single empty native read can race a callback that is resuming the
+      // WebView. Perform the second, separated read required to close the
+      // drain latch before launching STATUS or exposing cashier actions.
+      await waitForFiuuVtQueueQuiescence();
+      pendingResult = await readActiveFiuuVtResult(qrPayment.id);
+     }
      if (pendingResult) {
       await processFiuuVtResult(pendingResult);
-       if (!isFiuuVtErrorResult(pendingResult)) return;
-       if (pendingResult.opType === 'SALE' && !qrDisplayExpired) return;
+      // Result processing decides whether to retry STATUS, offer quarantine,
+      // or finalise payment. Do not start a second provider operation here.
+      return;
      }
      const nativeStatus = await readFiuuVtStatus();
       if (nativeStatus.pendingOperation === 'VOID') {
