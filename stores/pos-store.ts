@@ -23,6 +23,7 @@ interface PosState {
  menuStockByCategory: Record<string, MenuStockBalance>;
  supplementStock: MenuStockBalance[];
  cart: CartItem[];
+ cartSessionId: string;
  shift: PosShiftSummary | null;
  transactions: PosTransactionRow[];
  dailySummary: DailySummary | null;
@@ -55,6 +56,10 @@ interface PosState {
  cartItemCount: () => number;
 }
 
+function createCartSessionId(): string {
+ return `cart-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+}
+
 export const usePosStore = create<PosState>((set, get) => ({
  branchId: null,
  products: [],
@@ -65,6 +70,7 @@ export const usePosStore = create<PosState>((set, get) => ({
  menuStockByCategory: {},
  supplementStock: [],
  cart: [],
+ cartSessionId: createCartSessionId(),
  shift: null,
  transactions: [],
  dailySummary: null,
@@ -92,7 +98,7 @@ export const usePosStore = create<PosState>((set, get) => ({
  },
 
  addToCart: (product) => {
- const { cart, stockByProduct } = get();
+ const { cart, cartSessionId, stockByProduct } = get();
  const unitPrice = parsePrice(product.price);
  if (unitPrice <= 0) {
  toast.error('Harga produk belum diset - hubungi HQ');
@@ -123,6 +129,7 @@ export const usePosStore = create<PosState>((set, get) => ({
  });
  } else {
  set({
+ cartSessionId: cart.length === 0 ? createCartSessionId() : cartSessionId,
  cart: [
  ...cart,
  {
@@ -145,7 +152,11 @@ export const usePosStore = create<PosState>((set, get) => ({
 
  const nextQty = item.quantity + delta;
  if (nextQty <= 0) {
- set({ cart: cart.filter((c) => c.productId !== productId) });
+ const nextCart = cart.filter((c) => c.productId !== productId);
+ set({
+  cart: nextCart,
+  ...(nextCart.length === 0 ? { cartSessionId: createCartSessionId() } : {}),
+ });
  return;
  }
 
@@ -166,9 +177,14 @@ export const usePosStore = create<PosState>((set, get) => ({
  });
  },
 
- removeFromCart: (productId) =>
- set({ cart: get().cart.filter((c) => c.productId !== productId) }),
- clearCart: () => set({ cart: [] }),
+ removeFromCart: (productId) => {
+ const nextCart = get().cart.filter((c) => c.productId !== productId);
+ set({
+  cart: nextCart,
+  ...(nextCart.length === 0 ? { cartSessionId: createCartSessionId() } : {}),
+ });
+ },
+ clearCart: () => set({ cart: [], cartSessionId: createCartSessionId() }),
  setShift: (shift) => set({ shift }),
  setTransactions: (transactions) => set({ transactions }),
  setDailySummary: (dailySummary) => set({ dailySummary }),

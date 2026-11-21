@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 function source(path: string) {
- return readFileSync(join(process.cwd(), path), 'utf8');
+ return readFileSync(join(process.cwd(), path), 'utf8').replace(/\r\n/g, '\n');
 }
 
 const migration = source('supabase/migrations/20261104130000_expand_fiuu_vt_registered_branches.sql');
@@ -194,10 +194,12 @@ describe('Fiuu VT cashier flow', () => {
   const submitResult = posApi.slice(submitResultStart, submitResultEnd);
   expect(submitResult).toContain('retry_after_ms');
   expect(submitResult).toContain('new PosQrPaymentError(error.message, error.status, mode, retryAfterMs)');
-  expect(checkout).toContain('const freshNativeStatus = await readFiuuVtStatus()');
+  expect(checkout).toContain('let freshNativeStatus = await readFiuuVtStatus()');
   expect(checkout).toContain('freshNativeStatus.pendingOrderId');
-  expect(checkout).toContain('freshNativeStatus.resultAvailable || vtCallbackDrainInProgressRef.current');
-  expect(checkout.indexOf('const freshNativeStatus = await readFiuuVtStatus()'))
+  expect(checkout).toContain('freshNativeStatus.resultAvailable');
+  expect(checkout).toContain('freshNativeStatus.quarantineBlocksRelease');
+  expect(checkout).toContain('vtCallbackDrainInProgressRef.current');
+  expect(checkout.indexOf('let freshNativeStatus = await readFiuuVtStatus()'))
    .toBeLessThan(checkout.indexOf('createPosQrPayment(payload, idempotencyKey)'));
  });
 

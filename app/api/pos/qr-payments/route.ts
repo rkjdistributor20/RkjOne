@@ -82,6 +82,10 @@ function isSalePayload(value: unknown): value is CreateSalePayload {
  const body = value as Partial<CreateSalePayload>;
  return typeof body.shiftId === 'string'
   && typeof body.branchId === 'string'
+  && (body.cart_session_id === undefined
+   || (typeof body.cart_session_id === 'string'
+    && body.cart_session_id.length > 0
+    && body.cart_session_id.length <= 128))
   && Array.isArray(body.items)
   && body.items.length > 0
   && (body.payment_method === 'QR' || body.payment_method === 'MIXED')
@@ -449,6 +453,7 @@ export async function POST(request: Request) {
  const salePayload = {
   shiftId: body.shiftId,
   branchId: body.branchId,
+  ...(body.cart_session_id ? { cart_session_id: body.cart_session_id } : {}),
   items: normalizedItems,
   payment_method: body.payment_method,
   cash_amount: cashAmount,

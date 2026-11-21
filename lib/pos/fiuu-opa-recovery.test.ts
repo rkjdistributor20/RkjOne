@@ -5,19 +5,19 @@ import { describe, expect, it } from 'vitest';
 const migration = readFileSync(resolve(
  process.cwd(),
  'supabase/migrations/20261026133000_add_fiuu_opa_inquiry_recovery.sql',
-), 'utf8');
+), 'utf8').replace(/\r\n/g, '\n');
 const statusRoute = readFileSync(resolve(
  process.cwd(),
  'app/api/pos/qr-payments/[paymentId]/route.ts',
-), 'utf8');
+), 'utf8').replace(/\r\n/g, '\n');
 const createRoute = readFileSync(resolve(
  process.cwd(),
  'app/api/pos/qr-payments/route.ts',
-), 'utf8');
+), 'utf8').replace(/\r\n/g, '\n');
 const workerRoute = readFileSync(resolve(
  process.cwd(),
  'app/api/internal/pos/fiuu-opa/reconcile/route.ts',
-), 'utf8');
+), 'utf8').replace(/\r\n/g, '\n');
 
 describe('Fiuu OPA inquiry recovery migration', () => {
  it('serializes claims with shift-first locking and a fenced lease token', () => {

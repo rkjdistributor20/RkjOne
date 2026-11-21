@@ -5,15 +5,15 @@ import { describe, expect, it } from 'vitest';
 const nativePlugin = readFileSync(join(
  process.cwd(),
  'android/app/src/main/java/com/rkjone/staff/RkjFiuuVtPlugin.java',
-), 'utf8');
+), 'utf8').replace(/\r\n/g, '\n');
 const nativeClient = readFileSync(join(
  process.cwd(),
  'lib/pos/fiuu-vt-client.ts',
-), 'utf8');
+), 'utf8').replace(/\r\n/g, '\n');
 const androidManifest = readFileSync(join(
  process.cwd(),
  'android/app/src/main/AndroidManifest.xml',
-), 'utf8');
+), 'utf8').replace(/\r\n/g, '\n');
 
 describe('Fiuu VT Android bridge resilience', () => {
  it('advertises bridge v8 and exposes the active one-time callback identity', () => {

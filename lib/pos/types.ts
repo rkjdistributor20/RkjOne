@@ -245,6 +245,7 @@ export interface CloseShiftPayload {
 export interface CreateSalePayload {
  shiftId: string;
  branchId: string;
+ cart_session_id?: string;
  items: Array<{ product_id: string; quantity: number }>;
  payment_method: PaymentMethod;
  cash_amount: number;

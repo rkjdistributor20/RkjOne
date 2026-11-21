@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+ posFiuuVtPaymentFingerprint,
  posPaymentFingerprint,
  posPaymentFingerprintFromSalePayload,
 } from './payment-fingerprint';
@@ -38,10 +39,70 @@ describe('POS payment fingerprint', () => {
   expect(differentCart).not.toBe(original);
  });
 
+ it('does not treat an identical later customer cart as the same cart session', () => {
+  const firstCustomer = posPaymentFingerprint({
+   ...basePayload,
+   cartSessionId: 'cart-customer-1',
+  });
+  const nextCustomer = posPaymentFingerprint({
+   ...basePayload,
+   cartSessionId: 'cart-customer-2',
+  });
+
+  expect(nextCustomer).not.toBe(firstCustomer);
+ });
+
+ it('reconstructs a full Fiuu VT QR fingerprint without relying on the open form method', () => {
+  expect(posFiuuVtPaymentFingerprint({
+   branchId: basePayload.branchId,
+   shiftId: basePayload.shiftId,
+   items: basePayload.items,
+   total: 10,
+   qrAmount: 10,
+  })).toBe(posPaymentFingerprint(basePayload));
+ });
+
+ it('reconstructs a mixed Fiuu VT fingerprint from the provider amount', () => {
+  const mixed = {
+   ...basePayload,
+   payment_method: 'MIXED' as const,
+   cash_amount: 4,
+   qr_amount: 6,
+  };
+  expect(posFiuuVtPaymentFingerprint({
+   branchId: mixed.branchId,
+   shiftId: mixed.shiftId,
+   items: mixed.items,
+   total: 10,
+   qrAmount: 6,
+  })).toBe(posPaymentFingerprint(mixed));
+ });
+
+ it('rejects an impossible Fiuu VT amount instead of matching the wrong cart', () => {
+  expect(posFiuuVtPaymentFingerprint({
+   branchId: basePayload.branchId,
+   shiftId: basePayload.shiftId,
+   items: basePayload.items,
+   total: 10,
+   qrAmount: 10.01,
+  })).toBeNull();
+ });
+
  it('reconstructs the exact fingerprint from the server-owned sale payload', () => {
   expect(posPaymentFingerprintFromSalePayload(basePayload)).toBe(
    posPaymentFingerprint(basePayload),
   );
+ });
+
+ it('reconstructs a session-bound fingerprint from the stored sale payload', () => {
+  const clientFingerprint = posPaymentFingerprint({
+   ...basePayload,
+   cartSessionId: 'cart-customer-1',
+  });
+  expect(posPaymentFingerprintFromSalePayload({
+   ...basePayload,
+   cart_session_id: 'cart-customer-1',
+  })).toBe(clientFingerprint);
  });
 
  it('rejects malformed or incomplete sale payloads', () => {

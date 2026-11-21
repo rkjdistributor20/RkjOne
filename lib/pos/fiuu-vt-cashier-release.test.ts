@@ -13,7 +13,7 @@ const atomicCancelMigration = readFileSync(join(
 const route = readFileSync(join(
  process.cwd(),
  'app/api/pos/qr-payments/[paymentId]/vt-prelaunch-cancel/route.ts',
-), 'utf8');
+), 'utf8').replace(/\r\n/g, '\n');
 const providerErrorMigration = readFileSync(join(
  process.cwd(),
  'supabase/migrations/20261121210000_harden_fiuu_vt_provider_error_quarantine.sql',
@@ -74,8 +74,8 @@ describe('Fiuu VT cashier release safety contract', () => {
   expect(paymentDialog).toContain('Pelanggan tidak bayar — mula batal');
   expect(paymentDialog).toContain('Batalkan pembayaran');
   expect(paymentDialog).toContain('Buka Fiuu VT untuk batal');
-  expect(paymentDialog).toContain('Kuarantin & pelanggan seterusnya');
-  expect(paymentDialog).toContain('if (currentPaymentFingerprint === qrPayment.cartFingerprint) clearCart();');
+  expect(paymentDialog).toContain('Kuarantin & lepaskan kaunter');
+  expect(paymentDialog).toContain('if (activeQrPaymentMatchesCurrentCart(qrPayment)) clearCart();');
  });
 
  it('quarantines only repeated expired STATUS errors and retains Finance evidence', () => {
@@ -225,8 +225,9 @@ describe('Fiuu VT cashier release safety contract', () => {
   expect(recovery).toContain('isFiuuVtFinalizationSealValid(finalizationSeal)');
   expect(recovery).toContain('await releaseFiuuVtNativeState(orderId)');
   expect(release).toContain('await clearPendingFiuuVtResult(orderId)');
-  expect(release).toContain('pendingOrderId: null');
-  expect(release).toContain('pendingOperation: null');
+  expect(release).toContain('verifiedStatus.pendingOrderId !== null');
+  expect(release).toContain('verifiedStatus.resultAvailable');
+  expect(release).toContain('verifiedStatus.quarantineBlocksRelease');
   expect(release).toContain('storeDeferredFiuuVtNativeCleanup(nativeCleanupKey, orderId)');
   expect(recovery).toContain('Kaunter telah dilepaskan dan troli boleh digunakan semula.');
  });
@@ -240,6 +241,9 @@ describe('Fiuu VT cashier release safety contract', () => {
   const preSale = paymentDialog.slice(preSaleStart, preSaleEnd);
 
   expect(cleanup).toContain('await readActiveFiuuVtResult(paymentId)');
+  expect(cleanup.match(/await readActiveFiuuVtResult\(paymentId\)/g)).toHaveLength(2);
+  expect(cleanup).toContain('await waitForFiuuVtQueueQuiescence();');
+  expect(cleanup).toContain('vtNativeCleanupInFlightRef.current.get(orderId)');
   expect(cleanup).toContain('await processFiuuVtResultRef.current(queuedResult)');
   expect(cleanup).toContain('vtCallbackDrainInProgressRef.current || vtCallbackDrainScopeRef.current');
   expect(cleanup).toContain('captureFiuuVtFinalizationSeal(paymentId, true)');
@@ -248,6 +252,35 @@ describe('Fiuu VT cashier release safety contract', () => {
    .toBeLessThan(cleanup.indexOf('await releaseFiuuVtNativeState(orderId)'));
   expect(preSale).toContain('drainAndReleaseDeferredFiuuVtNativeState(deferredCleanupOrderId)');
   expect(preSale).not.toContain('releaseFiuuVtNativeState(deferredCleanupOrderId)');
+ });
+
+ it('preserves a different customer cart while releasing a quarantined native order', () => {
+  const recoveryStart = paymentDialog.indexOf('const recoverFiuuVtPayment');
+  const recoveryEnd = paymentDialog.indexOf('const handleDialogOpenChange', recoveryStart);
+  const recovery = paymentDialog.slice(recoveryStart, recoveryEnd);
+  const quarantinedStart = recovery.indexOf("payment.status === 'QUARANTINED'");
+  const terminalStatusStart = recovery.indexOf("['EXPIRED', 'FAILED', 'CANCELLED']", quarantinedStart);
+  const quarantined = recovery.slice(quarantinedStart, terminalStatusStart);
+
+  expect(quarantined).toContain('currentCartMatchesQuarantinedPayment');
+  expect(quarantined).toContain('currentFiuuVtPaymentFingerprint(payment.amount_rm)');
+  expect(quarantined).toContain('const nativeReleased = await drainAndReleaseDeferredFiuuVtNativeState(orderId)');
+  expect(quarantined).toContain('Troli pelanggan semasa dikekalkan sementara terminal dibersihkan.');
+  expect(quarantined.indexOf('resetPaymentForm()'))
+   .toBeGreaterThan(quarantined.indexOf('if (currentCartMatchesQuarantinedPayment)'));
+ });
+
+ it('cleans a deferred native order before generic recovery can close the next checkout', () => {
+  const effectStart = paymentDialog.indexOf('const deferredCleanupOrderId = readDeferredFiuuVtNativeCleanup', paymentDialog.indexOf('useEffect(() => {', paymentDialog.indexOf('processFiuuVtResultRef.current = processFiuuVtResult')));
+  const recoveryCall = paymentDialog.indexOf('await recoverFiuuVtPayment(status)', effectStart);
+
+  expect(effectStart).toBeGreaterThan(-1);
+  expect(paymentDialog.slice(effectStart, recoveryCall)).toContain(
+   'await drainAndReleaseDeferredFiuuVtNativeState(deferredCleanupOrderId)',
+  );
+  expect(recoveryCall).toBeGreaterThan(effectStart);
+  expect(paymentDialog).toContain('Membersihkan terminal...');
+  expect(paymentDialog).toContain('Troli pelanggan ini selamat dan dikekalkan.');
  });
 
  it('retries orphan callbacks even when native pending order is already clear', () => {
