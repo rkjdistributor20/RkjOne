@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
+ assertActivePosBranchShiftMember: vi.fn(),
  assertActivePosShiftMember: vi.fn(),
  assertCanAccessPosBranch: vi.fn(),
  assertOfficialPosDevice: vi.fn(),
@@ -14,6 +15,7 @@ vi.mock('@/lib/auth/session', () => ({
  getCurrentProfile: mocks.getCurrentProfile,
 }));
 vi.mock('@/lib/pos/access', () => ({
+ assertActivePosBranchShiftMember: mocks.assertActivePosBranchShiftMember,
  assertActivePosShiftMember: mocks.assertActivePosShiftMember,
  assertCanAccessPosBranch: mocks.assertCanAccessPosBranch,
  posAccessErrorStatus: vi.fn(() => 403),
@@ -172,6 +174,7 @@ describe('Fiuu VT launch retry leases', () => {
    enrollmentGeneration: 1,
   });
   mocks.assertCanAccessPosBranch.mockResolvedValue(undefined);
+  mocks.assertActivePosBranchShiftMember.mockResolvedValue(undefined);
   mocks.assertActivePosShiftMember.mockResolvedValue(undefined);
  });
 
@@ -202,6 +205,149 @@ describe('Fiuu VT launch retry leases', () => {
    p_actor_id: PROFILE.id,
   });
   expect(args.p_callback_host).toBe(buildFiuuVtCallbackHost(String(args.p_attempt_id)));
+ });
+
+ it('allows only STATUS to reconcile a quarantined review-locked payment', async () => {
+  const { admin, rpc } = makeAdmin(
+   async () => launchDecision('STATUS'),
+   payment({ status: 'QUARANTINED', fiuu_vt_review_required: true }),
+  );
+  mocks.createAdminClient.mockReturnValue(admin);
+
+  const response = await invoke('STATUS');
+
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({
+   attempt: { op_type: 'STATUS' },
+  });
+  expect(rpc).toHaveBeenCalledWith(
+   'claim_pos_fiuu_vt_review_status_lease',
+   expect.objectContaining({
+    p_payment_id: PAYMENT_ID,
+    p_actor_id: PROFILE.id,
+   }),
+  );
+  expect(rpc.mock.calls[0]?.[1]).not.toHaveProperty('p_op_type');
+  expect(mocks.assertActivePosBranchShiftMember).toHaveBeenCalledWith(
+   admin,
+   PROFILE,
+   'branch-1',
+  );
+ });
+
+ it('allows a later active cashier on the same official tablet to release quarantine', async () => {
+  const { admin, rpc } = makeAdmin(
+   async () => launchDecision('STATUS'),
+   payment({
+    created_by: '223e4567-e89b-42d3-a456-426614174222',
+    shift_id: 'closed-shift-1',
+    status: 'QUARANTINED',
+    fiuu_vt_review_required: true,
+   }),
+  );
+  mocks.createAdminClient.mockReturnValue(admin);
+
+  const response = await invoke('STATUS');
+
+  expect(response.status).toBe(200);
+  expect(rpc).toHaveBeenCalledWith(
+   'claim_pos_fiuu_vt_review_status_lease',
+   expect.objectContaining({ p_actor_id: PROFILE.id }),
+  );
+  expect(mocks.assertActivePosShiftMember).not.toHaveBeenCalled();
+  expect(mocks.assertActivePosBranchShiftMember).toHaveBeenCalled();
+ });
+
+ it('rejects turnover recovery from a different tablet enrollment', async () => {
+  const { admin, rpc } = makeAdmin(
+   async () => launchDecision('STATUS'),
+   payment({
+    created_by: 'previous-cashier',
+    shift_id: 'closed-shift-1',
+    status: 'QUARANTINED',
+    fiuu_vt_review_required: true,
+   }),
+  );
+  mocks.createAdminClient.mockReturnValue(admin);
+  mocks.assertOfficialPosDevice.mockResolvedValue({
+   id: 'device-2',
+   deviceCode: 'POS-BR001-OTHER',
+   branchCode: 'BR001',
+   enrollmentGeneration: 2,
+  });
+
+  const response = await invoke('STATUS');
+
+  expect(response.status).toBe(403);
+  expect(rpc).not.toHaveBeenCalled();
+ });
+
+ it('stops quarantined native-release STATUS attempts at the server retry limit', async () => {
+  const { admin } = makeAdmin(
+   async () => ({
+    data: { outcome: 'RETRY_LIMIT', reason: 'NATIVE_RELEASE_RETRY_LIMIT' },
+    error: null,
+   }),
+   payment({ status: 'QUARANTINED', fiuu_vt_review_required: true }),
+  );
+  mocks.createAdminClient.mockReturnValue(admin);
+
+  const response = await invoke('STATUS');
+
+  expect(response.status).toBe(409);
+  expect(await response.json()).toMatchObject({
+   mode: 'FIUU_VT_RELEASE_RETRY_LIMIT',
+  });
+ });
+
+ it.each(['SALE', 'VOID'] as const)(
+  'keeps %s blocked for a quarantined review-locked payment',
+  async (opType) => {
+   const { admin, rpc } = makeAdmin(
+    async () => launchDecision(opType),
+    payment({ status: 'QUARANTINED', fiuu_vt_review_required: true }),
+   );
+   mocks.createAdminClient.mockReturnValue(admin);
+
+   const response = await invoke(opType);
+
+   expect(response.status).toBe(409);
+   expect(await response.json()).toMatchObject({
+    mode: 'FIUU_VT_RECONCILIATION_REQUIRED',
+   });
+   expect(rpc).not.toHaveBeenCalled();
+  },
+ );
+
+ it.each(['PAID', 'REPORTED', 'FAILED', 'EXPIRED', 'CANCELLED'] as const)(
+  'does not widen review STATUS recovery to a %s payment',
+  async (status) => {
+   const { admin, rpc } = makeAdmin(
+    async () => launchDecision('STATUS'),
+    payment({ status, fiuu_vt_review_required: false }),
+   );
+   mocks.createAdminClient.mockReturnValue(admin);
+
+   const response = await invoke('STATUS');
+
+   expect(response.status).toBe(409);
+   expect(await response.json()).toMatchObject({ mode: 'FIUU_ATTEMPT_TERMINAL' });
+   expect(rpc).not.toHaveBeenCalled();
+  },
+ );
+
+ it('does not use the review lane for a pending review-locked payment', async () => {
+  const { admin, rpc } = makeAdmin(
+   async () => launchDecision('STATUS'),
+   payment({ status: 'PENDING', fiuu_vt_review_required: true }),
+  );
+  mocks.createAdminClient.mockReturnValue(admin);
+
+  const response = await invoke('STATUS');
+
+  expect(response.status).toBe(409);
+  expect(await response.json()).toMatchObject({ mode: 'FIUU_VT_RECONCILIATION_REQUIRED' });
+  expect(rpc).not.toHaveBeenCalled();
  });
 
  it('returns one launch and one deterministic active response for concurrent retries', async () => {
@@ -356,6 +502,13 @@ describe('Fiuu VT retry lease database contract', () => {
   ),
   'utf8',
  );
+ const terminalReconciliationMigration = readFileSync(
+  resolve(
+   process.cwd(),
+   'supabase/migrations/20261122123000_allow_terminal_fiuu_vt_status_reconciliation.sql',
+  ),
+  'utf8',
+ );
  const attemptRoute = readFileSync(
   resolve(process.cwd(), 'app/api/pos/qr-payments/[paymentId]/vt-attempt/route.ts'),
   'utf8',
@@ -381,6 +534,27 @@ describe('Fiuu VT retry lease database contract', () => {
   expect(reconciliationIndex).toContain("op_type IN ('STATUS', 'VOID')");
   expect(reconciliationIndex).toContain("state IN ('PREPARED', 'LAUNCHED', 'RECEIVED')");
   expect(leaseMigration).toContain("'reason', 'OPERATION_CONFLICT'");
+ });
+
+ it('permits a bounded STATUS-only reconciliation after quarantine', () => {
+  expect(terminalReconciliationMigration).toContain('claim_pos_fiuu_vt_review_status_lease');
+  expect(terminalReconciliationMigration).toContain("v_payment.status <> 'QUARANTINED'");
+  expect(terminalReconciliationMigration).toContain('NOT v_payment.fiuu_vt_review_required');
+  expect(terminalReconciliationMigration).toContain("'reason', 'QUARANTINED_STATUS_RECONCILIATION'");
+  expect(terminalReconciliationMigration).toContain("op_type IN ('STATUS', 'VOID')");
+  expect(terminalReconciliationMigration).toContain('FOR UPDATE');
+  expect(terminalReconciliationMigration).toContain('FROM PUBLIC, anon, authenticated');
+  expect(terminalReconciliationMigration).toContain('TO service_role');
+  expect(terminalReconciliationMigration).toContain("reconciliation_purpose = 'NATIVE_RELEASE'");
+  expect(terminalReconciliationMigration).toContain('IF v_release_attempts >= 3 THEN');
+  expect(terminalReconciliationMigration).toContain("'outcome', 'RETRY_LIMIT'");
+  expect(terminalReconciliationMigration).toContain("'NATIVE_RELEASE'");
+  expect(terminalReconciliationMigration).toContain("state <> 'ABANDONED'");
+  expect(terminalReconciliationMigration).toContain("v_active.state = 'RECEIVED'");
+  expect(terminalReconciliationMigration).toContain('GREATEST(\n        1000,');
+  expect(attemptRoute).toContain("mode: 'FIUU_VT_RELEASE_RETRY_LIMIT'");
+  expect(attemptRoute).toContain('assertActivePosBranchShiftMember');
+  expect(attemptRoute).toContain('nativeReleaseMutation');
  });
 
  it('expires the old lease before inserting a retry with a fresh callback identity', () => {

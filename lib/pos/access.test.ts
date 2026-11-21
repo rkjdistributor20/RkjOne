@@ -1,5 +1,11 @@
-import { describe, expect, it } from 'vitest';
-import { canRefundPosTransaction, canVoidPosTransaction, requiresActivePosShiftMember } from './access';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { describe, expect, it, vi } from 'vitest';
+import {
+ assertActivePosBranchShiftMember,
+ canRefundPosTransaction,
+ canVoidPosTransaction,
+ requiresActivePosShiftMember,
+} from './access';
 
 describe('POS transaction adjustment permissions', () => {
  it('allows operational management to void but not record provider refunds', () => {
@@ -33,5 +39,34 @@ describe('requiresActivePosShiftMember', () => {
   expect(requiresActivePosShiftMember('SUPER_ADMIN')).toBe(false);
   expect(requiresActivePosShiftMember('ADMIN')).toBe(false);
   expect(requiresActivePosShiftMember('OPERATION_MANAGER')).toBe(false);
+ });
+});
+
+describe('assertActivePosBranchShiftMember', () => {
+ it('uses the current open branch shift after cashier turnover', async () => {
+  const shiftQuery: Record<string, ReturnType<typeof vi.fn>> = {};
+  const memberQuery: Record<string, ReturnType<typeof vi.fn>> = {};
+  for (const query of [shiftQuery, memberQuery]) {
+   query.select = vi.fn(() => query);
+   query.eq = vi.fn(() => query);
+  }
+  shiftQuery.maybeSingle = vi.fn(async () => ({ data: { id: 'open-shift-2' }, error: null }));
+  memberQuery.maybeSingle = vi.fn(async () => ({
+   data: { id: 'member-1', status: 'ACTIVE', role_in_shift: 'CASHIER' },
+   error: null,
+  }));
+  const from = vi.fn((table: string) => (
+   table === 'pos_shifts' ? shiftQuery : memberQuery
+  ));
+
+  await expect(assertActivePosBranchShiftMember(
+   { from } as unknown as SupabaseClient,
+   { id: 'cashier-2', organization_id: 'org-1', role: 'STAFF' },
+   'branch-1',
+  )).resolves.toMatchObject({ id: 'member-1' });
+
+  expect(shiftQuery.eq).toHaveBeenCalledWith('status', 'OPEN');
+  expect(memberQuery.eq).toHaveBeenCalledWith('shift_id', 'open-shift-2');
+  expect(memberQuery.eq).toHaveBeenCalledWith('profile_id', 'cashier-2');
  });
 });

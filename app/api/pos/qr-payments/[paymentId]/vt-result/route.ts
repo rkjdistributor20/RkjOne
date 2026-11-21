@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { getCurrentProfile } from '@/lib/auth/session';
 import {
+ assertActivePosBranchShiftMember,
  assertActivePosShiftMember,
  assertCanAccessPosBranch,
  posAccessErrorStatus,
@@ -226,14 +227,22 @@ export async function POST(
   return NextResponse.json({ error: 'Percubaan Fiuu VT tidak dijumpai' }, { status: 404 });
  }
 
+ const nativeReleaseStatusResult = payment.status === 'QUARANTINED'
+  && payment.fiuu_vt_review_required
+  && result.opType === 'STATUS';
+
  try {
   await assertCanAccessPosBranch(service, profile, payment.branch_id);
   const device = await assertOfficialPosDevice(profile, payment.branch_id);
-  await assertActivePosShiftMember(service, profile, payment.shift_id, payment.branch_id);
+  if (nativeReleaseStatusResult) {
+   await assertActivePosBranchShiftMember(service, profile, payment.branch_id);
+  } else {
+   await assertActivePosShiftMember(service, profile, payment.shift_id, payment.branch_id);
+  }
   const salePayload = jsonRecord(payment.sale_payload);
   const deviceBranchCode = normalizeFiuuVtBranchCode(device.branchCode);
   const paymentBranchCode = normalizeFiuuVtBranchCode(salePayload?.fiuu_branch_code);
-  if (payment.created_by !== profile.id
+  if ((!nativeReleaseStatusResult && payment.created_by !== profile.id)
    || salePayload?.fiuu_device_id !== device.id
    || salePayload?.fiuu_device_code !== device.deviceCode
    || Number(salePayload?.fiuu_enrollment_generation) !== device.enrollmentGeneration

@@ -6896,6 +6896,7 @@ export type Database = {
           payment_id: string
           provider_order_id: string
           quarantined_at: string | null
+          reconciliation_purpose: string | null
           received_at: string | null
           result_fingerprint: string | null
           result_json: Json | null
@@ -6916,6 +6917,7 @@ export type Database = {
           payment_id: string
           provider_order_id: string
           quarantined_at?: string | null
+          reconciliation_purpose?: string | null
           received_at?: string | null
           result_fingerprint?: string | null
           result_json?: Json | null
@@ -6936,6 +6938,7 @@ export type Database = {
           payment_id?: string
           provider_order_id?: string
           quarantined_at?: string | null
+          reconciliation_purpose?: string | null
           received_at?: string | null
           result_fingerprint?: string | null
           result_json?: Json | null

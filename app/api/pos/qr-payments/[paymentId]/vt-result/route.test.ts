@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
+ assertActivePosBranchShiftMember: vi.fn(),
  assertActivePosShiftMember: vi.fn(),
  assertCanAccessPosBranch: vi.fn(),
  assertOfficialPosDevice: vi.fn(),
@@ -12,6 +13,7 @@ vi.mock('@/lib/auth/session', () => ({
  getCurrentProfile: mocks.getCurrentProfile,
 }));
 vi.mock('@/lib/pos/access', () => ({
+ assertActivePosBranchShiftMember: mocks.assertActivePosBranchShiftMember,
  assertActivePosShiftMember: mocks.assertActivePosShiftMember,
  assertCanAccessPosBranch: mocks.assertCanAccessPosBranch,
  posAccessErrorStatus: vi.fn(() => 403),
@@ -381,6 +383,7 @@ describe('Fiuu VT one-time callback reconciliation', () => {
    enrollmentGeneration: 1,
   });
   mocks.assertCanAccessPosBranch.mockResolvedValue(undefined);
+  mocks.assertActivePosBranchShiftMember.mockResolvedValue(undefined);
   mocks.assertActivePosShiftMember.mockResolvedValue(undefined);
  });
 
@@ -861,6 +864,51 @@ describe('Fiuu VT one-time callback reconciliation', () => {
    fiuu_vt_reconciliation_state: 'LATE_SUCCESS_REVIEW',
   });
   expect(state.attempt).toMatchObject({ state: 'QUARANTINED' });
+ });
+
+ it('accepts a quarantined STATUS callback from a later cashier on the same tablet', async () => {
+  const { admin } = makeAdmin(payment({
+   created_by: 'previous-cashier',
+   shift_id: 'closed-shift-1',
+   status: 'QUARANTINED',
+   fiuu_vt_review_required: true,
+   fiuu_vt_reconciliation_state: 'PROVIDER_ERROR_REVIEW',
+  }));
+  mocks.createAdminClient.mockReturnValue(admin);
+
+  const response = await invoke(callback('STATUS', '55'));
+
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({
+   payment: { status: 'QUARANTINED' },
+   next_action: 'ACK_AND_QUARANTINE',
+  });
+  expect(mocks.assertActivePosBranchShiftMember).toHaveBeenCalledWith(
+   admin,
+   PROFILE,
+   'branch-1',
+  );
+  expect(mocks.assertActivePosShiftMember).not.toHaveBeenCalled();
+ });
+
+ it('rejects a turnover callback from a different official tablet enrollment', async () => {
+  const { admin } = makeAdmin(payment({
+   created_by: 'previous-cashier',
+   shift_id: 'closed-shift-1',
+   status: 'QUARANTINED',
+   fiuu_vt_review_required: true,
+  }));
+  mocks.createAdminClient.mockReturnValue(admin);
+  mocks.assertOfficialPosDevice.mockResolvedValue({
+   id: 'device-2',
+   deviceCode: 'POS-BR001-OTHER',
+   branchCode: 'BR001',
+   enrollmentGeneration: 2,
+  });
+
+  const response = await invoke(callback('STATUS', '55'));
+
+  expect(response.status).toBe(403);
  });
 
  it('preserves PAID and flags a later VOID for reversal review', async () => {

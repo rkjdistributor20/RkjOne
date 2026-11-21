@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { getCurrentProfile } from '@/lib/auth/session';
 import {
+ assertActivePosBranchShiftMember,
  assertActivePosShiftMember,
  assertCanAccessPosBranch,
  posAccessErrorStatus,
@@ -61,6 +62,7 @@ type LeaseDecision = {
   | 'ACTIVE'
   | 'STATUS_REQUIRED'
   | 'REVIEW_REQUIRED'
+  | 'RETRY_LIMIT'
   | 'TERMINAL'
   | 'FORBIDDEN'
   | 'NOT_FOUND';
@@ -76,6 +78,20 @@ type ClaimLaunchLeaseRpc = (
  parameters: {
   p_payment_id: string;
   p_op_type: FiuuVtOperation;
+  p_attempt_id: string;
+  p_callback_host: string;
+  p_lease_token: string;
+  p_actor_id: string;
+ },
+) => Promise<{
+ data: unknown;
+ error: { message?: string } | null;
+}>;
+
+type ClaimReviewStatusLeaseRpc = (
+ functionName: 'claim_pos_fiuu_vt_review_status_lease',
+ parameters: {
+  p_payment_id: string;
   p_attempt_id: string;
   p_callback_host: string;
   p_lease_token: string;
@@ -169,6 +185,7 @@ function parseLeaseDecision(input: unknown): LeaseDecision | null {
   && outcome !== 'ACTIVE'
   && outcome !== 'STATUS_REQUIRED'
   && outcome !== 'REVIEW_REQUIRED'
+  && outcome !== 'RETRY_LIMIT'
   && outcome !== 'TERMINAL'
   && outcome !== 'FORBIDDEN'
   && outcome !== 'NOT_FOUND') {
@@ -232,14 +249,22 @@ export async function POST(
   return NextResponse.json({ error: 'Percubaan Fiuu VT tidak dijumpai' }, { status: 404 });
  }
 
+ const reconciliationOnlyStatus = opType === 'STATUS'
+  && payment.status === 'QUARANTINED'
+  && payment.fiuu_vt_review_required;
+
  try {
   await assertCanAccessPosBranch(service, profile, payment.branch_id);
   const device = await assertOfficialPosDevice(profile, payment.branch_id);
-  await assertActivePosShiftMember(service, profile, payment.shift_id, payment.branch_id);
+  if (reconciliationOnlyStatus) {
+   await assertActivePosBranchShiftMember(service, profile, payment.branch_id);
+  } else {
+   await assertActivePosShiftMember(service, profile, payment.shift_id, payment.branch_id);
+  }
   const salePayload = jsonRecord(payment.sale_payload);
   const deviceBranchCode = normalizeFiuuVtBranchCode(device.branchCode);
   const paymentBranchCode = normalizeFiuuVtBranchCode(salePayload?.fiuu_branch_code);
-  if (payment.created_by !== profile.id
+  if ((!reconciliationOnlyStatus && payment.created_by !== profile.id)
    || salePayload?.fiuu_device_id !== device.id
    || salePayload?.fiuu_device_code !== device.deviceCode
    || Number(salePayload?.fiuu_enrollment_generation) !== device.enrollmentGeneration
@@ -254,13 +279,13 @@ export async function POST(
   );
  }
 
- if (payment.fiuu_vt_review_required) {
+ if (payment.fiuu_vt_review_required && !reconciliationOnlyStatus) {
   return NextResponse.json({
    error: 'Transaksi Fiuu VT memerlukan semakan HQ sebelum percubaan baharu',
    mode: 'FIUU_VT_RECONCILIATION_REQUIRED',
   }, { status: 409 });
  }
- if (payment.status !== 'PENDING') {
+ if (payment.status !== 'PENDING' && !reconciliationOnlyStatus) {
   return NextResponse.json({
    error: 'Percubaan Fiuu VT sudah ditutup',
    mode: 'FIUU_ATTEMPT_TERMINAL',
@@ -276,18 +301,34 @@ export async function POST(
  const attemptId = randomUUID();
  const callbackHost = buildFiuuVtCallbackHost(attemptId);
  const leaseToken = randomUUID();
- const claimLaunchLease = service.rpc.bind(service) as unknown as ClaimLaunchLeaseRpc;
- const { data: leaseData, error: leaseError } = await claimLaunchLease(
-  'claim_pos_fiuu_vt_launch_lease',
-  {
-   p_payment_id: payment.id,
-   p_op_type: opType,
-   p_attempt_id: attemptId,
-   p_callback_host: callbackHost,
-   p_lease_token: leaseToken,
-   p_actor_id: profile.id,
-  },
- );
+ let leaseData: unknown;
+ let leaseError: { message?: string } | null;
+ if (reconciliationOnlyStatus) {
+  const claimReviewStatusLease = service.rpc.bind(service) as unknown as ClaimReviewStatusLeaseRpc;
+  ({ data: leaseData, error: leaseError } = await claimReviewStatusLease(
+   'claim_pos_fiuu_vt_review_status_lease',
+   {
+    p_payment_id: payment.id,
+    p_attempt_id: attemptId,
+    p_callback_host: callbackHost,
+    p_lease_token: leaseToken,
+    p_actor_id: profile.id,
+   },
+  ));
+ } else {
+  const claimLaunchLease = service.rpc.bind(service) as unknown as ClaimLaunchLeaseRpc;
+  ({ data: leaseData, error: leaseError } = await claimLaunchLease(
+   'claim_pos_fiuu_vt_launch_lease',
+   {
+    p_payment_id: payment.id,
+    p_op_type: opType,
+    p_attempt_id: attemptId,
+    p_callback_host: callbackHost,
+    p_lease_token: leaseToken,
+    p_actor_id: profile.id,
+   },
+  ));
+ }
  if (leaseError) {
   return NextResponse.json({
    error: 'Lease pelancaran Fiuu VT tidak dapat dituntut',
@@ -339,6 +380,12 @@ export async function POST(
    mode: 'FIUU_VT_RECONCILIATION_REQUIRED',
   }, { status: 409 });
  }
+ if (decision.outcome === 'RETRY_LIMIT') {
+  return NextResponse.json({
+   error: 'Had semakan automatik Fiuu VT telah dicapai. Troli dikekalkan; hubungi HQ untuk semakan transaksi terdahulu.',
+   mode: 'FIUU_VT_RELEASE_RETRY_LIMIT',
+  }, { status: 409 });
+ }
  if (decision.outcome === 'TERMINAL') {
   return NextResponse.json({
    error: 'Percubaan Fiuu VT sudah ditutup',
@@ -373,7 +420,7 @@ export async function PATCH(
  const service = createAdminClient();
  const { data: payment, error: paymentError } = await service
   .from('pos_online_payments')
-  .select('id, organization_id, branch_id, shift_id, created_by, provider, sale_payload')
+  .select('id, organization_id, branch_id, shift_id, created_by, provider, status, sale_payload, fiuu_vt_review_required')
   .eq('id', paymentId)
   .eq('organization_id', profile.organization_id)
   .maybeSingle();
@@ -384,13 +431,31 @@ export async function PATCH(
   return NextResponse.json({ error: 'Transaksi Fiuu VT tidak dijumpai' }, { status: 404 });
  }
 
+ const { data: mutationAttempt, error: mutationAttemptError } = await service
+  .from('pos_fiuu_vt_attempts')
+  .select('id, op_type, reconciliation_purpose')
+  .eq('id', mutation.attemptId)
+  .eq('payment_id', payment.id)
+  .maybeSingle();
+ if (mutationAttemptError) {
+  return NextResponse.json({ error: 'Percubaan Fiuu VT tidak dapat dibaca' }, { status: 400 });
+ }
+ const nativeReleaseMutation = payment.status === 'QUARANTINED'
+  && payment.fiuu_vt_review_required
+  && mutationAttempt?.op_type === 'STATUS'
+  && mutationAttempt.reconciliation_purpose === 'NATIVE_RELEASE';
+
  try {
   await assertCanAccessPosBranch(service, profile, payment.branch_id);
   const device = await assertOfficialPosDevice(profile, payment.branch_id);
-  await assertActivePosShiftMember(service, profile, payment.shift_id, payment.branch_id);
+  if (nativeReleaseMutation) {
+   await assertActivePosBranchShiftMember(service, profile, payment.branch_id);
+  } else {
+   await assertActivePosShiftMember(service, profile, payment.shift_id, payment.branch_id);
+  }
   const salePayload = jsonRecord(payment.sale_payload);
   const deviceBranchCode = normalizeFiuuVtBranchCode(device.branchCode);
-  if (payment.created_by !== profile.id
+  if ((!nativeReleaseMutation && payment.created_by !== profile.id)
    || salePayload?.fiuu_device_id !== device.id
    || salePayload?.fiuu_device_code !== device.deviceCode
    || Number(salePayload?.fiuu_enrollment_generation) !== device.enrollmentGeneration

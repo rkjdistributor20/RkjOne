@@ -246,12 +246,63 @@ describe('Fiuu VT cashier release safety contract', () => {
   expect(cleanup).toContain('vtNativeCleanupInFlightRef.current.get(orderId)');
   expect(cleanup).toContain('await processFiuuVtResultRef.current(queuedResult)');
   expect(cleanup).toContain('vtCallbackDrainInProgressRef.current || vtCallbackDrainScopeRef.current');
+  expect(cleanup).toContain('nativeStatus.quarantineBlocksRelease');
+  expect(cleanup).toContain("prepareFiuuVtCallbackAttempt(paymentId, 'STATUS')");
+  expect(cleanup).toContain('launchFiuuVtStatus(orderId, payment.amount_rm, attempt)');
+  expect(cleanup).toContain("error.mode === 'FIUU_VT_OPERATION_ACTIVE'");
+  expect(cleanup).toContain("error.mode === 'FIUU_VT_RELEASE_RETRY_LIMIT'");
+  expect(cleanup).toContain('if (!dialogOpenRef.current) return false;');
+  expect(cleanup).toContain('FIUU_VT_NATIVE_RELEASE_WINDOW_MS');
+  expect(cleanup).toContain('options: { restartExpiredWindow?: boolean } = {}');
+  expect(cleanup).toContain('options.restartExpiredWindow');
+  expect(cleanup).toContain('if (retryable) scheduleFiuuVtRecoveryRetry(2_000);');
+  expect(cleanup).toContain('Math.max(1_000, error.retryAfterMs');
+  expect(cleanup).toContain('Fiuu VT sedang mengesahkan status akhir transaksi terdahulu');
   expect(cleanup).toContain('captureFiuuVtFinalizationSeal(paymentId, true)');
   expect(cleanup).toContain('isFiuuVtFinalizationSealValid(finalizationSeal)');
   expect(cleanup.indexOf('await readActiveFiuuVtResult(paymentId)'))
    .toBeLessThan(cleanup.indexOf('await releaseFiuuVtNativeState(orderId)'));
-  expect(preSale).toContain('drainAndReleaseDeferredFiuuVtNativeState(deferredCleanupOrderId)');
+  expect(preSale).toContain('drainAndReleaseDeferredFiuuVtNativeState(');
+  expect(preSale).toContain('deferredCleanupOrderId,');
+  expect(preSale).toContain('{ restartExpiredWindow: true }');
   expect(preSale).not.toContain('releaseFiuuVtNativeState(deferredCleanupOrderId)');
+ });
+
+ it('detaches a stored payment from a different cart before restoring checkout state', () => {
+  const detachStart = paymentDialog.indexOf('const detachStoredFiuuVtPaymentFromCurrentCart');
+  const detachEnd = paymentDialog.indexOf('useEffect(() => {', detachStart);
+  const detach = paymentDialog.slice(detachStart, detachEnd);
+  const restoreStart = paymentDialog.indexOf('const stored = readStoredQrPayment(storageKey)');
+  const restoreEnd = paymentDialog.indexOf("if (!open || method === 'CASH'", restoreStart);
+  const restore = paymentDialog.slice(restoreStart, restoreEnd);
+  const mismatchGuard = detach.indexOf('activeQrPaymentMatchesCurrentCart(stored.payment)');
+  const installStoredPayment = restore.indexOf('setQrPayment(stored.payment)');
+  const submitStart = paymentDialog.indexOf('async function handlePay()');
+  const submitEnd = paymentDialog.indexOf('const idempotencyKey =', submitStart);
+  const submit = paymentDialog.slice(submitStart, submitEnd);
+
+  expect(detachStart).toBeGreaterThan(-1);
+  expect(detachEnd).toBeGreaterThan(detachStart);
+  expect(restoreStart).toBeGreaterThan(-1);
+  expect(restoreEnd).toBeGreaterThan(restoreStart);
+  expect(mismatchGuard).toBeGreaterThan(-1);
+  expect(installStoredPayment).toBeGreaterThan(-1);
+  expect(restore.indexOf('detachStoredFiuuVtPaymentFromCurrentCart(stored)'))
+   .toBeLessThan(installStoredPayment);
+  expect(detach).toContain('removeStoredQrPayment()');
+  expect(detach).toContain('storeDeferredFiuuVtNativeCleanup(nativeCleanupKey, staleOrderId)');
+  expect(detach).toContain('drainAndReleaseDeferredFiuuVtNativeState(staleOrderId)');
+  expect(detach).toContain('Transaksi QR terdahulu diasingkan daripada troli pelanggan ini.');
+  expect(submit).toContain('detachStoredFiuuVtPaymentFromCurrentCart(stored)');
+  expect(submit.indexOf('detachStoredFiuuVtPaymentFromCurrentCart(stored)'))
+   .toBeLessThan(submit.indexOf('setQrPayment(stored.payment)'));
+  expect(submit).toContain('{ restartExpiredWindow: true }');
+
+  const dialogChangeStart = paymentDialog.indexOf('const handleDialogOpenChange');
+  const dialogChangeEnd = paymentDialog.indexOf('const reconcileQrPayment', dialogChangeStart);
+  const dialogChange = paymentDialog.slice(dialogChangeStart, dialogChangeEnd);
+  expect(dialogChange.indexOf('return;'))
+   .toBeLessThan(dialogChange.indexOf('dialogOpenRef.current = nextOpen;'));
  });
 
  it('preserves a different customer cart while releasing a quarantined native order', () => {
