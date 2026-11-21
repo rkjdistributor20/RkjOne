@@ -71,6 +71,10 @@ function payment(overrides: Row = {}): Row {
   provider_result: null,
   provider_sale_reported_at: new Date().toISOString(),
   provider_status_checked_at: null,
+  expires_at: new Date(Date.now() + 60_000).toISOString(),
+  fiuu_vt_provider_error_code: null,
+  fiuu_vt_provider_error_count: 0,
+  fiuu_vt_provider_error_at: null,
   fiuu_vt_review_required: false,
   fiuu_vt_reconciliation_state: null,
   ...overrides,
@@ -281,6 +285,47 @@ function makeAdmin(
     Object.assign(current, completedUpdate);
     state.attemptUpdates.push(completedUpdate);
     return { data: { outcome: 'COMPLETED', already_completed: false }, error: null };
+   }
+   if (name === 'record_pos_fiuu_vt_provider_error'
+    && state.payment
+    && state.payment.id === args.p_payment_id) {
+    const previousCode = state.payment.fiuu_vt_provider_error_code;
+    const previousResult = state.payment.provider_result;
+    const previousAttemptId = previousResult
+     && typeof previousResult === 'object'
+     && !Array.isArray(previousResult)
+     ? (previousResult as Row).callbackAttemptId
+     : null;
+    const nextResult = args.p_provider_result;
+    const nextAttemptId = nextResult
+     && typeof nextResult === 'object'
+     && !Array.isArray(nextResult)
+     ? (nextResult as Row).callbackAttemptId
+     : null;
+    const nextCount = previousAttemptId === nextAttemptId && previousCode === args.p_error_code
+     ? Number(state.payment.fiuu_vt_provider_error_count ?? 0)
+     : previousCode === args.p_error_code
+      ? Number(state.payment.fiuu_vt_provider_error_count ?? 0) + 1
+      : 1;
+    const errorUpdate = {
+     provider_result: args.p_provider_result,
+     provider_status_checked_at: args.p_observed_at,
+     fiuu_vt_provider_error_code: args.p_error_code,
+     fiuu_vt_provider_error_count: nextCount,
+     fiuu_vt_provider_error_at: args.p_observed_at,
+    };
+    Object.assign(state.payment, errorUpdate);
+    state.paymentUpdates.push(errorUpdate);
+    const expiresAt = typeof state.payment.expires_at === 'string'
+     ? Date.parse(state.payment.expires_at)
+     : Number.POSITIVE_INFINITY;
+    return {
+     data: {
+      error_count: nextCount,
+      park_available: nextCount >= 3 && expiresAt <= Date.parse(String(args.p_observed_at)),
+     },
+     error: null,
+    };
    }
    if (name !== 'mark_pos_fiuu_vt_review'
     || !state.payment
@@ -715,7 +760,65 @@ describe('Fiuu VT one-time callback reconciliation', () => {
    next_action: 'CHECK_STATUS_LATER',
   });
   expect(state.payment).toMatchObject({ status: 'PENDING' });
+  expect(state.payment).toMatchObject({
+   fiuu_vt_provider_error_code: 'FIUU_TIMEOUT',
+   fiuu_vt_provider_error_count: 1,
+  });
   expect(state.attempt).toMatchObject({ state: 'CONSUMED' });
+ });
+
+ it('offers safe parking after the third repeated STATUS error and QR expiry', async () => {
+  const errorResult = {
+   callbackAttemptId: ATTEMPT_ID,
+   callbackHost: CALLBACK_HOST,
+   callbackValidation: 'MATCHED',
+   kind: 'ERROR',
+   opType: 'STATUS',
+   orderId: ORDER_ID,
+   errorCode: '5000',
+   errorMessage: 'Provider STATUS unavailable',
+  };
+  const { admin, state } = makeAdmin(payment({
+   expires_at: new Date(Date.now() - 1_000).toISOString(),
+   fiuu_vt_provider_error_code: '5000',
+   fiuu_vt_provider_error_count: 2,
+   fiuu_vt_provider_error_at: new Date().toISOString(),
+  }));
+  mocks.createAdminClient.mockReturnValue(admin);
+
+  const response = await invoke(errorResult);
+
+  expect(await response.json()).toMatchObject({
+   payment: { status: 'PENDING' },
+   next_action: 'PARK_AVAILABLE',
+  });
+  expect(state.payment).toMatchObject({
+   status: 'PENDING',
+   fiuu_vt_provider_error_code: '5000',
+   fiuu_vt_provider_error_count: 3,
+  });
+  expect(state.attempt).toMatchObject({ state: 'CONSUMED' });
+ });
+
+ it('upgrades a late success after provider-error parking to late-success review', async () => {
+  const { admin, state } = makeAdmin(payment({
+   status: 'CANCELLED',
+   fiuu_vt_review_required: true,
+   fiuu_vt_reconciliation_state: 'PROVIDER_ERROR_REVIEW',
+  }));
+  mocks.createAdminClient.mockReturnValue(admin);
+
+  const response = await invoke(callback('STATUS', '00'));
+
+  expect(await response.json()).toMatchObject({
+   payment: { status: 'CANCELLED' },
+   next_action: 'ACK_AND_QUARANTINE',
+  });
+  expect(state.payment).toMatchObject({
+   fiuu_vt_review_required: true,
+   fiuu_vt_reconciliation_state: 'LATE_SUCCESS_REVIEW',
+  });
+  expect(state.attempt).toMatchObject({ state: 'QUARANTINED' });
  });
 
  it('preserves PAID and flags a later VOID for reversal review', async () => {

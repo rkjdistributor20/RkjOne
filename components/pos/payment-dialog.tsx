@@ -14,6 +14,7 @@ import {
  fetchPosQrConfig,
  fetchPosQrPayment,
  markFiuuVtAttemptLaunched,
+ parkFiuuVtProviderErrorPayment,
  PosQrPaymentError,
  submitFiuuVtResult,
 } from '@/lib/pos/api';
@@ -399,6 +400,7 @@ export function PaymentDialog({
  const [vtCancelConfirming, setVtCancelConfirming] = useState(false);
  const [vtCancelRequested, setVtCancelRequested] = useState(false);
  const [vtStatusRetryPending, setVtStatusRetryPending] = useState(false);
+ const [vtParkAvailable, setVtParkAvailable] = useState(false);
  const [vtReviewRequired, setVtReviewRequired] = useState(false);
  const vtReviewRequiredRef = useRef(false);
  const [vtCallbackDrainInProgress, setVtCallbackDrainInProgress] = useState(false);
@@ -639,6 +641,7 @@ export function PaymentDialog({
 	setVtCancelConfirming(false);
 	setVtCancelRequested(false);
 	setVtStatusRetryPending(false);
+	setVtParkAvailable(false);
 	setVtReviewRequired(false);
 	vtReviewRequiredRef.current = false;
 	resetFiuuVtCallbackDrain();
@@ -982,10 +985,12 @@ export function PaymentDialog({
  const handleDialogOpenChange = useCallback((nextOpen: boolean) => {
  if (!nextOpen && !vtReviewRequired && qrPayment
   && (qrStatus === 'PENDING' || qrStatus === 'REPORTED' || qrStatus === 'PAID')) {
-   if (qrStatus === 'PENDING' && qrPayment.integration === 'vt_app') {
+   if (qrStatus === 'PENDING' && qrPayment.integration === 'vt_app' && !vtParkAvailable) {
     setVtCancelConfirming(true);
    }
-   toast.info(qrDisplayExpired
+   toast.info(vtParkAvailable
+    ? 'Transaksi ini boleh diparkir untuk semakan HQ supaya kaunter boleh meneruskan jualan.'
+    : qrDisplayExpired
     ? 'Mulakan pembatalan di Fiuu VT. Pelepasan selamat boleh mengambil kira-kira 30 saat sementara STATUS disahkan.'
     : qrStatus === 'PENDING' && qrPayment.integration === 'vt_app'
     ? 'Sahkan pembatalan Fiuu VT untuk kembali ke troli, atau teruskan menunggu bayaran.'
@@ -994,7 +999,7 @@ export function PaymentDialog({
  }
  if (!nextOpen) resetPaymentForm();
  onOpenChange(nextOpen);
- }, [onOpenChange, qrDisplayExpired, qrPayment, qrStatus, resetPaymentForm, vtReviewRequired]);
+ }, [onOpenChange, qrDisplayExpired, qrPayment, qrStatus, resetPaymentForm, vtParkAvailable, vtReviewRequired]);
 
  const reconcileQrPayment = useCallback(async (activePayment: ActiveQrPayment, manual = false) => {
   if (manual) setCheckingQrStatus(true);
@@ -1201,6 +1206,7 @@ export function PaymentDialog({
    }
 
    setQrPollError(response.warning ?? null);
+   if (response.next_action !== 'PARK_AVAILABLE') setVtParkAvailable(false);
    if (response.next_action === 'ACK_ONLY') {
     const queueOutcome = await processNextQueuedResult();
     if (queueOutcome !== 'empty') return;
@@ -1265,6 +1271,20 @@ export function PaymentDialog({
     setVtStatusRetryPending(true);
     vtOperationRetryAtRef.current = Date.now() + 2_000;
     setQrPollError(response.warning ?? 'Bayaran masih diproses oleh Fiuu. Semakan boleh diulang sebentar lagi.');
+    return;
+   }
+   if (response.next_action === 'PARK_AVAILABLE') {
+    const queueOutcome = await processNextQueuedResult();
+    if (queueOutcome !== 'empty') return;
+    verifyDrainAfterCallback = true;
+    setQrStatus('PENDING');
+    setVtStatusRetryPending(false);
+    setVtCancelConfirming(false);
+    setVtCancelRequested(false);
+    setVtParkAvailable(true);
+    vtOperationRetryAtRef.current = 0;
+    setQrPollError(response.warning
+     ?? 'Fiuu VT mengulangi ralat selepas QR tamat. Parkir transaksi untuk semakan HQ dan teruskan jualan.');
     return;
    }
    if (response.next_action === 'AUTO_CONFIRMATION') {
@@ -1573,6 +1593,43 @@ export function PaymentDialog({
   return inFlight;
  }, [runActiveQrStatusCheck]);
 
+ const parkStalledFiuuVtPayment = useCallback(async () => {
+  if (!qrPayment || qrPayment.integration !== 'vt_app' || !qrPayment.providerOrderId) return;
+  if (vtCallbackDrainInProgressRef.current || vtCallbackDrainScopeRef.current) {
+   setQrPollError('Callback Fiuu VT masih disemak. Tunggu beberapa saat sebelum memarkir transaksi.');
+   return;
+  }
+
+  setCheckingQrStatus(true);
+  setQrPollError(null);
+  try {
+   const response = await parkFiuuVtProviderErrorPayment(qrPayment.id);
+   const finalizationSeal = captureFiuuVtFinalizationSeal(qrPayment.id);
+   let nativeReleased = false;
+   if (finalizationSeal) {
+    nativeReleased = await releaseFiuuVtNativeState(qrPayment.providerOrderId);
+    nativeReleased = nativeReleased && isFiuuVtFinalizationSealValid(finalizationSeal);
+   }
+   if (!nativeReleased) {
+    storeDeferredFiuuVtNativeCleanup(nativeCleanupKey, qrPayment.providerOrderId);
+   }
+
+   removeStoredQrPayment();
+   resetPaymentForm();
+   onOpenChange(false);
+   toast.warning(response.warning
+    ?? 'Transaksi lama diparkir untuk semakan HQ. Troli dikekalkan dan kaunter boleh meneruskan jualan.');
+  } catch (error) {
+   const message = error instanceof Error
+    ? error.message
+    : 'Transaksi belum dapat diparkir. Semak STATUS Fiuu VT sekali lagi.';
+   setQrPollError(message);
+   toast.error(message);
+  } finally {
+   setCheckingQrStatus(false);
+  }
+ }, [captureFiuuVtFinalizationSeal, isFiuuVtFinalizationSealValid, nativeCleanupKey, onOpenChange, qrPayment, releaseFiuuVtNativeState, removeStoredQrPayment, resetPaymentForm]);
+
  const requestFiuuVtCancellation = useCallback(async () => {
   if (!qrPayment || qrPayment.integration !== 'vt_app' || !qrPayment.providerOrderId) return;
   setCheckingQrStatus(true);
@@ -1770,6 +1827,7 @@ export function PaymentDialog({
  useEffect(() => {
   if (!qrPayment
    || vtReviewRequired
+   || vtParkAvailable
    || (qrStatus !== 'PENDING'
     && qrStatus !== 'PAID'
     && !(qrStatus === 'REPORTED' && qrPayment.integration === 'cloudecr'))) return;
@@ -1845,7 +1903,7 @@ export function PaymentDialog({
      window.removeEventListener('pageshow', resumePolling);
     document.removeEventListener('visibilitychange', resumePolling);
   };
- }, [checkActiveQrStatus, processFiuuVtResult, qrDisplayExpired, qrPayment, qrStatus, readActiveFiuuVtResult, reconcileQrPayment, vtCancelRequested, vtReviewRequired, vtStatusRetryPending]);
+ }, [checkActiveQrStatus, processFiuuVtResult, qrDisplayExpired, qrPayment, qrStatus, readActiveFiuuVtResult, reconcileQrPayment, vtCancelRequested, vtParkAvailable, vtReviewRequired, vtStatusRetryPending]);
 
  const appendNumpad = useCallback((key: string) => {
  setCashTenderedOverride((prevOverride) => {
@@ -2709,6 +2767,38 @@ export function PaymentDialog({
        <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
        {loading || checkingQrStatus ? 'Memuktamadkan...' : 'Cuba sahkan automatik semula'}
       </Button>
+     </div>
+    ) : qrStatus === 'PENDING' && vtParkAvailable ? (
+     <div className="flex w-full flex-col gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3">
+      <div className="flex items-start gap-2 text-amber-950">
+       <Clock3 className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+       <p className="text-sm font-semibold">
+        QR sudah tamat dan Fiuu VT mengulangi ralat STATUS. Parkir transaksi lama untuk semakan HQ; troli kekal dan jualan seterusnya boleh dimulakan.
+       </p>
+      </div>
+      <div className="flex gap-2">
+       <Button
+        type="button"
+        variant="outline"
+        className="h-11 flex-1 bg-white"
+        disabled={checkingQrStatus || vtCallbackDrainInProgress}
+        onClick={() => {
+         setVtParkAvailable(false);
+         void checkActiveQrStatus();
+        }}
+       >
+        <RefreshCw className={cn('h-4 w-4', checkingQrStatus && 'animate-spin')} aria-hidden="true" />
+        Semak lagi
+       </Button>
+       <Button
+        type="button"
+        className="h-11 flex-[1.7] bg-amber-500 font-bold text-amber-950 hover:bg-amber-600"
+        disabled={checkingQrStatus || vtCallbackDrainInProgress}
+        onClick={() => void parkStalledFiuuVtPayment()}
+       >
+        {checkingQrStatus ? 'Memarkir...' : 'Parkir & teruskan jualan'}
+       </Button>
+      </div>
      </div>
     ) : qrStatus === 'PENDING' && vtCancelConfirming ? (
      <div className="flex w-full flex-col gap-2 rounded-xl border border-red-200 bg-red-50 p-3">

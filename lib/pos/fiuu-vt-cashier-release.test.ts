@@ -14,6 +14,14 @@ const route = readFileSync(join(
  process.cwd(),
  'app/api/pos/qr-payments/[paymentId]/vt-prelaunch-cancel/route.ts',
 ), 'utf8');
+const providerErrorMigration = readFileSync(join(
+ process.cwd(),
+ 'supabase/migrations/20261121193000_release_stalled_fiuu_vt_provider_errors.sql',
+), 'utf8');
+const providerErrorRoute = readFileSync(join(
+ process.cwd(),
+ 'app/api/pos/qr-payments/[paymentId]/vt-park/route.ts',
+), 'utf8');
 const paymentDialog = readFileSync(join(
  process.cwd(),
  'components/pos/payment-dialog.tsx',
@@ -62,6 +70,36 @@ describe('Fiuu VT cashier release safety contract', () => {
   expect(paymentDialog).toContain('Pelanggan tidak bayar — mula batal');
   expect(paymentDialog).toContain('Batalkan pembayaran');
   expect(paymentDialog).toContain('Buka Fiuu VT untuk batal');
+  expect(paymentDialog).toContain('Parkir & teruskan jualan');
+ });
+
+ it('parks only repeated expired STATUS errors and retains HQ evidence', () => {
+  expect(providerErrorMigration).toContain('CREATE OR REPLACE FUNCTION public.record_pos_fiuu_vt_provider_error');
+  expect(providerErrorMigration).toContain('v_error_count >= 3 AND v_expired_at <= v_observed_at');
+  expect(providerErrorMigration).toContain("v_payment.provider_result->>'callbackAttemptId'");
+  expect(providerErrorMigration).toContain('CREATE OR REPLACE FUNCTION public.park_pos_fiuu_vt_provider_error');
+  expect(providerErrorMigration).toContain("v_payment.fiuu_vt_provider_error_count < 3");
+  expect(providerErrorMigration).toContain("v_expired_at > v_now");
+  expect(providerErrorMigration).toContain("attempt.result_json->>'status' = '00'");
+  expect(providerErrorMigration).toContain("fiuu_vt_reconciliation_state = 'PROVIDER_ERROR_REVIEW'");
+  expect(providerErrorMigration).toContain('FROM PUBLIC, anon, authenticated');
+  expect(providerErrorMigration).toContain('TO service_role');
+ });
+
+ it('exposes parking only through the authenticated official-tablet route', () => {
+  expect(providerErrorRoute).toContain('assertOfficialPosDevice');
+  expect(providerErrorRoute).toContain('assertActivePosShiftMember');
+  expect(providerErrorRoute).toContain('payment.created_by !== profile.id');
+  expect(providerErrorRoute).toContain("'park_pos_fiuu_vt_provider_error'");
+  expect(providerErrorRoute).toContain("mode: 'FIUU_VT_PARK_NOT_READY'");
+ });
+
+ it('stops automatic STATUS retries once safe parking is offered', () => {
+  expect(paymentDialog).toContain("response.next_action === 'PARK_AVAILABLE'");
+  expect(paymentDialog).toContain('setVtStatusRetryPending(false)');
+  expect(paymentDialog).toContain('setVtParkAvailable(true)');
+  expect(paymentDialog).toContain('parkFiuuVtProviderErrorPayment(qrPayment.id)');
+  expect(paymentDialog).toContain('storeDeferredFiuuVtNativeCleanup');
  });
 
  it('offers cancellation before provider expiry and turns the close action into a safe confirmation', () => {

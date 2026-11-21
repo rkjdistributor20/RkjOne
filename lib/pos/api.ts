@@ -299,7 +299,7 @@ export async function submitFiuuVtResult(
  try {
   return await fetchJson<{
    payment: { id: string; status: 'PENDING' | 'REPORTED' | 'PAID' | 'FAILED' | 'EXPIRED' | 'CANCELLED' };
-   next_action: 'CHECK_STATUS' | 'CHECK_STATUS_LATER' | 'AUTO_CONFIRMATION' | 'COMPLETE' | 'ACK_ONLY' | 'ACK_AND_QUARANTINE';
+   next_action: 'CHECK_STATUS' | 'CHECK_STATUS_LATER' | 'PARK_AVAILABLE' | 'AUTO_CONFIRMATION' | 'COMPLETE' | 'ACK_ONLY' | 'ACK_AND_QUARANTINE';
    warning?: string;
   }>(`/api/pos/qr-payments/${encodeURIComponent(paymentId)}/vt-result`, {
    method: 'POST',
@@ -435,6 +435,33 @@ export async function cancelUnlaunchedFiuuVtPayment(
     attempt_id: attemptId,
     error_code: errorCode,
    }),
+  });
+ } catch (error) {
+  if (error instanceof ClientJsonError) {
+   const data = error.data;
+   const mode =
+    typeof data === 'object' && data !== null && 'mode' in data && typeof data.mode === 'string'
+     ? data.mode
+     : null;
+   throw new PosQrPaymentError(error.message, error.status, mode);
+  }
+  throw error;
+ }
+}
+
+export async function parkFiuuVtProviderErrorPayment(paymentId: string) {
+ try {
+  return await fetchJson<{
+   payment: {
+    id: string;
+    status: 'CANCELLED';
+    fiuu_vt_review_required: true;
+    fiuu_vt_reconciliation_state: 'PROVIDER_ERROR_REVIEW';
+   };
+   reused?: boolean;
+   warning?: string;
+  }>(`/api/pos/qr-payments/${encodeURIComponent(paymentId)}/vt-park`, {
+   method: 'POST',
   });
  } catch (error) {
   if (error instanceof ClientJsonError) {

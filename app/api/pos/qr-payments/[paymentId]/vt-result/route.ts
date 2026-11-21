@@ -26,6 +26,7 @@ type ReviewState = 'LATE_SUCCESS_REVIEW' | 'REVERSAL_REVIEW' | 'FOREIGN_CALLBACK
 type NextAction =
  | 'CHECK_STATUS'
  | 'CHECK_STATUS_LATER'
+ | 'PARK_AVAILABLE'
  | 'AUTO_CONFIRMATION'
  | 'COMPLETE'
  | 'ACK_ONLY'
@@ -209,7 +210,7 @@ export async function POST(
  const service = createAdminClient();
  const { data: payment, error: paymentError } = await service
   .from('pos_online_payments')
-  .select('id, organization_id, branch_id, shift_id, created_by, provider, status, amount_rm, sale_payload, provider_order_id, provider_transaction_id, provider_result, provider_sale_reported_at, provider_status_checked_at, fiuu_vt_review_required, fiuu_vt_reconciliation_state')
+  .select('id, organization_id, branch_id, shift_id, created_by, provider, status, amount_rm, sale_payload, provider_order_id, provider_transaction_id, provider_result, provider_sale_reported_at, provider_status_checked_at, fiuu_vt_review_required, fiuu_vt_reconciliation_state, fiuu_vt_provider_error_code, fiuu_vt_provider_error_count, fiuu_vt_provider_error_at')
   .eq('id', paymentId)
   .eq('organization_id', profile.organization_id)
   .maybeSingle();
@@ -506,12 +507,24 @@ export async function POST(
  }
 
  if (payment.fiuu_vt_review_required) {
-  await quarantineAttempt(attempt.id);
+  const lateSuccessAfterProviderError = payment.fiuu_vt_reconciliation_state === 'PROVIDER_ERROR_REVIEW'
+   && !isFiuuVtErrorResult(result)
+   && result.opType !== 'VOID'
+   && result.status === '00';
+  const quarantined = await quarantineAttempt(attempt.id);
+  const review = lateSuccessAfterProviderError
+   ? await markReview('LATE_SUCCESS_REVIEW', 'SUCCESS_AFTER_PROVIDER_ERROR_PARK', attempt.id)
+   : null;
+  if (quarantined.error || review?.error) {
+   return NextResponse.json({ error: 'Bukti callback transaksi diparkir tidak dapat disimpan' }, { status: 400 });
+  }
   return responseForStatus(
    payment.id,
    payment.status as PaymentStatus,
    'ACK_AND_QUARANTINE',
-   'Transaksi ini sedang menunggu semakan HQ. Jangan ulang caj pelanggan.',
+   lateSuccessAfterProviderError
+    ? 'Fiuu melaporkan kejayaan selepas transaksi diparkir. Jangan ulang caj pelanggan; HQ perlu menyemak.'
+    : 'Transaksi ini sedang menunggu semakan HQ. Jangan ulang caj pelanggan.',
   );
  }
 
@@ -575,20 +588,35 @@ export async function POST(
  }
 
  if (isFiuuVtErrorResult(result)) {
-  const { error: updateError } = await service
-   .from('pos_online_payments')
-   .update({
-    provider_result: safeResult,
-    provider_status_checked_at: result.opType === 'SALE'
-     ? payment.provider_status_checked_at
-     : observedAt,
-    updated_at: observedAt,
-   })
-   .eq('id', payment.id)
-   .eq('provider', 'fiuu_vt')
-   .eq('status', 'PENDING');
-  if (updateError) {
-   return NextResponse.json({ error: 'Ralat Fiuu VT tidak dapat direkod' }, { status: 400 });
+  let parkAvailable = false;
+  if (result.opType === 'STATUS') {
+   const { data: errorRecord, error: recordError } = await service.rpc(
+    'record_pos_fiuu_vt_provider_error',
+    {
+     p_payment_id: payment.id,
+     p_error_code: result.errorCode,
+     p_error_message: result.errorMessage,
+     p_provider_result: safeResult,
+     p_observed_at: observedAt,
+    },
+   );
+   if (recordError) {
+    return NextResponse.json({ error: 'Ralat STATUS Fiuu VT tidak dapat direkod' }, { status: 400 });
+   }
+   parkAvailable = jsonRecord(errorRecord as Json | null)?.park_available === true;
+  } else {
+   const { error: updateError } = await service
+    .from('pos_online_payments')
+    .update({
+     provider_result: safeResult,
+     updated_at: observedAt,
+    })
+    .eq('id', payment.id)
+    .eq('provider', 'fiuu_vt')
+    .eq('status', 'PENDING');
+   if (updateError) {
+    return NextResponse.json({ error: 'Ralat Fiuu VT tidak dapat direkod' }, { status: 400 });
+   }
   }
   const completion = await completeAttempt(attempt.id);
   if (!completion.ok) {
@@ -597,8 +625,12 @@ export async function POST(
   return responseForStatus(
    payment.id,
    'PENDING',
-   result.opType === 'STATUS' ? 'CHECK_STATUS_LATER' : 'CHECK_STATUS',
-   `Fiuu VT memulangkan ralat ${result.errorCode}. Semak STATUS; jangan buka SALE kedua.`,
+   parkAvailable
+    ? 'PARK_AVAILABLE'
+    : result.opType === 'STATUS' ? 'CHECK_STATUS_LATER' : 'CHECK_STATUS',
+   parkAvailable
+    ? `Fiuu VT mengulangi ralat STATUS ${result.errorCode} selepas QR tamat. Transaksi boleh diparkir dengan selamat untuk semakan HQ.`
+    : `Fiuu VT memulangkan ralat ${result.errorCode}. Semak STATUS; jangan buka SALE kedua.`,
   );
  }
 
@@ -607,6 +639,14 @@ export async function POST(
   provider_result: safeResult,
   updated_at: observedAt,
  };
+ if (result.opType === 'STATUS') {
+  update = {
+   ...update,
+   fiuu_vt_provider_error_code: null,
+   fiuu_vt_provider_error_count: 0,
+   fiuu_vt_provider_error_at: null,
+  };
+ }
  let nextStatus: PaymentStatus = 'PENDING';
  let nextAction: NextAction = 'CHECK_STATUS';
  let warning: string | undefined;

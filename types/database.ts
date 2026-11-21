@@ -6969,6 +6969,9 @@ export type Database = {
           fiuu_opa_reconcile_state: string | null
           fiuu_opa_reversal_reference_id: string | null
           fiuu_opa_reversed_at: string | null
+          fiuu_vt_provider_error_at: string | null
+          fiuu_vt_provider_error_code: string | null
+          fiuu_vt_provider_error_count: number
           fiuu_vt_reconciliation_state: string | null
           fiuu_vt_recovery_attempted_at: string | null
           fiuu_vt_recovery_attempts: number
@@ -7013,6 +7016,9 @@ export type Database = {
           fiuu_opa_reconcile_state?: string | null
           fiuu_opa_reversal_reference_id?: string | null
           fiuu_opa_reversed_at?: string | null
+          fiuu_vt_provider_error_at?: string | null
+          fiuu_vt_provider_error_code?: string | null
+          fiuu_vt_provider_error_count?: number
           fiuu_vt_reconciliation_state?: string | null
           fiuu_vt_recovery_attempted_at?: string | null
           fiuu_vt_recovery_attempts?: number
@@ -7057,6 +7063,9 @@ export type Database = {
           fiuu_opa_reconcile_state?: string | null
           fiuu_opa_reversal_reference_id?: string | null
           fiuu_opa_reversed_at?: string | null
+          fiuu_vt_provider_error_at?: string | null
+          fiuu_vt_provider_error_code?: string | null
+          fiuu_vt_provider_error_count?: number
           fiuu_vt_reconciliation_state?: string | null
           fiuu_vt_recovery_attempted_at?: string | null
           fiuu_vt_recovery_attempts?: number
@@ -11286,6 +11295,20 @@ export type Database = {
           p_evidence: Json
           p_payment_id: string
           p_state: string
+        }
+        Returns: Json
+      }
+      park_pos_fiuu_vt_provider_error: {
+        Args: { p_actor_id: string; p_payment_id: string }
+        Returns: Json
+      }
+      record_pos_fiuu_vt_provider_error: {
+        Args: {
+          p_error_code: string
+          p_error_message: string
+          p_observed_at: string
+          p_payment_id: string
+          p_provider_result: Json
         }
         Returns: Json
       }
