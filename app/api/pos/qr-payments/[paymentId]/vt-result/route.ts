@@ -588,7 +588,6 @@ export async function POST(
  }
 
  if (isFiuuVtErrorResult(result)) {
-  let parkAvailable = false;
   if (result.opType === 'STATUS') {
    const { data: errorRecord, error: recordError } = await service.rpc(
     'record_pos_fiuu_vt_provider_error',
@@ -603,7 +602,10 @@ export async function POST(
    if (recordError) {
     return NextResponse.json({ error: 'Ralat STATUS Fiuu VT tidak dapat direkod' }, { status: 400 });
    }
-   parkAvailable = jsonRecord(errorRecord as Json | null)?.park_available === true;
+   // Keep the repeated provider error as durable recovery evidence, but do
+   // not release the checkout lane from a browser callback alone. A STATUS
+   // transport error is not proof that Fiuu cancelled the underlying charge.
+   void jsonRecord(errorRecord as Json | null);
   } else {
    const { error: updateError } = await service
     .from('pos_online_payments')
@@ -625,12 +627,8 @@ export async function POST(
   return responseForStatus(
    payment.id,
    'PENDING',
-   parkAvailable
-    ? 'PARK_AVAILABLE'
-    : result.opType === 'STATUS' ? 'CHECK_STATUS_LATER' : 'CHECK_STATUS',
-   parkAvailable
-    ? `Fiuu VT mengulangi ralat STATUS ${result.errorCode} selepas QR tamat. Transaksi boleh diparkir dengan selamat untuk semakan HQ.`
-    : `Fiuu VT memulangkan ralat ${result.errorCode}. Semak STATUS; jangan buka SALE kedua.`,
+   result.opType === 'STATUS' ? 'CHECK_STATUS_LATER' : 'CHECK_STATUS',
+   `Fiuu VT memulangkan ralat ${result.errorCode}. Semak STATUS; jangan buka SALE kedua.`,
   );
  }
 

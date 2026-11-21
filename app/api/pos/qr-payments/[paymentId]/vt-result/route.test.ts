@@ -767,7 +767,7 @@ describe('Fiuu VT one-time callback reconciliation', () => {
   expect(state.attempt).toMatchObject({ state: 'CONSUMED' });
  });
 
- it('offers safe parking after the third repeated STATUS error and QR expiry', async () => {
+ it('keeps checkout locked after the third STATUS error because provider cancellation is unproven', async () => {
   const errorResult = {
    callbackAttemptId: ATTEMPT_ID,
    callbackHost: CALLBACK_HOST,
@@ -790,7 +790,7 @@ describe('Fiuu VT one-time callback reconciliation', () => {
 
   expect(await response.json()).toMatchObject({
    payment: { status: 'PENDING' },
-   next_action: 'PARK_AVAILABLE',
+   next_action: 'CHECK_STATUS_LATER',
   });
   expect(state.payment).toMatchObject({
    status: 'PENDING',

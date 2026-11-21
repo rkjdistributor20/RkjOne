@@ -93,51 +93,21 @@ describe('POST /api/pos/qr-payments/[paymentId]/vt-park', () => {
   });
  });
 
- it('parks through the service-only RPC after official-tablet checks', async () => {
+ it('fails closed while provider-error parking is safety-gated', async () => {
   const admin = adminFor();
-  mocks.createAdminClient.mockReturnValue(admin);
-
-  const response = await invoke();
-
-  expect(response.status).toBe(200);
-  expect(await response.json()).toMatchObject({
-   payment: {
-    id: PAYMENT_ID,
-    status: 'CANCELLED',
-    fiuu_vt_review_required: true,
-    fiuu_vt_reconciliation_state: 'PROVIDER_ERROR_REVIEW',
-   },
-  });
-  expect(admin.rpc).toHaveBeenCalledWith('park_pos_fiuu_vt_provider_error', {
-   p_payment_id: PAYMENT_ID,
-   p_actor_id: PROFILE.id,
-  });
- });
-
- it('rejects a tablet identity mismatch before the parking RPC', async () => {
-  const admin = adminFor();
-  mocks.createAdminClient.mockReturnValue(admin);
-  mocks.assertOfficialPosDevice.mockResolvedValue({
-   id: 'different-device',
-   deviceCode: 'POS-BR001-OTHER',
-   branchCode: 'BR001',
-   enrollmentGeneration: 2,
-  });
-
-  const response = await invoke();
-
-  expect(response.status).toBe(403);
-  expect(admin.rpc).not.toHaveBeenCalled();
- });
-
- it('fails closed when the database says parking is not yet safe', async () => {
-  const admin = adminFor();
-  admin.rpc.mockResolvedValueOnce({ data: null, error: { message: 'not ready' } });
   mocks.createAdminClient.mockReturnValue(admin);
 
   const response = await invoke();
 
   expect(response.status).toBe(409);
-  expect(await response.json()).toMatchObject({ mode: 'FIUU_VT_PARK_NOT_READY' });
+  expect(await response.json()).toMatchObject({
+   mode: 'FIUU_VT_PARK_DISABLED',
+  });
+  expect(admin.rpc).not.toHaveBeenCalled();
+ });
+
+ it('still rejects unauthenticated callers before the safety gate', async () => {
+  mocks.getCurrentProfile.mockResolvedValue(null);
+  expect((await invoke()).status).toBe(401);
  });
 });

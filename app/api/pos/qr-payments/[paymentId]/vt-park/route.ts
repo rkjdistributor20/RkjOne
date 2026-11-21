@@ -31,6 +31,17 @@ export async function POST(
  const profile = await getCurrentProfile();
  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+ // Safety gate: a repeated STATUS transport error is not authoritative proof
+ // that the provider has cancelled the charge. Keep the endpoint closed until
+ // the quarantined-payment workflow can preserve and reconcile that ambiguity
+ // without exposing the customer to a duplicate charge.
+ if (process.env.FIUU_VT_PROVIDER_ERROR_PARKING !== 'enabled') {
+  return NextResponse.json({
+   error: 'Transaksi belum boleh dilepaskan secara automatik. Teruskan semakan STATUS Fiuu VT atau hubungi HQ.',
+   mode: 'FIUU_VT_PARK_DISABLED',
+  }, { status: 409 });
+ }
+
  const { paymentId } = await context.params;
  const service = createAdminClient();
  const { data: payment, error: paymentError } = await service
