@@ -1424,6 +1424,10 @@ export function PaymentDialog({
        || !activePayment) return;
       void (async () => {
        try {
+        // processNextQueuedResult() has just observed one empty read. Wait for
+        // the quiescence window before the second read so the callback-drain
+        // latch can be released instead of leaving cashier actions disabled.
+        await waitForFiuuVtQueueQuiescence();
         const lateResult = await readActiveFiuuVtResult(callbackPaymentId);
         if (lateResult) {
          vtResultFingerprintRef.current = null;

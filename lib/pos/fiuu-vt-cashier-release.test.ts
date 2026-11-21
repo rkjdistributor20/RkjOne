@@ -127,6 +127,17 @@ describe('Fiuu VT cashier release safety contract', () => {
   expect(statusCheck).toContain('// or finalise payment. Do not start a second provider operation here.\n      return;');
  });
 
+ it('waits for callback quiescence before the final empty drain read', () => {
+  const verificationStart = paymentDialog.indexOf('if (verifyDrainAfterCallback');
+  const verificationEnd = paymentDialog.indexOf('}, [beginFiuuVtCallbackDrain', verificationStart);
+  const verification = paymentDialog.slice(verificationStart, verificationEnd);
+
+  expect(verificationStart).toBeGreaterThan(-1);
+  expect(verificationEnd).toBeGreaterThan(verificationStart);
+  expect(verification).toContain('await waitForFiuuVtQueueQuiescence();');
+  expect(verification).toContain('const lateResult = await readActiveFiuuVtResult(callbackPaymentId);');
+ });
+
  it('offers cancellation before provider expiry and turns the close action into a safe confirmation', () => {
   const closeStart = paymentDialog.indexOf('const handleDialogOpenChange');
   const closeEnd = paymentDialog.indexOf('const reconcileQrPayment', closeStart);
