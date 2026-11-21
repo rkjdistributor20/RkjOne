@@ -6979,6 +6979,10 @@ export type Database = {
           fiuu_vt_recovery_next_at: string | null
           fiuu_vt_review_evidence: Json | null
           fiuu_vt_review_required: boolean
+          fiuu_vt_review_resolution: string | null
+          fiuu_vt_review_resolution_note: string | null
+          fiuu_vt_review_resolved_at: string | null
+          fiuu_vt_review_resolved_by: string | null
           gateway_ref: string | null
           id: string
           idempotency_key: string | null
@@ -7026,6 +7030,10 @@ export type Database = {
           fiuu_vt_recovery_next_at?: string | null
           fiuu_vt_review_evidence?: Json | null
           fiuu_vt_review_required?: boolean
+          fiuu_vt_review_resolution?: string | null
+          fiuu_vt_review_resolution_note?: string | null
+          fiuu_vt_review_resolved_at?: string | null
+          fiuu_vt_review_resolved_by?: string | null
           gateway_ref?: string | null
           id?: string
           idempotency_key?: string | null
@@ -7073,6 +7081,10 @@ export type Database = {
           fiuu_vt_recovery_next_at?: string | null
           fiuu_vt_review_evidence?: Json | null
           fiuu_vt_review_required?: boolean
+          fiuu_vt_review_resolution?: string | null
+          fiuu_vt_review_resolution_note?: string | null
+          fiuu_vt_review_resolved_at?: string | null
+          fiuu_vt_review_resolved_by?: string | null
           gateway_ref?: string | null
           id?: string
           idempotency_key?: string | null

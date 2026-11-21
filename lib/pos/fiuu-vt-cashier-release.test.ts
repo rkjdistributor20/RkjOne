@@ -16,7 +16,7 @@ const route = readFileSync(join(
 ), 'utf8');
 const providerErrorMigration = readFileSync(join(
  process.cwd(),
- 'supabase/migrations/20261121193000_release_stalled_fiuu_vt_provider_errors.sql',
+ 'supabase/migrations/20261121210000_harden_fiuu_vt_provider_error_quarantine.sql',
 ), 'utf8');
 const providerErrorRoute = readFileSync(join(
  process.cwd(),
@@ -62,7 +62,7 @@ describe('Fiuu VT cashier release safety contract', () => {
   expect(route).toContain("mode: 'FIUU_VT_RECONCILIATION_REQUIRED'");
  });
 
- it('keeps the cart and gives the cashier an immediate safe path', () => {
+ it('gives the cashier immediate safe cancellation and quarantine paths', () => {
   expect(paymentDialog).toContain('cancelPrelaunchFiuuVtPayment');
   expect(paymentDialog).toContain('retryFiuuVtSaleLaunch');
   expect(paymentDialog).toContain('Batal & kembali ke troli');
@@ -70,27 +70,33 @@ describe('Fiuu VT cashier release safety contract', () => {
   expect(paymentDialog).toContain('Pelanggan tidak bayar — mula batal');
   expect(paymentDialog).toContain('Batalkan pembayaran');
   expect(paymentDialog).toContain('Buka Fiuu VT untuk batal');
-  expect(paymentDialog).toContain('Parkir & teruskan jualan');
+  expect(paymentDialog).toContain('Kuarantin & pelanggan seterusnya');
+  expect(paymentDialog).toContain('if (currentPaymentFingerprint === qrPayment.cartFingerprint) clearCart();');
  });
 
- it('parks only repeated expired STATUS errors and retains HQ evidence', () => {
+ it('quarantines only repeated expired STATUS errors and retains Finance evidence', () => {
   expect(providerErrorMigration).toContain('CREATE OR REPLACE FUNCTION public.record_pos_fiuu_vt_provider_error');
-  expect(providerErrorMigration).toContain('v_error_count >= 3 AND v_expired_at <= v_observed_at');
+  expect(providerErrorMigration).toContain('v_error_count >= 3');
+  expect(providerErrorMigration).toContain('AND v_expired_at <= v_observed_at');
   expect(providerErrorMigration).toContain("v_payment.provider_result->>'callbackAttemptId'");
-  expect(providerErrorMigration).toContain('CREATE OR REPLACE FUNCTION public.park_pos_fiuu_vt_provider_error');
+  expect(providerErrorMigration).toContain('CREATE FUNCTION public.park_pos_fiuu_vt_provider_error');
   expect(providerErrorMigration).toContain("v_payment.fiuu_vt_provider_error_count < 3");
   expect(providerErrorMigration).toContain("v_expired_at > v_now");
   expect(providerErrorMigration).toContain("attempt.result_json->>'status' = '00'");
   expect(providerErrorMigration).toContain("fiuu_vt_reconciliation_state = 'PROVIDER_ERROR_REVIEW'");
+  expect(providerErrorMigration).toContain("SET status = 'QUARANTINED'");
+  expect(providerErrorMigration).toContain('CREATE OR REPLACE FUNCTION public.resolve_pos_fiuu_vt_provider_error');
   expect(providerErrorMigration).toContain('FROM PUBLIC, anon, authenticated');
   expect(providerErrorMigration).toContain('TO service_role');
  });
 
- it('exposes parking only through the authenticated official-tablet route', () => {
+ it('exposes quarantine only through the authenticated official-tablet route', () => {
   expect(providerErrorRoute).toContain('assertOfficialPosDevice');
   expect(providerErrorRoute).toContain('assertActivePosShiftMember');
   expect(providerErrorRoute).toContain('payment.created_by !== profile.id');
   expect(providerErrorRoute).toContain("'park_pos_fiuu_vt_provider_error'");
+  expect(providerErrorRoute).toContain('p_device_id: officialDeviceId');
+  expect(providerErrorRoute).toContain('p_enrollment_generation: officialEnrollmentGeneration');
   expect(providerErrorRoute).toContain("mode: 'FIUU_VT_PARK_NOT_READY'");
  });
 

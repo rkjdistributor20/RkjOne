@@ -454,7 +454,7 @@ export async function parkFiuuVtProviderErrorPayment(paymentId: string) {
   return await fetchJson<{
    payment: {
     id: string;
-    status: 'CANCELLED';
+    status: 'QUARANTINED';
     fiuu_vt_review_required: true;
     fiuu_vt_reconciliation_state: 'PROVIDER_ERROR_REVIEW';
    };
@@ -514,7 +514,7 @@ export async function fetchPosQrPayment(paymentId: string) {
   shift_id: string;
   provider: 'fiuu' | 'fiuu_vt' | 'fiuu_cloudecr';
   provider_order_id: string | null;
-  status: 'PENDING' | 'REPORTED' | 'PAID' | 'FAILED' | 'EXPIRED' | 'CANCELLED';
+  status: 'PENDING' | 'REPORTED' | 'PAID' | 'FAILED' | 'EXPIRED' | 'CANCELLED' | 'QUARANTINED';
  amount_rm: number;
  transaction_id: string | null;
  expires_at: string | null;

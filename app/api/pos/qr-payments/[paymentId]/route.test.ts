@@ -39,7 +39,7 @@ const SHIFT_ID = '44444444-4444-4444-8444-444444444444';
 const TRANSACTION_ID = '22222222-2222-4222-8222-222222222222';
 
 function payment(
- status: 'PENDING' | 'REPORTED' | 'PAID' | 'FAILED' | 'EXPIRED' | 'CANCELLED',
+ status: 'PENDING' | 'REPORTED' | 'PAID' | 'FAILED' | 'EXPIRED' | 'CANCELLED' | 'QUARANTINED',
  provider: 'fiuu' | 'fiuu_vt' = 'fiuu',
 ) {
  return {

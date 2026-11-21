@@ -61,7 +61,7 @@ function adminFor(currentPayment = payment()) {
  const rpc = vi.fn(async (): Promise<RpcResponse> => ({
   data: {
    payment_id: PAYMENT_ID,
-   status: 'CANCELLED',
+   status: 'QUARANTINED',
    review_state: 'PROVIDER_ERROR_REVIEW',
    reused: false,
   },
@@ -93,21 +93,62 @@ describe('POST /api/pos/qr-payments/[paymentId]/vt-park', () => {
   });
  });
 
- it('fails closed while provider-error parking is safety-gated', async () => {
+ it('quarantines an eligible payment using the verified official tablet identity', async () => {
   const admin = adminFor();
   mocks.createAdminClient.mockReturnValue(admin);
 
   const response = await invoke();
 
-  expect(response.status).toBe(409);
+  expect(response.status).toBe(200);
   expect(await response.json()).toMatchObject({
-   mode: 'FIUU_VT_PARK_DISABLED',
+   payment: {
+    id: PAYMENT_ID,
+    status: 'QUARANTINED',
+    fiuu_vt_review_required: true,
+    fiuu_vt_reconciliation_state: 'PROVIDER_ERROR_REVIEW',
+   },
+   reused: false,
   });
+  expect(admin.rpc).toHaveBeenCalledWith('park_pos_fiuu_vt_provider_error', {
+   p_payment_id: PAYMENT_ID,
+   p_actor_id: PROFILE.id,
+   p_device_id: 'device-1',
+   p_enrollment_generation: 2,
+  });
+ });
+
+ it('rejects unauthenticated callers', async () => {
+  mocks.getCurrentProfile.mockResolvedValue(null);
+  expect((await invoke()).status).toBe(401);
+ });
+
+ it('rejects a tablet whose enrollment generation does not match the sale intent', async () => {
+  const admin = adminFor();
+  mocks.createAdminClient.mockReturnValue(admin);
+  mocks.assertOfficialPosDevice.mockResolvedValue({
+   id: 'device-1',
+   deviceCode: 'POS-BR001-TEST',
+   branchCode: 'BR001',
+   enrollmentGeneration: 3,
+  });
+
+  const response = await invoke();
+
+  expect(response.status).toBe(403);
   expect(admin.rpc).not.toHaveBeenCalled();
  });
 
- it('still rejects unauthenticated callers before the safety gate', async () => {
-  mocks.getCurrentProfile.mockResolvedValue(null);
-  expect((await invoke()).status).toBe(401);
+ it('keeps the lane closed when the serialized database quarantine is not eligible', async () => {
+  const admin = adminFor();
+  admin.rpc.mockResolvedValueOnce({
+   data: null,
+   error: { message: 'success evidence exists' },
+  });
+  mocks.createAdminClient.mockReturnValue(admin);
+
+  const response = await invoke();
+
+  expect(response.status).toBe(409);
+  expect(await response.json()).toMatchObject({ mode: 'FIUU_VT_PARK_NOT_READY' });
  });
 });

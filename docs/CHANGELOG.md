@@ -3,9 +3,9 @@
 ## 2026-11-21 - Android 1.8.2 stalled Fiuu VT recovery
 
 - Stops indefinite STATUS retry loops after repeated provider errors once the QR has expired.
-- Adds a cashier-safe “Parkir & teruskan jualan” path that preserves the cart, releases the lane, and retains immutable evidence for HQ review.
+- Adds a cashier-safe “Kuarantin & pelanggan seterusnya” path that clears the original cart, releases the lane, and retains append-only evidence for Finance/HQ review.
 - Quarantines any late success and protects an active or matching paid replacement from duplicate fulfilment, receipt, or stock movement.
-- Adds atomic provider-error counters, official-tablet authorization, regression coverage, and a signed Google Play release build (`versionCode 20`).
+- Adds a restricted Finance resolution queue, atomic provider-error counters, official-tablet authorization, callback/quarantine serialization, regression coverage, and a signed Google Play release build (`versionCode 20`).
 
 ## 2026-11-12 - Prepare Android 1.8.1 Fiuu VT checkout resilience
 

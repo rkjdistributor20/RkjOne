@@ -99,7 +99,7 @@ type ActiveQrPayment = {
  cartFingerprint: string;
 };
 
-type QrPaymentStatus = 'PENDING' | 'REPORTED' | 'PAID' | 'FAILED' | 'EXPIRED' | 'CANCELLED';
+type QrPaymentStatus = 'PENDING' | 'REPORTED' | 'PAID' | 'FAILED' | 'EXPIRED' | 'CANCELLED' | 'QUARANTINED';
 
 type FiuuVtPrelaunchFailure = {
  attemptId: string;
@@ -888,6 +888,22 @@ export function PaymentDialog({
     || payment.shift_id !== currentShift.id) {
      throw new Error('Transaksi native Fiuu VT bukan milik sesi tablet cawangan yang aktif.');
    }
+   if (payment.status === 'QUARANTINED' && payment.fiuu_vt_review_required) {
+    storeDeferredFiuuVtNativeCleanup(nativeCleanupKey, orderId);
+    removeStoredQrPayment();
+    if (payment.cart_fingerprint
+     && currentPaymentFingerprint === payment.cart_fingerprint) {
+     clearCart();
+    }
+    vtRecoveryOrderRef.current = null;
+    resetPaymentForm();
+    onOpenChange(false);
+    toast.warning(
+     'Transaksi terdahulu sudah dikuarantin untuk semakan Finance/HQ. Jangan caj semula pelanggan yang sama.',
+    );
+    queueMicrotask(() => void drainAndReleaseDeferredFiuuVtNativeState(orderId));
+    return;
+   }
    if (['EXPIRED', 'FAILED', 'CANCELLED'].includes(payment.status)) {
     let queuedResult: FiuuVtNativeCallbackResult | null;
     try {
@@ -980,7 +996,7 @@ export function PaymentDialog({
   } finally {
    setCheckingQrStatus(false);
   }
- }, [beginFiuuVtCallbackDrain, branchId, captureFiuuVtFinalizationSeal, isFiuuVtFinalizationSealValid, open, qrPayment, readActiveFiuuVtResult, releaseFiuuVtNativeState, scheduleFiuuVtRecoveryRetry, shift, storageKey, storeActiveQrPayment, total]);
+ }, [beginFiuuVtCallbackDrain, branchId, captureFiuuVtFinalizationSeal, clearCart, currentPaymentFingerprint, drainAndReleaseDeferredFiuuVtNativeState, isFiuuVtFinalizationSealValid, nativeCleanupKey, onOpenChange, open, qrPayment, readActiveFiuuVtResult, releaseFiuuVtNativeState, removeStoredQrPayment, resetPaymentForm, scheduleFiuuVtRecoveryRetry, shift, storageKey, storeActiveQrPayment, total]);
 
  const handleDialogOpenChange = useCallback((nextOpen: boolean) => {
  if (!nextOpen && !vtReviewRequired && qrPayment
@@ -989,7 +1005,7 @@ export function PaymentDialog({
     setVtCancelConfirming(true);
    }
    toast.info(vtParkAvailable
-    ? 'Transaksi ini boleh diparkir untuk semakan HQ supaya kaunter boleh meneruskan jualan.'
+    ? 'Transaksi ini boleh dikuarantin untuk semakan Finance/HQ supaya kaunter boleh meneruskan jualan.'
     : qrDisplayExpired
     ? 'Mulakan pembatalan di Fiuu VT. Pelepasan selamat boleh mengambil kira-kira 30 saat sementara STATUS disahkan.'
     : qrStatus === 'PENDING' && qrPayment.integration === 'vt_app'
@@ -1008,6 +1024,22 @@ export function PaymentDialog({
    if (activeQrPaymentIdRef.current !== activePayment.id) return null;
    const status = response.payment.status;
     if (response.payment.fiuu_vt_review_required) {
+     if (status === 'QUARANTINED'
+      && activePayment.integration === 'vt_app'
+      && activePayment.providerOrderId) {
+      storeDeferredFiuuVtNativeCleanup(nativeCleanupKey, activePayment.providerOrderId);
+      removeStoredQrPayment();
+      if (currentPaymentFingerprint === activePayment.cartFingerprint) clearCart();
+      resetPaymentForm();
+      onOpenChange(false);
+      toast.warning(
+       'Transaksi dikuarantin untuk semakan Finance/HQ. Jangan caj semula pelanggan yang sama; kaunter boleh melayan pelanggan seterusnya.',
+      );
+      queueMicrotask(() => void drainAndReleaseDeferredFiuuVtNativeState(
+       activePayment.providerOrderId!,
+      ));
+      return status;
+     }
      setVtPrelaunchFailure(null);
      vtReviewRequiredRef.current = true;
      setVtReviewRequired(true);
@@ -1120,7 +1152,7 @@ export function PaymentDialog({
   } finally {
    if (manual) setCheckingQrStatus(false);
   }
- }, [captureFiuuVtFinalizationSeal, clearCart, currentPaymentFingerprint, isFiuuVtFinalizationSealValid, onOpenChange, onSuccess, readActiveFiuuVtResult, releaseFiuuVtNativeState, removeStoredQrPayment, resetPaymentForm]);
+ }, [captureFiuuVtFinalizationSeal, clearCart, currentPaymentFingerprint, drainAndReleaseDeferredFiuuVtNativeState, isFiuuVtFinalizationSealValid, nativeCleanupKey, onOpenChange, onSuccess, readActiveFiuuVtResult, releaseFiuuVtNativeState, removeStoredQrPayment, resetPaymentForm]);
 
  const processFiuuVtResult = useCallback(async (result: FiuuVtNativeCallbackResult) => {
   const callbackPaymentId = paymentIdFromFiuuVtOrderId(result.orderId);
@@ -1284,7 +1316,7 @@ export function PaymentDialog({
     setVtParkAvailable(true);
     vtOperationRetryAtRef.current = 0;
     setQrPollError(response.warning
-     ?? 'Fiuu VT mengulangi ralat selepas QR tamat. Parkir transaksi untuk semakan HQ dan teruskan jualan.');
+     ?? 'Fiuu VT mengulangi ralat selepas QR tamat. Kuarantin transaksi untuk semakan Finance/HQ dan teruskan jualan.');
     return;
    }
    if (response.next_action === 'AUTO_CONFIRMATION') {
@@ -1596,7 +1628,7 @@ export function PaymentDialog({
  const parkStalledFiuuVtPayment = useCallback(async () => {
   if (!qrPayment || qrPayment.integration !== 'vt_app' || !qrPayment.providerOrderId) return;
   if (vtCallbackDrainInProgressRef.current || vtCallbackDrainScopeRef.current) {
-   setQrPollError('Callback Fiuu VT masih disemak. Tunggu beberapa saat sebelum memarkir transaksi.');
+   setQrPollError('Callback Fiuu VT masih disemak. Tunggu beberapa saat sebelum mengkuarantin transaksi.');
    return;
   }
 
@@ -1604,31 +1636,25 @@ export function PaymentDialog({
   setQrPollError(null);
   try {
    const response = await parkFiuuVtProviderErrorPayment(qrPayment.id);
-   const finalizationSeal = captureFiuuVtFinalizationSeal(qrPayment.id);
-   let nativeReleased = false;
-   if (finalizationSeal) {
-    nativeReleased = await releaseFiuuVtNativeState(qrPayment.providerOrderId);
-    nativeReleased = nativeReleased && isFiuuVtFinalizationSealValid(finalizationSeal);
-   }
-   if (!nativeReleased) {
-    storeDeferredFiuuVtNativeCleanup(nativeCleanupKey, qrPayment.providerOrderId);
-   }
-
+   storeDeferredFiuuVtNativeCleanup(nativeCleanupKey, qrPayment.providerOrderId);
    removeStoredQrPayment();
+   if (currentPaymentFingerprint === qrPayment.cartFingerprint) clearCart();
+   const deferredOrderId = qrPayment.providerOrderId;
    resetPaymentForm();
    onOpenChange(false);
    toast.warning(response.warning
-    ?? 'Transaksi lama diparkir untuk semakan HQ. Troli dikekalkan dan kaunter boleh meneruskan jualan.');
+    ?? 'Transaksi lama dikuarantin untuk semakan Finance/HQ. Jangan caj semula pelanggan yang sama.');
+   queueMicrotask(() => void drainAndReleaseDeferredFiuuVtNativeState(deferredOrderId));
   } catch (error) {
    const message = error instanceof Error
     ? error.message
-    : 'Transaksi belum dapat diparkir. Semak STATUS Fiuu VT sekali lagi.';
+    : 'Transaksi belum dapat dikuarantin. Semak STATUS Fiuu VT sekali lagi.';
    setQrPollError(message);
    toast.error(message);
   } finally {
    setCheckingQrStatus(false);
   }
- }, [captureFiuuVtFinalizationSeal, isFiuuVtFinalizationSealValid, nativeCleanupKey, onOpenChange, qrPayment, releaseFiuuVtNativeState, removeStoredQrPayment, resetPaymentForm]);
+ }, [clearCart, currentPaymentFingerprint, drainAndReleaseDeferredFiuuVtNativeState, nativeCleanupKey, onOpenChange, qrPayment, removeStoredQrPayment, resetPaymentForm]);
 
  const requestFiuuVtCancellation = useCallback(async () => {
   if (!qrPayment || qrPayment.integration !== 'vt_app' || !qrPayment.providerOrderId) return;
@@ -2773,7 +2799,7 @@ export function PaymentDialog({
       <div className="flex items-start gap-2 text-amber-950">
        <Clock3 className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
        <p className="text-sm font-semibold">
-        QR sudah tamat dan Fiuu VT mengulangi ralat STATUS. Parkir transaksi lama untuk semakan HQ; troli kekal dan jualan seterusnya boleh dimulakan.
+        QR sudah tamat dan Fiuu VT mengulangi ralat STATUS. Kuarantin transaksi untuk semakan Finance/HQ; troli asal akan dikosongkan bagi mengelakkan caj berganda.
        </p>
       </div>
       <div className="flex gap-2">
@@ -2796,7 +2822,7 @@ export function PaymentDialog({
         disabled={checkingQrStatus || vtCallbackDrainInProgress}
         onClick={() => void parkStalledFiuuVtPayment()}
        >
-        {checkingQrStatus ? 'Memarkir...' : 'Parkir & teruskan jualan'}
+        {checkingQrStatus ? 'Mengkuarantin...' : 'Kuarantin & pelanggan seterusnya'}
        </Button>
       </div>
      </div>

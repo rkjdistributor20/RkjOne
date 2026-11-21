@@ -800,9 +800,9 @@ describe('Fiuu VT one-time callback reconciliation', () => {
   expect(state.attempt).toMatchObject({ state: 'CONSUMED' });
  });
 
- it('upgrades a late success after provider-error parking to late-success review', async () => {
+ it('upgrades a late success after provider-error quarantine to late-success review', async () => {
   const { admin, state } = makeAdmin(payment({
-   status: 'CANCELLED',
+   status: 'QUARANTINED',
    fiuu_vt_review_required: true,
    fiuu_vt_reconciliation_state: 'PROVIDER_ERROR_REVIEW',
   }));
@@ -811,7 +811,7 @@ describe('Fiuu VT one-time callback reconciliation', () => {
   const response = await invoke(callback('STATUS', '00'));
 
   expect(await response.json()).toMatchObject({
-   payment: { status: 'CANCELLED' },
+   payment: { status: 'QUARANTINED' },
    next_action: 'ACK_AND_QUARANTINE',
   });
   expect(state.payment).toMatchObject({

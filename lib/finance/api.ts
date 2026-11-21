@@ -9,6 +9,8 @@ import type {
  DailyFinancialReport,
  FinanceCollection,
  FinanceSummary,
+ FiuuVtProviderErrorReview,
+ FiuuVtReviewResolutionOutcome,
  ManualQrPayment,
 } from './types';
 import { fetchJson } from '@/lib/client/fetch-json';
@@ -174,6 +176,26 @@ export async function updateManualQrPayment(payload: {
 }) {
  return fetchJson<{ payment: ManualQrPayment }>('/api/finance/qr-manual', {
  method: 'PATCH',
+ body: JSON.stringify(payload),
+ });
+}
+
+export async function fetchFiuuVtReviews(limit = 100) {
+ return fetchJson<{ reviews: FiuuVtProviderErrorReview[]; pending_count: number }>(
+ `/api/finance/fiuu-vt-reviews?limit=${limit}`,
+ undefined,
+ { ttlMs: 0 });
+}
+
+export async function resolveFiuuVtReview(
+ id: string,
+ payload: {
+ outcome: FiuuVtReviewResolutionOutcome;
+ providerTransactionId?: string;
+ notes: string;
+ }) {
+ return fetchJson<{ result: unknown }>(`/api/finance/fiuu-vt-reviews/${id}/resolve`, {
+ method: 'POST',
  body: JSON.stringify(payload),
  });
 }

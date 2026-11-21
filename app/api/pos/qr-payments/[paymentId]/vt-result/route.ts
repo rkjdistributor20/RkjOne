@@ -20,7 +20,7 @@ import { enforceRateLimit } from '@/lib/security/rate-limit';
 import { createAdminClient } from '@/lib/supabase/admin';
 import type { Database, Json } from '@/types/database';
 
-type PaymentStatus = 'PENDING' | 'REPORTED' | 'PAID' | 'FAILED' | 'EXPIRED' | 'CANCELLED';
+type PaymentStatus = 'PENDING' | 'REPORTED' | 'PAID' | 'FAILED' | 'EXPIRED' | 'CANCELLED' | 'QUARANTINED';
 type PaymentUpdate = Database['public']['Tables']['pos_online_payments']['Update'];
 type ReviewState = 'LATE_SUCCESS_REVIEW' | 'REVERSAL_REVIEW' | 'FOREIGN_CALLBACK_REVIEW';
 type NextAction =
@@ -70,7 +70,12 @@ type CompleteCallbackProcessingRpc = (
  error: { message?: string } | null;
 }>;
 
-const TERMINAL_PAYMENT_STATUSES = new Set<PaymentStatus>(['FAILED', 'EXPIRED', 'CANCELLED']);
+const TERMINAL_PAYMENT_STATUSES = new Set<PaymentStatus>([
+ 'FAILED',
+ 'EXPIRED',
+ 'CANCELLED',
+ 'QUARANTINED',
+]);
 const LATE_STATUS_SUCCESS_GRACE_MS = 2 * 60 * 1000;
 
 function jsonRecord(value: Json | null): Record<string, unknown> | null {
@@ -513,17 +518,17 @@ export async function POST(
    && result.status === '00';
   const quarantined = await quarantineAttempt(attempt.id);
   const review = lateSuccessAfterProviderError
-   ? await markReview('LATE_SUCCESS_REVIEW', 'SUCCESS_AFTER_PROVIDER_ERROR_PARK', attempt.id)
+   ? await markReview('LATE_SUCCESS_REVIEW', 'SUCCESS_AFTER_PROVIDER_ERROR_QUARANTINE', attempt.id)
    : null;
   if (quarantined.error || review?.error) {
-   return NextResponse.json({ error: 'Bukti callback transaksi diparkir tidak dapat disimpan' }, { status: 400 });
+   return NextResponse.json({ error: 'Bukti callback transaksi dikuarantin tidak dapat disimpan' }, { status: 400 });
   }
   return responseForStatus(
    payment.id,
    payment.status as PaymentStatus,
    'ACK_AND_QUARANTINE',
    lateSuccessAfterProviderError
-    ? 'Fiuu melaporkan kejayaan selepas transaksi diparkir. Jangan ulang caj pelanggan; HQ perlu menyemak.'
+    ? 'Fiuu melaporkan kejayaan selepas transaksi dikuarantin. Jangan ulang caj pelanggan; Finance/HQ perlu menyemak.'
     : 'Transaksi ini sedang menunggu semakan HQ. Jangan ulang caj pelanggan.',
   );
  }

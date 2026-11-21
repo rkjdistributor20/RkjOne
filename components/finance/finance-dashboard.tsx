@@ -12,6 +12,7 @@ import {
  CheckCircle2,
  XCircle,
  AlertTriangle,
+ ShieldAlert,
 } from 'lucide-react';
 import { fetchBranches } from '@/lib/pos/api';
 import {
@@ -30,6 +31,8 @@ import {
  generateDailyReport,
  fetchManualQrPayments,
  updateManualQrPayment,
+ fetchFiuuVtReviews,
+ resolveFiuuVtReview,
 } from '@/lib/finance/api';
 import type {
  BankInRecord,
@@ -40,6 +43,8 @@ import type {
  DailyFinancialReport,
  FinanceCollection,
  FinanceSummary,
+ FiuuVtProviderErrorReview,
+ FiuuVtReviewResolutionOutcome,
  ManualQrPayment,
 } from '@/lib/finance/types';
 import { COLLECTION_TYPE_LABELS } from '@/lib/finance/types';
@@ -84,7 +89,7 @@ type FinanceBranchOption = {
 };
 
 const NO_COLLECTION_VALUE = '__NO_COLLECTION__';
-type FinanceTab = 'collections' | 'manualqr' | 'bankin' | 'recon' | 'reports';
+type FinanceTab = 'collections' | 'manualqr' | 'fiuuvt' | 'bankin' | 'recon' | 'reports';
 
 function financeBranchLabel(branch: FinanceBranchOption) {
  return [branch.branch_code, branch.branch_name, branch.region_name ?? branch.area]
@@ -96,6 +101,8 @@ export function FinanceDashboard() {
  const profile = useAuthStore((s) => s.profile);
  const branchId = profile?.branch_id ?? '';
  const role = profile?.role ?? 'FINANCE';
+ const canReviewFiuuVt = Boolean(
+ profile && ['SUPER_ADMIN', 'ADMIN', 'FINANCE'].includes(role));
  const workflow = getRoleWorkflow({
  role,
  legalEntityCode: profile?.legal_entity?.code ?? null,
@@ -110,6 +117,9 @@ export function FinanceDashboard() {
  const [reconciliations, setReconciliations] = useState<CashReconciliation[]>([]);
  const [reports, setReports] = useState<DailyFinancialReport[]>([]);
  const [manualQrPayments, setManualQrPayments] = useState<ManualQrPayment[]>([]);
+ const [fiuuVtReviews, setFiuuVtReviews] = useState<FiuuVtProviderErrorReview[]>([]);
+ const [fiuuVtPendingCount, setFiuuVtPendingCount] = useState(0);
+ const [resolvingReviewId, setResolvingReviewId] = useState<string | null>(null);
  const [branches, setBranches] = useState<FinanceBranchOption[]>([]);
  const [loading, setLoading] = useState(true);
  const [loadError, setLoadError] = useState<string | null>(null);
@@ -149,10 +159,13 @@ export function FinanceDashboard() {
  fetchBranchSupplyRequests(),
  fetchBranches(),
  fetchManualQrPayments('PENDING', 20),
+ canReviewFiuuVt
+ ? fetchFiuuVtReviews()
+ : Promise.resolve({ reviews: [] as FiuuVtProviderErrorReview[], pending_count: 0 }),
  ]);
  const failures = results.filter(
  (result): result is PromiseRejectedResult => result.status === 'rejected');
- const [sum, col, bi, usage, req, br, pendingQr] = results;
+ const [sum, col, bi, usage, req, br, pendingQr, pendingFiuuVt] = results;
 
  if (sum.status === 'fulfilled') setSummary(sum.value.summary);
  if (col.status === 'fulfilled') setCollections(col.value.collections);
@@ -160,10 +173,19 @@ export function FinanceDashboard() {
  if (usage.status === 'fulfilled') setCashUsages(usage.value.usages);
  if (req.status === 'fulfilled') setSupplyRequests(req.value.requests);
  if (pendingQr.status === 'fulfilled') setManualQrPayments(pendingQr.value.payments);
+ if (pendingFiuuVt.status === 'fulfilled') {
+ setFiuuVtReviews(pendingFiuuVt.value.reviews);
+ setFiuuVtPendingCount(pendingFiuuVt.value.pending_count);
+ }
 
  const branchList = br.status === 'fulfilled' ? br.value.branches : [];
  if (br.status === 'fulfilled') setBranches(branchList);
- setLoadedTabs((current) => ({...current, collections: true, bankin: true }));
+ setLoadedTabs((current) => ({
+ ...current,
+ collections: true,
+ bankin: true,
+ fiuuvt: canReviewFiuuVt,
+ }));
  if (branchList[0]) {
  setNewCollection((c) => ({...c, branch_id: branchId || branchList[0].id }));
  setReconForm((r) => ({...r, branch_id: branchId || branchList[0].id }));
@@ -177,7 +199,7 @@ export function FinanceDashboard() {
  toast.error(`${failures.length} sumber data kewangan perlu dimuat semula`);
  }
  setLoading(false);
- }, [branchId]);
+ }, [branchId, canReviewFiuuVt]);
 
  const loadTabData = useCallback(async (tab: FinanceTab = activeTab, force = false) => {
  if (tab === 'collections') return;
@@ -188,6 +210,10 @@ export function FinanceDashboard() {
  if (tab === 'manualqr') {
  const qr = await fetchManualQrPayments(undefined, 50);
  setManualQrPayments(qr.payments);
+ } else if (tab === 'fiuuvt') {
+ const queue = await fetchFiuuVtReviews();
+ setFiuuVtReviews(queue.reviews);
+ setFiuuVtPendingCount(queue.pending_count);
  } else if (tab === 'bankin') {
  const bi = await fetchBankIns();
  setBankIns(bi.records);
@@ -211,6 +237,7 @@ export function FinanceDashboard() {
  ...current,
  [activeTab]: activeTab === 'collections',
  manualqr: activeTab === 'manualqr' ? false : current.manualqr,
+ fiuuvt: activeTab === 'fiuuvt' ? false : current.fiuuvt,
  bankin: activeTab === 'bankin' ? false : current.bankin,
  recon: activeTab === 'recon' ? false : current.recon,
  reports: activeTab === 'reports' ? false : current.reports,
@@ -295,6 +322,54 @@ export function FinanceDashboard() {
  }
  }
 
+ async function handleFiuuVtResolution(
+ review: FiuuVtProviderErrorReview,
+ outcome: FiuuVtReviewResolutionOutcome) {
+ let providerTransactionId: string | undefined;
+ if (outcome === 'CONFIRMED_CHARGED') {
+ providerTransactionId = window.prompt(
+ 'Masukkan ID transaksi Fiuu yang telah disahkan. Jangan teruskan tanpa bukti penyedia.')?.trim();
+ if (!providerTransactionId) return;
+ }
+
+ const notes = window.prompt(
+ outcome === 'CONFIRMED_CHARGED'
+ ? 'Masukkan catatan bukti semakan (contoh: portal Fiuu, masa dan pegawai yang menyemak).'
+ : 'Masukkan catatan bukti bahawa pelanggan TIDAK dicaj.')?.trim();
+ if (!notes) return;
+ if (notes.length < 10) {
+ toast.error('Catatan semakan mesti sekurang-kurangnya 10 aksara');
+ return;
+ }
+
+ const confirmed = window.confirm(
+ outcome === 'CONFIRMED_CHARGED'
+ ? `Sahkan bayaran ${review.order_id ?? review.id} TELAH DICAJ? Tindakan ini akan merekodkan jualan berdasarkan bukti Fiuu.`
+ : `Sahkan bayaran ${review.order_id ?? review.id} TIDAK DICAJ? Tindakan ini akan menutup kuarantin tanpa jualan.`);
+ if (!confirmed) return;
+
+ setResolvingReviewId(review.id);
+ try {
+ await resolveFiuuVtReview(review.id, {
+ outcome,
+ providerTransactionId,
+ notes,
+ });
+ const queue = await fetchFiuuVtReviews();
+ setFiuuVtReviews(queue.reviews);
+ setFiuuVtPendingCount(queue.pending_count);
+ setLoadedTabs((current) => ({...current, fiuuvt: true }));
+ toast.success(
+ outcome === 'CONFIRMED_CHARGED'
+ ? 'Bayaran Fiuu VT disahkan dan semakan diselesaikan'
+ : 'Semakan ditutup sebagai pelanggan tidak dicaj');
+ } catch (err) {
+ toast.error(err instanceof Error ? err.message : 'Gagal menyelesaikan semakan Fiuu VT');
+ } finally {
+ setResolvingReviewId(null);
+ }
+ }
+
  const branchSelectValues = useMemo(() => branches.map((branch) => branch.id), [branches]);
  const safeNewCollectionBranchId =
  boundSelectValue(newCollection.branch_id, branchSelectValues) ?? '';
@@ -312,6 +387,7 @@ export function FinanceDashboard() {
  const selectedBankInCollection =
  pendingCollections.find((collection) => collection.id === safeBankInCollectionValue) ?? null;
  const pendingManualQr = manualQrPayments.filter((p) => p.status === 'PENDING');
+ const pendingFiuuVt = fiuuVtPendingCount;
 
  return (
  <ModuleLayout>
@@ -327,6 +403,8 @@ export function FinanceDashboard() {
  <Badge className="bg-amber-100 text-amber-900 hover:bg-amber-100">
  {pendingManualQr.length} QR manual perlu sahkan
  </Badge>)}
+ {canReviewFiuuVt && pendingFiuuVt > 0 && (
+ <Badge variant="destructive">{pendingFiuuVt} semakan Fiuu VT</Badge>)}
  </>
  }
  />
@@ -379,6 +457,14 @@ export function FinanceDashboard() {
  {pendingManualQr.length}
  </Badge>)}
  </TabsTrigger>
+ {canReviewFiuuVt && (
+ <TabsTrigger value="fiuuvt" className={moduleTabsTriggerClass}>
+ <ShieldAlert className="h-4 w-4" /> Semakan Fiuu VT
+ {pendingFiuuVt > 0 && (
+ <Badge variant="destructive" className="ml-1 px-1.5 py-0 text-[10px]">
+ {pendingFiuuVt}
+ </Badge>)}
+ </TabsTrigger>)}
  <TabsTrigger value="bankin" className={moduleTabsTriggerClass}>
  <Landmark className="h-4 w-4" /> Bank Masuk
  </TabsTrigger>
@@ -549,6 +635,99 @@ export function FinanceDashboard() {
  </CardContent>
  </Card>)}
  </TabsContent>
+
+ {canReviewFiuuVt && (
+ <TabsContent value="fiuuvt" className="mt-4 space-y-4">
+ {tabLoading && activeTab === 'fiuuvt' ? (
+ <ModuleLoading />) : (
+ <Card>
+ <CardHeader className="pb-2">
+ <CardTitle className="flex items-center gap-2 text-base">
+ <ShieldAlert className="h-4 w-4 text-red-600" />
+ Semakan Fiuu VT
+ </CardTitle>
+ </CardHeader>
+ <CardContent className="space-y-3 text-sm">
+ <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-red-950">
+ <p className="font-semibold">Jangan caj pelanggan ini semula.</p>
+ <p className="mt-1 text-xs">
+ Semak portal/rekod Fiuu dahulu. Pilih hanya satu keputusan berdasarkan bukti penyedia;
+ tindakan ini direkodkan untuk audit.
+ </p>
+ </div>
+
+ {fiuuVtReviews.length === 0 ? (
+ <p className="rounded-lg border border-dashed py-8 text-center text-muted-foreground">
+ Tiada transaksi Fiuu VT dalam kuarantin.
+ </p>) : (
+ <div className="space-y-3">
+ {fiuuVtReviews.map((review) => (
+ <div key={review.id} className="rounded-xl border border-amber-200 p-4">
+ <div className="flex flex-wrap items-start justify-between gap-3">
+ <div className="space-y-1">
+ <div className="flex flex-wrap items-center gap-2">
+ <p className="font-semibold">
+ {review.branch?.branch_code ?? 'Cawangan'} - {review.branch?.branch_name ?? 'Tidak diketahui'}
+ </p>
+ <Badge variant="destructive">KUARANTIN</Badge>
+ </div>
+ <p className="font-mono text-xs">Order: {review.order_id ?? review.id}</p>
+ <p className="text-xs text-muted-foreground">
+ Dibuat {new Date(review.created_at).toLocaleString('ms-MY')}
+ </p>
+ </div>
+ <p className="text-lg font-bold tabular-nums">{fmt(Number(review.amount_rm))}</p>
+ </div>
+
+ <div className="mt-3 grid gap-2 rounded-lg bg-muted/50 p-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
+ <div><span className="text-muted-foreground">Ralat terakhir</span><br />{review.error_code ?? '-'}</div>
+ <div><span className="text-muted-foreground">Bilangan ralat</span><br />{review.error_count}</div>
+ <div>
+ <span className="text-muted-foreground">Masa ralat</span><br />
+ {review.error_at ? new Date(review.error_at).toLocaleString('ms-MY') : '-'}
+ </div>
+ <div><span className="text-muted-foreground">Keadaan semakan</span><br />{review.review_state ?? '-'}</div>
+ {review.provider_transaction_id && (
+ <div className="sm:col-span-2">
+ <span className="text-muted-foreground">ID transaksi penyedia sedia ada</span><br />
+ <span className="font-mono">{review.provider_transaction_id}</span>
+ </div>)}
+ </div>
+
+ {review.review_evidence !== null && (
+ <details className="mt-3 rounded-lg border px-3 py-2 text-xs">
+ <summary className="cursor-pointer font-medium">Lihat bukti operasi</summary>
+ <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-all text-[11px] text-muted-foreground">
+ {JSON.stringify(review.review_evidence, null, 2)}
+ </pre>
+ </details>)}
+
+ <div className="mt-3 flex flex-wrap gap-2">
+ <Button
+ size="sm"
+ variant="outline"
+ className="border-emerald-600 text-emerald-700 hover:bg-emerald-50"
+ disabled={resolvingReviewId === review.id}
+ onClick={() => void handleFiuuVtResolution(review, 'CONFIRMED_NOT_CHARGED')}
+ >
+ <XCircle className="mr-1.5 h-4 w-4" />
+ Sahkan Tidak Dicaj
+ </Button>
+ <Button
+ size="sm"
+ variant="destructive"
+ disabled={resolvingReviewId === review.id}
+ onClick={() => void handleFiuuVtResolution(review, 'CONFIRMED_CHARGED')}
+ >
+ <CheckCircle2 className="mr-1.5 h-4 w-4" />
+ Sahkan Telah Dicaj
+ </Button>
+ </div>
+ </div>))}
+ </div>)}
+ </CardContent>
+ </Card>)}
+ </TabsContent>)}
 
  <TabsContent value="bankin" className="mt-4 space-y-4">
  {tabLoading && activeTab === 'bankin' ? (

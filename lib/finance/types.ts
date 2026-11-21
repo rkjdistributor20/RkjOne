@@ -2,6 +2,9 @@ export type CollectionType = 'QR' | 'CASH_KIOSK' | 'MANAGER' | 'THIRD_PARTY' | '
 export type CollectionStatus = 'PENDING' | 'COLLECTED' | 'BANKED' | 'VERIFIED';
 export type CashUsageType = 'BRANCH_NECESSITY' | 'FUEL_DIESEL' | 'TRANSPORT_MAINTENANCE';
 export type CashUsageStatus = 'PENDING_REVIEW' | 'ACCEPTED' | 'REJECTED';
+export type FiuuVtReviewResolutionOutcome =
+ | 'CONFIRMED_NOT_CHARGED'
+ | 'CONFIRMED_CHARGED';
 
 export interface FinanceCollection {
  id: string;
@@ -111,6 +114,26 @@ export interface ManualQrPayment {
  payment_method: string;
  created_at: string;
  } | null;
+}
+
+export interface FiuuVtProviderErrorReview {
+ id: string;
+ amount_rm: number;
+ status: 'QUARANTINED';
+ order_id: string | null;
+ created_at: string;
+ error_code: string | null;
+ error_count: number;
+ error_at: string | null;
+ review_state: string | null;
+ review_evidence: unknown;
+ provider_transaction_id: string | null;
+ provider_confirmed_at: string | null;
+ provider_confirmed_by: string | null;
+ paid_at: string | null;
+ failed_at: string | null;
+ transaction_id: string | null;
+ branch: { branch_name: string; branch_code: string } | null;
 }
 
 export interface FinanceSummary {

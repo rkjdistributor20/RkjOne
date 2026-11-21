@@ -46,7 +46,8 @@ export type FiuuVtRecoveredPaymentStatus =
  | 'PAID'
  | 'FAILED'
  | 'EXPIRED'
- | 'CANCELLED';
+ | 'CANCELLED'
+ | 'QUARANTINED';
 
 export function canFinalizeFiuuVtPayment(
  callbackDrainInProgress: boolean,
@@ -80,7 +81,7 @@ export function getRecoveredFiuuVtLocalStatus(
 }
 
 export function shouldLaunchFiuuVtStatusAfterReconcile(
- serverStatus: 'PENDING' | 'REPORTED' | 'PAID' | 'FAILED' | 'EXPIRED' | 'CANCELLED' | null,
+ serverStatus: FiuuVtRecoveredPaymentStatus | null,
 ): boolean {
  // STATUS may only follow an authoritative RKJ PENDING response. A failed RKJ
  // request is ambiguous (auth, ownership and terminal-state failures all reach

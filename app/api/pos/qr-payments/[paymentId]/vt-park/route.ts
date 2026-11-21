@@ -31,17 +31,6 @@ export async function POST(
  const profile = await getCurrentProfile();
  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
- // Safety gate: a repeated STATUS transport error is not authoritative proof
- // that the provider has cancelled the charge. Keep the endpoint closed until
- // the quarantined-payment workflow can preserve and reconcile that ambiguity
- // without exposing the customer to a duplicate charge.
- if (process.env.FIUU_VT_PROVIDER_ERROR_PARKING !== 'enabled') {
-  return NextResponse.json({
-   error: 'Transaksi belum boleh dilepaskan secara automatik. Teruskan semakan STATUS Fiuu VT atau hubungi HQ.',
-   mode: 'FIUU_VT_PARK_DISABLED',
-  }, { status: 409 });
- }
-
  const { paymentId } = await context.params;
  const service = createAdminClient();
  const { data: payment, error: paymentError } = await service
@@ -57,9 +46,13 @@ export async function POST(
   return NextResponse.json({ error: 'Transaksi Fiuu VT tidak dijumpai' }, { status: 404 });
  }
 
+ let officialDeviceId: string | null = null;
+ let officialEnrollmentGeneration: number | null = null;
  try {
   await assertCanAccessPosBranch(service, profile, payment.branch_id);
   const device = await assertOfficialPosDevice(profile, payment.branch_id);
+  officialDeviceId = device.id;
+  officialEnrollmentGeneration = device.enrollmentGeneration;
   await assertActivePosShiftMember(service, profile, payment.shift_id, payment.branch_id);
   const salePayload = jsonRecord(payment.sale_payload);
   const deviceBranchCode = normalizeFiuuVtBranchCode(device.branchCode);
@@ -77,17 +70,22 @@ export async function POST(
    { status: posAccessErrorStatus(accessError) },
   );
  }
+ if (!officialDeviceId || officialEnrollmentGeneration === null) {
+  return NextResponse.json({ error: 'Identiti tablet rasmi tidak dapat disahkan' }, { status: 403 });
+ }
 
  const { data: parked, error: parkError } = await service.rpc(
   'park_pos_fiuu_vt_provider_error',
   {
    p_payment_id: payment.id,
    p_actor_id: profile.id,
+   p_device_id: officialDeviceId,
+   p_enrollment_generation: officialEnrollmentGeneration,
   },
  );
  if (parkError || !parked) {
   return NextResponse.json({
-   error: 'Transaksi belum selamat untuk diparkir. Semak STATUS Fiuu VT sekali lagi.',
+   error: 'Transaksi belum selamat untuk dikuarantin. Semak STATUS Fiuu VT sekali lagi.',
    mode: 'FIUU_VT_PARK_NOT_READY',
   }, { status: 409 });
  }
@@ -96,11 +94,11 @@ export async function POST(
  return NextResponse.json({
   payment: {
    id: payment.id,
-   status: 'CANCELLED' as const,
+   status: 'QUARANTINED' as const,
    fiuu_vt_review_required: true,
    fiuu_vt_reconciliation_state: 'PROVIDER_ERROR_REVIEW' as const,
   },
   reused: result?.reused === true,
-  warning: 'Transaksi lama diparkir untuk semakan HQ. Troli dikekalkan dan kaunter boleh meneruskan jualan.',
+  warning: 'Transaksi lama dikuarantin untuk semakan Finance/HQ. Troli asal dikosongkan bagi mengelakkan caj berganda; jangan caj semula pelanggan yang sama.',
  });
 }
