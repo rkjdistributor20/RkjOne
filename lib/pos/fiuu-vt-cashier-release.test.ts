@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { canReleaseQuarantinedFiuuVtNativeState } from './fiuu-vt';
 
 const migration = readFileSync(join(
  process.cwd(),
@@ -30,8 +31,34 @@ const paymentDialog = readFileSync(join(
  process.cwd(),
  'components/pos/payment-dialog.tsx',
 ), 'utf8').replace(/\r\n/g, '\n');
+const releasableQuarantinedNativeState = {
+ serverStatus: 'QUARANTINED',
+ reviewRequired: true,
+ nativeQuarantineBlocksRelease: false,
+ nativeResultAvailable: false,
+ callbackDrainInProgress: false,
+} satisfies Parameters<typeof canReleaseQuarantinedFiuuVtNativeState>[0];
 
 describe('Fiuu VT cashier release safety contract', () => {
+ it('releases a durably quarantined native order after the callback queue is drained', () => {
+  expect(canReleaseQuarantinedFiuuVtNativeState(
+   releasableQuarantinedNativeState,
+  )).toBe(true);
+ });
+
+ it.each([
+  { ...releasableQuarantinedNativeState, serverStatus: 'PENDING' as const },
+  { ...releasableQuarantinedNativeState, serverStatus: 'REPORTED' as const },
+  { ...releasableQuarantinedNativeState, serverStatus: 'PAID' as const },
+  { ...releasableQuarantinedNativeState, reviewRequired: false },
+  { ...releasableQuarantinedNativeState, nativeQuarantineBlocksRelease: true },
+  { ...releasableQuarantinedNativeState, nativeQuarantineBlocksRelease: undefined },
+  { ...releasableQuarantinedNativeState, nativeResultAvailable: true },
+  { ...releasableQuarantinedNativeState, callbackDrainInProgress: true },
+ ])('keeps unsafe native state fail-closed for $serverStatus', (input) => {
+  expect(canReleaseQuarantinedFiuuVtNativeState(input)).toBe(false);
+ });
+
  it('releases only an exact abandoned SALE with no provider evidence', () => {
   expect(migration).toContain('CREATE OR REPLACE FUNCTION public.cancel_pos_fiuu_vt_prelaunch');
   expect(migration.match(/FOR UPDATE;/g)).toHaveLength(2);
@@ -252,6 +279,11 @@ describe('Fiuu VT cashier release safety contract', () => {
   expect(cleanup).toContain('storeDeferredFiuuVtNativeCleanup(nativeCleanupKey, authoritativeOrderId)');
   expect(cleanup).toContain('const response = await fetchPosQrPayment(paymentId)');
   expect(cleanup).toContain("payment.status === 'QUARANTINED' && payment.fiuu_vt_review_required");
+  expect(cleanup).toContain('canReleaseQuarantinedFiuuVtNativeState({');
+  expect(cleanup).toContain('nativeQuarantineBlocksRelease: nativeStatus.quarantineBlocksRelease');
+  expect(cleanup).toContain('nativeResultAvailable: nativeStatus.resultAvailable');
+  expect(cleanup).toContain('Terminal sedang dilepaskan tanpa semakan STATUS tambahan.');
+  expect(cleanup).toContain('Callback Fiuu VT baharu dikesan semasa pelepasan.');
   expect(cleanup).toContain("['PENDING', 'REPORTED', 'PAID'].includes(payment.status)");
   expect(cleanup).toContain("['EXPIRED', 'FAILED', 'CANCELLED'].includes(payment.status)");
   expect(cleanup).toContain("prepareFiuuVtCallbackAttempt(paymentId, 'STATUS')");
@@ -269,6 +301,13 @@ describe('Fiuu VT cashier release safety contract', () => {
   expect(cleanup).toContain('Fiuu VT sedang mengesahkan status akhir transaksi terdahulu');
   expect(cleanup).toContain('captureFiuuVtFinalizationSeal(paymentId, true)');
   expect(cleanup).toContain('isFiuuVtFinalizationSealValid(finalizationSeal)');
+  expect(cleanup).not.toContain('launchFiuuVtSale');
+  expect(cleanup.indexOf("['PENDING', 'REPORTED', 'PAID'].includes(payment.status)"))
+   .toBeLessThan(cleanup.indexOf('canReleaseQuarantinedFiuuVtNativeState({'));
+  expect(cleanup.indexOf('if (nativeStatus.resultAvailable'))
+   .toBeLessThan(cleanup.indexOf('canReleaseQuarantinedFiuuVtNativeState({'));
+  expect(cleanup.indexOf('canReleaseQuarantinedFiuuVtNativeState({'))
+   .toBeLessThan(cleanup.indexOf("prepareFiuuVtCallbackAttempt(paymentId, 'STATUS')"));
   expect(cleanup.indexOf('await readActiveFiuuVtResult(paymentId)'))
    .toBeLessThan(cleanup.indexOf('await releaseFiuuVtNativeState(orderId)'));
   expect(preSale).toContain('drainAndReleaseDeferredFiuuVtNativeState(');
@@ -388,6 +427,22 @@ describe('Fiuu VT cashier release safety contract', () => {
 
   expect(catchIndex).toBeGreaterThan(-1);
   expect(recovery.slice(catchIndex)).toContain('vtRecoveryOrderRef.current = null');
+ });
+
+ it('pins full QR to the cart total while keeping mixed QR editable', () => {
+  const fullQrStart = paymentDialog.indexOf("{method === 'QR' && (");
+  const mixedQrStart = paymentDialog.indexOf("{method === 'MIXED' && (", fullQrStart);
+  const fullQr = paymentDialog.slice(fullQrStart, mixedQrStart);
+  const mixedQrEnd = paymentDialog.indexOf("{(method === 'QR' || method === 'MIXED')", mixedQrStart);
+  const mixedQr = paymentDialog.slice(mixedQrStart, mixedQrEnd);
+
+  expect(paymentDialog).toContain("const qrAmount = method === 'QR'\n  ? defaultAmount");
+  expect(fullQr).toContain('value={qrAmount}');
+  expect(fullQr).toContain('readOnly');
+  expect(fullQr).not.toContain('setQrAmountOverride(e.target.value)');
+  expect(mixedQr).toContain('setQrAmountOverride(e.target.value)');
+  expect(paymentDialog).toContain("setQrAmountOverride(stored.payment.paymentMethod === 'MIXED'");
+  expect(paymentDialog).toContain("setQrAmountOverride(recoveredMethod === 'MIXED'");
  });
 
  it('keeps old safe-cancel proof until a replacement callback identity is prepared', () => {

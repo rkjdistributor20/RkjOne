@@ -69,6 +69,25 @@ export function canReleaseFiuuVtCallbackDrain(
   && callbacksProcessing === 0;
 }
 
+export function canReleaseQuarantinedFiuuVtNativeState(input: {
+ serverStatus: FiuuVtRecoveredPaymentStatus;
+ reviewRequired: boolean;
+ nativeQuarantineBlocksRelease: boolean | undefined;
+ nativeResultAvailable: boolean;
+ callbackDrainInProgress: boolean;
+}): boolean {
+ // The server quarantine is the durable Finance/HQ evidence. Once Android has
+ // no queued callback and explicitly reports that its own quarantine no longer
+ // blocks release, retaining the pending order only causes another read-only
+ // STATUS loop. Older bridges omit the flag, so require an explicit false and
+ // fail closed for every active/successful server state.
+ return input.serverStatus === 'QUARANTINED'
+  && input.reviewRequired
+  && input.nativeQuarantineBlocksRelease === false
+  && !input.nativeResultAvailable
+  && !input.callbackDrainInProgress;
+}
+
 export function getRecoveredFiuuVtLocalStatus(
  serverStatus: FiuuVtRecoveredPaymentStatus,
 ): FiuuVtRecoveredPaymentStatus {
