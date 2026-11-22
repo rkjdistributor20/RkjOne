@@ -375,6 +375,17 @@ public class RkjFiuuVtPlugin extends Plugin {
                 .putString(PENDING_OPERATION, "STATUS")
                 .putBoolean(VOID_LAUNCHED, false);
         }
+        if ("STATUS".equals(opType)) {
+            // The exact STATUS error is acknowledged only after the server has
+            // durably quarantined it. Retire native blockers for that order in
+            // the same commit, while leaving SALE errors and every other queued
+            // callback untouched.
+            JSONArray quarantine = removeBlockingQuarantinedResultsForOrder(
+                loadQuarantinedResultQueue(preferences),
+                orderId
+            );
+            writeQuarantinedResultQueue(acknowledgementEditor, quarantine);
+        }
         if (!removeCallbackAttempt(preferences, callbackAttemptId, acknowledgementEditor)) {
             call.reject("Ralat Fiuu VT belum dapat disimpan dengan selamat.", "FIUU_RESULT_ACK_PERSIST_FAILED");
             return;

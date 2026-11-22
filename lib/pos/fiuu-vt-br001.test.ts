@@ -396,7 +396,7 @@ describe('Fiuu VT one-time callback security and deterministic recovery', () => 
   expect(paidUpdate).not.toContain("candidate.status = 'PAID'");
  });
 
- it('consumes durable SALE errors into STATUS and refuses to clear any unread callback', () => {
+ it('consumes durable SALE errors into STATUS and releases only server-acknowledged STATUS blockers', () => {
   const errorAckStart = nativePlugin.indexOf('public synchronized void acknowledgeError');
   const errorAckEnd = nativePlugin.indexOf('@PluginMethod', errorAckStart + 1);
   const errorAck = nativePlugin.slice(errorAckStart, errorAckEnd);
@@ -407,6 +407,16 @@ describe('Fiuu VT one-time callback security and deterministic recovery', () => 
   expect(errorAck).toContain('"SALE".equals(opType)');
   expect(errorAck).toContain('.putBoolean(SALE_ACKNOWLEDGED, true)');
   expect(errorAck).toContain('.putString(PENDING_OPERATION, "STATUS")');
+  expect(errorAck).toContain('if ("STATUS".equals(opType))');
+  expect(errorAck).toContain('removeBlockingQuarantinedResultsForOrder(');
+  expect(errorAck).toContain('writeQuarantinedResultQueue(acknowledgementEditor, quarantine)');
+  expect(errorAck.indexOf('if (resultIndex < 0)'))
+   .toBeLessThan(errorAck.indexOf('removeBlockingQuarantinedResultsForOrder('));
+  expect(errorAck.indexOf('queue.remove(resultIndex)'))
+   .toBeLessThan(errorAck.indexOf('removeBlockingQuarantinedResultsForOrder('));
+  expect(errorAck).toContain(
+   'removeCallbackAttempt(preferences, callbackAttemptId, acknowledgementEditor)',
+  );
   expect(clear).toContain('QueueLoadState storedResults = loadResultQueueState(preferences)');
   expect(clear).toContain('!storedResults.safeForMutation');
   expect(clear).toContain('storedResults.values.length() > 0');

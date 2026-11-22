@@ -199,6 +199,34 @@ describe('Fiuu VT Android bridge resilience', () => {
   expect(clearPendingResult).toContain('FIUU_CLEAR_PERSIST_FAILED');
  });
 
+ it('retires native blockers only for an exactly acknowledged STATUS error', () => {
+  const acknowledgeErrorStart = nativePlugin.indexOf('public synchronized void acknowledgeError');
+  const acknowledgeErrorEnd = nativePlugin.indexOf('public synchronized void checkStatus', acknowledgeErrorStart);
+  const acknowledgeError = nativePlugin.slice(acknowledgeErrorStart, acknowledgeErrorEnd);
+  const exactResultLookup = acknowledgeError.indexOf('int resultIndex = findQueuedResultIndex(');
+  const missingResultGuard = acknowledgeError.indexOf('if (resultIndex < 0)');
+  const removeExactResult = acknowledgeError.indexOf('queue.remove(resultIndex);');
+  const statusCleanup = acknowledgeError.indexOf('if ("STATUS".equals(opType))');
+  const persistExactAttempt = acknowledgeError.indexOf(
+   'removeCallbackAttempt(preferences, callbackAttemptId, acknowledgementEditor)',
+  );
+  const saleBranchStart = acknowledgeError.indexOf('if ("SALE".equals(opType)');
+  const voidBranchStart = acknowledgeError.indexOf('} else if ("VOID".equals(opType)', saleBranchStart);
+  const saleBranch = acknowledgeError.slice(saleBranchStart, voidBranchStart);
+
+  expect(exactResultLookup).toBeGreaterThan(-1);
+  expect(missingResultGuard).toBeGreaterThan(exactResultLookup);
+  expect(removeExactResult).toBeGreaterThan(missingResultGuard);
+  expect(statusCleanup).toBeGreaterThan(removeExactResult);
+  expect(persistExactAttempt).toBeGreaterThan(statusCleanup);
+  expect(acknowledgeError).toContain('removeBlockingQuarantinedResultsForOrder(');
+  expect(acknowledgeError).toContain('loadQuarantinedResultQueue(preferences)');
+  expect(acknowledgeError).toContain('writeQuarantinedResultQueue(acknowledgementEditor, quarantine)');
+  expect(saleBranch).not.toContain('removeBlockingQuarantinedResultsForOrder(');
+  expect(acknowledgeError).not.toContain('.remove(RESULT_QUEUE)');
+  expect(acknowledgeError).not.toContain('.remove(CALLBACK_ATTEMPT_REGISTRY)');
+ });
+
  it('bounds low-value entries without evicting authoritative payment evidence', () => {
   const enqueueStart = nativePlugin.indexOf('private synchronized boolean enqueueResult');
   const enqueueEnd = nativePlugin.indexOf('private JSONArray loadResultQueue', enqueueStart);
