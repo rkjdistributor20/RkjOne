@@ -449,7 +449,10 @@ export async function cancelUnlaunchedFiuuVtPayment(
  }
 }
 
-export async function parkFiuuVtProviderErrorPayment(paymentId: string) {
+export async function parkFiuuVtProviderErrorPayment(
+ paymentId: string,
+ reason: 'PROVIDER_STATUS_ERROR' | 'NATIVE_CALLBACK_REGISTRY' = 'PROVIDER_STATUS_ERROR',
+) {
  try {
   return await fetchJson<{
    payment: {
@@ -462,6 +465,7 @@ export async function parkFiuuVtProviderErrorPayment(paymentId: string) {
    warning?: string;
   }>(`/api/pos/qr-payments/${encodeURIComponent(paymentId)}/vt-park`, {
    method: 'POST',
+   body: JSON.stringify({ reason }),
   });
  } catch (error) {
   if (error instanceof ClientJsonError) {
@@ -524,7 +528,9 @@ export async function fetchPosQrPayment(paymentId: string) {
   cart_fingerprint: string | null;
  };
  result: SaleResult | null;
- }>('/api/pos/qr-payments/' + encodeURIComponent(paymentId));
+ }>('/api/pos/qr-payments/' + encodeURIComponent(paymentId), {
+  cache: 'no-store',
+ });
 }
 
 export async function fetchPosStockSop(branchId: string) {

@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
  assertCanAccessPosBranch: vi.fn(),
  posAccessErrorStatus: vi.fn(),
  isFiuuReconciliationExpired: vi.fn(),
+ recoverReportedFiuuVtPayment: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/session', () => ({
@@ -20,6 +21,9 @@ vi.mock('@/lib/pos/access', () => ({
 }));
 vi.mock('@/lib/pos/fiuu', () => ({
  isFiuuReconciliationExpired: mocks.isFiuuReconciliationExpired,
+}));
+vi.mock('@/lib/pos/fiuu-vt-reliability', () => ({
+ recoverReportedFiuuVtPayment: mocks.recoverReportedFiuuVtPayment,
 }));
 vi.mock('@/lib/pos/fiuu-cloudecr', () => ({
  buildFiuuCloudEcrReferenceId: vi.fn(),
@@ -61,6 +65,9 @@ function payment(
    ? '2026-10-26T00:59:50.000Z'
    : null,
   provider_status_checked_at: '2026-10-26T01:00:00.000Z',
+  fiuu_vt_review_required: false,
+  fiuu_vt_reconciliation_state: null,
+  sale_payload: {},
  };
 }
 
@@ -74,6 +81,7 @@ beforeEach(() => {
  mocks.assertCanAccessPosBranch.mockResolvedValue(undefined);
  mocks.posAccessErrorStatus.mockReturnValue(403);
  mocks.isFiuuReconciliationExpired.mockReturnValue(false);
+ mocks.recoverReportedFiuuVtPayment.mockResolvedValue('invalid_evidence');
 });
 
 describe('Fiuu OPA reported recovery', () => {
@@ -132,7 +140,82 @@ describe('Fiuu OPA reported recovery', () => {
   });
  });
 
- it('keeps a durable Fiuu VT REPORTED success observational until explicit confirmation', async () => {
+ it('never fabricates REPORTED when a stored STATUS success cannot be recovered', async () => {
+  const pending = {
+   ...payment('PENDING', 'fiuu_vt'),
+   provider_result: {
+    opType: 'STATUS',
+    status: '00',
+    orderId: 'RKJ_ORDER_001',
+    transactionId: 'TXN001',
+   },
+  };
+  const query = {
+   select: vi.fn(),
+   eq: vi.fn(),
+   maybeSingle: vi.fn().mockResolvedValue({ data: pending, error: null }),
+  };
+  query.select.mockReturnValue(query);
+  query.eq.mockReturnValue(query);
+  const service = { from: vi.fn().mockReturnValue(query), rpc: vi.fn() };
+  mocks.createAdminClient.mockReturnValue(service);
+
+  const response = await GET(
+   new Request(`http://localhost/api/pos/qr-payments/${PAYMENT_ID}`),
+   { params: Promise.resolve({ paymentId: PAYMENT_ID }) },
+  );
+
+  await expect(response.json()).resolves.toMatchObject({
+   payment: { id: PAYMENT_ID, status: 'PENDING' },
+  });
+  expect(mocks.recoverReportedFiuuVtPayment).toHaveBeenCalledWith(service, pending);
+ });
+
+ it('refreshes a closed-shift STATUS success after atomic quarantine', async () => {
+  mocks.recoverReportedFiuuVtPayment.mockResolvedValue('quarantined');
+  const pending = {
+   ...payment('PENDING', 'fiuu_vt'),
+   provider_result: {
+    opType: 'STATUS',
+    status: '00',
+    orderId: 'RKJ_ORDER_001',
+    transactionId: 'TXN001',
+   },
+  };
+  const quarantined = {
+   ...pending,
+   status: 'QUARANTINED' as const,
+   fiuu_vt_review_required: true,
+   fiuu_vt_reconciliation_state: 'LATE_SUCCESS_REVIEW',
+  };
+  const query = {
+   select: vi.fn(),
+   eq: vi.fn(),
+   maybeSingle: vi.fn()
+    .mockResolvedValueOnce({ data: pending, error: null })
+    .mockResolvedValueOnce({ data: quarantined, error: null }),
+  };
+  query.select.mockReturnValue(query);
+  query.eq.mockReturnValue(query);
+  const service = { from: vi.fn().mockReturnValue(query), rpc: vi.fn() };
+  mocks.createAdminClient.mockReturnValue(service);
+
+  const response = await GET(
+   new Request(`http://localhost/api/pos/qr-payments/${PAYMENT_ID}`),
+   { params: Promise.resolve({ paymentId: PAYMENT_ID }) },
+  );
+
+  await expect(response.json()).resolves.toMatchObject({
+   payment: {
+    id: PAYMENT_ID,
+    status: 'QUARANTINED',
+    fiuu_vt_review_required: true,
+    fiuu_vt_reconciliation_state: 'LATE_SUCCESS_REVIEW',
+   },
+  });
+ });
+
+ it('replays durable Fiuu VT REPORTED evidence idempotently and keeps invalid evidence observational', async () => {
   const reported = payment('REPORTED', 'fiuu_vt');
   const query = {
    select: vi.fn(),
@@ -154,7 +237,54 @@ describe('Fiuu OPA reported recovery', () => {
    payment: { id: PAYMENT_ID, status: 'REPORTED', transaction_id: null },
    result: null,
   });
+  expect(mocks.recoverReportedFiuuVtPayment).toHaveBeenCalledWith(
+   service,
+   expect.objectContaining({ id: PAYMENT_ID, status: 'REPORTED' }),
+  );
   expect(service.rpc).not.toHaveBeenCalled();
+  expect(response.headers.get('cache-control')).toBe('no-store, private');
+ });
+
+ it('refreshes the receipt after idempotent Fiuu VT recovery succeeds', async () => {
+  mocks.recoverReportedFiuuVtPayment.mockResolvedValue('fulfilled');
+  const reported = payment('REPORTED', 'fiuu_vt');
+  const paid = payment('PAID', 'fiuu_vt');
+  const paymentQuery = {
+   select: vi.fn(),
+   eq: vi.fn(),
+   maybeSingle: vi.fn()
+    .mockResolvedValueOnce({ data: reported, error: null })
+    .mockResolvedValueOnce({ data: paid, error: null }),
+  };
+  paymentQuery.select.mockReturnValue(paymentQuery);
+  paymentQuery.eq.mockReturnValue(paymentQuery);
+  const receiptQuery = {
+   select: vi.fn(),
+   eq: vi.fn(),
+   maybeSingle: vi.fn().mockResolvedValue({
+    data: { receipt_data: { receipt_number: 'RC-VT-001' } },
+    error: null,
+   }),
+  };
+  receiptQuery.select.mockReturnValue(receiptQuery);
+  receiptQuery.eq.mockReturnValue(receiptQuery);
+  const service = {
+   from: vi.fn((table: string) => table === 'pos_receipts' ? receiptQuery : paymentQuery),
+   rpc: vi.fn(),
+  };
+  mocks.createAdminClient.mockReturnValue(service);
+
+  const response = await GET(
+   new Request(`http://localhost/api/pos/qr-payments/${PAYMENT_ID}`),
+   { params: Promise.resolve({ paymentId: PAYMENT_ID }) },
+  );
+
+  expect(response.status).toBe(200);
+  await expect(response.json()).resolves.toMatchObject({
+   payment: { id: PAYMENT_ID, status: 'PAID', transaction_id: TRANSACTION_ID },
+   result: { receipt_number: 'RC-VT-001' },
+  });
+  expect(response.headers.get('cache-control')).toBe('no-store, private');
  });
 
  it('retries idempotent fulfillment and returns the paid receipt', async () => {

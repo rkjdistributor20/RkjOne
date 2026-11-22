@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-23 - Android 1.8.4 durable Fiuu VT new-sale recovery
+
+- Persists the exact payment/order/cart finalization identity before retiring a paid or reviewed cart, including an independently tested `sessionStorage` fallback when a managed WebView denies `localStorage`.
+- Atomically terminalizes unresolved `PENDING`/`REPORTED` review locks as `QUARANTINED`, preserves paid and other terminal business outcomes, and releases only after the native callback queue is proven empty.
+- Accepts prior-shift SALE/VOID recovery only for an exact one-time callback marked `MATCHED` by the native bridge on the same enrolled official tablet; same-shift cashier crossover, missing validation, identity mismatch and another tablet remain denied.
+- Re-fetches the authoritative server payment and receipt after reload before allowing another SALE, so a cleared cart cannot orphan fulfillment evidence or silently reopen the same checkout.
+- Adds focused route, storage, migration, Android bridge and cashier-release regressions and prepares Google Play `versionCode 22` (`1.8.4`).
+
 ## 2026-11-22 - Android 1.8.3 exact Fiuu VT terminal release
 
 - Releases only a server-acknowledged STATUS-error blocker for the exact Fiuu order after its callback queue is drained; unread callbacks, active payments and SALE errors remain fail-closed.

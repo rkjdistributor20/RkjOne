@@ -19,6 +19,7 @@ function reportedPayment(overrides: Partial<FiuuVtRecoveryPayment> = {}): FiuuVt
   provider_order_id: 'RKJ_ORDER_001',
   provider_transaction_id: 'TXN001',
   provider_sale_reported_at: '2026-11-12T01:00:00.000Z',
+  provider_status_checked_at: '2026-11-12T01:00:05.000Z',
   provider_result: {
    callbackAttemptId: CALLBACK_ATTEMPT_ID,
    callbackHost: CALLBACK_HOST,
@@ -36,32 +37,40 @@ function reportedPayment(overrides: Partial<FiuuVtRecoveryPayment> = {}): FiuuVt
 }
 
 describe('Fiuu VT server reliability', () => {
- it('fulfills matching durable STATUS=00 evidence through the exact-once RPC', async () => {
-  const rpc = vi.fn().mockResolvedValue({ data: { receipt_number: 'RC-001' }, error: null });
+ it('fulfills matching durable STATUS=00 evidence through the atomic recovery RPC', async () => {
+  const rpc = vi.fn().mockResolvedValue({ data: { outcome: 'FULFILLED' }, error: null });
   const outcome = await recoverReportedFiuuVtPayment({ rpc } as never, reportedPayment());
 
   expect(outcome).toBe('fulfilled');
-  expect(rpc).toHaveBeenCalledWith('fulfill_pos_fiuu_vt_payment', {
+  expect(rpc).toHaveBeenCalledWith('recover_pos_fiuu_vt_reported_payment', {
    p_payment_id: PAYMENT_ID,
-   p_provider_order_id: 'RKJ_ORDER_001',
-   p_provider_transaction_id: 'TXN001',
-   p_amount: 12.5,
-   p_currency: 'MYR',
-   p_channel: 'RPP_DuitNowQR-Offline',
-   p_provider_result: expect.objectContaining({
-    callbackAttemptId: CALLBACK_ATTEMPT_ID,
-    callbackHost: CALLBACK_HOST,
-    opType: 'STATUS',
-    status: '00',
-    orderId: 'RKJ_ORDER_001',
-    transactionId: 'TXN001',
-   }),
    p_confirmed_by: PROFILE_ID,
   });
  });
 
+ it('atomically recovers a PENDING row that already contains exact STATUS=00 evidence', async () => {
+  const rpc = vi.fn().mockResolvedValue({ data: { outcome: 'FULFILLED' }, error: null });
+
+  await expect(recoverReportedFiuuVtPayment(
+   { rpc } as never,
+   reportedPayment({ status: 'PENDING' }),
+  )).resolves.toBe('fulfilled');
+
+  expect(rpc).toHaveBeenCalledTimes(1);
+ });
+
+ it('reports closed-shift success as quarantined without retrying fulfilment', async () => {
+  const rpc = vi.fn().mockResolvedValue({ data: { outcome: 'QUARANTINED' }, error: null });
+
+  await expect(recoverReportedFiuuVtPayment(
+   { rpc } as never,
+   reportedPayment({ status: 'PENDING' }),
+  )).resolves.toBe('quarantined');
+ });
+
  it.each([
   ['missing SALE evidence', { provider_sale_reported_at: null }],
+  ['missing STATUS observation time', { provider_status_checked_at: null }],
   ['mismatched order', { provider_order_id: 'RKJ_ORDER_999' }],
   ['mismatched transaction', { provider_transaction_id: 'TXN999' }],
   ['mismatched amount', { amount_rm: 99 }],

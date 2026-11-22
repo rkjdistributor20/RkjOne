@@ -2,9 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { getCurrentProfile } from '@/lib/auth/session';
 import {
- assertActivePosBranchShiftMember,
  assertActivePosShiftMember,
  assertCanAccessPosBranch,
+ getOpenPosBranchShiftId,
  posAccessErrorStatus,
 } from '@/lib/pos/access';
 import { assertOfficialPosDevice } from '@/lib/pos/device-auth';
@@ -28,6 +28,7 @@ const PRE_LAUNCH_ERROR_CODES = new Set([
  'FIUU_VT_LAUNCH_FAILED',
  'FIUU_ATTEMPT_MISMATCH',
  'FIUU_RESULT_PENDING',
+ 'FIUU_STORAGE_RECOVERY_REQUIRED',
  'FIUU_VOID_IN_PROGRESS',
 ]);
 
@@ -249,22 +250,32 @@ export async function POST(
   return NextResponse.json({ error: 'Percubaan Fiuu VT tidak dijumpai' }, { status: 404 });
  }
 
- const reconciliationOnlyStatus = opType === 'STATUS'
-  && payment.status === 'QUARANTINED'
-  && payment.fiuu_vt_review_required;
+ let detachedStatus = false;
 
  try {
   await assertCanAccessPosBranch(service, profile, payment.branch_id);
   const device = await assertOfficialPosDevice(profile, payment.branch_id);
-  if (reconciliationOnlyStatus) {
-   await assertActivePosBranchShiftMember(service, profile, payment.branch_id);
+  if (opType === 'STATUS' && (
+   (payment.status === 'PENDING' && !payment.fiuu_vt_review_required)
+   || (payment.status === 'QUARANTINED' && payment.fiuu_vt_review_required)
+  )) {
+   const openShiftId = await getOpenPosBranchShiftId(service, profile, payment.branch_id);
+   detachedStatus = payment.status === 'QUARANTINED'
+    || payment.shift_id !== openShiftId
+    || payment.created_by !== profile.id;
+   await assertActivePosShiftMember(
+    service,
+    profile,
+    detachedStatus ? openShiftId : payment.shift_id,
+    payment.branch_id,
+   );
   } else {
    await assertActivePosShiftMember(service, profile, payment.shift_id, payment.branch_id);
   }
   const salePayload = jsonRecord(payment.sale_payload);
   const deviceBranchCode = normalizeFiuuVtBranchCode(device.branchCode);
   const paymentBranchCode = normalizeFiuuVtBranchCode(salePayload?.fiuu_branch_code);
-  if ((!reconciliationOnlyStatus && payment.created_by !== profile.id)
+  if ((!detachedStatus && payment.created_by !== profile.id)
    || salePayload?.fiuu_device_id !== device.id
    || salePayload?.fiuu_device_code !== device.deviceCode
    || Number(salePayload?.fiuu_enrollment_generation) !== device.enrollmentGeneration
@@ -279,13 +290,13 @@ export async function POST(
   );
  }
 
- if (payment.fiuu_vt_review_required && !reconciliationOnlyStatus) {
+ if (payment.fiuu_vt_review_required && !detachedStatus) {
   return NextResponse.json({
    error: 'Transaksi Fiuu VT memerlukan semakan HQ sebelum percubaan baharu',
    mode: 'FIUU_VT_RECONCILIATION_REQUIRED',
   }, { status: 409 });
  }
- if (payment.status !== 'PENDING' && !reconciliationOnlyStatus) {
+ if (payment.status !== 'PENDING' && !detachedStatus) {
   return NextResponse.json({
    error: 'Percubaan Fiuu VT sudah ditutup',
    mode: 'FIUU_ATTEMPT_TERMINAL',
@@ -303,7 +314,7 @@ export async function POST(
  const leaseToken = randomUUID();
  let leaseData: unknown;
  let leaseError: { message?: string } | null;
- if (reconciliationOnlyStatus) {
+ if (detachedStatus) {
   const claimReviewStatusLease = service.rpc.bind(service) as unknown as ClaimReviewStatusLeaseRpc;
   ({ data: leaseData, error: leaseError } = await claimReviewStatusLease(
    'claim_pos_fiuu_vt_review_status_lease',
@@ -446,8 +457,10 @@ export async function PATCH(
  if (mutationAttemptError) {
   return NextResponse.json({ error: 'Percubaan Fiuu VT tidak dapat dibaca' }, { status: 400 });
  }
- const nativeReleaseMutation = payment.status === 'QUARANTINED'
-  && payment.fiuu_vt_review_required
+ const nativeReleaseMutation = (
+  (payment.status === 'PENDING' && !payment.fiuu_vt_review_required)
+  || (payment.status === 'QUARANTINED' && payment.fiuu_vt_review_required)
+ )
   && mutationAttempt?.op_type === 'STATUS'
   && mutationAttempt.reconciliation_purpose === 'NATIVE_RELEASE';
 
@@ -455,7 +468,8 @@ export async function PATCH(
   await assertCanAccessPosBranch(service, profile, payment.branch_id);
   const device = await assertOfficialPosDevice(profile, payment.branch_id);
   if (nativeReleaseMutation) {
-   await assertActivePosBranchShiftMember(service, profile, payment.branch_id);
+   const openShiftId = await getOpenPosBranchShiftId(service, profile, payment.branch_id);
+   await assertActivePosShiftMember(service, profile, openShiftId, payment.branch_id);
   } else {
    await assertActivePosShiftMember(service, profile, payment.shift_id, payment.branch_id);
   }

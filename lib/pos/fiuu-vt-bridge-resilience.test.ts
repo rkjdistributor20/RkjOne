@@ -16,16 +16,21 @@ const androidManifest = readFileSync(join(
 ), 'utf8').replace(/\r\n/g, '\n');
 
 describe('Fiuu VT Android bridge resilience', () => {
- it('advertises bridge v8 and exposes the active one-time callback identity', () => {
-  expect(nativePlugin).toContain('private static final int BRIDGE_API_VERSION = 8;');
+ it('advertises bridge v11 and exposes the active one-time callback identity', () => {
+  expect(nativePlugin).toContain('private static final int BRIDGE_API_VERSION = 11;');
   expect(nativePlugin).toContain('result.put("bridgeApiVersion", BRIDGE_API_VERSION);');
   expect(nativePlugin).toContain('"pendingOperationStartedAt"');
   expect(nativePlugin).toContain('"activeCallbackAttemptId"');
   expect(nativePlugin).toContain('"activeCallbackHost"');
   expect(nativePlugin).toContain('preferences.getLong(LAST_LAUNCH_AT, 0L)');
   expect(nativeClient).toContain('pendingOperationStartedAt?: number | null;');
-  expect(nativeClient).toContain('FIUU_VT_BRIDGE_RESILIENCE_API_VERSION = 8');
-  expect(nativeClient).toContain('FIUU_VT_CALLBACK_ATTEMPT_API_VERSION = 8');
+  expect(nativeClient).toContain('FIUU_VT_BRIDGE_RESILIENCE_API_VERSION = 11');
+  expect(nativeClient).toContain('FIUU_VT_CALLBACK_ATTEMPT_API_VERSION = 9');
+  expect(nativePlugin).toContain('private static final int BRIDGE_API_VERSION = 11;');
+  expect(nativePlugin).toContain('private static final int STATE_SCHEMA_VERSION = 2;');
+  expect(nativePlugin).toContain('result.put("stateSchemaVersion", STATE_SCHEMA_VERSION);');
+  expect(nativePlugin).toContain('result.put("hostAppVersionCode", packageVersionCode(getContext().getPackageName()));');
+  expect(nativePlugin).toContain('result.put("hostAppVersionName", packageVersion(getContext().getPackageName()));');
   expect(nativeClient).toContain('pendingOperationStartedAt: null');
  });
 
@@ -65,7 +70,10 @@ describe('Fiuu VT Android bridge resilience', () => {
   expect(saleFlow).toContain('QueueLoadState storedResults = loadResultQueueState(preferences);');
   expect(saleFlow).toContain('if (!storedResults.safeForMutation)');
   expect(clearFlow).toContain('if (!storedResults.safeForMutation)');
-  expect(nativePlugin.match(/"FIUU_STORAGE_RECOVERY_REQUIRED"/g)).toHaveLength(2);
+  expect((nativePlugin.match(/"FIUU_STORAGE_RECOVERY_REQUIRED"/g) ?? []).length)
+   .toBeGreaterThanOrEqual(2);
+  expect(nativePlugin).toContain('CALLBACK_REGISTRY_RECOVERY_REQUIRED');
+  expect(nativePlugin).toContain('if (!registryState.safeForMutation)');
   expect(resultLoad).toContain('if (!writeQuarantinedResultQueue(editor, quarantine).commit())');
   expect(resultLoad).toContain('safeForMutation = false;');
   expect(quarantineLoad).toContain('"QUARANTINE_QUEUE_MALFORMED"');
@@ -155,7 +163,11 @@ describe('Fiuu VT Android bridge resilience', () => {
   const callbackEnd = nativePlugin.indexOf('private synchronized boolean enqueueResult', callbackStart);
   const callbackFlow = nativePlugin.slice(callbackStart, callbackEnd);
 
-  expect(callbackFlow).toContain('findCallbackAttemptByHost(loadCallbackAttemptRegistry(preferences), callbackHost)');
+  expect(callbackFlow).toContain('RegistryLoadState registryState = loadCallbackAttemptRegistryState(preferences);');
+  expect(callbackFlow).toContain('if (!registryState.safeForMutation)');
+  expect(callbackFlow).toContain('quarantineCallbackWhileRegistryUnsafe(preferences, callbackHost, uri)');
+  expect(callbackFlow).toContain('JSONObject callbackAttempt = callbackHost == null');
+  expect(callbackFlow).toContain('findCallbackAttemptByHost(registryState.values, callbackHost)');
   expect(callbackFlow).toContain('callbackAttempt.optBoolean("callbackReceived", false)');
   expect(callbackFlow).toContain('callbackHost.equals(registeredCallbackHost)');
   expect(callbackFlow).toContain('result.put("callbackAttemptId", callbackAttemptId)');
@@ -193,7 +205,11 @@ describe('Fiuu VT Android bridge resilience', () => {
    'removeCallbackAttempt(preferences, callbackAttemptId, acknowledgementEditor)',
   );
   expect(clearPendingResult).toContain('SharedPreferences.Editor clearEditor = preferences.edit()');
-  expect(clearPendingResult).toContain('boolean cleared = markCallbackAttemptsReleased(');
+  expect(clearPendingResult).toContain('boolean cleared = registryState.safeForMutation');
+  expect(clearPendingResult).toContain('? markCallbackAttemptsReleased(preferences, orderId, clearEditor)');
+  expect(clearPendingResult).toContain(': archiveUnsafeCallbackRegistryForReviewedRecovery(');
+  expect(clearPendingResult).toContain('markBlockingQuarantinedResultsReviewed(');
+  expect(clearPendingResult).toContain('writeQuarantinedResultQueue(clearEditor, reviewedQuarantine)');
   expect(clearPendingResult).toContain('clearEditor');
   expect(nativePlugin).toContain('return saveCallbackAttemptRegistry(preferences, registry, editor);');
   expect(clearPendingResult).toContain('FIUU_CLEAR_PERSIST_FAILED');
@@ -284,5 +300,8 @@ describe('Fiuu VT Android bridge resilience', () => {
   expect(nativeClient).toContain('RESULT_ACKNOWLEDGEMENT_API_VERSION = 5');
   expect(nativeClient).toContain('VOID_API_VERSION = 3');
   expect(nativeClient).toContain('bridgeApiVersion?: number;');
+  expect(nativeClient).toContain('stateSchemaVersion?: number;');
+  expect(nativeClient).toContain('hostAppVersionCode?: number;');
+  expect(nativeClient).toContain('hostAppVersionName?: string;');
  });
 });

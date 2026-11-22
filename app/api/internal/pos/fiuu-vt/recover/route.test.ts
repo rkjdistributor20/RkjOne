@@ -53,8 +53,10 @@ function payment(id: string): Record<string, unknown> {
   provider_transaction_id: `TXN_${id}`,
   provider_result: { opType: 'STATUS', status: '00' },
   provider_sale_reported_at: '2026-11-12T01:00:00.000Z',
+  provider_status_checked_at: '2026-11-12T01:00:05.000Z',
   fiuu_vt_recovery_attempts: 0,
   fiuu_vt_recovery_next_at: null,
+  updated_at: '2026-11-12T01:00:10.000Z',
  };
 }
 
@@ -64,6 +66,9 @@ function arrangeService(input: {
  branchError?: unknown;
  paymentError?: unknown;
  rotationError?: unknown;
+ rotationData?: Record<string, unknown> | null;
+ quarantineError?: unknown;
+ quarantineData?: Record<string, unknown> | null;
 } = {}) {
  const branchQuery = {
   select: vi.fn(),
@@ -101,7 +106,11 @@ function arrangeService(input: {
   eq: vi.fn(),
   select: vi.fn(),
   maybeSingle: vi.fn().mockResolvedValue({
-   data: input.rotationError ? null : { id: PAYMENT_ID },
+   data: input.rotationError
+    ? null
+    : input.rotationData === undefined
+     ? { id: PAYMENT_ID }
+     : input.rotationData,
    error: input.rotationError ?? null,
   }),
  };
@@ -112,11 +121,20 @@ function arrangeService(input: {
   select: vi.fn().mockReturnValue(paymentQuery),
   update: vi.fn().mockReturnValue(rotationQuery),
  };
+ const rpc = vi.fn().mockResolvedValue({
+  data: input.quarantineError
+   ? null
+   : input.quarantineData === undefined
+    ? { payment_id: PAYMENT_ID, status: 'QUARANTINED' }
+    : input.quarantineData,
+  error: input.quarantineError ?? null,
+ });
  const service = {
   from: vi.fn((table: string) => table === 'branches' ? branchQuery : paymentTable),
+  rpc,
  };
  mocks.createAdminClient.mockReturnValue(service);
- return { branchQuery, paymentQuery, paymentTable, rotationQuery, service };
+ return { branchQuery, paymentQuery, paymentTable, rotationQuery, rpc, service };
 }
 
 beforeEach(() => {
@@ -219,9 +237,9 @@ describe('Fiuu VT reported-payment recovery worker', () => {
   expect(mocks.recoverReportedFiuuVtPayment).not.toHaveBeenCalled();
  });
 
- it('scans 100 structurally complete configured-branch REPORTED rows', async () => {
+ it('scans 100 structurally complete configured-branch PENDING or REPORTED rows', async () => {
   const row = payment(PAYMENT_ID);
-  const { paymentQuery, service } = arrangeService({ payments: [row] });
+  const { paymentQuery, paymentTable, service } = arrangeService({ payments: [row] });
 
   const response = await POST(request());
 
@@ -235,7 +253,7 @@ describe('Fiuu VT reported-payment recovery worker', () => {
    results: { fulfilled: 1 },
   });
   expect(paymentQuery.eq).toHaveBeenCalledWith('provider', 'fiuu_vt');
-  expect(paymentQuery.eq).toHaveBeenCalledWith('status', 'REPORTED');
+  expect(paymentQuery.in).toHaveBeenCalledWith('status', ['PENDING', 'REPORTED']);
   expect(paymentQuery.eq).toHaveBeenCalledWith('fiuu_vt_review_required', false);
   expect(paymentQuery.eq).toHaveBeenCalledWith('provider_result->>opType', 'STATUS');
   expect(paymentQuery.eq).toHaveBeenCalledWith('provider_result->>status', '00');
@@ -257,6 +275,7 @@ describe('Fiuu VT reported-payment recovery worker', () => {
    'fiuu_vt_recovery_next_at',
    { ascending: true, nullsFirst: true },
   );
+  expect(paymentTable.select).toHaveBeenCalledWith(expect.stringContaining('updated_at'));
   expect(paymentQuery.limit).toHaveBeenCalledWith(100);
   expect(mocks.recoverReportedFiuuVtPayment).toHaveBeenCalledWith(service, row);
  });
@@ -311,12 +330,90 @@ describe('Fiuu VT reported-payment recovery worker', () => {
   expect(rotationQuery.eq).toHaveBeenNthCalledWith(2, 'status', 'REPORTED');
   expect(rotationQuery.eq).toHaveBeenNthCalledWith(3, 'fiuu_vt_review_required', false);
   expect(rotationQuery.eq).toHaveBeenNthCalledWith(4, 'fiuu_vt_recovery_attempts', 0);
-  expect(rotationQuery.eq).toHaveBeenNthCalledWith(5, 'id', 'throwing');
-  expect(rotationQuery.eq).toHaveBeenNthCalledWith(6, 'status', 'REPORTED');
-  expect(rotationQuery.eq).toHaveBeenNthCalledWith(7, 'fiuu_vt_review_required', false);
-  expect(rotationQuery.eq).toHaveBeenNthCalledWith(8, 'fiuu_vt_recovery_attempts', 0);
+  expect(rotationQuery.eq).toHaveBeenNthCalledWith(5, 'updated_at', invalid.updated_at);
+  expect(rotationQuery.eq).toHaveBeenNthCalledWith(6, 'id', 'throwing');
+  expect(rotationQuery.eq).toHaveBeenNthCalledWith(7, 'status', 'REPORTED');
+  expect(rotationQuery.eq).toHaveBeenNthCalledWith(8, 'fiuu_vt_review_required', false);
+  expect(rotationQuery.eq).toHaveBeenNthCalledWith(9, 'fiuu_vt_recovery_attempts', 0);
+  expect(rotationQuery.eq).toHaveBeenNthCalledWith(10, 'updated_at', throwing.updated_at);
   expect(rotationQuery.select).toHaveBeenCalledTimes(2);
   expect(rotationQuery.select).toHaveBeenCalledWith('id');
+ });
+
+ it('rotates a lost-CAS PENDING success without rewriting its provider evidence', async () => {
+  const pending = {
+   ...payment(PAYMENT_ID),
+   status: 'PENDING',
+   updated_at: '2026-11-12T01:00:10.000Z',
+  };
+  const { paymentTable, rotationQuery } = arrangeService({ payments: [pending] });
+  mocks.recoverReportedFiuuVtPayment.mockResolvedValue('retryable');
+
+  const response = await POST(request());
+
+  expect(response.status).toBe(200);
+  await expect(response.json()).resolves.toMatchObject({
+   examined: 1,
+   rotated: 1,
+   results: { retryable: 1 },
+  });
+  const [rotation] = paymentTable.update.mock.calls[0];
+  expect(rotation).not.toHaveProperty('provider_result');
+  expect(rotation).not.toHaveProperty('provider_status_checked_at');
+  expect(rotation).not.toHaveProperty('status');
+  expect(rotationQuery.eq).toHaveBeenNthCalledWith(1, 'id', PAYMENT_ID);
+  expect(rotationQuery.eq).toHaveBeenNthCalledWith(2, 'status', 'PENDING');
+  expect(rotationQuery.eq).toHaveBeenCalledWith('updated_at', pending.updated_at);
+ });
+
+ it('does not postpone repaired evidence when the updated_at CAS no longer matches', async () => {
+  const stale = payment(PAYMENT_ID);
+  const { paymentTable, rotationQuery } = arrangeService({
+   payments: [stale],
+   rotationData: null,
+  });
+  mocks.recoverReportedFiuuVtPayment.mockResolvedValue('invalid_evidence');
+
+  const response = await POST(request());
+
+  expect(response.status).toBe(200);
+  await expect(response.json()).resolves.toMatchObject({
+   examined: 1,
+   rotated: 0,
+   results: { invalid_evidence: 1 },
+  });
+  expect(paymentTable.update).toHaveBeenCalledTimes(1);
+  expect(rotationQuery.eq).toHaveBeenCalledWith('updated_at', stale.updated_at);
+  expect(rotationQuery.maybeSingle).toHaveBeenCalledTimes(1);
+ });
+
+ it('quarantines the fifth repeated recovery failure for Finance review', async () => {
+  const exhausted = {
+   ...payment(PAYMENT_ID),
+   fiuu_vt_recovery_attempts: 4,
+   updated_at: '2026-11-12T01:00:10.000Z',
+  };
+  const { paymentTable, rpc } = arrangeService({ payments: [exhausted] });
+  mocks.recoverReportedFiuuVtPayment.mockResolvedValue('retryable');
+
+  const response = await POST(request());
+
+  expect(response.status).toBe(200);
+  await expect(response.json()).resolves.toMatchObject({
+   examined: 1,
+   rotated: 0,
+   quarantined: 1,
+   results: { retryable: 1 },
+  });
+  expect(rpc).toHaveBeenCalledWith(
+   'quarantine_pos_fiuu_vt_recovery_failure',
+   {
+    p_payment_id: PAYMENT_ID,
+    p_expected_updated_at: exhausted.updated_at,
+    p_reason: 'retryable',
+   },
+  );
+  expect(paymentTable.update).not.toHaveBeenCalled();
  });
 
  it('does not report a poison row as rotated when its queue update fails', async () => {

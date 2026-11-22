@@ -3,11 +3,11 @@ import { resolve } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
- assertActivePosBranchShiftMember: vi.fn(),
  assertActivePosShiftMember: vi.fn(),
  assertCanAccessPosBranch: vi.fn(),
  assertOfficialPosDevice: vi.fn(),
  createAdminClient: vi.fn(),
+ getOpenPosBranchShiftId: vi.fn(),
  getCurrentProfile: vi.fn(),
 }));
 
@@ -15,9 +15,9 @@ vi.mock('@/lib/auth/session', () => ({
  getCurrentProfile: mocks.getCurrentProfile,
 }));
 vi.mock('@/lib/pos/access', () => ({
- assertActivePosBranchShiftMember: mocks.assertActivePosBranchShiftMember,
  assertActivePosShiftMember: mocks.assertActivePosShiftMember,
  assertCanAccessPosBranch: mocks.assertCanAccessPosBranch,
+ getOpenPosBranchShiftId: mocks.getOpenPosBranchShiftId,
  posAccessErrorStatus: vi.fn(() => 403),
 }));
 vi.mock('@/lib/pos/device-auth', () => ({
@@ -174,11 +174,11 @@ describe('Fiuu VT launch retry leases', () => {
    enrollmentGeneration: 1,
   });
   mocks.assertCanAccessPosBranch.mockResolvedValue(undefined);
-  mocks.assertActivePosBranchShiftMember.mockResolvedValue(undefined);
   mocks.assertActivePosShiftMember.mockResolvedValue(undefined);
+  mocks.getOpenPosBranchShiftId.mockResolvedValue('shift-1');
  });
 
- it('claims a server-side lease before allowing a provider STATUS launch', async () => {
+ it('claims the normal shift-bound lease for the current cashier STATUS launch', async () => {
   const { admin, rpc } = makeAdmin(async () => launchDecision('STATUS'));
   mocks.createAdminClient.mockReturnValue(admin);
 
@@ -207,6 +207,32 @@ describe('Fiuu VT launch retry leases', () => {
   expect(args.p_callback_host).toBe(buildFiuuVtCallbackHost(String(args.p_attempt_id)));
  });
 
+ it('keeps SALE on the shift-bound launch lease', async () => {
+  const { admin, rpc } = makeAdmin(
+   async () => launchDecision('SALE'),
+   payment({ provider_transaction_id: null, provider_sale_reported_at: null }),
+  );
+  mocks.createAdminClient.mockReturnValue(admin);
+
+  const response = await invoke('SALE');
+
+  expect(response.status).toBe(200);
+  expect(rpc).toHaveBeenCalledWith(
+   'claim_pos_fiuu_vt_launch_lease',
+   expect.objectContaining({
+    p_payment_id: PAYMENT_ID,
+    p_op_type: 'SALE',
+    p_actor_id: PROFILE.id,
+   }),
+  );
+  expect(mocks.assertActivePosShiftMember).toHaveBeenCalledWith(
+   admin,
+   PROFILE,
+   'shift-1',
+   'branch-1',
+  );
+ });
+
  it('allows only STATUS to reconcile a quarantined review-locked payment', async () => {
   const { admin, rpc } = makeAdmin(
    async () => launchDecision('STATUS'),
@@ -228,9 +254,10 @@ describe('Fiuu VT launch retry leases', () => {
    }),
   );
   expect(rpc.mock.calls[0]?.[1]).not.toHaveProperty('p_op_type');
-  expect(mocks.assertActivePosBranchShiftMember).toHaveBeenCalledWith(
+  expect(mocks.assertActivePosShiftMember).toHaveBeenCalledWith(
    admin,
    PROFILE,
+   'shift-1',
    'branch-1',
   );
  });
@@ -254,8 +281,13 @@ describe('Fiuu VT launch retry leases', () => {
    'claim_pos_fiuu_vt_review_status_lease',
    expect.objectContaining({ p_actor_id: PROFILE.id }),
   );
-  expect(mocks.assertActivePosShiftMember).not.toHaveBeenCalled();
-  expect(mocks.assertActivePosBranchShiftMember).toHaveBeenCalled();
+  expect(mocks.getOpenPosBranchShiftId).toHaveBeenCalled();
+  expect(mocks.assertActivePosShiftMember).toHaveBeenCalledWith(
+   admin,
+   PROFILE,
+   'shift-1',
+   'branch-1',
+  );
  });
 
  it('rejects turnover recovery from a different tablet enrollment', async () => {
@@ -566,7 +598,7 @@ describe('Fiuu VT retry lease database contract', () => {
   expect(terminalReconciliationMigration).toContain("v_active.state = 'RECEIVED'");
   expect(terminalReconciliationMigration).toMatch(/GREATEST\(\r?\n\s+1000,/);
   expect(attemptRoute).toContain("mode: 'FIUU_VT_RELEASE_RETRY_LIMIT'");
-  expect(attemptRoute).toContain('assertActivePosBranchShiftMember');
+  expect(attemptRoute).toContain('getOpenPosBranchShiftId');
   expect(attemptRoute).toContain('nativeReleaseMutation');
  });
 

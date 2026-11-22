@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
- assertActivePosBranchShiftMember: vi.fn(),
  assertActivePosShiftMember: vi.fn(),
  assertCanAccessPosBranch: vi.fn(),
  assertOfficialPosDevice: vi.fn(),
  createAdminClient: vi.fn(),
+ getOpenPosBranchShiftId: vi.fn(),
  getCurrentProfile: vi.fn(),
 }));
 
@@ -13,9 +13,9 @@ vi.mock('@/lib/auth/session', () => ({
  getCurrentProfile: mocks.getCurrentProfile,
 }));
 vi.mock('@/lib/pos/access', () => ({
- assertActivePosBranchShiftMember: mocks.assertActivePosBranchShiftMember,
  assertActivePosShiftMember: mocks.assertActivePosShiftMember,
  assertCanAccessPosBranch: mocks.assertCanAccessPosBranch,
+ getOpenPosBranchShiftId: mocks.getOpenPosBranchShiftId,
  posAccessErrorStatus: vi.fn(() => 403),
 }));
 vi.mock('@/lib/pos/device-auth', () => ({
@@ -141,6 +141,7 @@ function callbackFingerprint(result: Row): string {
 function makeAdmin(
  initialPayment: Row = payment(),
  initialAttempt: Row | null = attempt(),
+ options: { beforeFirstPaymentUpdate?: (row: Row) => void } = {},
 ) {
  const state = {
   payment: { ...initialPayment } as Row | null,
@@ -149,6 +150,7 @@ function makeAdmin(
   attemptUpdates: [] as Row[],
   rpcCalls: [] as Array<{ name: string; args: Row }>,
  };
+ let paymentUpdateHookUsed = false;
 
  function query(table: 'pos_online_payments' | 'pos_fiuu_vt_attempts') {
   let updateValue: Row | null = null;
@@ -181,6 +183,14 @@ function makeAdmin(
    executed = true;
    const key = table === 'pos_online_payments' ? 'payment' : 'attempt';
    const row = state[key];
+   if (row
+    && updateValue
+    && table === 'pos_online_payments'
+    && !paymentUpdateHookUsed
+    && options.beforeFirstPaymentUpdate) {
+    paymentUpdateHookUsed = true;
+    options.beforeFirstPaymentUpdate(row);
+   }
    if (!row || !filters.every((filter) => filter(row))) {
     return { data: null, error: null };
    }
@@ -339,7 +349,12 @@ function makeAdmin(
     || state.payment.id !== args.p_payment_id) {
     return { data: null, error: { message: 'RPC not found' } };
    }
+   const currentStatus = state.payment.status;
+   const reviewStatus = currentStatus === 'PENDING' || currentStatus === 'REPORTED'
+    ? 'QUARANTINED'
+    : currentStatus;
    const reviewUpdate = {
+    status: reviewStatus,
     fiuu_vt_review_required: true,
     fiuu_vt_reconciliation_state: args.p_state,
     fiuu_vt_reconciliation_evidence: args.p_evidence,
@@ -350,6 +365,7 @@ function makeAdmin(
     data: {
      source_payment_id: state.payment.id,
      source_state: args.p_state,
+     payment_status: reviewStatus,
     },
     error: null,
    };
@@ -383,8 +399,8 @@ describe('Fiuu VT one-time callback reconciliation', () => {
    enrollmentGeneration: 1,
   });
   mocks.assertCanAccessPosBranch.mockResolvedValue(undefined);
-  mocks.assertActivePosBranchShiftMember.mockResolvedValue(undefined);
   mocks.assertActivePosShiftMember.mockResolvedValue(undefined);
+  mocks.getOpenPosBranchShiftId.mockResolvedValue('shift-1');
  });
 
  it('releases an expired QR immediately from authoritative STATUS=55', async () => {
@@ -416,6 +432,114 @@ describe('Fiuu VT one-time callback reconciliation', () => {
   expect(state.paymentUpdates[0]).not.toHaveProperty('status');
  });
 
+ it('accepts an authentic SALE callback from a prior shift on the same official tablet', async () => {
+  const { admin, state } = makeAdmin(
+   payment({
+    created_by: 'previous-cashier',
+    shift_id: 'closed-shift-1',
+   }),
+   attempt({ op_type: 'SALE' }),
+  );
+  mocks.createAdminClient.mockReturnValue(admin);
+
+  const response = await invoke(callback('SALE', '00'));
+
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({
+   payment: { status: 'PENDING' },
+   next_action: 'CHECK_STATUS',
+  });
+  expect(mocks.assertActivePosShiftMember).toHaveBeenCalledWith(
+   admin,
+   PROFILE,
+   'shift-1',
+   'branch-1',
+  );
+  expect(state.payment).toMatchObject({
+   status: 'PENDING',
+   provider_transaction_id: TRANSACTION_ID,
+   provider_sale_reported_at: expect.any(String),
+  });
+  expect(state.attempt).toMatchObject({ state: 'CONSUMED' });
+ });
+
+ it('accepts an authentic VOID callback from a prior shift on the same official tablet', async () => {
+  const { admin, state } = makeAdmin(
+   payment({
+    created_by: 'previous-cashier',
+    shift_id: 'closed-shift-1',
+   }),
+   attempt({ op_type: 'VOID' }),
+  );
+  mocks.createAdminClient.mockReturnValue(admin);
+
+  const response = await invoke(callback('VOID', '00'));
+
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({
+   payment: { status: 'PENDING' },
+   next_action: 'CHECK_STATUS',
+  });
+  expect(mocks.assertActivePosShiftMember).toHaveBeenCalledWith(
+   admin,
+   PROFILE,
+   'shift-1',
+   'branch-1',
+  );
+  expect(state.payment).toMatchObject({
+   status: 'PENDING',
+   provider_status_checked_at: expect.any(String),
+  });
+  expect(state.attempt).toMatchObject({ state: 'CONSUMED' });
+ });
+
+ it('rejects a prior-shift SALE whose one-time attempt identity does not match', async () => {
+  const { admin } = makeAdmin(
+   payment({
+    created_by: 'previous-cashier',
+    shift_id: 'closed-shift-1',
+   }),
+   attempt({
+    op_type: 'SALE',
+    provider_order_id: 'RKJ_DIFFERENT_ORDER',
+   }),
+  );
+  mocks.createAdminClient.mockReturnValue(admin);
+
+  const response = await invoke(callback('SALE', '00'));
+
+  expect(response.status).toBe(403);
+ });
+
+ it('rejects a prior-shift SALE without native MATCHED validation', async () => {
+  const { admin } = makeAdmin(
+   payment({
+    created_by: 'previous-cashier',
+    shift_id: 'closed-shift-1',
+   }),
+   attempt({ op_type: 'SALE' }),
+  );
+  mocks.createAdminClient.mockReturnValue(admin);
+
+  const response = await invoke(callback('SALE', '00', {
+   callbackValidation: undefined,
+  }));
+
+  expect(response.status).toBe(403);
+ });
+
+ it('rejects an exact SALE owned by another cashier in the same open shift', async () => {
+  const { admin } = makeAdmin(
+   payment({ created_by: 'other-current-cashier' }),
+   attempt({ op_type: 'SALE' }),
+  );
+  mocks.createAdminClient.mockReturnValue(admin);
+
+  const response = await invoke(callback('SALE', '00'));
+
+  expect(response.status).toBe(403);
+ });
+
  it('stores STATUS=00 as durable REPORTED evidence', async () => {
   const { admin, state } = makeAdmin();
   mocks.createAdminClient.mockReturnValue(admin);
@@ -437,6 +561,22 @@ describe('Fiuu VT one-time callback reconciliation', () => {
    }),
   });
   expect(state.attempt).toMatchObject({ state: 'CONSUMED' });
+ });
+
+ it('keeps an ordinary current-shift STATUS callback bound to its original cashier', async () => {
+  const { admin } = makeAdmin();
+  mocks.createAdminClient.mockReturnValue(admin);
+
+  const response = await invoke(callback('STATUS', '22'));
+
+  expect(response.status).toBe(200);
+  expect(mocks.assertActivePosShiftMember).toHaveBeenCalledWith(
+   admin,
+   PROFILE,
+   'shift-1',
+   'branch-1',
+  );
+  expect(mocks.getOpenPosBranchShiftId).toHaveBeenCalled();
  });
 
  it('accepts an authentic matching STATUS=00 just after attempt expiry', async () => {
@@ -480,11 +620,11 @@ describe('Fiuu VT one-time callback reconciliation', () => {
   const response = await invoke(callback('STATUS', '00'));
 
   expect(await response.json()).toMatchObject({
-   payment: { status: 'PENDING' },
+   payment: { status: 'QUARANTINED' },
    next_action: 'ACK_AND_QUARANTINE',
   });
   expect(state.payment).toMatchObject({
-   status: 'PENDING',
+   status: 'QUARANTINED',
    fiuu_vt_review_required: true,
    fiuu_vt_reconciliation_state: 'LATE_SUCCESS_REVIEW',
   });
@@ -507,7 +647,7 @@ describe('Fiuu VT one-time callback reconciliation', () => {
 
   expect((await response.json()).next_action).toBe('ACK_AND_QUARANTINE');
   expect(state.payment).toMatchObject({
-   status: 'PENDING',
+   status: 'QUARANTINED',
    fiuu_vt_review_required: true,
   });
   expect(state.attempt).toMatchObject({ state: 'QUARANTINED' });
@@ -527,7 +667,7 @@ describe('Fiuu VT one-time callback reconciliation', () => {
 
   expect((await response.json()).next_action).toBe('ACK_AND_QUARANTINE');
   expect(state.payment).toMatchObject({
-   status: 'PENDING',
+   status: 'QUARANTINED',
    fiuu_vt_review_required: true,
    fiuu_vt_reconciliation_state: 'FOREIGN_CALLBACK_REVIEW',
   });
@@ -550,7 +690,7 @@ describe('Fiuu VT one-time callback reconciliation', () => {
 
   expect((await response.json()).next_action).toBe('ACK_AND_QUARANTINE');
   expect(state.payment).toMatchObject({
-   status: 'PENDING',
+   status: 'QUARANTINED',
    fiuu_vt_review_required: true,
    fiuu_vt_reconciliation_state: 'FOREIGN_CALLBACK_REVIEW',
   });
@@ -571,7 +711,7 @@ describe('Fiuu VT one-time callback reconciliation', () => {
 
   expect(await response.json()).toMatchObject({
    payment: { status: 'PENDING' },
-   next_action: 'ACK_AND_QUARANTINE',
+   next_action: 'CHECK_STATUS',
   });
   expect(state.payment).toMatchObject({
    status: 'PENDING',
@@ -703,11 +843,11 @@ describe('Fiuu VT one-time callback reconciliation', () => {
   const response = await invoke(callback('STATUS', '44'));
 
   expect(await response.json()).toMatchObject({
-   payment: { status: 'REPORTED' },
+   payment: { status: 'QUARANTINED' },
    next_action: 'ACK_AND_QUARANTINE',
   });
   expect(state.payment).toMatchObject({
-   status: 'REPORTED',
+   status: 'QUARANTINED',
    fiuu_vt_review_required: true,
    fiuu_vt_reconciliation_state: 'FOREIGN_CALLBACK_REVIEW',
   });
@@ -721,11 +861,11 @@ describe('Fiuu VT one-time callback reconciliation', () => {
   const response = await invoke(callback('STATUS', '22'));
 
   expect(await response.json()).toMatchObject({
-   payment: { status: 'PENDING' },
+   payment: { status: 'QUARANTINED' },
    next_action: 'ACK_AND_QUARANTINE',
   });
   expect(state.payment).toMatchObject({
-   status: 'PENDING',
+   status: 'QUARANTINED',
    fiuu_vt_review_required: true,
    fiuu_vt_reconciliation_state: 'FOREIGN_CALLBACK_REVIEW',
   });
@@ -883,12 +1023,84 @@ describe('Fiuu VT one-time callback reconciliation', () => {
    payment: { status: 'QUARANTINED' },
    next_action: 'ACK_AND_QUARANTINE',
   });
-  expect(mocks.assertActivePosBranchShiftMember).toHaveBeenCalledWith(
+  expect(mocks.assertActivePosShiftMember).toHaveBeenCalledWith(
    admin,
    PROFILE,
+   'shift-1',
    'branch-1',
   );
-  expect(mocks.assertActivePosShiftMember).not.toHaveBeenCalled();
+  expect(mocks.getOpenPosBranchShiftId).toHaveBeenCalled();
+ });
+
+ it('quarantines a successful STATUS from a prior shift instead of fulfilling closed-shift stock', async () => {
+  const { admin, state } = makeAdmin(payment({
+   created_by: 'previous-cashier',
+   shift_id: 'closed-shift-1',
+   status: 'PENDING',
+  }));
+  mocks.createAdminClient.mockReturnValue(admin);
+
+  const response = await invoke(callback('STATUS', '00'));
+
+  expect(await response.json()).toMatchObject({
+   payment: { status: 'QUARANTINED' },
+   next_action: 'ACK_AND_QUARANTINE',
+  });
+  expect(state.payment).toMatchObject({
+   status: 'QUARANTINED',
+   provider_transaction_id: TRANSACTION_ID,
+   fiuu_vt_review_required: true,
+   fiuu_vt_reconciliation_state: 'LATE_SUCCESS_REVIEW',
+  });
+  expect(state.attempt).toMatchObject({ state: 'QUARANTINED' });
+  expect(state.rpcCalls.some((call) => (
+   call.name === 'complete_pos_fiuu_vt_callback_processing'
+  ))).toBe(false);
+ });
+
+ it('quarantines a success that loses the conditional update race to a terminal close', async () => {
+  const firstEvidence = { source: 'durable-callback', status: '00' };
+  const result = callback('STATUS', '00');
+  const { admin, state } = makeAdmin(
+   payment(),
+   attempt({
+    state: 'RECEIVED',
+    result_fingerprint: callbackFingerprint(result),
+    result_json: firstEvidence,
+    processing_lease_token: '123e4567-e89b-42d3-a456-426614174555',
+    processing_lease_expires_at: new Date(Date.now() - 1_000).toISOString(),
+    processing_lease_generation: 1,
+   }),
+   {
+    beforeFirstPaymentUpdate: (row) => {
+     row.status = 'EXPIRED';
+    },
+   },
+  );
+  mocks.createAdminClient.mockReturnValue(admin);
+
+  const response = await invoke(result);
+
+  expect(await response.json()).toMatchObject({
+   payment: { status: 'EXPIRED' },
+   next_action: 'ACK_AND_QUARANTINE',
+  });
+  expect(state.payment).toMatchObject({
+   status: 'EXPIRED',
+   fiuu_vt_review_required: true,
+   fiuu_vt_reconciliation_state: 'LATE_SUCCESS_REVIEW',
+  });
+  expect(state.attempt).toMatchObject({
+   state: 'QUARANTINED',
+   result_json: {
+    first: firstEvidence,
+    replay: expect.objectContaining({ status: '00', opType: 'STATUS' }),
+    quarantinedAt: expect.any(String),
+   },
+  });
+  expect(state.rpcCalls.some((call) => (
+   call.name === 'complete_pos_fiuu_vt_callback_processing'
+  ))).toBe(false);
  });
 
  it('rejects a turnover callback from a different official tablet enrollment', async () => {

@@ -73,8 +73,11 @@ function adminFor(currentPayment = payment()) {
  };
 }
 
-function invoke() {
- return POST(new Request('http://localhost/vt-park', { method: 'POST' }), {
+function invoke(reason?: 'NATIVE_CALLBACK_REGISTRY') {
+ return POST(new Request('http://localhost/vt-park', {
+  method: 'POST',
+  body: reason ? JSON.stringify({ reason }) : undefined,
+ }), {
   params: Promise.resolve({ paymentId: PAYMENT_ID }),
  });
 }
@@ -117,6 +120,30 @@ describe('POST /api/pos/qr-payments/[paymentId]/vt-park', () => {
   });
  });
 
+ it('uses the reviewed native-storage quarantine lane for a corrupt callback registry', async () => {
+  const admin = adminFor();
+  mocks.createAdminClient.mockReturnValue(admin);
+
+  const response = await invoke('NATIVE_CALLBACK_REGISTRY');
+
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({
+   payment: {
+    status: 'QUARANTINED',
+    fiuu_vt_review_required: true,
+   },
+  });
+  expect(admin.rpc).toHaveBeenCalledWith(
+   'park_pos_fiuu_vt_native_storage_recovery',
+   {
+    p_payment_id: PAYMENT_ID,
+    p_actor_id: PROFILE.id,
+    p_device_id: 'device-1',
+    p_enrollment_generation: 2,
+   },
+  );
+ });
+
  it('rejects unauthenticated callers', async () => {
   mocks.getCurrentProfile.mockResolvedValue(null);
   expect((await invoke()).status).toBe(401);
@@ -150,5 +177,21 @@ describe('POST /api/pos/qr-payments/[paymentId]/vt-park', () => {
 
   expect(response.status).toBe(409);
   expect(await response.json()).toMatchObject({ mode: 'FIUU_VT_PARK_NOT_READY' });
+ });
+
+ it('returns a retryable native-recovery mode while callback evidence is still active', async () => {
+  const admin = adminFor();
+  admin.rpc.mockResolvedValueOnce({
+   data: null,
+   error: { message: 'launch lease active' },
+  });
+  mocks.createAdminClient.mockReturnValue(admin);
+
+  const response = await invoke('NATIVE_CALLBACK_REGISTRY');
+
+  expect(response.status).toBe(409);
+  expect(await response.json()).toMatchObject({
+   mode: 'FIUU_VT_NATIVE_RECOVERY_NOT_READY',
+  });
  });
 });

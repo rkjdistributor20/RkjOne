@@ -84,14 +84,13 @@ export function canReleaseQuarantinedFiuuVtNativeState(input: {
  nativeResultAvailable: boolean;
  callbackDrainInProgress: boolean;
 }): boolean {
- // The server quarantine is the durable Finance/HQ evidence. Once Android has
- // no queued callback and explicitly reports that its own quarantine no longer
- // blocks release, retaining the pending order only causes another read-only
- // STATUS loop. Older bridges omit the flag, so require an explicit false and
- // fail closed for every active/successful server state.
- return input.serverStatus === 'QUARANTINED'
-  && input.reviewRequired
-  && input.nativeQuarantineBlocksRelease === false
+ // The server review lock is the durable Finance/HQ evidence even when the
+ // underlying business status must remain PAID/FAILED/EXPIRED/CANCELLED. Once
+ // Android has no queued callback, the reviewed native release path may archive
+ // the exact blocker and clear the pending order atomically. Requiring the
+ // payment status itself to be QUARANTINED creates a permanent lock for review
+ // evidence attached to a terminal business status.
+ return input.reviewRequired
   && !input.nativeResultAvailable
   && !input.callbackDrainInProgress;
 }
@@ -110,7 +109,7 @@ export function decideFiuuVtCleanupAction(input: {
   return 'DRAIN_CALLBACKS';
  }
 
- if (input.serverStatus === 'QUARANTINED') {
+ if (input.reviewRequired) {
   if (canReleaseQuarantinedFiuuVtNativeState({
    serverStatus: input.serverStatus,
    reviewRequired: input.reviewRequired,
@@ -119,12 +118,13 @@ export function decideFiuuVtCleanupAction(input: {
    callbackDrainInProgress: input.callbackDrainInProgress,
   })) return 'RELEASE_NATIVE';
 
-  // A review-locked order may use only the bounded, read-only STATUS lane to
-  // retire native evidence. It must never be restored as a new checkout.
-  return input.reviewRequired ? 'CHECK_STATUS' : 'REVIEW_REQUIRED';
+  // A review-locked payment reaches RELEASE_NATIVE only after callback
+  // draining is complete; until then it remains fail-closed.
+  return 'REVIEW_REQUIRED';
  }
 
- if (input.reviewRequired) return 'REVIEW_REQUIRED';
+ // A QUARANTINED row without its durable server review flag is inconsistent.
+ if (input.serverStatus === 'QUARANTINED') return 'REVIEW_REQUIRED';
 
  if (input.currentCartMatchesPayment
   && ['PENDING', 'REPORTED', 'PAID'].includes(input.serverStatus)) {

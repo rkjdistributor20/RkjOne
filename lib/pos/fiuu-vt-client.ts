@@ -14,6 +14,11 @@ import {
 
 export type FiuuVtNativeStatus = {
  bridgeApiVersion?: number;
+ stateSchemaVersion?: number;
+ stateSchemaMigrationComplete?: boolean;
+ callbackRegistryRecoveryRequired?: boolean;
+ hostAppVersionCode?: number;
+ hostAppVersionName?: string;
  nativeAndroid: boolean;
  installed: boolean;
  trustedInstall: boolean;
@@ -43,6 +48,11 @@ export type FiuuVtNativeCallbackIdentity = {
  callbackValidation: 'MATCHED' | 'MISMATCH';
 };
 
+export type FiuuVtAcknowledgementOptions = {
+ registryRecoveryReviewed?: boolean;
+ reviewReference?: string;
+};
+
 export type FiuuVtNativeCallbackResult = FiuuVtCallbackResult
  & FiuuVtNativeCallbackIdentity;
 
@@ -61,12 +71,16 @@ type FiuuVtPlugin = {
   opType: FiuuVtResult['opType'];
   transactionId: string;
   status: FiuuVtResult['status'];
+  registryRecoveryReviewed?: boolean;
+  reviewReference?: string;
  }): Promise<void>;
  acknowledgeError(options: {
   callbackAttemptId: string;
   orderId: string;
   opType: FiuuVtErrorResult['opType'];
   errorCode: string;
+  registryRecoveryReviewed?: boolean;
+  reviewReference?: string;
  }): Promise<void>;
  checkStatus(options: {
   orderId: string;
@@ -82,7 +96,15 @@ type FiuuVtPlugin = {
   generation: number;
  }): Promise<{ launched: true }>;
  getPendingResult(): Promise<{ result: unknown | null; receivedAt?: number }>;
- clearPendingResult(options: { orderId: string }): Promise<void>;
+ clearPendingResult(options: {
+  orderId: string;
+  registryRecoveryReviewed?: boolean;
+  reviewReference?: string;
+ }): Promise<void>;
+ recoverOrphanedCallbackRegistry(options: {
+  reviewed: true;
+  reviewReference: string;
+ }): Promise<void>;
  addListener(
   eventName: 'fiuuVtResult',
   listener: (result: unknown) => void,
@@ -93,8 +115,11 @@ const NativeFiuuVt = registerPlugin<FiuuVtPlugin>('RkjFiuuVt');
 
 const RESULT_ACKNOWLEDGEMENT_API_VERSION = 5;
 const VOID_API_VERSION = 3;
-export const FIUU_VT_BRIDGE_RESILIENCE_API_VERSION = 8;
-export const FIUU_VT_CALLBACK_ATTEMPT_API_VERSION = 8;
+export const FIUU_VT_BRIDGE_RESILIENCE_API_VERSION = 11;
+// Bridge v9 already has one-time callback identities. Keep normal checkout
+// compatible during Play propagation; only the reviewed corrupt-registry
+// escape hatch requires the v11 native implementation.
+export const FIUU_VT_CALLBACK_ATTEMPT_API_VERSION = 9;
 export const FIUU_VT_BRIDGE_TIMEOUT_CODE = 'FIUU_VT_BRIDGE_TIMEOUT';
 const NATIVE_READ_TIMEOUT_MS = 8_000;
 const NATIVE_LAUNCH_TIMEOUT_MS = 12_000;
@@ -109,6 +134,7 @@ const SAFE_PRE_LAUNCH_ERROR_CODES = new Set([
  'FIUU_VT_LAUNCH_FAILED',
  'FIUU_ATTEMPT_MISMATCH',
  'FIUU_RESULT_PENDING',
+ 'FIUU_STORAGE_RECOVERY_REQUIRED',
  'FIUU_VOID_IN_PROGRESS',
 ]);
 const ATTEMPT_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -224,6 +250,44 @@ async function requireCallbackAttemptBridge(): Promise<void> {
  }
 }
 
+async function reviewedAcknowledgementPayload(
+ options: FiuuVtAcknowledgementOptions,
+): Promise<{
+ registryRecoveryReviewed?: true;
+ reviewReference?: string;
+}> {
+ const registryRecoveryReviewed = options.registryRecoveryReviewed === true;
+ const reviewReference = options.reviewReference?.trim() ?? '';
+ if (!registryRecoveryReviewed) {
+  if (reviewReference) {
+   throw codedNativeError(
+    'Rujukan semakan Fiuu VT memerlukan pengesahan pemulihan daftar callback.',
+    'INVALID_FIUU_REQUEST',
+   );
+  }
+  return {};
+ }
+ if (reviewReference.length < 8) {
+  throw codedNativeError(
+   'Rujukan semakan pemulihan daftar callback Fiuu VT tidak sah.',
+   'INVALID_FIUU_REQUEST',
+  );
+ }
+ if (detectedBridgeApiVersion === null) {
+  rememberBridgeApiVersion(await nativeCallWithDeadline(() => NativeFiuuVt.getStatus()));
+ }
+ if ((detectedBridgeApiVersion ?? 1) < FIUU_VT_BRIDGE_RESILIENCE_API_VERSION) {
+  throw codedNativeError(
+   'Kemas kini RKJ One Staff diperlukan untuk mengesahkan callback daripada daftar yang dipulihkan.',
+   'FIUU_VT_BRIDGE_OUTDATED',
+  );
+ }
+ return {
+  registryRecoveryReviewed: true,
+  reviewReference,
+ };
+}
+
 function parseNativeCallbackResult(input: unknown): FiuuVtNativeCallbackResult {
  if (!input || typeof input !== 'object' || Array.isArray(input)) {
   throw new Error('Keputusan callback Fiuu VT tidak sah.');
@@ -258,6 +322,11 @@ export async function readFiuuVtStatus(): Promise<FiuuVtNativeStatus> {
  if (!supportsFiuuVtApp()) {
   return {
    bridgeApiVersion: 0,
+   stateSchemaVersion: 0,
+   stateSchemaMigrationComplete: true,
+   callbackRegistryRecoveryRequired: false,
+   hostAppVersionCode: 0,
+   hostAppVersionName: '',
    nativeAndroid: false,
    installed: false,
    trustedInstall: false,
@@ -327,28 +396,36 @@ export async function launchFiuuVtVoid(
 
 export async function acknowledgeFiuuVtResult(
  result: FiuuVtResult & FiuuVtNativeCallbackIdentity,
+ options: FiuuVtAcknowledgementOptions = {},
 ) {
  if (!supportsFiuuVtApp()) return;
- if (!await supportsResultAcknowledgement()) return;
+ const reviewedPayload = await reviewedAcknowledgementPayload(options);
+ if (!reviewedPayload.registryRecoveryReviewed
+  && !await supportsResultAcknowledgement()) return;
  await nativeCallWithDeadline(() => NativeFiuuVt.acknowledgeResult({
   callbackAttemptId: result.callbackAttemptId,
   orderId: result.orderId,
   opType: result.opType,
   transactionId: result.transactionId,
   status: result.status,
+  ...reviewedPayload,
  }));
 }
 
 export async function acknowledgeFiuuVtError(
  result: FiuuVtErrorResult & FiuuVtNativeCallbackIdentity,
+ options: FiuuVtAcknowledgementOptions = {},
 ) {
  if (!supportsFiuuVtApp()) return;
- if (!await supportsResultAcknowledgement()) return;
+ const reviewedPayload = await reviewedAcknowledgementPayload(options);
+ if (!reviewedPayload.registryRecoveryReviewed
+  && !await supportsResultAcknowledgement()) return;
  await nativeCallWithDeadline(() => NativeFiuuVt.acknowledgeError({
   callbackAttemptId: result.callbackAttemptId,
   orderId: result.orderId,
   opType: result.opType,
   errorCode: result.errorCode,
+  ...reviewedPayload,
  }));
 }
 
@@ -358,10 +435,39 @@ export async function readPendingFiuuVtResult(): Promise<FiuuVtNativeCallbackRes
  return result ? parseNativeCallbackResult(result) : null;
 }
 
-export async function clearPendingFiuuVtResult(orderId: string) {
+export async function clearPendingFiuuVtResult(
+ orderId: string,
+ options: { reviewReference?: string } = {},
+) {
  if (supportsFiuuVtApp()) {
-  await nativeCallWithDeadline(() => NativeFiuuVt.clearPendingResult({ orderId }));
+  const reviewReference = options.reviewReference?.trim() ?? '';
+  await nativeCallWithDeadline(() => NativeFiuuVt.clearPendingResult({
+   orderId,
+   registryRecoveryReviewed: reviewReference.length >= 8,
+   reviewReference: reviewReference || undefined,
+  }));
  }
+}
+
+export async function recoverOrphanedFiuuVtCallbackRegistry(
+ reviewReference: string,
+) {
+ if (!supportsFiuuVtApp()) return;
+ const normalizedReference = reviewReference.trim();
+ if (normalizedReference.length < 8) {
+  throw new Error('Rujukan semakan pemulihan Fiuu VT tidak sah.');
+ }
+ const status = await readFiuuVtStatus();
+ if ((status.bridgeApiVersion ?? 0) < FIUU_VT_BRIDGE_RESILIENCE_API_VERSION) {
+  throw codedNativeError(
+   'Kemas kini RKJ One Staff diperlukan untuk memulihkan daftar callback tanpa order.',
+   'FIUU_VT_BRIDGE_OUTDATED',
+  );
+ }
+ await nativeCallWithDeadline(() => NativeFiuuVt.recoverOrphanedCallbackRegistry({
+  reviewed: true,
+  reviewReference: normalizedReference,
+ }));
 }
 
 export async function listenForFiuuVtResult(

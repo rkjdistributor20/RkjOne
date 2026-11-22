@@ -31,6 +31,9 @@ export async function POST(
  const profile = await getCurrentProfile();
  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+ const body = await request.json().catch(() => null) as { reason?: unknown } | null;
+ const nativeStorageRecovery = body?.reason === 'NATIVE_CALLBACK_REGISTRY';
+
  const { paymentId } = await context.params;
  const service = createAdminClient();
  const { data: payment, error: paymentError } = await service
@@ -75,7 +78,9 @@ export async function POST(
  }
 
  const { data: parked, error: parkError } = await service.rpc(
-  'park_pos_fiuu_vt_provider_error',
+  nativeStorageRecovery
+   ? 'park_pos_fiuu_vt_native_storage_recovery'
+   : 'park_pos_fiuu_vt_provider_error',
   {
    p_payment_id: payment.id,
    p_actor_id: profile.id,
@@ -85,8 +90,12 @@ export async function POST(
  );
  if (parkError || !parked) {
   return NextResponse.json({
-   error: 'Transaksi belum selamat untuk dikuarantin. Semak STATUS Fiuu VT sekali lagi.',
-   mode: 'FIUU_VT_PARK_NOT_READY',
+   error: nativeStorageRecovery
+    ? 'Transaksi lama masih dalam tempoh penerimaan callback. RKJ One akan cuba pelepasan selamat semula sebentar lagi.'
+    : 'Transaksi belum selamat untuk dikuarantin. Semak STATUS Fiuu VT sekali lagi.',
+   mode: nativeStorageRecovery
+    ? 'FIUU_VT_NATIVE_RECOVERY_NOT_READY'
+    : 'FIUU_VT_PARK_NOT_READY',
   }, { status: 409 });
  }
 
@@ -99,6 +108,8 @@ export async function POST(
    fiuu_vt_reconciliation_state: 'PROVIDER_ERROR_REVIEW' as const,
   },
   reused: result?.reused === true,
-  warning: 'Transaksi lama dikuarantin untuk semakan Finance/HQ. Troli asal dikosongkan bagi mengelakkan caj berganda; jangan caj semula pelanggan yang sama.',
+  warning: nativeStorageRecovery
+   ? 'Daftar callback tablet yang rosak telah diasingkan bersama semua bukti untuk semakan Finance/HQ. Kaunter boleh digunakan semula; jangan caj semula pelanggan yang sama.'
+   : 'Transaksi lama dikuarantin untuk semakan Finance/HQ. Troli asal dikosongkan bagi mengelakkan caj berganda; jangan caj semula pelanggan yang sama.',
  });
 }

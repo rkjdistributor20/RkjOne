@@ -160,12 +160,11 @@ export async function assertActivePosShiftMember(
  return member;
 }
 
-export async function assertActivePosBranchShiftMember(
+export async function getOpenPosBranchShiftId(
  supabase: SupabaseClient,
- profile: Pick<Profile, 'id' | 'organization_id' | 'role'>,
- branchId: string) {
- if (!requiresActivePosShiftMember(profile.role)) return null;
-
+ profile: Pick<Profile, 'organization_id'>,
+ branchId: string,
+) {
  const { data: shift, error } = await supabase
  .from('pos_shifts')
  .select('id')
@@ -178,10 +177,20 @@ export async function assertActivePosBranchShiftMember(
  if (!shift) {
   throw new PosAccessError(
    'Tiada syif POS aktif untuk cawangan ini. Buka syif sebelum memulihkan terminal pembayaran.',
-   403);
+   403,
+  );
  }
+ return shift.id as string;
+}
 
- return assertActivePosShiftMember(supabase, profile, shift.id, branchId);
+export async function assertActivePosBranchShiftMember(
+ supabase: SupabaseClient,
+ profile: Pick<Profile, 'id' | 'organization_id' | 'role'>,
+ branchId: string) {
+ if (!requiresActivePosShiftMember(profile.role)) return null;
+
+ const shiftId = await getOpenPosBranchShiftId(supabase, profile, branchId);
+ return assertActivePosShiftMember(supabase, profile, shiftId, branchId);
 }
 
 export async function assertCanAccessPosBranch(

@@ -14,6 +14,7 @@ import {
 import { reconcileFiuuCloudEcrLast } from '@/lib/pos/fiuu-cloudecr-runtime';
 import type { Json } from '@/types/database';
 import { posPaymentFingerprintFromSalePayload } from '@/lib/pos/payment-fingerprint';
+import { recoverReportedFiuuVtPayment } from '@/lib/pos/fiuu-vt-reliability';
 
 export const maxDuration = 100;
 
@@ -179,16 +180,22 @@ export async function GET(
   && !Array.isArray(data.provider_result)
   ? data.provider_result as Record<string, unknown>
   : null;
- const vtReported = data.provider === 'fiuu_vt'
+ const hasStoredVtSuccess = data.provider === 'fiuu_vt'
   && data.status === 'PENDING'
   && providerResult?.opType === 'STATUS'
   && providerResult?.status === '00';
+ if (data.provider === 'fiuu_vt' && (data.status === 'REPORTED' || hasStoredVtSuccess)) {
+  const outcome = await recoverReportedFiuuVtPayment(service, data);
+  if (outcome === 'fulfilled' || outcome === 'already_paid' || outcome === 'quarantined') {
+   const refreshed = await service.from('pos_online_payments').select(paymentSelect)
+    .eq('id', paymentId).eq('organization_id', profile.organization_id).maybeSingle();
+   if (!refreshed.error && refreshed.data) data = refreshed.data;
+  }
+ }
  const reconciliationExpired = data.provider === 'fiuu_vt'
   && data.status === 'PENDING'
   && Boolean(data.expires_at && isFiuuReconciliationExpired(data.expires_at));
- const payment = vtReported
-  ? { ...data, status: 'REPORTED' }
-  : data.provider !== 'fiuu'
+ const payment = data.provider !== 'fiuu'
   && data.provider !== 'fiuu_vt'
   && data.status === 'PENDING'
   && data.expires_at
@@ -225,5 +232,7 @@ export async function GET(
    cart_fingerprint: posPaymentFingerprintFromSalePayload(payment.sale_payload),
   },
   result,
+ }, {
+  headers: { 'Cache-Control': 'no-store, private' },
  });
 }

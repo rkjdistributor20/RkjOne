@@ -10,6 +10,9 @@ const migration = source('supabase/migrations/20261104130000_expand_fiuu_vt_regi
 const cloudEcrMigration = source('supabase/migrations/20261024120000_add_fiuu_cloudecr_br001_pilot.sql');
 const hardeningMigration = source('supabase/migrations/20261112120000_harden_fiuu_vt_server_recovery.sql');
 const serializationMigration = source('supabase/migrations/20261113120000_serialize_fiuu_vt_review_and_fulfillment.sql');
+const detachedRecoveryMigration = source(
+ 'supabase/migrations/20261122160000_recover_detached_fiuu_vt_status.sql',
+);
 const paymentDialog = source('components/pos/payment-dialog.tsx');
 const vtResultRoute = source('app/api/pos/qr-payments/[paymentId]/vt-result/route.ts');
 const vtAttemptRoute = source('app/api/pos/qr-payments/[paymentId]/vt-attempt/route.ts');
@@ -42,6 +45,115 @@ describe('Fiuu VT registered-branch database boundary', () => {
  });
 });
 
+describe('Fiuu VT durable STATUS recovery boundary', () => {
+ it('keeps STATUS callback identities reusable and re-arbitrates stale RECEIVED rows', () => {
+  expect(detachedRecoveryMigration).toContain("AND op_type = 'VOID'");
+  expect(detachedRecoveryMigration).toContain(
+   "AND state IN ('PREPARED', 'LAUNCHED', 'EXPIRED')",
+  );
+  expect(detachedRecoveryMigration).toContain(
+   "'reason', 'STATUS_CALLBACK_IDENTITY_RENEWED'",
+  );
+  expect(detachedRecoveryMigration).toContain("'reused', true");
+  expect(detachedRecoveryMigration).toContain(
+   "'reason', 'STALE_CALLBACK_REARBITRATION'",
+  );
+  const staleReturn = detachedRecoveryMigration.indexOf(
+   "'reason', 'STALE_CALLBACK_REARBITRATION'",
+  );
+  const insert = detachedRecoveryMigration.indexOf(
+   'INSERT INTO public.pos_fiuu_vt_attempts',
+   staleReturn,
+  );
+  expect(staleReturn).toBeGreaterThan(-1);
+  expect(insert).toBeGreaterThan(staleReturn);
+ });
+
+ it('serializes shift before payment and atomically crosses REPORTED into fulfilment', () => {
+  const start = detachedRecoveryMigration.indexOf(
+   'CREATE OR REPLACE FUNCTION public.recover_pos_fiuu_vt_reported_payment',
+  );
+  const end = detachedRecoveryMigration.indexOf('REVOKE ALL ON FUNCTION', start);
+  const recovery = detachedRecoveryMigration.slice(start, end);
+
+  expect(start).toBeGreaterThan(-1);
+  expect(end).toBeGreaterThan(start);
+  expect(recovery.indexOf('FROM public.pos_shifts'))
+   .toBeLessThan(recovery.indexOf('SELECT * INTO v_payment'));
+  expect(recovery).toContain("v_payment.status NOT IN ('PENDING', 'REPORTED')");
+  expect(recovery).toContain("SET status = 'REPORTED'");
+  expect(recovery.indexOf("SET status = 'REPORTED'"))
+   .toBeLessThan(recovery.indexOf('public.fulfill_pos_fiuu_vt_payment('));
+ });
+
+ it('requires exact durable SALE and STATUS evidence and guards malformed amount casts', () => {
+  expect(detachedRecoveryMigration).toContain('v_payment.provider_sale_reported_at IS NULL');
+  expect(detachedRecoveryMigration).toContain('v_payment.provider_status_checked_at IS NULL');
+  expect(detachedRecoveryMigration).toContain("v_payment.provider_result->>'opType' IS DISTINCT FROM 'STATUS'");
+  expect(detachedRecoveryMigration).toContain("v_payment.provider_result->>'status' IS DISTINCT FROM '00'");
+  expect(detachedRecoveryMigration).toContain('OR CASE');
+  expect(detachedRecoveryMigration).toContain("WHEN COALESCE(v_payment.provider_result->>'amountRm', '')");
+  expect(detachedRecoveryMigration).toContain('ELSE true');
+ });
+
+ it('quarantines a late success from a closed shift and keeps the RPC service-only', () => {
+  expect(detachedRecoveryMigration).toContain("IF v_shift_status <> 'OPEN' THEN");
+  expect(detachedRecoveryMigration).toContain("SET status = 'QUARANTINED'");
+  expect(detachedRecoveryMigration).toContain("fiuu_vt_reconciliation_state = 'LATE_SUCCESS_REVIEW'");
+  expect(detachedRecoveryMigration).toContain('SUCCESS_ON_CLOSED_SHIFT_QUARANTINED');
+  expect(detachedRecoveryMigration).toContain(
+   'REVOKE ALL ON FUNCTION public.recover_pos_fiuu_vt_reported_payment(UUID, UUID)',
+  );
+  expect(detachedRecoveryMigration).toContain('FROM PUBLIC, anon, authenticated');
+  expect(detachedRecoveryMigration).toContain('TO service_role');
+ });
+
+ it('parks only an expired no-success payment when native callback storage is unrecoverable', () => {
+  expect(detachedRecoveryMigration).toContain(
+   'CREATE OR REPLACE FUNCTION public.park_pos_fiuu_vt_native_storage_recovery',
+  );
+  expect(detachedRecoveryMigration).toContain("v_expired_at + INTERVAL '15 seconds' > v_now");
+  expect(detachedRecoveryMigration).toContain('v_payment.provider_transaction_id IS NOT NULL');
+  expect(detachedRecoveryMigration).toContain('v_payment.provider_sale_reported_at IS NOT NULL');
+  expect(detachedRecoveryMigration).toContain("attempt.state = 'RECEIVED'");
+  expect(detachedRecoveryMigration).toContain("attempt.result_json->>'status' = '00'");
+  expect(detachedRecoveryMigration).toContain(
+   "'eventType', 'NATIVE_CALLBACK_REGISTRY_RECOVERY_QUARANTINED'",
+  );
+  expect(detachedRecoveryMigration).toContain(
+   "'FIUU_VT_NATIVE_STORAGE_QUARANTINED'",
+  );
+  expect(detachedRecoveryMigration).toContain(
+   'REVOKE ALL ON FUNCTION public.park_pos_fiuu_vt_native_storage_recovery',
+  );
+  expect(detachedRecoveryMigration).toContain('TO service_role');
+ });
+
+ it('escalates repeated durable STATUS success failures into reviewed quarantine', () => {
+  expect(detachedRecoveryMigration).toContain(
+   'CREATE OR REPLACE FUNCTION public.quarantine_pos_fiuu_vt_recovery_failure',
+  );
+  expect(detachedRecoveryMigration).toContain(
+   'v_payment.updated_at IS DISTINCT FROM p_expected_updated_at',
+  );
+  expect(detachedRecoveryMigration).toContain(
+   "COALESCE(v_payment.fiuu_vt_recovery_attempts, 0) < 4",
+  );
+  expect(detachedRecoveryMigration).toContain(
+   "'eventType', 'DURABLE_SUCCESS_FULFILMENT_QUARANTINED'",
+  );
+  expect(detachedRecoveryMigration).toContain(
+   "fiuu_vt_reconciliation_state = 'LATE_SUCCESS_REVIEW'",
+  );
+  expect(detachedRecoveryMigration).toContain(
+   "'FIUU_VT_RECOVERY_FAILURE_QUARANTINED'",
+  );
+  expect(detachedRecoveryMigration).toContain(
+   'REVOKE ALL ON FUNCTION public.quarantine_pos_fiuu_vt_recovery_failure',
+  );
+ });
+});
+
 describe('Fiuu VT cashier flow', () => {
  it('labels the VT path as a real transaction and gives staff three clear steps', () => {
   expect(paymentDialog).toContain("qrPayment.integration === 'vt_app'");
@@ -68,7 +180,10 @@ describe('Fiuu VT cashier flow', () => {
   expect(recovery).toContain('readActiveFiuuVtResult(paymentId)');
   expect(recovery).toContain('processFiuuVtResultRef.current(queuedResult)');
   expect(recovery).toContain('scheduleFiuuVtRecoveryRetry()');
-  expect(recovery).toContain("['EXPIRED', 'FAILED', 'CANCELLED'].includes(payment.status)");
+  expect(recovery).toContain("['PAID', 'EXPIRED', 'FAILED', 'CANCELLED'].includes(payment.status)");
+  expect(recovery).toContain('const paymentFromPriorShift = payment.shift_id !== currentShift.id');
+  expect(recovery).toContain('if (paymentFromPriorShift)');
+  expect(recovery).toContain('Transaksi syif terdahulu sedang disahkan secara berasingan.');
   expect(recovery).toContain('await releaseFiuuVtNativeState(orderId)');
   expect(recovery.indexOf('readActiveFiuuVtResult(paymentId)'))
    .toBeLessThan(recovery.indexOf('await releaseFiuuVtNativeState(orderId)'));
@@ -311,8 +426,8 @@ describe('Fiuu VT one-time callback security and deterministic recovery', () => 
   expect(vtResultRoute).toContain("state: 'QUARANTINED'");
  });
 
- it('uses bridge v8, exact callback acknowledgement and bounded active/quarantine queues', () => {
-  expect(nativePlugin).toContain('private static final int BRIDGE_API_VERSION = 8');
+ it('uses bridge v11, exact callback acknowledgement and bounded active/quarantine queues', () => {
+  expect(nativePlugin).toContain('private static final int BRIDGE_API_VERSION = 11');
   expect(nativePlugin).toContain('private static final int RESULT_QUEUE_LIMIT = 128');
   expect(nativePlugin).toContain('private static final int QUARANTINED_RESULT_QUEUE_LIMIT = 32');
   expect(nativePlugin).toContain('private static final String CALLBACK_ATTEMPT_REGISTRY');
@@ -321,7 +436,7 @@ describe('Fiuu VT one-time callback security and deterministic recovery', () => 
   expect(nativePlugin).toContain('public synchronized void acknowledgeResult(PluginCall call)');
   expect(nativePlugin).toContain('public synchronized void acknowledgeError(PluginCall call)');
   expect(nativeClient).toContain('RESULT_ACKNOWLEDGEMENT_API_VERSION = 5');
-  expect(nativeClient).toContain('FIUU_VT_CALLBACK_ATTEMPT_API_VERSION = 8');
+  expect(nativeClient).toContain('FIUU_VT_CALLBACK_ATTEMPT_API_VERSION = 9');
   expect(nativeClient).toContain('callbackAttemptId: result.callbackAttemptId');
  });
 

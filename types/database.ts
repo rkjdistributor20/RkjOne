@@ -11190,6 +11190,18 @@ export type Database = {
         }
         Returns: Json
       }
+      recover_pos_fiuu_vt_reported_payment: {
+        Args: { p_confirmed_by: string; p_payment_id: string }
+        Returns: Json
+      }
+      quarantine_pos_fiuu_vt_recovery_failure: {
+        Args: {
+          p_expected_updated_at: string
+          p_payment_id: string
+          p_reason: string
+        }
+        Returns: Json
+      }
       generate_daily_financial_report: {
         Args: { p_branch_id?: string; p_report_date: string }
         Returns: Json
@@ -11314,7 +11326,21 @@ export type Database = {
         Returns: Json
       }
       park_pos_fiuu_vt_provider_error: {
-        Args: { p_actor_id: string; p_payment_id: string }
+        Args: {
+          p_actor_id: string
+          p_device_id: string
+          p_enrollment_generation: number
+          p_payment_id: string
+        }
+        Returns: Json
+      }
+      park_pos_fiuu_vt_native_storage_recovery: {
+        Args: {
+          p_actor_id: string
+          p_device_id: string
+          p_enrollment_generation: number
+          p_payment_id: string
+        }
         Returns: Json
       }
       record_pos_fiuu_vt_provider_error: {

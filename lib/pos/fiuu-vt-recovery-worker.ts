@@ -7,6 +7,7 @@ import { createAdminClient } from '../supabase/admin';
 const RECOVERY_SCAN_SIZE = 100;
 const RECOVERY_BASE_BACKOFF_MS = 30_000;
 const RECOVERY_MAX_BACKOFF_MS = 15 * 60_000;
+const RECOVERY_REVIEW_THRESHOLD = 5;
 const NO_STORE_HEADERS = { 'Cache-Control': 'no-store' } as const;
 
 type RecoveryBody = {
@@ -17,6 +18,7 @@ type RecoveryBody = {
  skippedBranches?: string[];
  examined?: number;
  rotated?: number;
+ quarantined?: number;
  results?: Record<string, number>;
 };
 
@@ -57,10 +59,16 @@ export function getFiuuVtRecoveryBackoffMs(attemptNumber: number): number {
 
 async function rotateDeferredPayment(
  service: ReturnType<typeof createAdminClient>,
- payment: { id: string; fiuu_vt_recovery_attempts: number | null },
+ payment: {
+  id: string;
+  status: string;
+  updated_at: string;
+  fiuu_vt_recovery_attempts: number | null;
+ },
  outcome: 'retryable' | 'invalid_evidence',
  attemptedAt: string,
 ): Promise<boolean> {
+ if (payment.status !== 'PENDING' && payment.status !== 'REPORTED') return false;
  const priorAttempts = Math.max(0, Math.trunc(payment.fiuu_vt_recovery_attempts ?? 0));
  const nextAttempt = priorAttempts + 1;
  const nextAt = new Date(
@@ -77,13 +85,46 @@ async function rotateDeferredPayment(
     : 'INVALID_STORED_EVIDENCE',
   })
   .eq('id', payment.id)
-  .eq('status', 'REPORTED')
+  .eq('status', payment.status)
   .eq('fiuu_vt_review_required', false)
   .eq('fiuu_vt_recovery_attempts', priorAttempts)
+  .eq('updated_at', payment.updated_at)
   .select('id')
   .maybeSingle();
  if (error || !data) {
   console.error('[pos-fiuu-vt] recovery_rotation_failed', { paymentId: payment.id });
+  return false;
+ }
+ return true;
+}
+
+async function quarantineRepeatedRecoveryFailure(
+ service: ReturnType<typeof createAdminClient>,
+ payment: {
+  id: string;
+  updated_at: string;
+  fiuu_vt_recovery_attempts: number | null;
+ },
+ outcome: 'retryable' | 'invalid_evidence',
+): Promise<boolean> {
+ const nextAttempt = Math.max(
+  0,
+  Math.trunc(payment.fiuu_vt_recovery_attempts ?? 0),
+ ) + 1;
+ if (nextAttempt < RECOVERY_REVIEW_THRESHOLD) return false;
+
+ const { data, error } = await service.rpc(
+  'quarantine_pos_fiuu_vt_recovery_failure',
+  {
+   p_payment_id: payment.id,
+   p_expected_updated_at: payment.updated_at,
+   p_reason: outcome,
+  },
+ );
+ if (error || !data) {
+  console.error('[pos-fiuu-vt] recovery_quarantine_failed', {
+   paymentId: payment.id,
+  });
   return false;
  }
  return true;
@@ -138,9 +179,12 @@ export async function runFiuuVtRecovery(): Promise<FiuuVtRecoveryRun> {
  const organizationIds = [...new Set(validRows.map((row) => row.organization_id))];
  const { data: reported, error: reportedError } = await service
   .from('pos_online_payments')
-  .select('id, status, amount_rm, created_by, provider_order_id, provider_transaction_id, provider_result, provider_sale_reported_at, fiuu_vt_recovery_attempts, fiuu_vt_recovery_next_at')
+  .select('id, status, amount_rm, created_by, provider_order_id, provider_transaction_id, provider_result, provider_sale_reported_at, provider_status_checked_at, fiuu_vt_recovery_attempts, fiuu_vt_recovery_next_at, updated_at')
   .eq('provider', 'fiuu_vt')
-  .eq('status', 'REPORTED')
+  // A callback write can durably persist STATUS=00 while losing the separate
+  // PENDING -> REPORTED compare-and-swap. Scan both states; the atomic RPC is
+  // responsible for promoting and fulfilling, or quarantining a closed shift.
+  .in('status', ['PENDING', 'REPORTED'])
   .eq('fiuu_vt_review_required', false)
   .eq('provider_result->>opType', 'STATUS')
   .eq('provider_result->>status', '00')
@@ -163,6 +207,7 @@ export async function runFiuuVtRecovery(): Promise<FiuuVtRecoveryRun> {
 
  const results: Record<string, number> = {};
  let rotated = 0;
+ let quarantined = 0;
  for (const payment of reported ?? []) {
   let outcome: Awaited<ReturnType<typeof recoverReportedFiuuVtPayment>>;
   try {
@@ -174,6 +219,10 @@ export async function runFiuuVtRecovery(): Promise<FiuuVtRecoveryRun> {
   results[outcome] = (results[outcome] ?? 0) + 1;
   if (outcome === 'retryable' || outcome === 'invalid_evidence') {
    console.error(`[pos-fiuu-vt] recovery_${outcome}`, { paymentId: payment.id });
+   if (await quarantineRepeatedRecoveryFailure(service, payment, outcome)) {
+    quarantined += 1;
+    continue;
+   }
    if (await rotateDeferredPayment(service, payment, outcome, new Date().toISOString())) {
     rotated += 1;
    }
@@ -189,6 +238,7 @@ export async function runFiuuVtRecovery(): Promise<FiuuVtRecoveryRun> {
    skippedBranches,
    examined: reported?.length ?? 0,
    rotated,
+   quarantined,
    results,
   },
  };

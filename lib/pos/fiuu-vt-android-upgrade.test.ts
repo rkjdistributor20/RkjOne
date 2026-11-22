@@ -58,7 +58,8 @@ function releaseLegacyStatus5000(state: UpgradeState): QuarantineEntry[] {
    && result.orderId === ORDER
    && result.errorCode === '5000';
   if (!eligible) return entry;
-  const { blockingOrderId: _blockingOrderId, ...auditEvidence } = entry;
+   const auditEvidence = { ...entry };
+   delete auditEvidence.blockingOrderId;
   return {
    ...auditEvidence,
    originalReason: entry.originalReason ?? entry.reason,
@@ -105,7 +106,7 @@ function methodBody(startMarker: string, endMarker: string) {
  return plugin.slice(start, end);
 }
 
-describe('Fiuu VT Android 1.8.2 to 1.8.3 persisted-state recovery', () => {
+describe('Fiuu VT Android 1.8.2 to 1.8.4 persisted-state recovery', () => {
  it('releases only the orphaned STATUS 5000 blocker while retaining its audit evidence', () => {
   const migrated = releaseLegacyStatus5000(upgradeState());
 
@@ -176,7 +177,7 @@ describe('Fiuu VT Android 1.8.2 to 1.8.3 persisted-state recovery', () => {
   );
   const queueRead = getStatus.indexOf('JSONObject queuedResult = peekQueuedResult(preferences);');
   const upgradeRecovery = getStatus.indexOf(
-   'releaseLegacyAcknowledgedStatusErrorAfterUpgradeIfSafe(preferences);',
+   'releaseLegacyAcknowledgedStatusErrorAfterUpgradeIfSafe(',
   );
   const quarantineRead = getStatus.indexOf('JSONArray quarantine = loadQuarantinedResultQueue(preferences);');
 
@@ -192,9 +193,14 @@ describe('Fiuu VT Android 1.8.2 to 1.8.3 persisted-state recovery', () => {
   );
 
   expect(recovery).toContain('resultState.values.length() > 0');
-  expect(recovery).toContain('hasUnresolvedCallbackAttemptForOrder(registry, pendingOrder)');
+  expect(recovery).toContain('hasUnresolvedCallbackAttemptForOrder(registryState.values, pendingOrder)');
+  expect(recovery).toContain('registryState.safeForMutation');
+  expect(recovery).toContain('upgradeCutoffAt');
+  expect(recovery).toContain('.putInt(STORED_STATE_SCHEMA_VERSION, STATE_SCHEMA_VERSION)');
+  expect(recovery).toContain('.remove(STATE_SCHEMA_UPGRADE_CUTOFF_AT)');
   expect(recovery).toContain('LEGACY_STATUS_ERROR_CODE');
   expect(recovery).toContain('STATUS_ERROR_5000_RELEASED_AFTER_1_8_2_UPGRADE');
+  expect(recovery).toContain('if (migrated == quarantine) return;');
   expect(recovery).not.toContain('.remove(PENDING_ORDER)');
   expect(recovery).not.toContain('launchFiuu(');
   expect(recovery).not.toContain('startSale(');
@@ -218,7 +224,7 @@ describe('Fiuu VT Android 1.8.2 to 1.8.3 persisted-state recovery', () => {
   expect(tombstone).toContain('entry.put("releasedAt", acknowledgedAt)');
  });
 
- it('leaves clearPendingResult fail-closed for every remaining callback or quarantine blocker', () => {
+ it('keeps callbacks fail-closed and releases only an exact server-reviewed quarantine blocker', () => {
   const clearPending = methodBody(
    'public synchronized void clearPendingResult(PluginCall call)',
    'public synchronized void recoverLegacyPendingState(PluginCall call)',
@@ -227,9 +233,22 @@ describe('Fiuu VT Android 1.8.2 to 1.8.3 persisted-state recovery', () => {
   expect(clearPending).toContain('storedResults.values.length() > 0');
   expect(clearPending).toContain('hasBlockingQuarantinedResultForOrder(');
   expect(clearPending).toContain('FIUU_RECONCILIATION_REQUIRED');
+  expect(clearPending).toContain('registryRecoveryReviewed');
+  expect(clearPending).toContain('reviewReference.length() < 8');
+  expect(clearPending).toContain('markBlockingQuarantinedResultsReviewed(');
+  expect(clearPending).toContain('writeQuarantinedResultQueue(clearEditor, reviewedQuarantine)');
   expect(clearPending.indexOf('storedResults.values.length() > 0'))
    .toBeLessThan(clearPending.indexOf('.remove(PENDING_ORDER)'));
   expect(clearPending.indexOf('hasBlockingQuarantinedResultForOrder('))
    .toBeLessThan(clearPending.indexOf('.remove(PENDING_ORDER)'));
+
+  const reviewed = methodBody(
+   'private JSONArray markBlockingQuarantinedResultsReviewed(',
+   'private boolean markCallbackAttemptsReleased(',
+  );
+  expect(reviewed).toContain('new JSONArray(quarantine.toString())');
+  expect(reviewed).toContain('entry.put("originalBlockingOrderId", expectedOrder)');
+  expect(reviewed).toContain('entry.remove("blockingOrderId")');
+  expect(reviewed).not.toContain('quarantine.remove(');
  });
 });
