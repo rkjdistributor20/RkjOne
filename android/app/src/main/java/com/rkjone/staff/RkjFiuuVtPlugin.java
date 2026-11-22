@@ -53,6 +53,7 @@ public class RkjFiuuVtPlugin extends Plugin {
     private static final String ACTIVE_ATTEMPT_OPERATION = "active_attempt_operation";
     private static final String ACTIVE_CALLBACK_RECEIVED = "active_callback_received";
     private static final String CALLBACK_ATTEMPT_REGISTRY = "callback_attempt_registry";
+    private static final String LEGACY_STATUS_ERROR_CODE = "5000";
     private static final int BRIDGE_API_VERSION = 8;
     private static final long MIN_LAUNCH_INTERVAL_MS = 3000L;
     private static final long STALE_VOID_RECOVERY_MS = 30000L;
@@ -118,6 +119,7 @@ public class RkjFiuuVtPlugin extends Plugin {
             pendingOperationStartedAt(preferences, pendingOperation)
         );
         JSONObject queuedResult = peekQueuedResult(preferences);
+        releaseLegacyAcknowledgedStatusErrorAfterUpgradeIfSafe(preferences);
         result.put("resultAvailable", queuedResult != null);
         JSONArray quarantine = loadQuarantinedResultQueue(preferences);
         result.put("quarantinedResultCount", quarantine.length());
@@ -377,16 +379,27 @@ public class RkjFiuuVtPlugin extends Plugin {
         }
         if ("STATUS".equals(opType)) {
             // The exact STATUS error is acknowledged only after the server has
-            // durably quarantined it. Retire native blockers for that order in
-            // the same commit, while leaving SALE errors and every other queued
-            // callback untouched.
+            // durably quarantined it. Retire only matching low-value STATUS
+            // error evidence for that order in the same commit. Unrelated SALE,
+            // successful STATUS and malformed evidence remain fail-closed.
             JSONArray quarantine = removeBlockingQuarantinedResultsForOrder(
                 loadQuarantinedResultQueue(preferences),
-                orderId
+                orderId,
+                errorCode,
+                callbackAttemptId,
+                "STATUS_ERROR_ACKNOWLEDGED"
             );
             writeQuarantinedResultQueue(acknowledgementEditor, quarantine);
         }
-        if (!removeCallbackAttempt(preferences, callbackAttemptId, acknowledgementEditor)) {
+        boolean persisted = "STATUS".equals(opType)
+            ? markStatusErrorAttemptAcknowledged(
+                preferences,
+                callbackAttemptId,
+                errorCode,
+                acknowledgementEditor
+            )
+            : removeCallbackAttempt(preferences, callbackAttemptId, acknowledgementEditor);
+        if (!persisted) {
             call.reject("Ralat Fiuu VT belum dapat disimpan dengan selamat.", "FIUU_RESULT_ACK_PERSIST_FAILED");
             return;
         }
@@ -1157,6 +1170,139 @@ public class RkjFiuuVtPlugin extends Plugin {
         return quarantine;
     }
 
+    /**
+     * Version 1.8.2 removed an acknowledged STATUS error from RESULT_QUEUE and
+     * CALLBACK_ATTEMPT_REGISTRY, but did not retire a matching quarantine entry.
+     * After an in-place Play update the exact callback can no longer be
+     * acknowledged again, leaving the next customer blocked forever.
+     *
+     * This migration deliberately does not clear PENDING_ORDER and never opens
+     * Fiuu. It only makes old STATUS error 5000 evidence non-blocking when the
+     * native queue is durably empty and no callback attempt for the order remains
+     * unresolved. The web layer must still prove the server payment is durably
+     * QUARANTINED before it calls clearPendingResult.
+     */
+    private void releaseLegacyAcknowledgedStatusErrorAfterUpgradeIfSafe(
+        SharedPreferences preferences
+    ) {
+        String pendingOrder = normalizedOrderId(preferences.getString(PENDING_ORDER, ""));
+        if (pendingOrder == null
+            || !"STATUS".equals(preferences.getString(PENDING_OPERATION, ""))
+            || !preferences.getBoolean(STATUS_LAUNCHED, false)) {
+            return;
+        }
+
+        QueueLoadState resultState = loadResultQueueState(preferences);
+        if (!resultState.safeForMutation || resultState.values.length() > 0) return;
+
+        JSONArray registry = loadCallbackAttemptRegistry(preferences);
+        if (hasUnresolvedCallbackAttemptForOrder(registry, pendingOrder)) return;
+
+        QueueLoadState quarantineState = loadQuarantinedResultQueueState(preferences);
+        if (!quarantineState.safeForMutation) return;
+
+        JSONArray quarantine = quarantineState.values;
+        JSONArray migrated = removeBlockingQuarantinedResultsForOrder(
+            quarantine,
+            pendingOrder,
+            LEGACY_STATUS_ERROR_CODE,
+            null,
+            "STATUS_ERROR_5000_RELEASED_AFTER_1_8_2_UPGRADE"
+        );
+        if (migrated != quarantine) {
+            writeQuarantinedResultQueue(preferences.edit(), migrated).commit();
+        }
+    }
+
+    private JSONArray removeBlockingQuarantinedResultsForOrder(
+        JSONArray quarantine,
+        String orderId,
+        String errorCode,
+        String callbackAttemptId,
+        String releaseReason
+    ) {
+        JSONArray updated = quarantine;
+        long releasedAt = System.currentTimeMillis();
+        for (int index = 0; index < quarantine.length(); index++) {
+            JSONObject entry = quarantine.optJSONObject(index);
+            if (!isMatchingStatusErrorQuarantine(
+                entry,
+                orderId,
+                errorCode,
+                callbackAttemptId
+            )) {
+                continue;
+            }
+            if (updated == quarantine) {
+                try {
+                    updated = new JSONArray(quarantine.toString());
+                } catch (JSONException ignored) {
+                    return quarantine;
+                }
+            }
+            JSONObject mutableEntry = updated.optJSONObject(index);
+            if (mutableEntry == null) return quarantine;
+            try {
+                if (!mutableEntry.has("originalReason")) {
+                    mutableEntry.put("originalReason", mutableEntry.optString("reason", "UNKNOWN"));
+                }
+                mutableEntry.put("reason", releaseReason);
+                mutableEntry.put("releasedAt", releasedAt);
+                mutableEntry.put("acknowledgedErrorCode", errorCode);
+                if (callbackAttemptId != null) {
+                    mutableEntry.put("acknowledgedCallbackAttemptId", callbackAttemptId);
+                }
+                mutableEntry.remove("blockingOrderId");
+            } catch (JSONException ignored) {
+                return quarantine;
+            }
+        }
+        return updated;
+    }
+
+    private boolean isMatchingStatusErrorQuarantine(
+        JSONObject entry,
+        String orderId,
+        String errorCode,
+        String callbackAttemptId
+    ) {
+        if (entry == null || !orderId.equals(entry.optString("blockingOrderId"))) return false;
+        String reason = entry.optString("reason");
+        if (!("RESULT_QUEUE_INVALID".equals(reason) || "LEGACY_RESULT_INVALID".equals(reason))) {
+            return false;
+        }
+
+        JSONObject evidence = entry.optJSONObject("evidence");
+        JSONObject result = evidence == null ? null : evidence.optJSONObject("result");
+        if (result == null && evidence != null && "ERROR".equals(evidence.optString("kind"))) {
+            result = evidence;
+        }
+        if (result == null
+            || !"ERROR".equals(result.optString("kind"))
+            || !"STATUS".equals(result.optString("opType"))
+            || !orderId.equals(normalizedOrderId(result.optString("orderId")))
+            || !errorCode.equals(result.optString("errorCode"))) {
+            return false;
+        }
+
+        String evidenceAttemptId = normalizedAttemptId(result.optString("callbackAttemptId"));
+        return callbackAttemptId == null
+            || evidenceAttemptId == null
+            || callbackAttemptId.equals(evidenceAttemptId);
+    }
+
+    private boolean hasUnresolvedCallbackAttemptForOrder(JSONArray registry, String orderId) {
+        for (int index = 0; index < registry.length(); index++) {
+            JSONObject entry = registry.optJSONObject(index);
+            if (entry != null
+                && orderId.equals(entry.optString("orderId"))
+                && entry.optLong("releasedAt", 0L) <= 0L) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void quarantineInvalidPendingStateIfNeeded(SharedPreferences preferences) {
         String pendingOrder = preferences.getString(PENDING_ORDER, "");
         if (pendingOrder.isEmpty() || normalizedOrderId(pendingOrder) != null) return;
@@ -1703,6 +1849,30 @@ public class RkjFiuuVtPlugin extends Plugin {
                 return false;
             }
         }
+        return saveCallbackAttemptRegistry(preferences, registry, editor);
+    }
+
+    private boolean markStatusErrorAttemptAcknowledged(
+        SharedPreferences preferences,
+        String callbackAttemptId,
+        String errorCode,
+        SharedPreferences.Editor editor
+    ) {
+        JSONArray registry = loadCallbackAttemptRegistry(preferences);
+        JSONObject entry = findCallbackAttemptById(registry, callbackAttemptId);
+        if (entry != null) {
+            long acknowledgedAt = System.currentTimeMillis();
+            try {
+                entry.put("errorAcknowledgedAt", acknowledgedAt);
+                entry.put("acknowledgedErrorCode", errorCode);
+                entry.put("releasedAt", acknowledgedAt);
+            } catch (JSONException error) {
+                return false;
+            }
+        }
+        // Pre-registry callbacks can still be acknowledged exactly from their
+        // queued identity. In that compatibility case the durable queue removal
+        // remains authoritative even though no registry tombstone can be added.
         return saveCallbackAttemptRegistry(preferences, registry, editor);
     }
 
