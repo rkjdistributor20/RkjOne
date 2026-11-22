@@ -49,6 +49,14 @@ export type FiuuVtRecoveredPaymentStatus =
  | 'CANCELLED'
  | 'QUARANTINED';
 
+export type FiuuVtCleanupAction =
+ | 'DRAIN_CALLBACKS'
+ | 'RECOVER_CURRENT_CART'
+ | 'CHECK_STATUS'
+ | 'CONFIRM_REPORTED'
+ | 'RELEASE_NATIVE'
+ | 'REVIEW_REQUIRED';
+
 export function canFinalizeFiuuVtPayment(
  callbackDrainInProgress: boolean,
  reviewRequired: boolean,
@@ -86,6 +94,49 @@ export function canReleaseQuarantinedFiuuVtNativeState(input: {
   && input.nativeQuarantineBlocksRelease === false
   && !input.nativeResultAvailable
   && !input.callbackDrainInProgress;
+}
+
+export function decideFiuuVtCleanupAction(input: {
+ serverStatus: FiuuVtRecoveredPaymentStatus;
+ reviewRequired: boolean;
+ currentCartMatchesPayment: boolean;
+ nativeQuarantineBlocksRelease: boolean | undefined;
+ nativeResultAvailable: boolean;
+ callbackDrainInProgress: boolean;
+}): FiuuVtCleanupAction {
+ // Native callback evidence always wins over a server snapshot. It must be
+ // drained before recovery, confirmation or terminal release is considered.
+ if (input.nativeResultAvailable || input.callbackDrainInProgress) {
+  return 'DRAIN_CALLBACKS';
+ }
+
+ if (input.serverStatus === 'QUARANTINED') {
+  if (canReleaseQuarantinedFiuuVtNativeState({
+   serverStatus: input.serverStatus,
+   reviewRequired: input.reviewRequired,
+   nativeQuarantineBlocksRelease: input.nativeQuarantineBlocksRelease,
+   nativeResultAvailable: input.nativeResultAvailable,
+   callbackDrainInProgress: input.callbackDrainInProgress,
+  })) return 'RELEASE_NATIVE';
+
+  // A review-locked order may use only the bounded, read-only STATUS lane to
+  // retire native evidence. It must never be restored as a new checkout.
+  return input.reviewRequired ? 'CHECK_STATUS' : 'REVIEW_REQUIRED';
+ }
+
+ if (input.reviewRequired) return 'REVIEW_REQUIRED';
+
+ if (input.currentCartMatchesPayment
+  && ['PENDING', 'REPORTED', 'PAID'].includes(input.serverStatus)) {
+  return 'RECOVER_CURRENT_CART';
+ }
+
+ // A previous customer's active order is detached from the current cart. The
+ // only safe progressions are read-only STATUS, idempotent fulfilment of an
+ // already REPORTED payment, or release of an already terminal native order.
+ if (input.serverStatus === 'PENDING') return 'CHECK_STATUS';
+ if (input.serverStatus === 'REPORTED') return 'CONFIRM_REPORTED';
+ return 'RELEASE_NATIVE';
 }
 
 export function getRecoveredFiuuVtLocalStatus(

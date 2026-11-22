@@ -76,6 +76,27 @@ describe('Fiuu VT cashier flow', () => {
   expect(recovery).not.toContain('cart.map(');
  });
 
+ it('separates a previous customer fingerprint from the current RM3.50 cart', () => {
+  const recoveryStart = paymentDialog.indexOf('const recoverFiuuVtPayment');
+  const recoveryEnd = paymentDialog.indexOf('const handleDialogOpenChange', recoveryStart);
+  const recovery = paymentDialog.slice(recoveryStart, recoveryEnd);
+  const cleanupStart = paymentDialog.indexOf('const drainAndReleaseDeferredFiuuVtNativeState');
+  const cleanupEnd = paymentDialog.indexOf('const detachStoredFiuuVtPaymentFromCurrentCart', cleanupStart);
+  const cleanup = paymentDialog.slice(cleanupStart, cleanupEnd);
+
+  expect(recovery).toContain('currentFiuuVtPaymentFingerprint(payment.amount_rm) !== fingerprint');
+  expect(recovery).toContain('storeDeferredFiuuVtNativeCleanup(nativeCleanupKey, orderId)');
+  expect(recovery).toContain('removeStoredQrPaymentFor(paymentId)');
+  expect(recovery).toContain('Troli pelanggan semasa dikekalkan dan tiada SALE baharu dihantar.');
+  expect(recovery).not.toContain('tidak sepadan dengan troli semasa');
+  expect(cleanup).toContain("cleanupAction === 'CHECK_STATUS'");
+  expect(cleanup).toContain("cleanupAction === 'CONFIRM_REPORTED'");
+  expect(cleanup).toContain('await confirmFiuuVtPayment(paymentId)');
+  expect(cleanup).toContain('completeFiuuVtCashierCleanup');
+  expect(cleanup).not.toContain('createPosQrPayment');
+  expect(cleanup).not.toContain('launchFiuuVtSale');
+ });
+
  it('keeps the cart when an attempt fails, expires or is cancelled', () => {
   const reconciliationStart = paymentDialog.indexOf('const reconcileQrPayment');
   const terminalStart = paymentDialog.indexOf("if (status === 'EXPIRED'", reconciliationStart);
