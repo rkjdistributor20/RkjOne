@@ -551,7 +551,7 @@ describe('Fiuu VT retry lease database contract', () => {
   expect(terminalReconciliationMigration).toContain("'NATIVE_RELEASE'");
   expect(terminalReconciliationMigration).toContain("state <> 'ABANDONED'");
   expect(terminalReconciliationMigration).toContain("v_active.state = 'RECEIVED'");
-  expect(terminalReconciliationMigration).toContain('GREATEST(\n        1000,');
+  expect(terminalReconciliationMigration).toMatch(/GREATEST\(\r?\n\s+1000,/);
   expect(attemptRoute).toContain("mode: 'FIUU_VT_RELEASE_RETRY_LIMIT'");
   expect(attemptRoute).toContain('assertActivePosBranchShiftMember');
   expect(attemptRoute).toContain('nativeReleaseMutation');
