@@ -91,7 +91,7 @@ describe('Fiuu VT durable STATUS recovery boundary', () => {
   expect(detachedRecoveryMigration).toContain('v_payment.provider_status_checked_at IS NULL');
   expect(detachedRecoveryMigration).toContain("v_payment.provider_result->>'opType' IS DISTINCT FROM 'STATUS'");
   expect(detachedRecoveryMigration).toContain("v_payment.provider_result->>'status' IS DISTINCT FROM '00'");
-  expect(detachedRecoveryMigration).toContain('OR CASE');
+  expect(detachedRecoveryMigration).toMatch(/OR \(\s+CASE/);
   expect(detachedRecoveryMigration).toContain("WHEN COALESCE(v_payment.provider_result->>'amountRm', '')");
   expect(detachedRecoveryMigration).toContain('ELSE true');
  });
