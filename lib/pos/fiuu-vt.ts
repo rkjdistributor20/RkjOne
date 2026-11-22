@@ -144,6 +144,16 @@ export function paymentIdFromFiuuVtOrderId(orderId: string): string | null {
  ].join('-').toLowerCase();
 }
 
+export function resolveFiuuVtCleanupOrderId(
+ nativeOrderId: string | null,
+ deferredOrderId: string | null,
+): string | null {
+ // The bridge reflects the order that the Android terminal is actually
+ // holding. Browser storage is only a recovery hint and can survive an app
+ // restart or an earlier customer, so it must never override native state.
+ return nativeOrderId ?? deferredOrderId;
+}
+
 export function buildFiuuVtCallbackHost(callbackAttemptId: string): string {
  const normalizedAttemptId = callbackAttemptId.trim().toLowerCase();
  if (!CALLBACK_ATTEMPT_ID_PATTERN.test(normalizedAttemptId)) {

@@ -229,7 +229,8 @@ describe('Fiuu VT cashier release safety contract', () => {
   expect(release).toContain('verifiedStatus.pendingOrderId !== null');
   expect(release).toContain('verifiedStatus.resultAvailable');
   expect(release).toContain('verifiedStatus.quarantineBlocksRelease');
-  expect(release).toContain('storeDeferredFiuuVtNativeCleanup(nativeCleanupKey, orderId)');
+  expect(release).toContain('resolveFiuuVtCleanupOrderId(status?.pendingOrderId ?? null, orderId)');
+  expect(release).toContain('resolveFiuuVtCleanupOrderId(\n    verifiedStatus?.pendingOrderId ?? null');
   expect(recovery).toContain('Kaunter telah dilepaskan dan troli boleh digunakan semula.');
  });
 
@@ -247,7 +248,12 @@ describe('Fiuu VT cashier release safety contract', () => {
   expect(cleanup).toContain('vtNativeCleanupInFlightRef.current.get(orderId)');
   expect(cleanup).toContain('await processFiuuVtResultRef.current(queuedResult)');
   expect(cleanup).toContain('vtCallbackDrainInProgressRef.current || vtCallbackDrainScopeRef.current');
-  expect(cleanup).toContain('nativeStatus.quarantineBlocksRelease');
+  expect(cleanup).toContain('resolveFiuuVtCleanupOrderId(\n    nativeStatus?.pendingOrderId ?? null');
+  expect(cleanup).toContain('storeDeferredFiuuVtNativeCleanup(nativeCleanupKey, authoritativeOrderId)');
+  expect(cleanup).toContain('const response = await fetchPosQrPayment(paymentId)');
+  expect(cleanup).toContain("payment.status === 'QUARANTINED' && payment.fiuu_vt_review_required");
+  expect(cleanup).toContain("['PENDING', 'REPORTED', 'PAID'].includes(payment.status)");
+  expect(cleanup).toContain("['EXPIRED', 'FAILED', 'CANCELLED'].includes(payment.status)");
   expect(cleanup).toContain("prepareFiuuVtCallbackAttempt(paymentId, 'STATUS')");
   expect(cleanup).toContain('launchFiuuVtStatus(orderId, payment.amount_rm, attempt)');
   expect(cleanup).toContain("error.mode === 'FIUU_VT_OPERATION_ACTIVE'");
@@ -350,6 +356,9 @@ describe('Fiuu VT cashier release safety contract', () => {
 
   expect(cleanupStart).toBeGreaterThan(-1);
   expect(cleanup).toContain('{ restartExpiredWindow: true }');
+  expect(cleanup).toContain('resolveFiuuVtCleanupOrderId(\n    status.pendingOrderId');
+  expect(cleanup).toContain('waitForFiuuVtCleanupUi(');
+  expect(cleanup).toContain('error instanceof FiuuVtCleanupUiTimeoutError');
   expect(cleanup).toContain('await readActiveFiuuVtResult(drainScope.paymentId)');
   expect(cleanup).toContain('await waitForFiuuVtQueueQuiescence()');
   expect(cleanup).toContain('processFiuuVtResultRef.current(result)');

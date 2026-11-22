@@ -14,6 +14,7 @@ import {
  parseFiuuVtCallbackResult,
  parseFiuuVtResult,
  paymentIdFromFiuuVtOrderId,
+ resolveFiuuVtCleanupOrderId,
  shouldLaunchFiuuVtStatusAfterReconcile,
 } from './fiuu-vt';
 import {
@@ -168,6 +169,12 @@ describe('Fiuu VT request contract', () => {
   expect(paymentIdFromFiuuVtOrderId(buildFiuuVtOrderId(paymentId))).toBe(paymentId);
   expect(paymentIdFromFiuuVtOrderId('RKJ_ORDER_001')).toBeNull();
   expect(paymentIdFromFiuuVtOrderId('RKJ_3F342ADB58674E12B872E8A776CE1B6Z')).toBeNull();
+ });
+
+ it('treats the native pending order as authoritative over stale browser cleanup storage', () => {
+  expect(resolveFiuuVtCleanupOrderId('RKJ_NATIVE', 'RKJ_STALE')).toBe('RKJ_NATIVE');
+  expect(resolveFiuuVtCleanupOrderId(null, 'RKJ_DEFERRED')).toBe('RKJ_DEFERRED');
+  expect(resolveFiuuVtCleanupOrderId(null, null)).toBeNull();
  });
 });
 
