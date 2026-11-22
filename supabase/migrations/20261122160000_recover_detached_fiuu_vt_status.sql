@@ -483,7 +483,8 @@ BEGIN
     OR v_payment.provider_result->>'transactionId' IS DISTINCT FROM v_payment.provider_transaction_id
     OR v_payment.provider_result->>'currency' IS DISTINCT FROM 'MYR'
     OR v_payment.provider_result->>'channel' IS DISTINCT FROM 'RPP_DuitNowQR-Offline'
-    OR CASE
+    OR (
+      CASE
       -- CASE deliberately guards the cast. PostgreSQL may reorder boolean OR
       -- expressions, so a separate regex term is not sufficient protection
       -- against malformed durable provider evidence.
@@ -491,8 +492,10 @@ BEGIN
         ~ '^[0-9]+(\.[0-9]{1,2})?$'
       THEN round((v_payment.provider_result->>'amountRm')::NUMERIC, 2)
         <> round(v_payment.amount_rm, 2)
-      ELSE true
-    END THEN
+        ELSE true
+      END
+    )
+  THEN
     RETURN jsonb_build_object('outcome', 'INVALID_EVIDENCE');
   END IF;
 
