@@ -406,6 +406,7 @@ export function PaymentDialog({
  const [cashTenderedOverride, setCashTenderedOverride] = useState<string | null>(null);
  const [qrAmountOverride, setQrAmountOverride] = useState<string | null>(null);
  const [loading, setLoading] = useState(false);
+ const [vtCleanupRunning, setVtCleanupRunning] = useState(false);
  const [qrPayment, setQrPayment] = useState<ActiveQrPayment | null>(null);
  const [qrStatus, setQrStatus] = useState<QrPaymentStatus>('PENDING');
  const [qrSecondsRemaining, setQrSecondsRemaining] = useState(0);
@@ -635,7 +636,8 @@ export function PaymentDialog({
   && qrConfig?.mode === 'FIUU_VT_APP'
   && !vtManualFallback;
  const fiuuVtNativeCleanupPending = Boolean(
-  !qrPayment
+  method !== 'CASH'
+  && !qrPayment
   && qrConfig?.mode === 'FIUU_VT_APP'
   && vtNativeStatus?.nativeAndroid
   && (vtNativeStatus.pendingOrderId
@@ -701,6 +703,7 @@ export function PaymentDialog({
 	setManualQrVerified(false);
 	setVtNativeStatus(null);
 	setVtStatusLoading(false);
+	setVtCleanupRunning(false);
 	setVtSaleOpened(false);
 	setVtCancelConfirming(false);
 	setVtCancelRequested(false);
@@ -724,6 +727,7 @@ export function PaymentDialog({
 	activeQrPaymentIdRef.current = null;
 	statusCheckInFlightRef.current = null;
 	vtOperationRetryAtRef.current = 0;
+	vtNativeReleaseWindowRef.current = null;
 	}, [resetFiuuVtCallbackDrain]);
 
 	useEffect(() => {
@@ -900,7 +904,12 @@ export function PaymentDialog({
     } catch (error) {
      if (error instanceof PosQrPaymentError
       && error.mode === 'FIUU_VT_RELEASE_RETRY_LIMIT') {
-      setQrPollError('Had semakan automatik transaksi terdahulu telah dicapai. Troli pelanggan ini dikekalkan; hubungi HQ untuk semakan sebelum menggunakan DuitNow QR semula.');
+      const retryAfterMs = Math.max(1_000, error.retryAfterMs ?? 5_000);
+      vtOperationRetryAtRef.current = Date.now() + retryAfterMs;
+      setQrPollError(
+       `Semakan STATUS sedang dihadkan sementara. Troli dikekalkan; RKJ One akan cuba semula dalam kira-kira ${Math.max(1, Math.ceil(retryAfterMs / 1000))} saat tanpa membuka SALE baharu.`,
+      );
+      scheduleFiuuVtRecoveryRetry(Math.min(retryAfterMs, 2_000));
       return false;
      }
      if (error instanceof PosQrPaymentError
@@ -1175,7 +1184,7 @@ export function PaymentDialog({
       ? `Transaksi Fiuu VT sudah ${payment.status}. Kaunter telah dilepaskan dan troli boleh digunakan semula.`
       : `Transaksi Fiuu VT sudah ${payment.status}. Troli dikekalkan; callback lewat atau pembersihan terminal sedang diselesaikan secara automatik.`,
     );
-    return;
+    return nativeReleased && finalizationStillValid;
    }
    if (!['PENDING', 'REPORTED', 'PAID'].includes(payment.status)) {
     throw new Error(`Status transaksi Fiuu VT ${payment.status} memerlukan semakan HQ.`);
@@ -2228,12 +2237,103 @@ export function PaymentDialog({
  };
  }
 
+ async function handleFiuuVtNativeCleanup() {
+  if (vtCleanupRunning) return;
+  setVtCleanupRunning(true);
+  try {
+   let status = await readFiuuVtStatus();
+   setVtNativeStatus(status);
+   const deferredCleanupOrderId = readDeferredFiuuVtNativeCleanup(nativeCleanupKey);
+   const cleanupOrderId = deferredCleanupOrderId ?? status.pendingOrderId;
+
+   if (cleanupOrderId) {
+    // A cashier-initiated check is the only action allowed to restart an
+    // expired 90-second release window. It still performs STATUS recovery,
+    // two queue-empty reads and the finalization seal before clearing native
+    // state; it never force-clears evidence or launches a new SALE.
+    storeDeferredFiuuVtNativeCleanup(nativeCleanupKey, cleanupOrderId);
+    const released = await drainAndReleaseDeferredFiuuVtNativeState(
+     cleanupOrderId,
+     { restartExpiredWindow: true },
+    );
+    status = await readFiuuVtStatus();
+    setVtNativeStatus(status);
+    if (released
+     && !status.pendingOrderId
+     && !status.resultAvailable
+     && !status.quarantineBlocksRelease
+     && !vtCallbackDrainInProgressRef.current) {
+     setQrPollError(null);
+     toast.success('Terminal Fiuu VT sudah bersih. Tekan sekali lagi untuk paparkan QR pelanggan ini.');
+     return;
+    }
+    scheduleFiuuVtRecoveryRetry(500);
+    toast.info('Semakan STATUS transaksi terdahulu sedang berjalan. Tiada SALE baharu dihantar.');
+    return;
+   }
+
+   // A callback can outlive the native pending-order marker. Drain that queue
+   // explicitly so a result-only or callback-only latch cannot strand the next
+   // customer behind a permanently disabled payment button.
+   const drainScope = vtCallbackDrainScopeRef.current;
+   if (status.resultAvailable || drainScope) {
+    const result = drainScope
+     ? await readActiveFiuuVtResult(drainScope.paymentId)
+     : await readPendingFiuuVtResult();
+    if (result) {
+     vtResultFingerprintRef.current = null;
+     await processFiuuVtResultRef.current(result);
+     scheduleFiuuVtRecoveryRetry(500);
+     toast.info('Callback transaksi terdahulu sedang disahkan. Tiada SALE baharu dihantar.');
+     return;
+    }
+    if (drainScope) {
+     await waitForFiuuVtQueueQuiescence();
+     const lateResult = await readActiveFiuuVtResult(drainScope.paymentId);
+     if (lateResult) {
+      vtResultFingerprintRef.current = null;
+      await processFiuuVtResultRef.current(lateResult);
+      scheduleFiuuVtRecoveryRetry(500);
+      toast.info('Callback lewat sedang disahkan. Tiada SALE baharu dihantar.');
+      return;
+     }
+    }
+   }
+
+   status = await readFiuuVtStatus();
+   setVtNativeStatus(status);
+   if (!status.pendingOrderId
+    && !status.resultAvailable
+    && !status.quarantineBlocksRelease
+    && !vtCallbackDrainInProgressRef.current) {
+    setQrPollError(null);
+    toast.success('Terminal Fiuu VT sudah bersih. Tekan sekali lagi untuk paparkan QR pelanggan ini.');
+    return;
+   }
+   scheduleFiuuVtRecoveryRetry(500);
+   toast.info('Terminal masih menyelesaikan semakan terakhir. Cuba semula dalam beberapa saat.');
+  } catch (error) {
+   const message = error instanceof Error
+    ? error.message
+    : 'Terminal Fiuu VT belum dapat dibersihkan.';
+   setQrPollError(`Pembersihan terminal belum selesai: ${message}`);
+   toast.error('Terminal belum dapat dilepaskan. Troli pelanggan kekal selamat.');
+   scheduleFiuuVtRecoveryRetry(1_000);
+  } finally {
+   setVtCleanupRunning(false);
+  }
+ }
+
  async function handlePay() {
   const currentShift = shift;
   if (!currentShift && !trainingMode) {
  toast.error('Buka syif POS dahulu.');
  return;
  }
+  if (fiuuVtNativeCleanupPending) {
+   await handleFiuuVtNativeCleanup();
+   return;
+  }
   if (!canPay) {
  toast.error(paymentError ?? 'Bayaran belum lengkap.');
  return;
@@ -2946,11 +3046,12 @@ export function PaymentDialog({
        <div className="w-full">
         {fiuuVtNativeCleanupPending ? (
          <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-5 text-amber-950" role="status" aria-live="polite">
-          <LoaderCircle className="mx-auto h-8 w-8 animate-spin" aria-hidden="true" />
-          <p className="mt-3 text-sm font-bold">Membersihkan transaksi terdahulu...</p>
+          <LoaderCircle className={cn('mx-auto h-8 w-8', vtCleanupRunning && 'animate-spin')} aria-hidden="true" />
+          <p className="mt-3 text-sm font-bold">Semakan transaksi terdahulu diperlukan</p>
           <p className="mt-1 text-xs">
-           Troli pelanggan ini selamat dan dikekalkan. QR akan tersedia automatik apabila terminal benar-benar bersih.
+           Troli pelanggan ini selamat dan dikekalkan. Tekan “Semak &amp; bersihkan terminal” untuk menyambung semakan STATUS dengan selamat.
           </p>
+          {qrPollError && <p className="mt-3 rounded-lg border border-amber-300 bg-white/70 px-3 py-2 text-xs">{qrPollError}</p>}
          </div>
         ) : (
          <>
@@ -3268,16 +3369,18 @@ export function PaymentDialog({
  </Button>
  <Button
  className="h-12 flex-[2] gap-2 rounded-xl bg-amber-500 text-base font-bold hover:bg-amber-600"
- disabled={!canPay || loading}
+ disabled={loading || vtCleanupRunning || (!canPay && !fiuuVtNativeCleanupPending)}
  onClick={handlePay}
  >
  {method === 'QR' ? <QrCode className="h-5 w-5" /> : <Banknote className="h-5 w-5" />}
-  {loading
+  {vtCleanupRunning
+   ? 'Menyemak & membersihkan...'
+   : loading
    ? isFiuuVtCheckout ? 'Membuka Fiuu VT...' : 'Memproses...'
    : trainingMode
    ? 'Sahkan Simulasi'
    : fiuuVtNativeCleanupPending
-   ? 'Membersihkan terminal...'
+   ? 'Semak & bersihkan terminal'
    : isFiuuVtCheckout
    ? 'Buka Fiuu VT & Papar QR'
    : 'Sahkan Bayaran'}

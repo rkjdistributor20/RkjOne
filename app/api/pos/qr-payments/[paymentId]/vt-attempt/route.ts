@@ -382,9 +382,15 @@ export async function POST(
  }
  if (decision.outcome === 'RETRY_LIMIT') {
   return NextResponse.json({
-   error: 'Had semakan automatik Fiuu VT telah dicapai. Troli dikekalkan; hubungi HQ untuk semakan transaksi terdahulu.',
+   error: 'Semakan STATUS Fiuu VT sedang dihadkan sementara. Troli dikekalkan dan semakan akan disambung tanpa membuka SALE baharu.',
    mode: 'FIUU_VT_RELEASE_RETRY_LIMIT',
-  }, { status: 409 });
+   retry_after_ms: decision.retryAfterMs,
+  }, {
+   status: 409,
+   headers: decision.retryAfterMs > 0
+    ? { 'Retry-After': String(Math.max(1, Math.ceil(decision.retryAfterMs / 1000))) }
+    : undefined,
+  });
  }
  if (decision.outcome === 'TERMINAL') {
   return NextResponse.json({

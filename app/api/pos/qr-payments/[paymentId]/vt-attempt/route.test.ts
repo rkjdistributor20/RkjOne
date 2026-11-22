@@ -285,7 +285,11 @@ describe('Fiuu VT launch retry leases', () => {
  it('stops quarantined native-release STATUS attempts at the server retry limit', async () => {
   const { admin } = makeAdmin(
    async () => ({
-    data: { outcome: 'RETRY_LIMIT', reason: 'NATIVE_RELEASE_RETRY_LIMIT' },
+    data: {
+     outcome: 'RETRY_LIMIT',
+     reason: 'NATIVE_RELEASE_RATE_LIMIT',
+     retry_after_ms: 12_000,
+    },
     error: null,
    }),
    payment({ status: 'QUARANTINED', fiuu_vt_review_required: true }),
@@ -297,7 +301,9 @@ describe('Fiuu VT launch retry leases', () => {
   expect(response.status).toBe(409);
   expect(await response.json()).toMatchObject({
    mode: 'FIUU_VT_RELEASE_RETRY_LIMIT',
+   retry_after_ms: 12_000,
   });
+  expect(response.headers.get('Retry-After')).toBe('12');
  });
 
  it.each(['SALE', 'VOID'] as const)(
@@ -509,6 +515,13 @@ describe('Fiuu VT retry lease database contract', () => {
   ),
   'utf8',
  );
+ const nativeReleaseLivenessMigration = readFileSync(
+  resolve(
+   process.cwd(),
+   'supabase/migrations/20261122143000_restore_fiuu_vt_native_release_liveness.sql',
+  ),
+  'utf8',
+ );
  const attemptRoute = readFileSync(
   resolve(process.cwd(), 'app/api/pos/qr-payments/[paymentId]/vt-attempt/route.ts'),
   'utf8',
@@ -555,6 +568,16 @@ describe('Fiuu VT retry lease database contract', () => {
   expect(attemptRoute).toContain("mode: 'FIUU_VT_RELEASE_RETRY_LIMIT'");
   expect(attemptRoute).toContain('assertActivePosBranchShiftMember');
   expect(attemptRoute).toContain('nativeReleaseMutation');
+ });
+
+ it('rate-limits native release in a rolling window instead of permanently locking a tablet', () => {
+  expect(nativeReleaseLivenessMigration).toContain("created_at > v_now - interval '60 seconds'");
+  expect(nativeReleaseLivenessMigration).toContain('v_oldest_release_attempt_at');
+  expect(nativeReleaseLivenessMigration).toContain("'reason', 'NATIVE_RELEASE_RATE_LIMIT'");
+  expect(nativeReleaseLivenessMigration).toContain("'retry_after_ms', v_retry_after_ms");
+  expect(nativeReleaseLivenessMigration).not.toContain("'reason', 'NATIVE_RELEASE_RETRY_LIMIT'");
+  expect(attemptRoute).toContain('retry_after_ms: decision.retryAfterMs');
+  expect(attemptRoute).toContain("'Retry-After'");
  });
 
  it('expires the old lease before inserting a retry with a fresh callback identity', () => {

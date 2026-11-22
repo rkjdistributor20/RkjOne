@@ -224,6 +224,7 @@ describe('Fiuu VT cashier release safety contract', () => {
   expect(recovery).toContain('captureFiuuVtFinalizationSeal(paymentId, true)');
   expect(recovery).toContain('isFiuuVtFinalizationSealValid(finalizationSeal)');
   expect(recovery).toContain('await releaseFiuuVtNativeState(orderId)');
+  expect(recovery).toContain('return nativeReleased && finalizationStillValid;');
   expect(release).toContain('await clearPendingFiuuVtResult(orderId)');
   expect(release).toContain('verifiedStatus.pendingOrderId !== null');
   expect(release).toContain('verifiedStatus.resultAvailable');
@@ -251,6 +252,8 @@ describe('Fiuu VT cashier release safety contract', () => {
   expect(cleanup).toContain('launchFiuuVtStatus(orderId, payment.amount_rm, attempt)');
   expect(cleanup).toContain("error.mode === 'FIUU_VT_OPERATION_ACTIVE'");
   expect(cleanup).toContain("error.mode === 'FIUU_VT_RELEASE_RETRY_LIMIT'");
+  expect(cleanup).toContain('error.retryAfterMs ?? 5_000');
+  expect(cleanup).toContain('scheduleFiuuVtRecoveryRetry(Math.min(retryAfterMs, 2_000))');
   expect(cleanup).toContain('if (!dialogOpenRef.current) return false;');
   expect(cleanup).toContain('FIUU_VT_NATIVE_RELEASE_WINDOW_MS');
   expect(cleanup).toContain('options: { restartExpiredWindow?: boolean } = {}');
@@ -330,8 +333,34 @@ describe('Fiuu VT cashier release safety contract', () => {
    'await drainAndReleaseDeferredFiuuVtNativeState(deferredCleanupOrderId)',
   );
   expect(recoveryCall).toBeGreaterThan(effectStart);
-  expect(paymentDialog).toContain('Membersihkan terminal...');
+  expect(paymentDialog).toContain('Semak & bersihkan terminal');
   expect(paymentDialog).toContain('Troli pelanggan ini selamat dan dikekalkan.');
+ });
+
+ it('keeps a cashier-initiated cleanup action available before generic payment validation', () => {
+  const cleanupStart = paymentDialog.indexOf('async function handleFiuuVtNativeCleanup()');
+  const cleanupEnd = paymentDialog.indexOf('async function handlePay()', cleanupStart);
+  const cleanup = paymentDialog.slice(cleanupStart, cleanupEnd);
+  const submitStart = cleanupEnd;
+  const cleanupGuard = paymentDialog.indexOf('if (fiuuVtNativeCleanupPending)', submitStart);
+  const paymentGuard = paymentDialog.indexOf('if (!canPay)', submitStart);
+  const footerStart = paymentDialog.indexOf('disabled={loading || vtCleanupRunning');
+  const footerEnd = paymentDialog.indexOf('</Button>', footerStart);
+  const footer = paymentDialog.slice(footerStart, footerEnd);
+
+  expect(cleanupStart).toBeGreaterThan(-1);
+  expect(cleanup).toContain('{ restartExpiredWindow: true }');
+  expect(cleanup).toContain('await readActiveFiuuVtResult(drainScope.paymentId)');
+  expect(cleanup).toContain('await waitForFiuuVtQueueQuiescence()');
+  expect(cleanup).toContain('processFiuuVtResultRef.current(result)');
+  expect(cleanup).not.toContain('launchFiuuVtSale');
+  expect(paymentDialog).toContain('vtNativeReleaseWindowRef.current = null;');
+  expect(cleanupGuard).toBeGreaterThan(submitStart);
+  expect(cleanupGuard).toBeLessThan(paymentGuard);
+  expect(footer).toContain('(!canPay && !fiuuVtNativeCleanupPending)');
+  expect(footer).toContain('Semak & bersihkan terminal');
+  expect(paymentDialog).toContain('Tiada SALE baharu dihantar.');
+  expect(paymentDialog).toContain("method !== 'CASH'\n  && !qrPayment");
  });
 
  it('retries orphan callbacks even when native pending order is already clear', () => {
