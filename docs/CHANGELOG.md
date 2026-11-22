@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-22 - Android 1.8.3 exact Fiuu VT terminal release
+
+- Releases only a server-acknowledged STATUS-error blocker for the exact Fiuu order after its callback queue is drained; unread callbacks, active payments and SALE errors remain fail-closed.
+- Stops repeated STATUS error `5000` loops from permanently blocking the next customer while retaining the original payment as `QUARANTINED` evidence for Finance/HQ review.
+- Pins full DuitNow QR checkout to the exact cart total so a stale amount override cannot diverge from the sale total; mixed-payment QR remains editable.
+- Adds focused native and POS regression tests and prepares the signed Google Play release as `versionCode 21` (`1.8.3`).
+
 ## 2026-11-21 - Android 1.8.2 stalled Fiuu VT recovery
 
 - Stops indefinite STATUS retry loops after repeated provider errors once the QR has expired.

@@ -12,6 +12,11 @@ $localBuildRoot = Join-Path $env:LOCALAPPDATA "RKJOne\gradle-builds\app\outputs"
 $artifactDirectory = Join-Path $repoRoot "artifacts\android"
 $appGradle = Get-Content (Join-Path $repoRoot "android\app\build.gradle") -Raw
 $versionMatch = [regex]::Match($appGradle, 'versionName\s+"([^"]+)"')
+$signingProperties = if ($env:RKJ_ANDROID_KEYSTORE_PROPERTIES) {
+  [System.IO.Path]::GetFullPath($env:RKJ_ANDROID_KEYSTORE_PROPERTIES)
+} else {
+  Join-Path $repoRoot "android\keystore.properties"
+}
 
 if (-not $versionMatch.Success) {
   throw "versionName Android tidak dapat dibaca daripada android/app/build.gradle."
@@ -47,9 +52,11 @@ try {
       Copy-Item -LiteralPath $sourceArtifact -Destination $targetArtifact -Force
       Write-Host "APK debug siap: artifacts/android/rkj-one-staff-$releaseVersion-debug.apk"
     } else {
-      if (-not (Test-Path "keystore.properties")) {
-        throw "android/keystore.properties tidak dijumpai. Release AAB perlukan signing key."
+      if (-not (Test-Path -LiteralPath $signingProperties)) {
+        throw "Fail signing properties tidak dijumpai. Tetapkan RKJ_ANDROID_KEYSTORE_PROPERTIES atau sediakan android/keystore.properties."
       }
+
+      $env:RKJ_ANDROID_KEYSTORE_PROPERTIES = $signingProperties
 
       .\gradlew.bat :app:bundleRelease --no-daemon
       if ($LASTEXITCODE -ne 0) { throw "Gradle release build gagal dengan exit code $LASTEXITCODE." }
