@@ -4,20 +4,12 @@ import { NextResponse, type NextRequest } from 'next/server';
 import type { Database } from '@/types/database';
 import { verifyKioskBypassToken } from '@/lib/pos/kiosk-token';
 import { isDashboardRouteAllowed } from '@/lib/auth/route-access';
+import { isPublicApiPath } from './public-api-paths';
 
 const CHANGE_PASSWORD_PATH = '/change-password';
 const CHANGE_PASSWORD_API = '/api/auth/change-password';
 const POS_DEVICE_COOKIE = 'rkj_pos_device';
 const POS_KIOSK_BYPASS_COOKIE = 'rkj_pos_kiosk_bypass';
-const PUBLIC_API_PATHS = new Set([
- '/api/health',
- '/api/auth/login',
- '/api/pos/qr-payments/webhook',
- '/api/sales-agent/payments/webhook',
- '/api/sales-agent/payments/fiuu/webhook',
- '/api/sales-agent/payments/fiuu/return',
-]);
-
 type MiddlewareProfile = {
  must_change_password?: boolean;
  role?: string;
@@ -52,7 +44,7 @@ export async function updateSession(request: NextRequest) {
 
  const pathname = request.nextUrl.pathname;
  const isApiRoute = pathname.startsWith('/api/');
- const isPublicApiRoute = PUBLIC_API_PATHS.has(pathname);
+ const isPublicApiRoute = isPublicApiPath(pathname);
  const isPublicAsset =
  pathname === '/manifest.json' ||
  pathname === '/sw.js' ||
