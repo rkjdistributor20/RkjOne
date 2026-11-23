@@ -4,7 +4,7 @@
 
 `GET /api/pos/qr-config?branch_id=<uuid>` requires an authenticated RKJ One profile and applies the standard POS branch-scope check. It returns the active QR mode, selected branch identity, and the versioned static Fiuu QR descriptor where configured. It advertises dynamic OPA only after `is_pos_fiuu_opa_branch_active` returns `true` for the exact tenant, branch and full rollout configuration fingerprint. A missing RPC, RPC error, `false` result or non-`ACTIVE` rollout fails closed and does not advertise dynamic QR. No Fiuu secret or server credential is returned.
 
-Last updated: 2026-11-12
+Last updated: 2026-11-23
 
 Base URL:
 
@@ -73,6 +73,25 @@ Creates and advances a one-time native callback attempt for `SALE`, `STATUS` or 
 ### POST `/api/pos/qr-payments/[paymentId]/vt-prelaunch-cancel`
 
 Atomically cancels only a SALE attempt that is still proven unlaunched and has no provider or callback evidence. It requires the same authenticated official tablet, user, branch and shift. Ambiguous, launched, paid, reported or mismatched attempts fail closed and remain locked for reconciliation. A successful cancellation releases the cashier while preserving the cart.
+
+### POST `/api/pos/qr-payments/[paymentId]/vt-cashier-release`
+
+Releases only the cashier/device lane after the exact VOID attempt has been
+durably recorded as launched. It does not mark provider cancellation confirmed
+and does not close or reuse the original payment. The first state-changing call
+requires the original authenticated cashier, active shift, exact official
+tablet, enrollment generation, VT branch gate, cashier-release canary gate and
+recovery-worker readiness. A replay of the same already-committed release is
+idempotent from an authenticated official tablet for the same branch, so client
+cleanup can finish after a lost response, WebView restart, shift change or
+re-enrollment. A different attempt, success evidence, provider review state or
+identity mismatch fails closed.
+
+The response distinguishes `RELEASED`, terminal/payment-success states,
+review-required states, `VOID_NOT_DURABLY_LAUNCHED` and identity conflicts. A
+released payment remains eligible for exact late-success recovery. Any later
+matching `SALE/STATUS=00` is quarantined against the original order for
+Finance/HQ review and cannot affect the next customer's basket.
 
 ### POST `/api/pos/qr-payments/[paymentId]/vt-confirm`
 

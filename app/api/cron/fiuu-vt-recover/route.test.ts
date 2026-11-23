@@ -51,6 +51,7 @@ function arrangeService() {
   in: vi.fn(),
   not: vi.fn(),
   or: vi.fn(),
+  lte: vi.fn(),
   order: vi.fn(),
   limit: vi.fn().mockResolvedValue({ data: [], error: null }),
  };
@@ -58,6 +59,7 @@ function arrangeService() {
  paymentQuery.in.mockReturnValue(paymentQuery);
  paymentQuery.not.mockReturnValue(paymentQuery);
  paymentQuery.or.mockReturnValue(paymentQuery);
+ paymentQuery.lte.mockReturnValue(paymentQuery);
  paymentQuery.order.mockReturnValue(paymentQuery);
 
  const paymentTable = {
@@ -66,6 +68,7 @@ function arrangeService() {
  };
  const service = {
   from: vi.fn((table: string) => table === 'branches' ? branchQuery : paymentTable),
+  rpc: vi.fn(),
  };
  mocks.createAdminClient.mockReturnValue(service);
  return service;
@@ -79,6 +82,7 @@ beforeEach(() => {
   FIUU_RECONCILIATION_ENABLED: 'true',
   CRON_SECRET,
  };
+ delete process.env.FIUU_VT_RECOVERY_ENABLED;
  mocks.getFiuuVtBranches.mockReturnValue(new Set(['BR001']));
  mocks.recoverReportedFiuuVtPayment.mockResolvedValue('fulfilled');
  arrangeService();
@@ -97,6 +101,16 @@ describe('Vercel Cron Fiuu VT recovery endpoint', () => {
 
   expect(response.status).toBe(503);
   expect(response.headers.get('cache-control')).toBe('no-store');
+  expect(mocks.createAdminClient).not.toHaveBeenCalled();
+ });
+
+ it('lets the dedicated VT gate override the legacy shared gate', async () => {
+  process.env.FIUU_RECONCILIATION_ENABLED = 'true';
+  process.env.FIUU_VT_RECOVERY_ENABLED = 'false';
+
+  const response = await GET(request());
+
+  expect(response.status).toBe(503);
   expect(mocks.createAdminClient).not.toHaveBeenCalled();
  });
 

@@ -149,6 +149,7 @@ function arrangeReadyPaymentPath() {
   insert: vi.fn(),
   eq: vi.fn(),
   in: vi.fn(),
+  is: vi.fn(),
   lte: vi.fn().mockResolvedValue({ data: null, error: null }),
   contains: vi.fn(),
   maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
@@ -159,6 +160,7 @@ function arrangeReadyPaymentPath() {
  adminQuery.insert.mockReturnValue(adminQuery);
  adminQuery.eq.mockReturnValue(adminQuery);
  adminQuery.in.mockReturnValue(adminQuery);
+ adminQuery.is.mockReturnValue(adminQuery);
  adminQuery.contains.mockReturnValue(adminQuery);
  const admin = { from: vi.fn().mockReturnValue(adminQuery) };
  mocks.createAdminClient.mockReturnValue(admin);

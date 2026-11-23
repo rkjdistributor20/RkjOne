@@ -22,6 +22,15 @@ import type {
 import type { Product } from '@/types/database';
 import type { FiuuVtOperation } from '@/lib/pos/fiuu-vt';
 
+export type FiuuVtActiveOperation = {
+ id: string;
+ callbackHost: string;
+ expiresAt: string;
+ opType: FiuuVtOperation;
+ state: string;
+ generation: number;
+};
+
 const referenceCache = new Map<string, { expiresAt: number; value: unknown }>();
 
 async function fetchCachedJson<T>(
@@ -359,7 +368,56 @@ export async function createFiuuVtAttempt(
      && Number.isFinite(data.retry_after_ms)
      ? Math.max(0, Math.min(30_000, Math.ceil(data.retry_after_ms)))
      : null;
-   throw new PosQrPaymentError(error.message, error.status, mode, retryAfterMs);
+   const rawActiveOperation = typeof data === 'object' && data !== null
+    && 'active_operation' in data
+    && typeof data.active_operation === 'object'
+    && data.active_operation !== null
+    && !Array.isArray(data.active_operation)
+    ? data.active_operation
+    : null;
+   const activeId = rawActiveOperation && 'id' in rawActiveOperation
+    ? rawActiveOperation.id
+    : null;
+   const activeCallbackHost = rawActiveOperation && 'callback_host' in rawActiveOperation
+    ? rawActiveOperation.callback_host
+    : null;
+   const activeExpiresAt = rawActiveOperation && 'expires_at' in rawActiveOperation
+    ? rawActiveOperation.expires_at
+    : null;
+   const activeOpType = rawActiveOperation && 'op_type' in rawActiveOperation
+    ? rawActiveOperation.op_type
+    : null;
+   const activeState = rawActiveOperation && 'state' in rawActiveOperation
+    ? rawActiveOperation.state
+    : null;
+   const activeGeneration = rawActiveOperation && 'lease_generation' in rawActiveOperation
+    ? rawActiveOperation.lease_generation
+    : null;
+   const activeOperation: FiuuVtActiveOperation | null =
+    typeof activeId === 'string'
+    && typeof activeCallbackHost === 'string'
+    && typeof activeExpiresAt === 'string'
+    && Number.isFinite(Date.parse(activeExpiresAt))
+    && (activeOpType === 'SALE' || activeOpType === 'STATUS' || activeOpType === 'VOID')
+    && typeof activeState === 'string'
+    && Number.isInteger(activeGeneration)
+    && Number(activeGeneration) >= 0
+     ? {
+      id: activeId,
+      callbackHost: activeCallbackHost,
+      expiresAt: activeExpiresAt,
+      opType: activeOpType,
+      state: activeState,
+      generation: Number(activeGeneration),
+     }
+     : null;
+   throw new PosQrPaymentError(
+    error.message,
+    error.status,
+    mode,
+    retryAfterMs,
+    activeOperation,
+   );
   }
   throw error;
  }
@@ -449,6 +507,38 @@ export async function cancelUnlaunchedFiuuVtPayment(
  }
 }
 
+export async function releaseFiuuVtCashierAfterVoidLaunch(
+ paymentId: string,
+ attemptId: string,
+) {
+ try {
+  return await fetchJson<{
+   outcome: 'RELEASED' | 'TERMINAL';
+   payment: {
+    id: string;
+    status: string;
+    cancellation_phase: 'CANCEL_REQUESTED' | 'CANCELLED_CONFIRMED' | 'TERMINAL';
+    cancel_requested_at?: string | null;
+    cashier_released_at?: string | null;
+   };
+   reused?: boolean;
+  }>(`/api/pos/qr-payments/${encodeURIComponent(paymentId)}/vt-cashier-release`, {
+   method: 'POST',
+   body: JSON.stringify({ attempt_id: attemptId }),
+  });
+ } catch (error) {
+  if (error instanceof ClientJsonError) {
+   const data = error.data;
+   const mode =
+    typeof data === 'object' && data !== null && 'mode' in data && typeof data.mode === 'string'
+     ? data.mode
+     : null;
+   throw new PosQrPaymentError(error.message, error.status, mode);
+  }
+  throw error;
+ }
+}
+
 export async function parkFiuuVtProviderErrorPayment(
  paymentId: string,
  reason: 'PROVIDER_STATUS_ERROR' | 'NATIVE_CALLBACK_REGISTRY' = 'PROVIDER_STATUS_ERROR',
@@ -504,6 +594,7 @@ export class PosQrPaymentError extends Error {
   readonly status: number,
   readonly mode: string | null,
   readonly retryAfterMs: number | null = null,
+  readonly activeOperation: FiuuVtActiveOperation | null = null,
  ) {
   super(message);
   this.name = 'PosQrPaymentError';
@@ -525,6 +616,9 @@ export async function fetchPosQrPayment(paymentId: string) {
   reconciliation_expired: boolean;
   fiuu_vt_review_required: boolean;
   fiuu_vt_reconciliation_state: string | null;
+  fiuu_vt_cancel_requested_at: string | null;
+  fiuu_vt_cashier_released_at: string | null;
+  cancellation_phase: 'NONE' | 'CANCEL_REQUESTED' | 'CANCELLED_CONFIRMED' | 'TERMINAL';
   cart_fingerprint: string | null;
  };
  result: SaleResult | null;

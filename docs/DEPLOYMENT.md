@@ -86,6 +86,9 @@ POS Fiuu DuitNow QR variables:
 | `FIUU_RECONCILIATION_ENABLED` | Yes for the OPA recovery worker | Server only; fail-closed default `false` |
 | `FIUU_RECONCILIATION_SECRET` | When the OPA recovery worker is enabled | Server-only secret of at least 32 random characters; leave unset while disabled |
 | `POS_FIUU_VT_BRANCHES` | When VT App-to-App is enabled | Server; explicit comma-separated canonical `BR001`-`BR036` allowlist, no wildcard or duplicate; each branch remains static/manual until its verified official tablet is registered |
+| `FIUU_VT_RECOVERY_ENABLED` | Required before VT cashier release | Server only; must be explicitly `true` for the new detached-payment recovery worker |
+| `CRON_SECRET` | Required before VT cashier release | Server-only Vercel Cron bearer secret of at least 32 characters |
+| `POS_FIUU_VT_CASHIER_RELEASE_BRANCHES` | Canary only after matching DB + web release | Server; explicit canonical allowlist, initially empty, then `BR001` only after physical-tablet UAT |
 | `POS_FIUU_VT_VALIDITY_SECONDS` | Optional | Server; 60-3600 seconds, default 180 |
 
 The OPA mapping is keyed by canonical branch code and is tenant-bound:
@@ -247,6 +250,38 @@ the existing static/manual QR flow. Keep `POS_FIUU_OPA_BRANCHES` empty and
 `FIUU_RECONCILIATION_ENABLED=false`; those controls belong to the separate
 signed OPA path. Never place secrets in a migration manifest, command transcript
 or release evidence.
+
+### Fiuu VT cashier-release order and rollback boundary
+
+The cashier-release web code reads columns and RPCs introduced by
+`20261123150000_release_fiuu_vt_cashier_after_void_launch.sql`; therefore the
+database migration **must be applied and verified before** the matching web
+deployment. Use this order:
+
+1. Confirm a current completed Production backup/recovery point and record its
+   identifier. Confirm no blocking query and establish POS payment-write
+   quiescence; the migration rebuilds two small partial unique indexes with a
+   five-second lock timeout and a two-minute statement timeout.
+2. Keep `POS_FIUU_VT_CASHIER_RELEASE_BRANCHES` empty. Configure a secret
+   `CRON_SECRET` of at least 32 characters and set
+   `FIUU_VT_RECOVERY_ENABLED=true` so detached payments cannot remain pending
+   without server recovery.
+3. Apply only the exact reviewed migration manifest, then verify columns,
+   constraints, indexes, RPC grants, migration history and database lint.
+4. Deploy the matching web commit while the cashier-release allowlist remains
+   empty. Verify `/api/health`, the protected cron endpoint, logs and ordinary
+   cash/manual QR behavior.
+5. Set `POS_FIUU_VT_CASHIER_RELEASE_BRANCHES=BR001`, redeploy configuration,
+   and run the physical BR001 cancel/new-order/late-callback/offline tests.
+6. Expand only in batches after a full clean shift and Finance reconciliation;
+   do not activate BR002-BR036 in one step.
+
+Rollback starts by emptying `POS_FIUU_VT_CASHIER_RELEASE_BRANCHES`, which stops
+new releases while preserving replay cleanup for releases already committed.
+Do **not** roll the web code back to a version that does not understand released
+payments until every released `PENDING`/`REPORTED` row is fulfilled, terminal,
+or quarantined for Finance/HQ. The schema is forward-compatible and payment
+evidence must not be deleted.
 
 ## Vercel Deployment Flow
 

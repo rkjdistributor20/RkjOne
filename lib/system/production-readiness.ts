@@ -30,6 +30,8 @@ type ReadinessInput = {
  hasFiuuCredentials: boolean;
  hasFiuuRecoveryWorker: boolean;
  hasFiuuVtPilot: boolean;
+ hasFiuuVtCashierReleasePilot: boolean;
+ hasFiuuVtRecoveryWorkerConfig: boolean;
  hasFiuuCloudEcrPilot: boolean;
  hasFiuuSchema: boolean;
  fiuuLiveUatPassed: boolean;
@@ -74,7 +76,10 @@ export function buildProductionReadiness(input: ReadinessInput): ProductionReadi
  const fiuuRuntimeConfigured = (input.posQrPaymentMode === 'fiuu'
   && input.hasFiuuCredentials
   && input.hasFiuuRecoveryWorker)
-  || (input.posQrPaymentMode === 'fiuu_vt' && input.hasFiuuVtPilot)
+  || (input.posQrPaymentMode === 'fiuu_vt'
+   && input.hasFiuuVtPilot
+   && (!input.hasFiuuVtCashierReleasePilot
+    || input.hasFiuuVtRecoveryWorkerConfig))
   || (input.posQrPaymentMode === 'fiuu_cloudecr' && input.hasFiuuCloudEcrPilot);
  const fiuuReady = fiuuRuntimeConfigured
   && input.hasFiuuSchema
@@ -155,6 +160,8 @@ export function buildProductionReadiness(input: ReadinessInput): ProductionReadi
   `Kredensial OPA: ${input.hasFiuuCredentials ? 'dikesan' : 'belum lengkap'}`,
   `Worker pemulihan OPA: ${input.hasFiuuRecoveryWorker ? 'dikonfigurasi' : 'belum lengkap'}`,
   `Pilot VT: ${input.hasFiuuVtPilot ? 'dikonfigurasi' : 'tidak aktif'}`,
+  `Pelepasan kaunter VT: ${input.hasFiuuVtCashierReleasePilot ? 'dikonfigurasi' : 'tidak aktif'}`,
+  `Worker VT + cron: ${input.hasFiuuVtRecoveryWorkerConfig ? 'lengkap' : 'belum lengkap'}`,
   `Pilot VT+ cloudECR: ${input.hasFiuuCloudEcrPilot ? 'dikonfigurasi' : 'tidak aktif'}`,
   `Skema Fiuu: ${input.hasFiuuSchema ? 'tersedia' : 'belum tersedia'}`,
  ]),

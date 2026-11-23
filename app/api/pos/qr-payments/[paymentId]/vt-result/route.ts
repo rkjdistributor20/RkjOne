@@ -43,6 +43,8 @@ type CallbackClaimDecision = {
  outcome: CallbackClaimOutcome;
  retryAfterMs: number;
  existingResult: Json | null;
+ cashierReleasedAt: string | null;
+ paymentStatus: PaymentStatus | null;
 };
 type ClaimCallbackProcessingRpc = (
  functionName: 'claim_pos_fiuu_vt_callback_processing',
@@ -126,7 +128,20 @@ function parseCallbackClaimDecision(input: unknown): CallbackClaimDecision | nul
   && !Array.isArray(raw.existing_result)
   ? raw.existing_result as Json
   : null;
- return { outcome, retryAfterMs, existingResult };
+ const cashierReleasedAt = typeof raw.cashier_released_at === 'string'
+  ? raw.cashier_released_at
+  : null;
+ const paymentStatus = typeof raw.payment_status === 'string'
+  && PAYMENT_STATUSES.has(raw.payment_status as PaymentStatus)
+  ? raw.payment_status as PaymentStatus
+  : null;
+ return {
+  outcome,
+  retryAfterMs,
+  existingResult,
+  cashierReleasedAt,
+  paymentStatus,
+ };
 }
 
 function isCallbackCompletion(input: unknown): boolean {
@@ -236,7 +251,7 @@ export async function POST(
  const service = createAdminClient();
  const { data: payment, error: paymentError } = await service
   .from('pos_online_payments')
-  .select('id, organization_id, branch_id, shift_id, created_by, provider, status, amount_rm, sale_payload, provider_order_id, provider_transaction_id, provider_result, provider_sale_reported_at, provider_status_checked_at, fiuu_vt_review_required, fiuu_vt_reconciliation_state, fiuu_vt_provider_error_code, fiuu_vt_provider_error_count, fiuu_vt_provider_error_at')
+  .select('id, organization_id, branch_id, shift_id, created_by, provider, status, amount_rm, sale_payload, provider_order_id, provider_transaction_id, provider_result, provider_sale_reported_at, provider_status_checked_at, fiuu_vt_review_required, fiuu_vt_reconciliation_state, fiuu_vt_provider_error_code, fiuu_vt_provider_error_count, fiuu_vt_provider_error_at, fiuu_vt_cashier_released_at')
   .eq('id', paymentId)
   .eq('organization_id', profile.organization_id)
   .maybeSingle();
@@ -332,9 +347,11 @@ export async function POST(
    attemptId,
    callback: safeResult,
   };
-  // The RPC atomically stores p_evidence in fiuu_vt_review_evidence and
-  // propagates the review lock to any related active checkout.
-  const review = await service.rpc('mark_pos_fiuu_vt_review', {
+  // The status-aware RPC locks the shift and source payment before deciding
+  // whether related active checkouts need protection. This avoids selecting a
+  // stale path while cashier release wins concurrently. Evidence is appended
+  // to fiuu_vt_review_evidence in the same transaction.
+  const review = await service.rpc('mark_pos_fiuu_vt_review_status_aware', {
    p_payment_id: payment.id,
    p_state: state,
    p_evidence: evidence,
@@ -369,6 +386,60 @@ export async function POST(
   .eq('payment_id', payment.id)
   .select('id')
   .maybeSingle();
+
+ const quarantineAttemptAndMarkReview = async ({
+  state,
+  reason,
+  attemptId,
+  paymentStatus = payment.status,
+  attemptEvidence = safeResult,
+  firstEvidence = null,
+  providerSuccess = null,
+ }: {
+  state: ReviewState;
+  reason: string;
+  attemptId: string;
+  paymentStatus?: string;
+  attemptEvidence?: Json;
+  firstEvidence?: Json | null;
+  providerSuccess?: {
+   transactionId: string;
+   result: Json;
+   saleReportedAt: string | null;
+   statusCheckedAt: string | null;
+  } | null;
+ }) => {
+  const resultJson: Json = firstEvidence
+   ? {
+     first: firstEvidence,
+     replay: attemptEvidence,
+     quarantinedAt: observedAt,
+    }
+   : attemptEvidence;
+  const evidence: Json = {
+   observedAt,
+   reason,
+   paymentStatus,
+   attemptId,
+   callback: safeResult,
+  };
+  const review = await service.rpc('quarantine_pos_fiuu_vt_callback_review', {
+   p_payment_id: payment.id,
+   p_attempt_id: attemptId,
+   p_result_fingerprint: fingerprint,
+   p_result_json: resultJson,
+   p_state: state,
+   p_evidence: evidence,
+   p_provider_transaction_id: providerSuccess?.transactionId ?? null,
+   p_provider_result: providerSuccess?.result ?? null,
+   p_provider_sale_reported_at: providerSuccess?.saleReportedAt ?? null,
+   p_provider_status_checked_at: providerSuccess?.statusCheckedAt ?? null,
+  });
+  return {
+   ...review,
+   paymentStatus: reviewLockedPaymentStatus(review.data, payment.status as PaymentStatus),
+  };
+ };
 
  const completeAttempt = async (attemptId: string) => {
   const completion = await completeCallbackProcessing(
@@ -420,13 +491,15 @@ export async function POST(
   || attempt.callback_host !== result.callbackHost
   || nativeValidation === 'MISMATCH';
  if (attemptIdentityMismatch) {
-  const quarantined = await quarantineAttempt(attempt.id, safeResult, attempt.result_json);
-  const review = await markReview(
-   'FOREIGN_CALLBACK_REVIEW',
-   nativeValidation === 'MISMATCH' ? 'NATIVE_CALLBACK_HOST_MISMATCH' : 'CALLBACK_ATTEMPT_IDENTITY_MISMATCH',
-   attempt.id,
-  );
-  if (quarantined.error || review.error) {
+  const review = await quarantineAttemptAndMarkReview({
+   state: 'FOREIGN_CALLBACK_REVIEW',
+   reason: nativeValidation === 'MISMATCH'
+    ? 'NATIVE_CALLBACK_HOST_MISMATCH'
+    : 'CALLBACK_ATTEMPT_IDENTITY_MISMATCH',
+   attemptId: attempt.id,
+   firstEvidence: attempt.result_json,
+  });
+  if (review.error) {
    return NextResponse.json({ error: 'Bukti callback tidak sepadan tidak dapat disimpan' }, { status: 400 });
   }
   return responseForStatus(
@@ -443,13 +516,13 @@ export async function POST(
    conflicting: safeResult,
    observedAt,
   };
-  const quarantined = await quarantineAttempt(attempt.id, conflictingEvidence);
-  const review = await markReview(
-   'FOREIGN_CALLBACK_REVIEW',
-   'CALLBACK_ATTEMPT_REPLAY_CONFLICT',
-   attempt.id,
-  );
-  if (quarantined.error || review.error) {
+  const review = await quarantineAttemptAndMarkReview({
+   state: 'FOREIGN_CALLBACK_REVIEW',
+   reason: 'CALLBACK_ATTEMPT_REPLAY_CONFLICT',
+   attemptId: attempt.id,
+   attemptEvidence: conflictingEvidence,
+  });
+  if (review.error) {
    return NextResponse.json({ error: 'Konflik callback Fiuu VT tidak dapat disimpan' }, { status: 400 });
   }
   return responseForStatus(
@@ -460,10 +533,13 @@ export async function POST(
   );
  };
 
- if (attempt.state === 'CONSUMED' && attempt.result_fingerprint === fingerprint) {
+ if ((attempt.state === 'CONSUMED' || attempt.state === 'QUARANTINED')
+  && attempt.result_fingerprint === fingerprint) {
   return responseForStatus(payment.id, payment.status as PaymentStatus, 'ACK_ONLY');
  }
- if ((attempt.state === 'CONSUMED' || attempt.state === 'RECEIVED')
+ if ((attempt.state === 'CONSUMED'
+   || attempt.state === 'RECEIVED'
+   || attempt.state === 'QUARANTINED')
   && attempt.result_fingerprint
   && attempt.result_fingerprint !== fingerprint) {
   return quarantineReplayConflict(attempt.result_json);
@@ -476,13 +552,13 @@ export async function POST(
    && payment.provider_transaction_id
    && payment.provider_transaction_id !== result.transactionId);
  if (paymentDetailsMismatch) {
-  const quarantined = await quarantineAttempt(attempt.id, safeResult, attempt.result_json);
-  const review = await markReview(
-   'FOREIGN_CALLBACK_REVIEW',
-   'CALLBACK_PAYMENT_DETAILS_MISMATCH',
-   attempt.id,
-  );
-  if (quarantined.error || review.error) {
+  const review = await quarantineAttemptAndMarkReview({
+   state: 'FOREIGN_CALLBACK_REVIEW',
+   reason: 'CALLBACK_PAYMENT_DETAILS_MISMATCH',
+   attemptId: attempt.id,
+   firstEvidence: attempt.result_json,
+  });
+  if (review.error) {
    return NextResponse.json({ error: 'Callback tidak sepadan tidak dapat disimpan' }, { status: 400 });
   }
   return responseForStatus(
@@ -518,19 +594,22 @@ export async function POST(
   const isPossibleReversal = !isFiuuVtErrorResult(result)
    && (result.opType === 'VOID'
     || ((payment.status === 'PAID' || payment.status === 'REPORTED') && result.status !== '00'));
-  const quarantined = await quarantineAttempt(attempt.id, safeResult, attempt.result_json);
   let reviewError: unknown = null;
   let reviewStatus: PaymentStatus | null = null;
   if (isLateSuccess || isPossibleReversal) {
-   const review = await markReview(
-    isLateSuccess ? 'LATE_SUCCESS_REVIEW' : 'REVERSAL_REVIEW',
-    isLateSuccess ? 'CALLBACK_AFTER_ATTEMPT_EXPIRY' : 'REVERSAL_AFTER_ATTEMPT_EXPIRY',
-    attempt.id,
-   );
+   const review = await quarantineAttemptAndMarkReview({
+    state: isLateSuccess ? 'LATE_SUCCESS_REVIEW' : 'REVERSAL_REVIEW',
+    reason: isLateSuccess ? 'CALLBACK_AFTER_ATTEMPT_EXPIRY' : 'REVERSAL_AFTER_ATTEMPT_EXPIRY',
+    attemptId: attempt.id,
+    firstEvidence: attempt.result_json,
+   });
    reviewError = review.error;
    reviewStatus = review.paymentStatus;
+  } else {
+   const quarantined = await quarantineAttempt(attempt.id, safeResult, attempt.result_json);
+   reviewError = quarantined.error;
   }
-  if (quarantined.error || reviewError) {
+  if (reviewError) {
    return NextResponse.json({ error: 'Callback lewat Fiuu VT tidak dapat dikuarantin' }, { status: 400 });
   }
   return reviewStatus
@@ -593,17 +672,27 @@ export async function POST(
    { status: 409 },
   );
  }
+ const cashierReleasedAfterClaim = Boolean(
+  claimDecision.cashierReleasedAt || payment.fiuu_vt_cashier_released_at,
+ );
 
  if (payment.fiuu_vt_review_required) {
   const lateSuccessAfterProviderError = payment.fiuu_vt_reconciliation_state === 'PROVIDER_ERROR_REVIEW'
    && !isFiuuVtErrorResult(result)
    && result.opType !== 'VOID'
    && result.status === '00';
-  const quarantined = await quarantineAttempt(attempt.id, safeResult, attempt.result_json);
   const review = lateSuccessAfterProviderError
-   ? await markReview('LATE_SUCCESS_REVIEW', 'SUCCESS_AFTER_PROVIDER_ERROR_QUARANTINE', attempt.id)
+   ? await quarantineAttemptAndMarkReview({
+     state: 'LATE_SUCCESS_REVIEW',
+     reason: 'SUCCESS_AFTER_PROVIDER_ERROR_QUARANTINE',
+     attemptId: attempt.id,
+     firstEvidence: attempt.result_json,
+    })
    : null;
-  if (quarantined.error || review?.error) {
+  const quarantined = review
+   ? null
+   : await quarantineAttempt(attempt.id, safeResult, attempt.result_json);
+  if (quarantined?.error || review?.error) {
    return NextResponse.json({ error: 'Bukti callback transaksi dikuarantin tidak dapat disimpan' }, { status: 400 });
   }
   const lockedStatus = review?.paymentStatus
@@ -618,62 +707,65 @@ export async function POST(
   );
  }
 
+ // A success claimed while the cashier lane was already released belongs to
+ // the original order only. The claim RPC returns this release snapshot under
+ // the same row locks used to store the callback. If the claim wins first,
+ // its exact status-00 evidence makes a concurrent release fail closed.
+ if (cashierReleasedAfterClaim
+  && payment.status === 'PENDING'
+  && !isFiuuVtErrorResult(result)
+  && result.opType !== 'VOID'
+  && result.status === '00') {
+  const review = await quarantineAttemptAndMarkReview({
+   state: 'LATE_SUCCESS_REVIEW',
+   reason: result.opType === 'SALE'
+    ? 'SALE_SUCCESS_AFTER_CASHIER_RELEASE'
+    : 'STATUS_SUCCESS_AFTER_CASHIER_RELEASE',
+   attemptId: attempt.id,
+   firstEvidence: attempt.result_json,
+   providerSuccess: {
+    transactionId: result.transactionId,
+    result: safeResult,
+    saleReportedAt: result.opType === 'SALE'
+     ? payment.provider_sale_reported_at ?? observedAt
+     : null,
+    statusCheckedAt: result.opType === 'STATUS' ? observedAt : null,
+   },
+  });
+  if (review.error) {
+   return NextResponse.json({ error: 'Bukti kejayaan lewat Fiuu VT tidak dapat disimpan' }, { status: 400 });
+  }
+  return responseForStatus(
+   payment.id,
+   review.paymentStatus,
+   'ACK_AND_QUARANTINE',
+   'Fiuu melaporkan kejayaan selepas kaunter dilepaskan. Bayaran dipadankan kepada pesanan asal untuk semakan HQ; pelanggan baharu tidak terjejas.',
+  );
+ }
+
  if (nativeReleaseStatusResult
   && payment.status === 'PENDING'
   && !isFiuuVtErrorResult(result)
   && result.opType === 'STATUS'
   && result.status === '00') {
-  const quarantinedAttempt = await quarantineAttempt(
-   attempt.id,
-   safeResult,
-   attempt.result_json,
-  );
-  const review = await markReview(
-   'LATE_SUCCESS_REVIEW',
-   'SUCCESS_FROM_DETACHED_STATUS_RECOVERY',
-   attempt.id,
-  );
-  if (quarantinedAttempt.error || review.error) {
+  const review = await quarantineAttemptAndMarkReview({
+   state: 'LATE_SUCCESS_REVIEW',
+   reason: 'SUCCESS_FROM_DETACHED_STATUS_RECOVERY',
+   attemptId: attempt.id,
+   firstEvidence: attempt.result_json,
+   providerSuccess: {
+    transactionId: result.transactionId,
+    result: safeResult,
+    saleReportedAt: null,
+    statusCheckedAt: observedAt,
+   },
+  });
+  if (review.error) {
    return NextResponse.json({ error: 'Bukti kejayaan syif terdahulu tidak dapat disimpan' }, { status: 400 });
-  }
-  const { data: quarantinedPayment, error: quarantinePaymentError } = await service
-   .from('pos_online_payments')
-   .update({
-    provider_transaction_id: result.transactionId,
-    provider_result: safeResult,
-    provider_status_checked_at: observedAt,
-    fiuu_vt_review_required: true,
-    fiuu_vt_reconciliation_state: 'LATE_SUCCESS_REVIEW',
-    updated_at: observedAt,
-   })
-   .eq('id', payment.id)
-   .eq('provider', 'fiuu_vt')
-   .eq('status', review.paymentStatus)
-   .eq('fiuu_vt_review_required', true)
-   .select('id, status')
-   .maybeSingle();
-  if (quarantinePaymentError) {
-   return NextResponse.json({ error: 'Kejayaan syif terdahulu tidak dapat dikuarantin' }, { status: 400 });
-  }
-  if (!quarantinedPayment) {
-   const { data: current } = await service
-    .from('pos_online_payments')
-    .select('status')
-    .eq('id', payment.id)
-    .maybeSingle();
-   if (!current) {
-    return NextResponse.json({ error: 'Status kejayaan syif terdahulu berubah semasa diproses' }, { status: 409 });
-   }
-   return responseForStatus(
-    payment.id,
-     reviewLockedPaymentStatus(null, current.status as PaymentStatus),
-    'ACK_AND_QUARANTINE',
-    'Bayaran syif terdahulu memerlukan semakan HQ. Jangan ulang caj pelanggan; kaunter semasa boleh dilepaskan.',
-   );
   }
   return responseForStatus(
    payment.id,
-   'QUARANTINED',
+   review.paymentStatus,
    'ACK_AND_QUARANTINE',
    'Bayaran syif terdahulu disimpan untuk semakan HQ. Jangan ulang caj pelanggan; kaunter semasa boleh dilepaskan.',
   );
@@ -683,9 +775,13 @@ export async function POST(
   const contradictory = !isFiuuVtErrorResult(result)
    && (result.opType === 'VOID' || result.status !== '00');
   if (contradictory) {
-   const quarantined = await quarantineAttempt(attempt.id, safeResult, attempt.result_json);
-   const review = await markReview('REVERSAL_REVIEW', 'CALLBACK_CONTRADICTS_SUCCESS', attempt.id);
-   if (quarantined.error || review.error) {
+   const review = await quarantineAttemptAndMarkReview({
+    state: 'REVERSAL_REVIEW',
+    reason: 'CALLBACK_CONTRADICTS_SUCCESS',
+    attemptId: attempt.id,
+    firstEvidence: attempt.result_json,
+   });
+   if (review.error) {
     return NextResponse.json({ error: 'Bukti pembalikan Fiuu VT tidak dapat disimpan' }, { status: 400 });
    }
    return responseForStatus(
@@ -711,9 +807,13 @@ export async function POST(
    && result.opType !== 'VOID'
    && result.status === '00';
   if (lateSuccess) {
-   const quarantined = await quarantineAttempt(attempt.id, safeResult, attempt.result_json);
-   const review = await markReview('LATE_SUCCESS_REVIEW', 'SUCCESS_AFTER_PAYMENT_CLOSED', attempt.id);
-   if (quarantined.error || review.error) {
+   const review = await quarantineAttemptAndMarkReview({
+    state: 'LATE_SUCCESS_REVIEW',
+    reason: 'SUCCESS_AFTER_PAYMENT_CLOSED',
+    attemptId: attempt.id,
+    firstEvidence: attempt.result_json,
+   });
+   if (review.error) {
     return NextResponse.json({ error: 'Bukti kejayaan lewat tidak dapat disimpan' }, { status: 400 });
    }
    return responseForStatus(
@@ -886,20 +986,19 @@ export async function POST(
     && current.status !== 'REPORTED'
     && current.status !== 'PAID';
    if (current.fiuu_vt_review_required || concurrentLateSuccess) {
-    const quarantined = await quarantineAttempt(
-     attempt.id,
-     safeResult,
-     attempt.result_json,
-    );
     const review = concurrentLateSuccess
-     ? await markReview(
-       'LATE_SUCCESS_REVIEW',
-       'SUCCESS_AFTER_CONCURRENT_PAYMENT_CLOSE',
-       attempt.id,
-       current.status,
-      )
+     ? await quarantineAttemptAndMarkReview({
+       state: 'LATE_SUCCESS_REVIEW',
+       reason: 'SUCCESS_AFTER_CONCURRENT_PAYMENT_CLOSE',
+       attemptId: attempt.id,
+       paymentStatus: current.status,
+       firstEvidence: attempt.result_json,
+      })
      : null;
-    if (quarantined.error || review?.error) {
+    const quarantined = review
+     ? null
+     : await quarantineAttempt(attempt.id, safeResult, attempt.result_json);
+    if (quarantined?.error || review?.error) {
      return NextResponse.json({ error: 'Bukti kejayaan serentak Fiuu VT tidak dapat disimpan' }, { status: 400 });
     }
    const concurrentReviewStatus = review?.paymentStatus

@@ -11,6 +11,8 @@ const BASE_INPUT = {
  hasFiuuCredentials: false,
  hasFiuuRecoveryWorker: false,
  hasFiuuVtPilot: false,
+ hasFiuuVtCashierReleasePilot: false,
+ hasFiuuVtRecoveryWorkerConfig: false,
  hasFiuuCloudEcrPilot: false,
  hasFiuuSchema: false,
  fiuuLiveUatPassed: false,
@@ -98,5 +100,28 @@ describe('production readiness evidence', () => {
    posQrPaymentMode: 'fiuu_cloudecr',
   });
   expect(statusFor(signedUatPassed, 'payment-gateway')).toBe('READY');
+ });
+
+ it('keeps VT cashier release blocked until its dedicated cron worker is configured', () => {
+  const unsafeRelease = buildProductionReadiness({
+   ...BASE_INPUT,
+   hasFiuuVtPilot: true,
+   hasFiuuVtCashierReleasePilot: true,
+   hasFiuuSchema: true,
+   fiuuLiveUatPassed: true,
+   posQrPaymentMode: 'fiuu_vt',
+  });
+  expect(statusFor(unsafeRelease, 'payment-gateway')).toBe('NEEDS_ACTION');
+
+  const recoveredRelease = buildProductionReadiness({
+   ...BASE_INPUT,
+   hasFiuuVtPilot: true,
+   hasFiuuVtCashierReleasePilot: true,
+   hasFiuuVtRecoveryWorkerConfig: true,
+   hasFiuuSchema: true,
+   fiuuLiveUatPassed: true,
+   posQrPaymentMode: 'fiuu_vt',
+  });
+  expect(statusFor(recoveredRelease, 'payment-gateway')).toBe('READY');
  });
 });

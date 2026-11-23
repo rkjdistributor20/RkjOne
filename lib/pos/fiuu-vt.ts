@@ -98,6 +98,7 @@ export function canReleaseQuarantinedFiuuVtNativeState(input: {
 export function decideFiuuVtCleanupAction(input: {
  serverStatus: FiuuVtRecoveredPaymentStatus;
  reviewRequired: boolean;
+ cashierReleased: boolean;
  currentCartMatchesPayment: boolean;
  nativeQuarantineBlocksRelease: boolean | undefined;
  nativeResultAvailable: boolean;
@@ -125,6 +126,18 @@ export function decideFiuuVtCleanupAction(input: {
 
  // A QUARANTINED row without its durable server review flag is inconsistent.
  if (input.serverStatus === 'QUARANTINED') return 'REVIEW_REQUIRED';
+
+ // A launched VOID request has been durably tied to this exact payment and
+ // the server has removed only its cashier-lane lock. It is still PENDING for
+ // late STATUS=00 recovery, but native state may now be released once the
+ // callback queue is proven empty. This must precede current-cart recovery.
+ if (input.cashierReleased && input.serverStatus === 'PENDING') {
+  // A native quarantine is evidence, not an empty queue. A cashier release
+  // must never promote that evidence to "server reviewed" while the payment
+  // itself is still unresolved.
+  if (input.nativeQuarantineBlocksRelease) return 'REVIEW_REQUIRED';
+  return 'RELEASE_NATIVE';
+ }
 
  if (input.currentCartMatchesPayment
   && ['PENDING', 'REPORTED', 'PAID'].includes(input.serverStatus)) {

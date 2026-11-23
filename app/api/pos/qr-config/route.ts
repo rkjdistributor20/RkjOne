@@ -13,7 +13,10 @@ import {
  isFiuuCloudEcrEnabledForBranch,
 } from '@/lib/pos/fiuu-cloudecr-server';
 import { FIUU_VT_DUITNOW_CHANNEL, FIUU_VT_PACKAGE } from '@/lib/pos/fiuu-vt';
-import { isFiuuVtEnabledForBranch } from '@/lib/pos/fiuu-vt-server';
+import {
+ isFiuuVtCashierReleaseEnabledForBranch,
+ isFiuuVtEnabledForBranch,
+} from '@/lib/pos/fiuu-vt-server';
 import { getFiuuStaticQrConfig } from '@/lib/pos/fiuu-static';
 import { enforceRateLimit } from '@/lib/security/rate-limit';
 import { createClient } from '@/lib/supabase/server';
@@ -63,6 +66,7 @@ export async function GET(request: Request) {
  const paymentMode = getPosQrPaymentMode();
  let dynamicEnabled = false;
  let vtEnabled = false;
+ let vtCashierReleaseEnabled = false;
  let cloudEcrEnabled = false;
  try {
   const scope = {
@@ -84,6 +88,8 @@ export async function GET(request: Request) {
   vtEnabled = officialDeviceReady
    && paymentMode === 'fiuu_vt'
    && isFiuuVtEnabledForBranch(branch.branch_code);
+  vtCashierReleaseEnabled = vtEnabled
+   && isFiuuVtCashierReleaseEnabledForBranch(branch.branch_code);
  } catch (configurationError) {
   console.error('[pos-fiuu-vt] invalid_branch_configuration', {
    reason: configurationError instanceof Error ? configurationError.message : 'unknown',
@@ -119,6 +125,7 @@ export async function GET(request: Request) {
     packageName: FIUU_VT_PACKAGE,
     channel: FIUU_VT_DUITNOW_CHANNEL,
     rollout: 'REGISTERED_DEVICE_ONLY',
+    cashierReleaseEnabled: vtCashierReleaseEnabled,
    } : null,
    cloudEcr: cloudEcrEnabled ? {
     appPackageName: FIUU_CLOUDECR_APP_PACKAGE,

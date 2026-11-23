@@ -79,6 +79,7 @@ function payment(overrides: Row = {}): Row {
   provider_transaction_id: 'TX-FIUU-1',
   provider_sale_reported_at: new Date().toISOString(),
   fiuu_vt_review_required: false,
+  fiuu_vt_cashier_released_at: null,
   ...overrides,
  };
 }
@@ -387,6 +388,25 @@ describe('Fiuu VT launch retry leases', () => {
   expect(await response.json()).toMatchObject({ mode: 'FIUU_VT_RECONCILIATION_REQUIRED' });
   expect(rpc).not.toHaveBeenCalled();
  });
+
+ it.each(['SALE', 'STATUS', 'VOID'] as const)(
+  'does not launch %s against an old payment after its cashier lane was released',
+  async (opType) => {
+   const { admin, rpc } = makeAdmin(
+    async () => launchDecision(opType),
+    payment({ fiuu_vt_cashier_released_at: new Date().toISOString() }),
+   );
+   mocks.createAdminClient.mockReturnValue(admin);
+
+   const response = await invoke(opType);
+
+   expect(response.status).toBe(409);
+   expect(await response.json()).toMatchObject({
+    mode: 'FIUU_ATTEMPT_CASHIER_RELEASED',
+   });
+   expect(rpc).not.toHaveBeenCalled();
+  },
+ );
 
  it('returns one launch and one deterministic active response for concurrent retries', async () => {
   let leaseGranted = false;

@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
  isFiuuOpaEnabledForBranch: vi.fn(),
  isFiuuOpaRolloutActive: vi.fn(),
  isFiuuVtEnabledForBranch: vi.fn(),
+ isFiuuVtCashierReleaseEnabledForBranch: vi.fn(),
  posAccessErrorStatus: vi.fn(),
 }));
 
@@ -48,6 +49,7 @@ vi.mock('@/lib/pos/fiuu-vt', () => ({
  FIUU_VT_PACKAGE: 'com.rms.mobile.razervt',
 }));
 vi.mock('@/lib/pos/fiuu-vt-server', () => ({
+ isFiuuVtCashierReleaseEnabledForBranch: mocks.isFiuuVtCashierReleaseEnabledForBranch,
  isFiuuVtEnabledForBranch: mocks.isFiuuVtEnabledForBranch,
 }));
 vi.mock('@/lib/pos/fiuu-static', () => ({
@@ -128,6 +130,7 @@ beforeEach(() => {
  mocks.isFiuuOpaRolloutActive.mockResolvedValue(true);
  mocks.createAdminClient.mockReturnValue(ADMIN_CLIENT);
  mocks.isFiuuVtEnabledForBranch.mockReturnValue(false);
+ mocks.isFiuuVtCashierReleaseEnabledForBranch.mockReturnValue(false);
  mocks.isFiuuCloudEcrEnabledForBranch.mockReturnValue(false);
  mocks.getFiuuStaticQrConfig.mockReturnValue(null);
  arrangeBranch();
@@ -236,6 +239,7 @@ describe('Fiuu VT registered-device configuration gate', () => {
   mocks.getPosQrPaymentMode.mockReturnValue('fiuu_vt');
   mocks.isFiuuOpaEnabledForBranch.mockReturnValue(false);
   mocks.isFiuuVtEnabledForBranch.mockReturnValue(true);
+  mocks.isFiuuVtCashierReleaseEnabledForBranch.mockReturnValue(true);
 
   const response = await GET(new Request(
    `http://localhost/api/pos/qr-config?branch_id=${BRANCH_ID}`,
@@ -248,6 +252,7 @@ describe('Fiuu VT registered-device configuration gate', () => {
    vt: {
     packageName: 'com.rms.mobile.razervt',
     rollout: 'REGISTERED_DEVICE_ONLY',
+    cashierReleaseEnabled: true,
    },
   });
  });

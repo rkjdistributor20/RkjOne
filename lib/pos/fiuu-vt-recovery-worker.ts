@@ -8,6 +8,7 @@ const RECOVERY_SCAN_SIZE = 100;
 const RECOVERY_BASE_BACKOFF_MS = 30_000;
 const RECOVERY_MAX_BACKOFF_MS = 15 * 60_000;
 const RECOVERY_REVIEW_THRESHOLD = 5;
+const RELEASED_CALLBACK_GRACE_MS = 20 * 60_000;
 const NO_STORE_HEADERS = { 'Cache-Control': 'no-store' } as const;
 
 type RecoveryBody = {
@@ -17,9 +18,11 @@ type RecoveryBody = {
  branches?: string[];
  skippedBranches?: string[];
  examined?: number;
+ releasedExamined?: number;
  rotated?: number;
  quarantined?: number;
  results?: Record<string, number>;
+ releasedResults?: Record<string, number>;
 };
 
 export type FiuuVtRecoveryRun = {
@@ -28,6 +31,12 @@ export type FiuuVtRecoveryRun = {
 };
 
 export function isFiuuReconciliationEnabled(): boolean {
+ const dedicated = process.env.FIUU_VT_RECOVERY_ENABLED?.trim().toLowerCase();
+ if (dedicated === 'true' || dedicated === 'false') return dedicated === 'true';
+
+ // Backward-compatible fallback for environments already running the VT
+ // worker under the original shared reconciliation gate. New deployments
+ // should set FIUU_VT_RECOVERY_ENABLED explicitly.
  return process.env.FIUU_RECONCILIATION_ENABLED?.trim().toLowerCase() === 'true';
 }
 
@@ -229,6 +238,57 @@ export async function runFiuuVtRecovery(): Promise<FiuuVtRecoveryRun> {
   }
  }
 
+ // A released cashier lane must not leave its original payment PENDING
+ // forever. This scan is deliberately separate from successful STATUS=00
+ // recovery above: after QR expiry plus the existing late-callback grace, an
+ // atomic RPC quarantines only the old payment when no exact success or active
+ // callback evidence exists.
+ const releasedCutoff = new Date(Date.now() - RELEASED_CALLBACK_GRACE_MS).toISOString();
+ const releasedFallbackCutoff = new Date(
+  Date.now() - RELEASED_CALLBACK_GRACE_MS - (15 * 60_000),
+ ).toISOString();
+ const { data: releasedPending, error: releasedPendingError } = await service
+  .from('pos_online_payments')
+  .select('id, updated_at')
+  .eq('provider', 'fiuu_vt')
+  .eq('status', 'PENDING')
+  .eq('fiuu_vt_review_required', false)
+  .not('fiuu_vt_cashier_released_at', 'is', null)
+  .or(`expires_at.lte.${releasedCutoff},and(expires_at.is.null,created_at.lte.${releasedFallbackCutoff})`)
+  .in('organization_id', organizationIds)
+  .in('branch_id', branchIds)
+  .in('sale_payload->>fiuu_branch_code', validBranches)
+  .order('expires_at', { ascending: true, nullsFirst: true })
+  .limit(RECOVERY_SCAN_SIZE);
+ if (releasedPendingError) {
+  console.error('[pos-fiuu-vt] released_payment_queue_failed');
+  return unavailable('Fiuu VT released-payment queue unavailable');
+ }
+
+ const releasedResults: Record<string, number> = {};
+ for (const payment of releasedPending ?? []) {
+  const { data, error } = await service.rpc(
+   'quarantine_pos_fiuu_vt_released_timeout',
+   {
+    p_payment_id: payment.id,
+    p_expected_updated_at: payment.updated_at,
+   },
+  );
+  const outcome = error
+   ? 'RPC_ERROR'
+   : data && typeof data === 'object' && !Array.isArray(data)
+    && typeof (data as Record<string, unknown>).outcome === 'string'
+    ? String((data as Record<string, unknown>).outcome)
+    : 'INVALID_RESPONSE';
+  releasedResults[outcome] = (releasedResults[outcome] ?? 0) + 1;
+  if (outcome === 'QUARANTINED') quarantined += 1;
+  if (error || outcome === 'INVALID_RESPONSE') {
+   console.error('[pos-fiuu-vt] released_payment_quarantine_failed', {
+    paymentId: payment.id,
+   });
+  }
+ }
+
  return {
   status: 200,
   body: {
@@ -237,9 +297,11 @@ export async function runFiuuVtRecovery(): Promise<FiuuVtRecoveryRun> {
    branches: validBranches,
    skippedBranches,
    examined: reported?.length ?? 0,
+   releasedExamined: releasedPending?.length ?? 0,
    rotated,
    quarantined,
    results,
+   releasedResults,
   },
  };
 }

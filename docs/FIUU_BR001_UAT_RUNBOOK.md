@@ -1,6 +1,6 @@
 # Fiuu BR001 Dynamic DuitNow QR UAT and rollback runbook
 
-Last updated: 2026-11-04
+Last updated: 2026-11-23
 
 ## Decision and authority
 
@@ -25,6 +25,48 @@ This runbook does not authorize a Production action. The safe default remains:
 - no real payment without fresh owner confirmation immediately before the charge;
 - only `BR001` is in scope; `BR002` through `BR036` remain unchanged; and
 - secrets, credentials, activation links and all QR payloads stay out of Git, chat, screenshots and logs.
+
+## Cashier-release hotfix checkpoint — 2026-11-23
+
+The observed 15-minute block was the RKJ active-payment lock following the
+provider QR validity, not proof that Fiuu requires the cashier to remain blocked
+for 15 minutes. A launched VOID is only a cancellation request; it is not
+provider confirmation that payment failed. The safe repair therefore separates
+four states which the older UI conflated:
+
+1. the QR/payment screen is closed;
+2. a Fiuu VOID request was durably launched;
+3. the cashier lane is released for the next customer; and
+4. provider cancellation or payment success is later confirmed.
+
+Migration
+`20261123150000_release_fiuu_vt_cashier_after_void_launch.sql` keeps the original
+payment `PENDING` and recoverable after step 3 while excluding it from the
+one-active-cashier/device indexes. A late exact `SALE/STATUS=00` is attached to
+the original order and quarantined for Finance/HQ review; it cannot be attached
+to the next basket. Callback claim, release and quarantine operations use the
+same shift/payment/attempt row-lock order and preserve the first callback
+fingerprint. Replays are idempotent, including a lost HTTP response, WebView
+restart, shift change or device re-enrollment after the first release commits.
+
+The feature fails closed unless all of these runtime conditions are true:
+
+- the branch is enabled for Fiuu VT;
+- the exact registered tablet is valid for the branch;
+- the branch appears in `POS_FIUU_VT_CASHIER_RELEASE_BRANCHES`;
+- `FIUU_VT_RECOVERY_ENABLED=true`; and
+- a server-only `CRON_SECRET` of at least 32 characters is configured.
+
+At the code-freeze checkpoint, 56 Vitest files / 610 tests, TypeScript, full
+ESLint, `git diff --check`, the 166-route Production build and linked Supabase
+schema lint passed. A transactional local database integration test also proved
+cashier release, immediate next-order creation, idempotent replay, attempt
+conflict handling and the provider-success guard. The linked dry-run lists
+exactly the migration above. The
+migration is still pending, the new web code is not yet deployed, the cashier
+release allowlist must remain empty until both are live, and no fresh physical
+BR001 payment test has yet been performed. These items must not be marked
+complete from simulation evidence alone.
 
 ## Controlled checkpoint — 2026-10-27
 

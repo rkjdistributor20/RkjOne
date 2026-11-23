@@ -79,6 +79,7 @@ function payment(overrides: Row = {}): Row {
   fiuu_vt_provider_error_at: null,
   fiuu_vt_review_required: false,
   fiuu_vt_reconciliation_state: null,
+  fiuu_vt_cashier_released_at: null,
   ...overrides,
  };
 }
@@ -141,7 +142,10 @@ function callbackFingerprint(result: Row): string {
 function makeAdmin(
  initialPayment: Row = payment(),
  initialAttempt: Row | null = attempt(),
- options: { beforeFirstPaymentUpdate?: (row: Row) => void } = {},
+ options: {
+  beforeFirstPaymentUpdate?: (row: Row) => void;
+  beforeCallbackClaim?: (paymentRow: Row, attemptRow: Row) => void;
+ } = {},
 ) {
  const state = {
   payment: { ...initialPayment } as Row | null,
@@ -151,6 +155,7 @@ function makeAdmin(
   rpcCalls: [] as Array<{ name: string; args: Row }>,
  };
  let paymentUpdateHookUsed = false;
+ let callbackClaimHookUsed = false;
 
  function query(table: 'pos_online_payments' | 'pos_fiuu_vt_attempts') {
   let updateValue: Row | null = null;
@@ -217,18 +222,26 @@ function makeAdmin(
      || current.payment_id !== args.p_payment_id) {
      return { data: { outcome: 'NOT_FOUND' }, error: null };
     }
+    if (state.payment && !callbackClaimHookUsed && options.beforeCallbackClaim) {
+     callbackClaimHookUsed = true;
+     options.beforeCallbackClaim(state.payment, current);
+    }
+    const paymentSnapshot = {
+     payment_status: state.payment?.status,
+     cashier_released_at: state.payment?.fiuu_vt_cashier_released_at ?? null,
+    };
     if (current.state === 'CONSUMED') {
      return {
       data: current.result_fingerprint === args.p_result_fingerprint
-       ? { outcome: 'CONSUMED' }
-       : { outcome: 'CONFLICT', existing_result: current.result_json },
+       ? { outcome: 'CONSUMED', ...paymentSnapshot }
+       : { outcome: 'CONFLICT', existing_result: current.result_json, ...paymentSnapshot },
       error: null,
      };
     }
     if (current.state === 'RECEIVED') {
      if (current.result_fingerprint !== args.p_result_fingerprint) {
       return {
-       data: { outcome: 'CONFLICT', existing_result: current.result_json },
+       data: { outcome: 'CONFLICT', existing_result: current.result_json, ...paymentSnapshot },
        error: null,
       };
      }
@@ -240,6 +253,7 @@ function makeAdmin(
        data: {
         outcome: 'ACTIVE',
         retry_after_ms: Math.max(0, leaseExpiresAt - Date.now()),
+       ...paymentSnapshot,
        },
        error: null,
       };
@@ -251,13 +265,13 @@ function makeAdmin(
      };
      Object.assign(current, resumedUpdate);
      state.attemptUpdates.push(resumedUpdate);
-     return { data: { outcome: 'CLAIMED', resumed: true }, error: null };
+     return { data: { outcome: 'CLAIMED', resumed: true, ...paymentSnapshot }, error: null };
     }
     const claimable = current.state === 'PREPARED'
      || current.state === 'LAUNCHED'
      || (current.state === 'EXPIRED' && args.p_allow_expired === true);
     if (!claimable) {
-     return { data: { outcome: 'INELIGIBLE' }, error: null };
+     return { data: { outcome: 'INELIGIBLE', ...paymentSnapshot }, error: null };
     }
     const claimedUpdate = {
      state: 'RECEIVED',
@@ -270,7 +284,7 @@ function makeAdmin(
     };
     Object.assign(current, claimedUpdate);
     state.attemptUpdates.push(claimedUpdate);
-    return { data: { outcome: 'CLAIMED', resumed: false }, error: null };
+    return { data: { outcome: 'CLAIMED', resumed: false, ...paymentSnapshot }, error: null };
    }
    if (name === 'complete_pos_fiuu_vt_callback_processing') {
     const current = state.attempt;
@@ -344,7 +358,56 @@ function makeAdmin(
      error: null,
     };
    }
-   if (name !== 'mark_pos_fiuu_vt_review'
+   if (name === 'quarantine_pos_fiuu_vt_callback_review'
+    && state.payment
+    && state.payment.id === args.p_payment_id
+    && state.attempt
+    && state.attempt.id === args.p_attempt_id
+    && state.attempt.payment_id === args.p_payment_id) {
+    const attemptUpdate = {
+     state: 'QUARANTINED',
+     result_fingerprint: args.p_result_fingerprint,
+     result_json: args.p_result_json,
+     quarantined_at: new Date().toISOString(),
+     processing_lease_token: null,
+     processing_lease_expires_at: null,
+    };
+    Object.assign(state.attempt, attemptUpdate);
+    state.attemptUpdates.push(attemptUpdate);
+
+    const currentStatus = state.payment.status;
+    const reviewStatus = currentStatus === 'PENDING' || currentStatus === 'REPORTED'
+     ? 'QUARANTINED'
+     : currentStatus;
+    const reviewUpdate: Row = {
+     status: reviewStatus,
+     fiuu_vt_review_required: true,
+     fiuu_vt_reconciliation_state: args.p_state,
+     fiuu_vt_reconciliation_evidence: args.p_evidence,
+    };
+    if (args.p_provider_result) {
+     reviewUpdate.provider_transaction_id = args.p_provider_transaction_id;
+     reviewUpdate.provider_result = args.p_provider_result;
+     if (args.p_provider_sale_reported_at) {
+      reviewUpdate.provider_sale_reported_at = args.p_provider_sale_reported_at;
+     }
+     if (args.p_provider_status_checked_at) {
+      reviewUpdate.provider_status_checked_at = args.p_provider_status_checked_at;
+     }
+    }
+    Object.assign(state.payment, reviewUpdate);
+    state.paymentUpdates.push(reviewUpdate);
+    return {
+     data: {
+      outcome: 'QUARANTINED_FOR_REVIEW',
+      payment_id: state.payment.id,
+      payment_status: reviewStatus,
+      attempt_id: state.attempt.id,
+     },
+     error: null,
+    };
+   }
+   if (name !== 'mark_pos_fiuu_vt_review_status_aware'
     || !state.payment
     || state.payment.id !== args.p_payment_id) {
     return { data: null, error: { message: 'RPC not found' } };
@@ -604,7 +667,9 @@ describe('Fiuu VT one-time callback reconciliation', () => {
    state: 'CONSUMED',
    result_fingerprint: expect.any(String),
   });
-  expect(state.rpcCalls.filter((call) => call.name === 'mark_pos_fiuu_vt_review')).toHaveLength(0);
+  expect(state.rpcCalls.filter((call) => (
+   call.name === 'mark_pos_fiuu_vt_review_status_aware'
+  ))).toHaveLength(0);
  });
 
  it('quarantines STATUS=00 beyond the bounded late-callback grace', async () => {
@@ -1181,5 +1246,97 @@ describe('Fiuu VT one-time callback reconciliation', () => {
   });
   expect(state.paymentUpdates).toHaveLength(0);
   expect(state.attempt).toMatchObject({ state: 'CONSUMED' });
+ });
+
+ it('keeps a late SALE success on the released original order without reviewing the next checkout', async () => {
+  const releasedAt = new Date(Date.now() - 5_000).toISOString();
+  const { admin, state } = makeAdmin(
+   payment({ fiuu_vt_cashier_released_at: releasedAt }),
+   attempt({ op_type: 'SALE', state: 'LAUNCHED' }),
+  );
+  mocks.createAdminClient.mockReturnValue(admin);
+
+  const response = await invoke(callback('SALE', '00'));
+
+  expect(await response.json()).toMatchObject({
+   payment: { id: PAYMENT_ID, status: 'QUARANTINED' },
+   next_action: 'ACK_AND_QUARANTINE',
+  });
+  expect(state.payment).toMatchObject({
+   status: 'QUARANTINED',
+   provider_transaction_id: TRANSACTION_ID,
+   provider_result: expect.objectContaining({ opType: 'SALE', status: '00' }),
+   fiuu_vt_review_required: true,
+   fiuu_vt_reconciliation_state: 'LATE_SUCCESS_REVIEW',
+  });
+  expect(state.attempt).toMatchObject({ state: 'QUARANTINED' });
+  expect(state.rpcCalls).toContainEqual(expect.objectContaining({
+   name: 'quarantine_pos_fiuu_vt_callback_review',
+   args: expect.objectContaining({
+    p_payment_id: PAYMENT_ID,
+    p_attempt_id: ATTEMPT_ID,
+    p_provider_transaction_id: TRANSACTION_ID,
+   }),
+  }));
+  expect(state.rpcCalls.some((call) => call.name === 'mark_pos_fiuu_vt_review')).toBe(false);
+ });
+
+ it('uses the row-locked release snapshot when cashier release commits after the route read', async () => {
+  const releasedAt = new Date().toISOString();
+  const { admin, state } = makeAdmin(
+   payment({ fiuu_vt_cashier_released_at: null }),
+   attempt({ op_type: 'SALE', state: 'LAUNCHED' }),
+   {
+    beforeCallbackClaim: (paymentRow) => {
+     paymentRow.fiuu_vt_cashier_released_at = releasedAt;
+    },
+   },
+  );
+  mocks.createAdminClient.mockReturnValue(admin);
+
+  const response = await invoke(callback('SALE', '00'));
+
+  expect(await response.json()).toMatchObject({
+   payment: { id: PAYMENT_ID, status: 'QUARANTINED' },
+   next_action: 'ACK_AND_QUARANTINE',
+  });
+  expect(state.payment).toMatchObject({
+   status: 'QUARANTINED',
+   fiuu_vt_cashier_released_at: releasedAt,
+   provider_transaction_id: TRANSACTION_ID,
+   fiuu_vt_reconciliation_state: 'LATE_SUCCESS_REVIEW',
+  });
+ });
+
+ it('acknowledges an exact replay of a quarantined callback without duplicating review evidence', async () => {
+  const result = callback('SALE', '00');
+  const fingerprint = callbackFingerprint(result);
+  const { admin, state } = makeAdmin(
+   payment({
+    status: 'QUARANTINED',
+    fiuu_vt_review_required: true,
+    fiuu_vt_reconciliation_state: 'LATE_SUCCESS_REVIEW',
+    fiuu_vt_cashier_released_at: new Date().toISOString(),
+   }),
+   attempt({
+    op_type: 'SALE',
+    state: 'QUARANTINED',
+    result_fingerprint: fingerprint,
+    result_json: { status: '00', opType: 'SALE' },
+   }),
+  );
+  mocks.createAdminClient.mockReturnValue(admin);
+
+  const response = await invoke(result);
+
+  expect(await response.json()).toMatchObject({
+   payment: { id: PAYMENT_ID, status: 'QUARANTINED' },
+   next_action: 'ACK_ONLY',
+  });
+  expect(state.attemptUpdates).toHaveLength(0);
+  expect(state.paymentUpdates).toHaveLength(0);
+  expect(state.rpcCalls.some((call) => (
+   call.name === 'mark_pos_fiuu_vt_review_status_aware'
+  ))).toBe(false);
  });
 });

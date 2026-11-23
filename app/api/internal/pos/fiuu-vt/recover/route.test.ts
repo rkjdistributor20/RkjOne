@@ -63,12 +63,16 @@ function payment(id: string): Record<string, unknown> {
 function arrangeService(input: {
  branchRows?: Array<Record<string, unknown>>;
  payments?: Array<Record<string, unknown>>;
+ releasedPayments?: Array<Record<string, unknown>>;
  branchError?: unknown;
  paymentError?: unknown;
+ releasedPaymentError?: unknown;
  rotationError?: unknown;
  rotationData?: Record<string, unknown> | null;
  quarantineError?: unknown;
  quarantineData?: Record<string, unknown> | null;
+ releasedQuarantineError?: unknown;
+ releasedQuarantineData?: Record<string, unknown> | null;
 } = {}) {
  const branchQuery = {
   select: vi.fn(),
@@ -85,22 +89,29 @@ function arrangeService(input: {
  branchQuery.select.mockReturnValue(branchQuery);
  branchQuery.in.mockReturnValue(branchQuery);
 
- const paymentQuery = {
-  eq: vi.fn(),
-  in: vi.fn(),
-  not: vi.fn(),
-  or: vi.fn(),
-  order: vi.fn(),
-  limit: vi.fn().mockResolvedValue({
-   data: input.payments ?? [],
-   error: input.paymentError ?? null,
-  }),
+ const makePaymentQuery = (data: Array<Record<string, unknown>>, error: unknown) => {
+  const query = {
+   eq: vi.fn(),
+   in: vi.fn(),
+   not: vi.fn(),
+   or: vi.fn(),
+   lte: vi.fn(),
+   order: vi.fn(),
+   limit: vi.fn().mockResolvedValue({ data, error: error ?? null }),
+  };
+  query.eq.mockReturnValue(query);
+  query.in.mockReturnValue(query);
+  query.not.mockReturnValue(query);
+  query.or.mockReturnValue(query);
+  query.lte.mockReturnValue(query);
+  query.order.mockReturnValue(query);
+  return query;
  };
- paymentQuery.eq.mockReturnValue(paymentQuery);
- paymentQuery.in.mockReturnValue(paymentQuery);
- paymentQuery.not.mockReturnValue(paymentQuery);
- paymentQuery.or.mockReturnValue(paymentQuery);
- paymentQuery.order.mockReturnValue(paymentQuery);
+ const paymentQuery = makePaymentQuery(input.payments ?? [], input.paymentError);
+ const releasedPaymentQuery = makePaymentQuery(
+  input.releasedPayments ?? [],
+  input.releasedPaymentError,
+ );
 
  const rotationQuery = {
   eq: vi.fn(),
@@ -117,24 +128,48 @@ function arrangeService(input: {
  rotationQuery.eq.mockReturnValue(rotationQuery);
  rotationQuery.select.mockReturnValue(rotationQuery);
 
+ let selectCount = 0;
  const paymentTable = {
-  select: vi.fn().mockReturnValue(paymentQuery),
+  select: vi.fn(() => {
+   selectCount += 1;
+   return selectCount === 1 ? paymentQuery : releasedPaymentQuery;
+  }),
   update: vi.fn().mockReturnValue(rotationQuery),
  };
- const rpc = vi.fn().mockResolvedValue({
-  data: input.quarantineError
-   ? null
-   : input.quarantineData === undefined
-    ? { payment_id: PAYMENT_ID, status: 'QUARANTINED' }
-    : input.quarantineData,
-  error: input.quarantineError ?? null,
+ const rpc = vi.fn((name: string) => {
+  if (name === 'quarantine_pos_fiuu_vt_released_timeout') {
+   return Promise.resolve({
+    data: input.releasedQuarantineError
+     ? null
+     : input.releasedQuarantineData === undefined
+      ? { outcome: 'QUARANTINED', payment_status: 'QUARANTINED' }
+      : input.releasedQuarantineData,
+    error: input.releasedQuarantineError ?? null,
+   });
+  }
+  return Promise.resolve({
+   data: input.quarantineError
+    ? null
+    : input.quarantineData === undefined
+     ? { payment_id: PAYMENT_ID, status: 'QUARANTINED' }
+     : input.quarantineData,
+   error: input.quarantineError ?? null,
+  });
  });
  const service = {
   from: vi.fn((table: string) => table === 'branches' ? branchQuery : paymentTable),
   rpc,
  };
  mocks.createAdminClient.mockReturnValue(service);
- return { branchQuery, paymentQuery, paymentTable, rotationQuery, rpc, service };
+ return {
+  branchQuery,
+  paymentQuery,
+  releasedPaymentQuery,
+  paymentTable,
+  rotationQuery,
+  rpc,
+  service,
+ };
 }
 
 beforeEach(() => {
@@ -145,6 +180,7 @@ beforeEach(() => {
   FIUU_RECONCILIATION_ENABLED: 'true',
   FIUU_RECONCILIATION_SECRET: SECRET,
  };
+ delete process.env.FIUU_VT_RECOVERY_ENABLED;
  mocks.getFiuuVtBranches.mockReturnValue(new Set(['BR001']));
  mocks.recoverReportedFiuuVtPayment.mockResolvedValue('fulfilled');
 });
@@ -278,6 +314,49 @@ describe('Fiuu VT reported-payment recovery worker', () => {
   expect(paymentTable.select).toHaveBeenCalledWith(expect.stringContaining('updated_at'));
   expect(paymentQuery.limit).toHaveBeenCalledWith(100);
   expect(mocks.recoverReportedFiuuVtPayment).toHaveBeenCalledWith(service, row);
+ });
+
+ it('quarantines only stale cashier-released PENDING rows after the callback grace', async () => {
+  const released = {
+   id: PAYMENT_ID,
+   updated_at: '2026-11-12T01:00:10.000Z',
+  };
+  const { releasedPaymentQuery, rpc } = arrangeService({
+   releasedPayments: [released],
+  });
+
+  const response = await POST(request());
+
+  expect(response.status).toBe(200);
+  await expect(response.json()).resolves.toMatchObject({
+   ok: true,
+   examined: 0,
+   releasedExamined: 1,
+   quarantined: 1,
+   releasedResults: { QUARANTINED: 1 },
+  });
+  expect(releasedPaymentQuery.eq).toHaveBeenCalledWith('status', 'PENDING');
+  expect(releasedPaymentQuery.eq).toHaveBeenCalledWith('fiuu_vt_review_required', false);
+  expect(releasedPaymentQuery.not).toHaveBeenCalledWith(
+   'fiuu_vt_cashier_released_at',
+   'is',
+   null,
+  );
+  expect(releasedPaymentQuery.or).toHaveBeenCalledWith(expect.stringMatching(
+   /^expires_at\.lte\..+,and\(expires_at\.is\.null,created_at\.lte\..+\)$/,
+  ));
+  expect(releasedPaymentQuery.order).toHaveBeenCalledWith(
+   'expires_at',
+   { ascending: true, nullsFirst: true },
+  );
+  expect(rpc).toHaveBeenCalledWith(
+   'quarantine_pos_fiuu_vt_released_timeout',
+   {
+    p_payment_id: PAYMENT_ID,
+    p_expected_updated_at: released.updated_at,
+   },
+  );
+  expect(mocks.recoverReportedFiuuVtPayment).not.toHaveBeenCalled();
  });
 
  it('continues past poison rows, recovers a later valid row, and rotates deferred rows', async () => {

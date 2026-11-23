@@ -7,6 +7,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { createHash } from 'node:crypto';
 import fs from 'fs';
 import path from 'path';
 import sharp from 'sharp';
@@ -21,6 +22,8 @@ const REPORT_MD = path.join(OUT_DIR, 'release-readiness-audit.md');
 
 const PRODUCTION_URL = process.env.PRODUCTION_URL ?? 'https://rkj.one';
 const REVIEWER_FILE = path.join(OUT_DIR, 'play-store-reviewer-account.json');
+const ANDROID_RELEASE_AAB = 'artifacts/android/rkj-one-staff-1.8.4-release.aab';
+const ANDROID_RELEASE_SHA256 = '4B9A54346E954FEB852A904493106EF5AAF59EED34CBD054726175AAF3FF43FA';
 const REQUIRED_DOCS = [
   'docs/mobile/PLAY_STORE_SUBMISSION.md',
   'docs/mobile/APP_STORE_SUBMISSION.md',
@@ -34,7 +37,7 @@ const REQUIRED_DOCS = [
   'app/terms/page.tsx',
 ];
 const REQUIRED_ASSETS = [
-  'outputs/mobile-release/builds/rkj-one-staff-v1.0-release.aab',
+  ANDROID_RELEASE_AAB,
   'outputs/mobile-release/store-assets/01-secure-login.png',
   'outputs/mobile-release/store-assets/02-pos-counter.png',
   'outputs/mobile-release/store-assets/03-branch-operations.png',
@@ -394,7 +397,18 @@ async function main() {
   console.log('\n--- Security / Backup Readiness ---');
   const gitignore = fs.existsSync(path.join(ROOT, '.gitignore')) ? fs.readFileSync(path.join(ROOT, '.gitignore'), 'utf8') : '';
   record('Security', 'reviewer credential ignored by git', gitignore.includes('play-store-reviewer-account.*'));
-  record('Security', 'Android release AAB exists', fileExists('outputs/mobile-release/builds/rkj-one-staff-v1.0-release.aab', 1000));
+  const androidAabPath = path.join(ROOT, ANDROID_RELEASE_AAB);
+  const androidAabExists = fileExists(ANDROID_RELEASE_AAB, 1000);
+  const androidAabSha256 = androidAabExists
+    ? createHash('sha256').update(fs.readFileSync(androidAabPath)).digest('hex').toUpperCase()
+    : null;
+  record('Security', 'Android 1.8.4 release AAB exists', androidAabExists);
+  record(
+    'Security',
+    'Android 1.8.4 release AAB checksum',
+    androidAabSha256 === ANDROID_RELEASE_SHA256,
+    androidAabSha256 ? `SHA-256 ${androidAabSha256}` : 'missing',
+  );
   record('Security', 'privacy hardening doc exists', fileExists('docs/PRIVACY_SECURITY_UPGRADE.md'), fileExists('docs/PRIVACY_SECURITY_UPGRADE.md') ? 'ready' : 'missing', 'warn');
   record('Backup', 'migration bundle script exists', fileExists('scripts/bundle-migrations.mjs'), 'ready');
   record('Backup', 'go-live checklist exists', fileExists('docs/GO_LIVE_CHECKLIST.md'), 'ready');

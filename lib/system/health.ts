@@ -255,7 +255,13 @@ export async function hasFiuuDatabaseSchema(supabase: DbClient) {
       probe
         .from("pos_online_payments")
         .select(
-          "expires_at, provider_order_id, provider_result, provider_status_checked_at, provider_reconcile_reference_id, provider_reconcile_claimed_at, provider_sale_reported_at, provider_transaction_id, fiuu_opa_reconcile_state, fiuu_opa_reconcile_attempt_count, fiuu_opa_reconcile_next_at, fiuu_opa_reconcile_claim_token, fiuu_opa_reconcile_lease_expires_at",
+          "expires_at, provider_order_id, provider_result, provider_status_checked_at, provider_reconcile_reference_id, provider_reconcile_claimed_at, provider_sale_reported_at, provider_transaction_id, fiuu_opa_reconcile_state, fiuu_opa_reconcile_attempt_count, fiuu_opa_reconcile_next_at, fiuu_opa_reconcile_claim_token, fiuu_opa_reconcile_lease_expires_at, fiuu_vt_cancel_requested_at, fiuu_vt_cancel_attempt_id, fiuu_vt_cashier_released_at",
+          { count: "exact", head: true },
+        ),
+      probe
+        .from("pos_fiuu_vt_attempts")
+        .select(
+          "state, result_fingerprint, result_json, processing_lease_token, processing_lease_expires_at, quarantined_at",
           { count: "exact", head: true },
         ),
       probe
@@ -307,6 +313,8 @@ export function buildLaunchControl(input: {
   hasFiuuRecoveryWorkerConfig: boolean;
   hasFiuuRecoveryOperationalGate: boolean;
   hasFiuuVtPilot: boolean;
+  hasFiuuVtCashierReleasePilot: boolean;
+  hasFiuuVtRecoveryWorkerConfig: boolean;
   hasFiuuCloudEcrPilot: boolean;
   hasFiuuSchema: boolean;
   posQrPaymentMode: "manual" | "fiuu" | "fiuu_vt" | "fiuu_cloudecr";
@@ -332,7 +340,10 @@ export function buildLaunchControl(input: {
     && input.hasFiuuCredentials
     && input.hasFiuuRecoveryWorkerConfig
     && input.hasFiuuRecoveryOperationalGate) ||
-    (input.posQrPaymentMode === "fiuu_vt" && input.hasFiuuVtPilot) ||
+    (input.posQrPaymentMode === "fiuu_vt"
+      && input.hasFiuuVtPilot
+      && (!input.hasFiuuVtCashierReleasePilot
+        || input.hasFiuuVtRecoveryWorkerConfig)) ||
     (input.posQrPaymentMode === "fiuu_cloudecr" && input.hasFiuuCloudEcrPilot)) &&
     input.hasFiuuSchema;
   const items: LaunchControlItem[] = [
@@ -455,11 +466,17 @@ export async function buildSystemHealthSnapshot(
   const hasFiuuRecoveryWorkerConfig =
     process.env.FIUU_RECONCILIATION_ENABLED?.trim().toLowerCase() === "true"
     && fiuuRecoverySecret.length >= 32;
+  const hasFiuuVtRecoveryWorkerConfig =
+    process.env.FIUU_VT_RECOVERY_ENABLED?.trim().toLowerCase() === "true"
+    && (process.env.CRON_SECRET ?? "").trim().length >= 32;
   // Enable flag + secret only proves that the worker endpoint is configured.
   // Keep launch readiness fail-closed until a scheduler heartbeat or equivalent
   // operational gate can be verified independently.
   const hasFiuuRecoveryOperationalGate = false;
   const hasFiuuVtPilot = Boolean(process.env.POS_FIUU_VT_BRANCHES?.trim());
+  const hasFiuuVtCashierReleasePilot = Boolean(
+    process.env.POS_FIUU_VT_CASHIER_RELEASE_BRANCHES?.trim(),
+  );
   const fiuuCloudEcrBaseUrl = process.env.POS_FIUU_CLOUDECR_BASE_URL?.trim()
     .replace(/\/$/, "");
   const hasFiuuCloudEcrPilot = Boolean(process.env.POS_FIUU_CLOUDECR_BRANCHES?.trim())
@@ -488,6 +505,8 @@ export async function buildSystemHealthSnapshot(
     hasFiuuCredentials,
     hasFiuuRecoveryWorker: hasFiuuRecoveryOperationalGate,
     hasFiuuVtPilot,
+    hasFiuuVtCashierReleasePilot,
+    hasFiuuVtRecoveryWorkerConfig,
     hasFiuuCloudEcrPilot,
     hasFiuuSchema,
     fiuuLiveUatPassed: false,
@@ -510,6 +529,8 @@ export async function buildSystemHealthSnapshot(
     hasFiuuRecoveryWorkerConfig,
     hasFiuuRecoveryOperationalGate,
     hasFiuuVtPilot,
+    hasFiuuVtCashierReleasePilot,
+    hasFiuuVtRecoveryWorkerConfig,
     hasFiuuCloudEcrPilot,
     hasFiuuSchema,
     posQrPaymentMode,
@@ -686,7 +707,7 @@ export async function buildSystemHealthSnapshot(
           "payment-env",
           "Kesiapan Fiuu live",
           "WARN",
-          `Mod QR POS ${posQrPaymentMode}; pemetaan OPA tujuh medan ${hasFiuuCredentials ? "lengkap" : "belum lengkap"}; konfigurasi worker pemulihan OPA ${hasFiuuRecoveryWorkerConfig ? "lengkap" : "belum lengkap"}; scheduler/operational gate ${hasFiuuRecoveryOperationalGate ? "disahkan" : "belum dibuktikan"}; skema dan kawalan rollout Fiuu ${hasFiuuSchema ? "tersedia" : "belum tersedia"}; pilot VT ${hasFiuuVtPilot ? "dikonfigurasi" : "tidak aktif"}; pilot VT+ cloudECR ${hasFiuuCloudEcrPilot ? "dikonfigurasi" : "tidak aktif"}; UAT transaksi live belum direkodkan.`,
+          `Mod QR POS ${posQrPaymentMode}; pemetaan OPA tujuh medan ${hasFiuuCredentials ? "lengkap" : "belum lengkap"}; konfigurasi worker pemulihan OPA ${hasFiuuRecoveryWorkerConfig ? "lengkap" : "belum lengkap"}; scheduler/operational gate ${hasFiuuRecoveryOperationalGate ? "disahkan" : "belum dibuktikan"}; skema dan kawalan rollout Fiuu ${hasFiuuSchema ? "tersedia" : "belum tersedia"}; pilot VT ${hasFiuuVtPilot ? "dikonfigurasi" : "tidak aktif"}; pelepasan kaunter VT ${hasFiuuVtCashierReleasePilot ? "dikonfigurasi" : "tidak aktif"}; worker VT+cron ${hasFiuuVtRecoveryWorkerConfig ? "lengkap" : "belum lengkap"}; pilot VT+ cloudECR ${hasFiuuCloudEcrPilot ? "dikonfigurasi" : "tidak aktif"}; UAT transaksi live belum direkodkan.`,
           "Kekalkan QR statik/manual di luar pilot sehingga migrasi, bukti provider dan settlement disahkan.",
         ),
       ],

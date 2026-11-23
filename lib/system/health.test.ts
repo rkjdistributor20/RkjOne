@@ -95,6 +95,7 @@ describe("Fiuu database rollout-control health", () => {
 
     await expect(hasFiuuDatabaseSchema(client)).resolves.toBe(true);
     expect(from).toHaveBeenCalledWith("pos_fiuu_opa_branch_rollouts");
+    expect(from).toHaveBeenCalledWith("pos_fiuu_vt_attempts");
     expect(rpc).toHaveBeenCalledWith(
       "is_pos_fiuu_opa_rollout_control_ready",
     );
@@ -103,6 +104,15 @@ describe("Fiuu database rollout-control health", () => {
   it("fails closed when the rollout table is missing", async () => {
     const { client, rpc } = createSchemaProbe({
       failingTable: "pos_fiuu_opa_branch_rollouts",
+    });
+
+    await expect(hasFiuuDatabaseSchema(client)).resolves.toBe(false);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the VT attempt/recovery schema is missing", async () => {
+    const { client, rpc } = createSchemaProbe({
+      failingTable: "pos_fiuu_vt_attempts",
     });
 
     await expect(hasFiuuDatabaseSchema(client)).resolves.toBe(false);
@@ -126,6 +136,8 @@ const BASE_LAUNCH_INPUT: Parameters<typeof buildLaunchControl>[0] = {
   hasFiuuRecoveryWorkerConfig: true,
   hasFiuuRecoveryOperationalGate: false,
   hasFiuuVtPilot: false,
+  hasFiuuVtCashierReleasePilot: false,
+  hasFiuuVtRecoveryWorkerConfig: false,
   hasFiuuCloudEcrPilot: false,
   hasFiuuSchema: true,
   posQrPaymentMode: "fiuu",

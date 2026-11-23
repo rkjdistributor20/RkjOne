@@ -1,6 +1,6 @@
 # RKJ One Fiuu DuitNow QR POS Setup
 
-Last updated: 2026-11-04
+Last updated: 2026-11-23
 
 ## Authoritative VT registered-device operating runbook
 
@@ -21,6 +21,35 @@ The three Fiuu integration paths are separate:
 - **Fiuu VT+ + cloudECR** uses package `com.fiuu.cloudecrvt` and the signed cloudECR REST contract. It is retained as a prepared fallback.
 
 Never reuse credentials, identifiers, activation/binding material or readiness evidence between these paths.
+
+## Cashier-release operating rule (2026-11-23)
+
+For Fiuu VT, pressing **Batalkan pembayaran** after the native VOID launch no
+longer needs to occupy the cashier lane until the QR's approximately 15-minute
+validity ends. When the BR001 canary gate is active, RKJ One durably records the
+exact VOID attempt, retires that basket from the tablet and releases only the
+cashier/device lane. The original payment remains recoverable on the server.
+
+This is not the same as saying the provider has cancelled the payment. Staff may
+serve the next customer, while a late success remains tied to the original
+order and is sent to Finance/HQ review exactly once. Staff must not reuse the
+old QR, copy an order reference into a new sale or manually mark the next basket
+paid.
+
+Activation requires all of the following, in this order:
+
+1. Apply migration
+   `20261123150000_release_fiuu_vt_cashier_after_void_launch.sql`.
+2. Deploy the matching web commit.
+3. Configure `FIUU_VT_RECOVERY_ENABLED=true` and a server-only `CRON_SECRET`
+   with at least 32 characters; prove the scheduled recovery endpoint runs.
+4. Keep `POS_FIUU_VT_CASHIER_RELEASE_BRANCHES` empty during deployment checks.
+5. Add `BR001` only, complete physical cancel/late-success/network/restart UAT,
+   then expand in small batches. Never use `*` or enable all branches at once.
+
+If migration, worker readiness, device enrollment or branch gating is missing,
+the new release endpoint fails closed and the existing static/manual fallback
+remains available.
 
 ## Current registered-device decision (2026-11-04)
 

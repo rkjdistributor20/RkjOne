@@ -239,7 +239,7 @@ export async function POST(
  const service = createAdminClient();
  const { data: payment, error: paymentError } = await service
   .from('pos_online_payments')
-  .select('id, organization_id, branch_id, shift_id, created_by, provider, status, amount_rm, sale_payload, provider_order_id, provider_transaction_id, provider_sale_reported_at, fiuu_vt_review_required')
+  .select('id, organization_id, branch_id, shift_id, created_by, provider, status, amount_rm, sale_payload, provider_order_id, provider_transaction_id, provider_sale_reported_at, fiuu_vt_review_required, fiuu_vt_cashier_released_at')
   .eq('id', paymentId)
   .eq('organization_id', profile.organization_id)
   .maybeSingle();
@@ -288,6 +288,13 @@ export async function POST(
    { error: accessError instanceof Error ? accessError.message : 'Akses Fiuu VT ditolak' },
    { status: posAccessErrorStatus(accessError) },
   );
+ }
+
+ if (payment.fiuu_vt_cashier_released_at) {
+  return NextResponse.json({
+   error: 'Transaksi lama telah dilepaskan daripada kaunter. Gunakan rekod asal untuk padanan callback; jangan lancarkan operasi Fiuu baharu.',
+   mode: 'FIUU_ATTEMPT_CASHIER_RELEASED',
+  }, { status: 409 });
  }
 
  if (payment.fiuu_vt_review_required && !detachedStatus) {

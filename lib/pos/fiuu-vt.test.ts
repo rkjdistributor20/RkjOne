@@ -20,9 +20,12 @@ import {
 } from './fiuu-vt';
 import {
  getFiuuVtBranches,
+ getFiuuVtCashierReleaseBranches,
  getFiuuVtLateRecoveryMs,
  getFiuuVtValiditySeconds,
+ isFiuuVtCashierReleaseRuntimeReady,
  isFiuuVtEnabledForBranch,
+ isFiuuVtCashierReleaseEnabledForBranch,
  normalizeFiuuVtBranchCode,
 } from './fiuu-vt-server';
 
@@ -379,6 +382,46 @@ describe('Fiuu VT registered-branch gate', () => {
   expect([...getFiuuVtBranches()]).toEqual([]);
   expect(isFiuuVtEnabledForBranch('BR001')).toBe(false);
  });
+
+ it('keeps the cashier-release flow on an independent default-off canary gate', () => {
+  process.env.POS_QR_PAYMENT_MODE = 'fiuu_vt';
+  process.env.POS_FIUU_VT_BRANCHES = 'BR001,BR002';
+  delete process.env.POS_FIUU_VT_CASHIER_RELEASE_BRANCHES;
+  delete process.env.FIUU_VT_RECOVERY_ENABLED;
+  delete process.env.CRON_SECRET;
+
+  expect([...getFiuuVtCashierReleaseBranches()]).toEqual([]);
+  expect(isFiuuVtCashierReleaseEnabledForBranch('BR001')).toBe(false);
+
+  process.env.POS_FIUU_VT_CASHIER_RELEASE_BRANCHES = 'br001';
+  expect([...getFiuuVtCashierReleaseBranches()]).toEqual(['BR001']);
+  expect(isFiuuVtCashierReleaseRuntimeReady()).toBe(false);
+  expect(isFiuuVtCashierReleaseEnabledForBranch('BR001')).toBe(false);
+
+  process.env.FIUU_VT_RECOVERY_ENABLED = 'true';
+  process.env.CRON_SECRET = 'rkj-fiuu-vt-cron-secret-at-least-32-characters';
+  expect(isFiuuVtCashierReleaseRuntimeReady()).toBe(true);
+  expect(isFiuuVtCashierReleaseEnabledForBranch('BR001')).toBe(true);
+  expect(isFiuuVtCashierReleaseEnabledForBranch('BR002')).toBe(false);
+ });
+
+ it.each([
+  { recovery: 'false', secret: 'rkj-fiuu-vt-cron-secret-at-least-32-characters' },
+  { recovery: 'true', secret: '' },
+  { recovery: 'true', secret: 'too-short' },
+ ])('fails the cashier-release runtime gate for %j', ({ recovery, secret }) => {
+  process.env.FIUU_VT_RECOVERY_ENABLED = recovery;
+  process.env.CRON_SECRET = secret;
+  expect(isFiuuVtCashierReleaseRuntimeReady()).toBe(false);
+ });
+
+ it.each(['*', 'BR037', 'BR001,', 'BR001,br001'])(
+  'rejects malformed or duplicate cashier-release allowlist value %s',
+  (allowlist) => {
+   process.env.POS_FIUU_VT_CASHIER_RELEASE_BRANCHES = allowlist;
+   expect(() => getFiuuVtCashierReleaseBranches()).toThrow('pelepasan kaunter Fiuu VT');
+  },
+ );
 
  it('allows only explicitly configured BR001-BR036 branches while the dedicated mode is active', () => {
   process.env.POS_QR_PAYMENT_MODE = 'fiuu_vt';

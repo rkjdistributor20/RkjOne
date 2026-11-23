@@ -17,6 +17,7 @@ export interface PosQrConfig {
   packageName: 'com.rms.mobile.razervt';
   channel: 'RPP_DuitNowQR-Offline';
   rollout: 'REGISTERED_DEVICE_ONLY';
+  cashierReleaseEnabled: boolean;
  } | null;
  cloudEcr?: {
   appPackageName: 'com.fiuu.cloudecrvt';

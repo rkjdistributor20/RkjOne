@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createPosQrPayment, PosQrPaymentError } from './api';
+import { createFiuuVtAttempt, createPosQrPayment, PosQrPaymentError } from './api';
 import type { CreateSalePayload } from './types';
 
 afterEach(() => {
@@ -55,5 +55,37 @@ describe('POS API client', () => {
    mode: 'MANUAL_QR_ONLY',
   });
   await expect(request).rejects.toBeInstanceOf(PosQrPaymentError);
+ });
+
+ it('preserves the exact active VOID attempt for crash-safe cashier release recovery', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+   new Response(JSON.stringify({
+    error: 'Operasi VOID Fiuu VT masih aktif',
+    mode: 'FIUU_VT_OPERATION_ACTIVE',
+    retry_after_ms: 1_500,
+    active_operation: {
+     id: '11111111-1111-4111-8111-111111111111',
+     callback_host: 'https://callback.example.test',
+     expires_at: '2026-11-23T05:00:00.000Z',
+     op_type: 'VOID',
+     state: 'LAUNCHED',
+     lease_generation: 3,
+    },
+   }), { status: 409 }),
+  ));
+
+  await expect(createFiuuVtAttempt('payment-1', 'VOID')).rejects.toMatchObject({
+   name: 'PosQrPaymentError',
+   status: 409,
+   mode: 'FIUU_VT_OPERATION_ACTIVE',
+   retryAfterMs: 1_500,
+   activeOperation: {
+    id: '11111111-1111-4111-8111-111111111111',
+    callbackHost: 'https://callback.example.test',
+    opType: 'VOID',
+    state: 'LAUNCHED',
+    generation: 3,
+   },
+  });
  });
 });

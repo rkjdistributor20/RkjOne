@@ -6975,6 +6975,9 @@ export type Database = {
           fiuu_vt_provider_error_at: string | null
           fiuu_vt_provider_error_code: string | null
           fiuu_vt_provider_error_count: number
+          fiuu_vt_cancel_attempt_id: string | null
+          fiuu_vt_cancel_requested_at: string | null
+          fiuu_vt_cashier_released_at: string | null
           fiuu_vt_reconciliation_state: string | null
           fiuu_vt_recovery_attempted_at: string | null
           fiuu_vt_recovery_attempts: number
@@ -7026,6 +7029,9 @@ export type Database = {
           fiuu_vt_provider_error_at?: string | null
           fiuu_vt_provider_error_code?: string | null
           fiuu_vt_provider_error_count?: number
+          fiuu_vt_cancel_attempt_id?: string | null
+          fiuu_vt_cancel_requested_at?: string | null
+          fiuu_vt_cashier_released_at?: string | null
           fiuu_vt_reconciliation_state?: string | null
           fiuu_vt_recovery_attempted_at?: string | null
           fiuu_vt_recovery_attempts?: number
@@ -7077,6 +7083,9 @@ export type Database = {
           fiuu_vt_provider_error_at?: string | null
           fiuu_vt_provider_error_code?: string | null
           fiuu_vt_provider_error_count?: number
+          fiuu_vt_cancel_attempt_id?: string | null
+          fiuu_vt_cancel_requested_at?: string | null
+          fiuu_vt_cashier_released_at?: string | null
           fiuu_vt_reconciliation_state?: string | null
           fiuu_vt_recovery_attempted_at?: string | null
           fiuu_vt_recovery_attempts?: number
@@ -11325,6 +11334,37 @@ export type Database = {
         }
         Returns: Json
       }
+      mark_pos_fiuu_vt_released_review: {
+        Args: {
+          p_evidence: Json
+          p_payment_id: string
+          p_state: string
+        }
+        Returns: Json
+      }
+      mark_pos_fiuu_vt_review_status_aware: {
+        Args: {
+          p_evidence: Json
+          p_payment_id: string
+          p_state: string
+        }
+        Returns: Json
+      }
+      quarantine_pos_fiuu_vt_callback_review: {
+        Args: {
+          p_attempt_id: string
+          p_evidence: Json
+          p_payment_id: string
+          p_provider_result: Json | null
+          p_provider_sale_reported_at: string | null
+          p_provider_status_checked_at: string | null
+          p_provider_transaction_id: string | null
+          p_result_fingerprint: string
+          p_result_json: Json
+          p_state: string
+        }
+        Returns: Json
+      }
       park_pos_fiuu_vt_provider_error: {
         Args: {
           p_actor_id: string
@@ -11358,6 +11398,23 @@ export type Database = {
           p_actor_id: string
           p_attempt_id: string
           p_error_code: string
+          p_payment_id: string
+        }
+        Returns: Json
+      }
+      release_pos_fiuu_vt_cashier_lane: {
+        Args: {
+          p_actor_id: string
+          p_attempt_id: string
+          p_device_id: string
+          p_enrollment_generation: number
+          p_payment_id: string
+        }
+        Returns: Json
+      }
+      quarantine_pos_fiuu_vt_released_timeout: {
+        Args: {
+          p_expected_updated_at: string
           p_payment_id: string
         }
         Returns: Json

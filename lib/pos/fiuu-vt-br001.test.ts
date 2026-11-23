@@ -419,7 +419,8 @@ describe('Fiuu VT one-time callback security and deterministic recovery', () => 
  });
 
  it('acknowledges exact retries idempotently and consumes accepted attempts', () => {
-  expect(vtResultRoute).toContain("attempt.state === 'CONSUMED' && attempt.result_fingerprint === fingerprint");
+  expect(vtResultRoute).toContain("attempt.state === 'CONSUMED' || attempt.state === 'QUARANTINED'");
+  expect(vtResultRoute).toContain('attempt.result_fingerprint === fingerprint');
   expect(vtResultRoute).toContain("'ACK_ONLY'");
   expect(vtResultRoute).toContain("'complete_pos_fiuu_vt_callback_processing'");
   expect(vtResultRoute).toContain("(input as Record<string, unknown>).outcome === 'COMPLETED'");

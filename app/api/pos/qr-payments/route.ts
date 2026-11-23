@@ -67,6 +67,7 @@ type ExistingPayment = {
  checkout_url: string | null;
  expires_at: string | null;
  provider_order_id: string | null;
+ fiuu_vt_cashier_released_at: string | null;
 };
 
 type FiuuPaymentTransport = {
@@ -137,6 +138,16 @@ function existingPaymentResponse(
     mode: conflictMode,
    },
    { status: 409 });
+ }
+
+ if (payment.provider === 'fiuu_vt' && payment.fiuu_vt_cashier_released_at) {
+  return NextResponse.json(
+   {
+    error: 'Percubaan QR asal telah diasingkan selepas permintaan batal. Jana pesanan baharu dengan troli baharu.',
+    mode: 'FIUU_ATTEMPT_CASHIER_RELEASED',
+   },
+   { status: 409 },
+  );
  }
 
  if (payment.status === 'PAID') {
@@ -493,7 +504,7 @@ export async function POST(request: Request) {
   amountRm: qrAmount,
   salePayload,
  };
- const existingSelect = 'id, amount_rm, branch_id, shift_id, created_by, provider, status, sale_payload, gateway_ref, checkout_url, expires_at, provider_order_id';
+ const existingSelect = 'id, amount_rm, branch_id, shift_id, created_by, provider, status, sale_payload, gateway_ref, checkout_url, expires_at, provider_order_id, fiuu_vt_cashier_released_at';
 
  // cloudECR has a server-to-server reconciliation path, so an unresolved row
  // may be released after the bounded grace. Legacy Fiuu VT is different: a
@@ -536,6 +547,7 @@ export async function POST(request: Request) {
   .eq('created_by', profile.id)
   .in('provider', ['fiuu', 'fiuu_vt', 'fiuu_cloudecr'])
   .in('status', ['PENDING', 'REPORTED'])
+  .is('fiuu_vt_cashier_released_at', null)
   .maybeSingle();
  if (activeError) {
   return NextResponse.json({ error: 'Percubaan QR aktif tidak dapat disahkan' }, { status: 400 });
@@ -555,7 +567,8 @@ export async function POST(request: Request) {
    .select(existingSelect)
    .eq('organization_id', profile.organization_id)
    .eq('provider', transport.provider)
-   .in('status', ['PENDING', 'REPORTED']);
+   .in('status', ['PENDING', 'REPORTED'])
+   .is('fiuu_vt_cashier_released_at', null);
   if (transport.integration === 'cloudecr' && cloudEcrConfig) {
    return base.contains('sale_payload', {
     fiuu_cloudecr_pos_id: cloudEcrConfig.posId,
@@ -648,6 +661,7 @@ export async function POST(request: Request) {
     .eq('created_by', profile.id)
      .in('provider', ['fiuu', 'fiuu_vt', 'fiuu_cloudecr'])
     .in('status', ['PENDING', 'REPORTED'])
+    .is('fiuu_vt_cashier_released_at', null)
     .maybeSingle();
    if (racedActivePayment) {
     return existingPaymentResponse(

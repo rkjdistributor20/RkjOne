@@ -18,10 +18,24 @@ Fiuu VT terminal release now remains safe across app or WebView reloads. Previou
 
 ## Acceptance gates
 
-- 53 Vitest files and 555 tests pass.
+- 56 Vitest files and 610 tests pass.
 - TypeScript, full ESLint, diff checks and the 166-page Next.js Production build pass.
-- Supabase linked schema lint passes; dry-run lists only the two reviewed Fiuu VT migrations.
-- Android unit tests and release lint pass with JDK 21.
-- Independent final release audit reports `RELEASE-SAFE` with no blocking findings.
-- The signed AAB was rebuilt from this exact source; `jarsigner` verification passes and the SHA-256 above matches the upload artifact.
-- The matching database and web release must be live before BR001 physical-tablet smoke testing and Play Production rollout.
+- Supabase linked schema lint passes; dry-run lists only
+  `20261123150000_release_fiuu_vt_cashier_after_void_launch.sql`.
+- A clean local Supabase reset applies the full migration chain through
+  `20261123150000` successfully.
+- A transactional local database integration test proves the released original
+  payment and an immediate new payment can coexist for the same cashier, shift
+  and official tablet. Exact replay is idempotent, a different VOID attempt is
+  rejected, and existing `STATUS 00` evidence blocks cashier release. The test
+  transaction is rolled back.
+- The existing signed 1.8.4 AAB checksum matches the artifact above. Standard
+  signature verification recognizes the upload signature; strict Java
+  verification reports the expected self-signed upload-certificate and missing
+  timestamp warnings, so it is not recorded as a strict-clean result.
+- This hotfix changes the database and the web/PWA hosted at `https://rkj.one`;
+  it does not change native Android code. The 1.8.4 wrapper already points to
+  that host, so a replacement AAB is not required for the cashier-release fix.
+- Production migration, web deployment, BR001 physical-tablet UAT and the
+  installed-version inventory remain release gates. Do not describe the fleet
+  as updated until those checks are recorded per tablet.

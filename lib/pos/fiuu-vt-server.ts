@@ -29,6 +29,25 @@ export function getFiuuVtBranches(): ReadonlySet<string> {
  return branches;
 }
 
+export function getFiuuVtCashierReleaseBranches(): ReadonlySet<string> {
+ const configuredBranches = process.env.POS_FIUU_VT_CASHIER_RELEASE_BRANCHES;
+ if (!configuredBranches?.trim()) return new Set();
+
+ const branches = new Set<string>();
+ for (const raw of configuredBranches.split(',')) {
+  const branchCode = normalizeFiuuVtBranchCode(raw);
+  if (!branchCode) {
+   const redacted = raw.trim().toUpperCase().slice(0, 12) || '(kosong)';
+   throw new Error(`Kod cawangan pelepasan kaunter Fiuu VT tidak sah: ${redacted}`);
+  }
+  if (branches.has(branchCode)) {
+   throw new Error(`Kod cawangan pelepasan kaunter Fiuu VT berulang: ${branchCode}`);
+  }
+  branches.add(branchCode);
+ }
+ return branches;
+}
+
 // Preserve the original export for older server modules while the rollout
 // moves from one pilot branch to an explicit per-branch allowlist.
 export const getFiuuVtPilotBranches = getFiuuVtBranches;
@@ -39,6 +58,23 @@ export function isFiuuVtEnabledForBranch(branchCode: string): boolean {
 
  return getPosQrPaymentMode() === 'fiuu_vt'
   && getFiuuVtBranches().has(normalizedBranchCode);
+}
+
+export function isFiuuVtCashierReleaseRuntimeReady(): boolean {
+ // Cashier release creates a detached PENDING payment that must be recovered
+ // independently of the tablet. Require the dedicated gate (no legacy
+ // fallback) and the Vercel Cron bearer secret before advertising the flow.
+ return process.env.FIUU_VT_RECOVERY_ENABLED?.trim().toLowerCase() === 'true'
+  && (process.env.CRON_SECRET ?? '').trim().length >= 32;
+}
+
+export function isFiuuVtCashierReleaseEnabledForBranch(branchCode: string): boolean {
+ const normalizedBranchCode = normalizeFiuuVtBranchCode(branchCode);
+ if (!normalizedBranchCode) return false;
+
+ return isFiuuVtCashierReleaseRuntimeReady()
+  && isFiuuVtEnabledForBranch(normalizedBranchCode)
+  && getFiuuVtCashierReleaseBranches().has(normalizedBranchCode);
 }
 
 export function getFiuuVtValiditySeconds(): number {
