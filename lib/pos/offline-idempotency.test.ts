@@ -13,6 +13,10 @@ const syncRoute = readFileSync(
  new URL('../../app/api/pos/sync/route.ts', import.meta.url),
  'utf8',
 );
+const offlineGuardMigration = readFileSync(
+ new URL('../../supabase/migrations/20261123191000_harden_offline_pos_sync.sql', import.meta.url),
+ 'utf8',
+);
 
 describe('offline POS replay safety', () => {
  it('serializes an offline identity and returns its durable receipt on retry', () => {
@@ -33,7 +37,19 @@ describe('offline POS replay safety', () => {
 
  it('keeps the original offline id attached to every sync retry', () => {
   expect(syncRoute).toContain('p_offline_id: sale.offlineId');
-  expect(syncRoute).toContain('synced.push(sale.offlineId)');
+  expect(syncRoute).toContain('synced.push(offlineId)');
+ });
+
+ it('rejects provider-backed money and stale actor/tablet/shift bindings', () => {
+  expect(syncRoute).toContain("sale.payment_method !== 'CASH'");
+  expect(syncRoute).toContain('sale.actorId !== profile.id');
+  expect(syncRoute).toContain('sale.deviceId !== verifiedDevice.id');
+  expect(syncRoute).toContain('sale.enrollmentGeneration !== verifiedDevice.enrollmentGeneration');
+  expect(syncRoute).toContain('assertActivePosShiftMember(');
+  expect(offlineGuardMigration).toContain("NEW.payment_method <> 'CASH'");
+  expect(offlineGuardMigration).toContain("COALESCE(NEW.qr_amount, 0) <> 0");
+  expect(offlineGuardMigration).toContain("member.status = 'ACTIVE'");
+  expect(offlineGuardMigration).toContain("shift.status = 'OPEN'");
  });
 
  it('runs one queue sync on mount, reconnect, focus and pageshow', () => {

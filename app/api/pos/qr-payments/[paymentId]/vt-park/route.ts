@@ -32,7 +32,14 @@ export async function POST(
  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
  const body = await request.json().catch(() => null) as { reason?: unknown } | null;
- const nativeStorageRecovery = body?.reason === 'NATIVE_CALLBACK_REGISTRY';
+ const reason = body?.reason ?? 'PROVIDER_STATUS_ERROR';
+ if (reason !== 'PROVIDER_STATUS_ERROR'
+  && reason !== 'NATIVE_CALLBACK_REGISTRY'
+  && reason !== 'STATUS_RETRY_LIMIT') {
+  return NextResponse.json({ error: 'Sebab kuarantin Fiuu VT tidak sah' }, { status: 400 });
+ }
+ const nativeStorageRecovery = reason === 'NATIVE_CALLBACK_REGISTRY';
+ const statusRetryLimitRecovery = reason === 'STATUS_RETRY_LIMIT';
 
  const { paymentId } = await context.params;
  const service = createAdminClient();
@@ -80,7 +87,9 @@ export async function POST(
  const { data: parked, error: parkError } = await service.rpc(
   nativeStorageRecovery
    ? 'park_pos_fiuu_vt_native_storage_recovery'
-   : 'park_pos_fiuu_vt_provider_error',
+   : statusRetryLimitRecovery
+    ? 'park_pos_fiuu_vt_status_retry_limit'
+    : 'park_pos_fiuu_vt_provider_error',
   {
    p_payment_id: payment.id,
    p_actor_id: profile.id,
@@ -92,14 +101,66 @@ export async function POST(
   return NextResponse.json({
    error: nativeStorageRecovery
     ? 'Transaksi lama masih dalam tempoh penerimaan callback. RKJ One akan cuba pelepasan selamat semula sebentar lagi.'
-    : 'Transaksi belum selamat untuk dikuarantin. Semak STATUS Fiuu VT sekali lagi.',
+    : statusRetryLimitRecovery
+     ? 'Transaksi lama masih mempunyai callback atau lease aktif. RKJ One akan cuba kuarantin semula tanpa membuka SALE baharu.'
+     : 'Transaksi belum selamat untuk dikuarantin. Semak STATUS Fiuu VT sekali lagi.',
    mode: nativeStorageRecovery
     ? 'FIUU_VT_NATIVE_RECOVERY_NOT_READY'
-    : 'FIUU_VT_PARK_NOT_READY',
+    : statusRetryLimitRecovery
+     ? 'FIUU_VT_STATUS_RETRY_LIMIT_NOT_READY'
+     : 'FIUU_VT_PARK_NOT_READY',
+   retry_after_ms: statusRetryLimitRecovery ? 2_000 : undefined,
   }, { status: 409 });
  }
 
  const result = jsonRecord(parked);
+ if (statusRetryLimitRecovery) {
+  const outcome = typeof result?.outcome === 'string' ? result.outcome : null;
+  const resultPaymentId = typeof result?.payment_id === 'string' ? result.payment_id : null;
+  const resultStatus = typeof result?.payment_status === 'string'
+   ? result.payment_status
+   : null;
+  const resultReviewState = typeof result?.review_state === 'string'
+   ? result.review_state
+   : null;
+  if (outcome !== 'QUARANTINED'
+   || resultPaymentId !== payment.id
+   || resultStatus !== 'QUARANTINED'
+   || resultReviewState !== 'PROVIDER_ERROR_REVIEW') {
+   const status = outcome === 'FORBIDDEN'
+    ? 403
+    : outcome === 'NOT_FOUND'
+     ? 404
+     : 409;
+   return NextResponse.json({
+    error: status === 403
+     ? 'Transaksi Fiuu VT bukan milik sesi tablet ini'
+     : status === 404
+      ? 'Transaksi Fiuu VT tidak dijumpai'
+      : 'Transaksi lama belum selamat untuk dikuarantin. Bukti dan troli dikekalkan.',
+    mode: 'FIUU_VT_STATUS_RETRY_LIMIT_NOT_READY',
+    retry_after_ms: status === 409 ? 2_000 : undefined,
+   }, { status });
+  }
+
+  const { data: verifiedPayment, error: verifyError } = await service
+   .from('pos_online_payments')
+   .select('id, status, fiuu_vt_review_required, fiuu_vt_reconciliation_state')
+   .eq('id', payment.id)
+   .eq('organization_id', profile.organization_id)
+   .maybeSingle();
+  if (verifyError
+   || !verifiedPayment
+   || verifiedPayment.status !== 'QUARANTINED'
+   || verifiedPayment.fiuu_vt_review_required !== true
+   || verifiedPayment.fiuu_vt_reconciliation_state !== 'PROVIDER_ERROR_REVIEW') {
+   return NextResponse.json({
+    error: 'Pengesahan kuarantin transaksi lama belum lengkap. Tablet kekal dikunci tanpa membuka SALE baharu.',
+    mode: 'FIUU_VT_STATUS_RETRY_LIMIT_NOT_READY',
+    retry_after_ms: 2_000,
+   }, { status: 409 });
+  }
+ }
  return NextResponse.json({
   payment: {
    id: payment.id,
@@ -110,6 +171,8 @@ export async function POST(
   reused: result?.reused === true,
   warning: nativeStorageRecovery
    ? 'Daftar callback tablet yang rosak telah diasingkan bersama semua bukti untuk semakan Finance/HQ. Kaunter boleh digunakan semula; jangan caj semula pelanggan yang sama.'
-   : 'Transaksi lama dikuarantin untuk semakan Finance/HQ. Troli asal dikosongkan bagi mengelakkan caj berganda; jangan caj semula pelanggan yang sama.',
+   : statusRetryLimitRecovery
+    ? 'Had semakan STATUS dicapai. Transaksi asal dan semua bukti dikuarantin untuk semakan Finance/HQ; kaunter boleh dilepaskan dan pelanggan baharu kekal berasingan.'
+    : 'Transaksi lama dikuarantin untuk semakan Finance/HQ. Troli asal dikosongkan bagi mengelakkan caj berganda; jangan caj semula pelanggan yang sama.',
  });
 }

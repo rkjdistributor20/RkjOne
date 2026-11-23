@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createFiuuVtAttempt, createPosQrPayment, PosQrPaymentError } from './api';
+import {
+ createFiuuVtAttempt,
+ createPosQrPayment,
+ parkFiuuVtProviderErrorPayment,
+ PosQrPaymentError,
+} from './api';
 import type { CreateSalePayload } from './types';
 
 afterEach(() => {
@@ -86,6 +91,62 @@ describe('POS API client', () => {
     state: 'LAUNCHED',
     generation: 3,
    },
+  });
+ });
+
+ it.each([
+  'PAYMENT_EXPIRED',
+  'STATUS_ATTEMPT_BUDGET_EXHAUSTED',
+ ] as const)('preserves the Fiuu VT retry-limit reason %s', async (reason) => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+   new Response(JSON.stringify({
+    error: 'Semakan STATUS Fiuu VT dihadkan',
+    mode: 'FIUU_VT_RELEASE_RETRY_LIMIT',
+    retry_after_ms: 30_000,
+    reason,
+   }), { status: 409 }),
+  ));
+
+  await expect(createFiuuVtAttempt('payment-1', 'STATUS')).rejects.toMatchObject({
+   name: 'PosQrPaymentError',
+   status: 409,
+   mode: 'FIUU_VT_RELEASE_RETRY_LIMIT',
+   retryAfterMs: 30_000,
+   reason,
+  });
+ });
+
+ it('does not propagate an unapproved Fiuu VT retry-limit reason', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+   new Response(JSON.stringify({
+    error: 'Semakan STATUS Fiuu VT dihadkan',
+    mode: 'FIUU_VT_RELEASE_RETRY_LIMIT',
+    reason: 'INTERNAL_SECRET_DETAIL',
+   }), { status: 409 }),
+  ));
+
+  await expect(createFiuuVtAttempt('payment-1', 'STATUS')).rejects.toMatchObject({
+   name: 'PosQrPaymentError',
+   reason: null,
+  });
+ });
+
+ it('preserves retry timing while STATUS-limit quarantine evidence is still active', async () => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+   new Response(JSON.stringify({
+    error: 'Callback masih aktif',
+    mode: 'FIUU_VT_STATUS_RETRY_LIMIT_NOT_READY',
+    retry_after_ms: 2_000,
+   }), { status: 409 }),
+  ));
+
+  await expect(
+   parkFiuuVtProviderErrorPayment('payment-1', 'STATUS_RETRY_LIMIT'),
+  ).rejects.toMatchObject({
+   name: 'PosQrPaymentError',
+   status: 409,
+   mode: 'FIUU_VT_STATUS_RETRY_LIMIT_NOT_READY',
+   retryAfterMs: 2_000,
   });
  });
 });

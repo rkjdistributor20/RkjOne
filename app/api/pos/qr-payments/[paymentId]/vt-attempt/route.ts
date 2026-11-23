@@ -74,6 +74,10 @@ type LeaseDecision = {
  reason: string | null;
 };
 
+type PublicRetryLimitReason =
+ | 'PAYMENT_EXPIRED'
+ | 'STATUS_ATTEMPT_BUDGET_EXHAUSTED';
+
 type ClaimLaunchLeaseRpc = (
  functionName: 'claim_pos_fiuu_vt_launch_lease',
  parameters: {
@@ -214,6 +218,12 @@ function parseLeaseDecision(input: unknown): LeaseDecision | null {
   reused: raw.reused === true,
   reason: typeof raw.reason === 'string' ? raw.reason : null,
  };
+}
+
+function publicRetryLimitReason(reason: string | null): PublicRetryLimitReason | null {
+ return reason === 'PAYMENT_EXPIRED' || reason === 'STATUS_ATTEMPT_BUDGET_EXHAUSTED'
+  ? reason
+  : null;
 }
 
 export async function POST(
@@ -403,6 +413,7 @@ export async function POST(
    error: 'Semakan STATUS Fiuu VT sedang dihadkan sementara. Troli dikekalkan dan semakan akan disambung tanpa membuka SALE baharu.',
    mode: 'FIUU_VT_RELEASE_RETRY_LIMIT',
    retry_after_ms: decision.retryAfterMs,
+   reason: publicRetryLimitReason(decision.reason),
   }, {
    status: 409,
    headers: decision.retryAfterMs > 0

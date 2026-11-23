@@ -11383,6 +11383,15 @@ export type Database = {
         }
         Returns: Json
       }
+      park_pos_fiuu_vt_status_retry_limit: {
+        Args: {
+          p_actor_id: string
+          p_device_id: string
+          p_enrollment_generation: number
+          p_payment_id: string
+        }
+        Returns: Json
+      }
       record_pos_fiuu_vt_provider_error: {
         Args: {
           p_error_code: string

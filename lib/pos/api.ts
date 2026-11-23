@@ -31,6 +31,10 @@ export type FiuuVtActiveOperation = {
  generation: number;
 };
 
+export type FiuuVtRetryLimitReason =
+ | 'PAYMENT_EXPIRED'
+ | 'STATUS_ATTEMPT_BUDGET_EXHAUSTED';
+
 const referenceCache = new Map<string, { expiresAt: number; value: unknown }>();
 
 async function fetchCachedJson<T>(
@@ -50,6 +54,16 @@ async function fetchCachedJson<T>(
 
 export function clearPosReferenceCache() {
  referenceCache.clear();
+}
+
+function parseFiuuVtRetryLimitReason(input: unknown): FiuuVtRetryLimitReason | null {
+ if (!input || typeof input !== 'object' || Array.isArray(input) || !('reason' in input)) {
+  return null;
+ }
+ const reason = input.reason;
+ return reason === 'PAYMENT_EXPIRED' || reason === 'STATUS_ATTEMPT_BUDGET_EXHAUSTED'
+  ? reason
+  : null;
 }
 
 export async function fetchPosDeviceContext() {
@@ -368,6 +382,7 @@ export async function createFiuuVtAttempt(
      && Number.isFinite(data.retry_after_ms)
      ? Math.max(0, Math.min(30_000, Math.ceil(data.retry_after_ms)))
      : null;
+   const reason = parseFiuuVtRetryLimitReason(data);
    const rawActiveOperation = typeof data === 'object' && data !== null
     && 'active_operation' in data
     && typeof data.active_operation === 'object'
@@ -417,6 +432,7 @@ export async function createFiuuVtAttempt(
     mode,
     retryAfterMs,
     activeOperation,
+    reason,
    );
   }
   throw error;
@@ -541,7 +557,10 @@ export async function releaseFiuuVtCashierAfterVoidLaunch(
 
 export async function parkFiuuVtProviderErrorPayment(
  paymentId: string,
- reason: 'PROVIDER_STATUS_ERROR' | 'NATIVE_CALLBACK_REGISTRY' = 'PROVIDER_STATUS_ERROR',
+ reason:
+  | 'PROVIDER_STATUS_ERROR'
+  | 'NATIVE_CALLBACK_REGISTRY'
+  | 'STATUS_RETRY_LIMIT' = 'PROVIDER_STATUS_ERROR',
 ) {
  try {
   return await fetchJson<{
@@ -564,7 +583,13 @@ export async function parkFiuuVtProviderErrorPayment(
     typeof data === 'object' && data !== null && 'mode' in data && typeof data.mode === 'string'
      ? data.mode
      : null;
-   throw new PosQrPaymentError(error.message, error.status, mode);
+   const retryAfterMs =
+    typeof data === 'object' && data !== null
+     && 'retry_after_ms' in data && typeof data.retry_after_ms === 'number'
+     && Number.isFinite(data.retry_after_ms)
+     ? Math.max(0, Math.min(30_000, Math.ceil(data.retry_after_ms)))
+     : null;
+   throw new PosQrPaymentError(error.message, error.status, mode, retryAfterMs);
   }
   throw error;
  }
@@ -595,6 +620,7 @@ export class PosQrPaymentError extends Error {
   readonly mode: string | null,
   readonly retryAfterMs: number | null = null,
   readonly activeOperation: FiuuVtActiveOperation | null = null,
+  readonly reason: FiuuVtRetryLimitReason | null = null,
  ) {
   super(message);
   this.name = 'PosQrPaymentError';

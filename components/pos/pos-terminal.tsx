@@ -1101,6 +1101,7 @@ export function PosTerminal() {
  open={paymentOpen}
  onOpenChange={setPaymentOpen}
  branchId={branchId}
+  deviceContext={deviceContext}
  onSuccess={handlePaymentSuccess}
  trainingMode={trainingMode}
  />}

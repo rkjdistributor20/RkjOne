@@ -446,6 +446,11 @@ describe('Fiuu VT cashier release safety contract', () => {
   expect(cleanup).toContain('launchFiuuVtStatus(orderId, payment.amount_rm, attempt)');
   expect(cleanup).toContain("error.mode === 'FIUU_VT_OPERATION_ACTIVE'");
   expect(cleanup).toContain("error.mode === 'FIUU_VT_RELEASE_RETRY_LIMIT'");
+  expect(cleanup).toContain("error.reason === 'PAYMENT_EXPIRED'");
+  expect(cleanup).toContain("error.reason === 'STATUS_ATTEMPT_BUDGET_EXHAUSTED'");
+  expect(cleanup).toContain("parkFiuuVtProviderErrorPayment(\n         paymentId,\n         'STATUS_RETRY_LIMIT'");
+  expect(cleanup).toContain("parkError.mode === 'FIUU_VT_STATUS_RETRY_LIMIT_NOT_READY'");
+  expect(cleanup).toContain('releaseAfterReview = true');
   expect(cleanup).toContain("error.mode === 'FIUU_VT_NATIVE_RECOVERY_NOT_READY'");
   expect(cleanup).toContain('error.retryAfterMs ?? 5_000');
   expect(cleanup).toContain('scheduleFiuuVtRecoveryRetry(Math.min(retryAfterMs, 2_000))');
@@ -475,6 +480,8 @@ describe('Fiuu VT cashier release safety contract', () => {
    .toBeLessThan(cleanup.indexOf("cleanupAction === 'CHECK_STATUS'"));
   expect(cleanup.indexOf("cleanupAction === 'CHECK_STATUS'"))
    .toBeLessThan(cleanup.indexOf("prepareFiuuVtCallbackAttempt(paymentId, 'STATUS')"));
+  expect(cleanup.indexOf("parkFiuuVtProviderErrorPayment(\n         paymentId,\n         'STATUS_RETRY_LIMIT'"))
+   .toBeLessThan(cleanup.indexOf('await releaseFiuuVtNativeState('));
   expect(cleanup.indexOf('await readActiveFiuuVtResult(paymentId)'))
    .toBeLessThan(cleanup.indexOf('await releaseFiuuVtNativeState('));
   expect(preSale).toContain('drainAndReleaseDeferredFiuuVtNativeState(');

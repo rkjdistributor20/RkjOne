@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { callRpc } from '@/lib/supabase/rpc';
 import { getCurrentProfile } from '@/lib/auth/session';
 import {
+ assertActivePosShiftMember,
  assertAreaManagerScheduledForPos,
  assertCanAccessPosBranch,
 } from '@/lib/pos/access';
@@ -25,26 +26,87 @@ export async function POST(request: Request) {
  const supabase = await createClient();
  const synced: string[] = [];
  const failed: Array<{ offlineId: string; error: string }> = [];
- const checkedBranches = new Set<string>();
+ const checkedBranches = new Map<string, {
+  id: string;
+  enrollmentGeneration: number;
+ }>();
+ const checkedShifts = new Set<string>();
 
  for (const sale of sales) {
+ const offlineId = typeof sale.offlineId === 'string' && sale.offlineId
+  ? sale.offlineId
+  : 'offline-tidak-sah';
  if (!sale.branchId) {
- failed.push({ offlineId: sale.offlineId, error: 'branchId diperlukan' });
+ failed.push({ offlineId, error: 'branchId diperlukan' });
+ continue;
+ }
+ if (sale.payment_method !== 'CASH' || sale.qr_amount !== 0) {
+ failed.push({
+  offlineId,
+  error: 'Jualan luar talian hanya dibenarkan untuk bayaran tunai tanpa amaun QR',
+ });
+ continue;
+ }
+ if (!sale.actorId || sale.actorId !== profile.id) {
+ failed.push({
+  offlineId,
+  error: 'Jualan luar talian ini bukan milik staf yang sedang log masuk',
+ });
+ continue;
+ }
+ if (!sale.deviceId || !Number.isInteger(sale.enrollmentGeneration)
+  || sale.enrollmentGeneration < 1) {
+ failed.push({
+  offlineId,
+  error: 'Identiti tablet asal untuk jualan luar talian tidak lengkap',
+ });
  continue;
  }
 
- if (!checkedBranches.has(sale.branchId)) {
+ let verifiedDevice = checkedBranches.get(sale.branchId);
+ if (!verifiedDevice) {
  try {
  await assertCanAccessPosBranch(supabase, profile, sale.branchId);
  await assertAreaManagerScheduledForPos(supabase, profile, sale.branchId);
- await assertOfficialPosDevice(profile, sale.branchId);
- checkedBranches.add(sale.branchId);
+ const device = await assertOfficialPosDevice(profile, sale.branchId);
+ verifiedDevice = {
+  id: device.id,
+  enrollmentGeneration: device.enrollmentGeneration,
+ };
+ checkedBranches.set(sale.branchId, verifiedDevice);
  } catch (err) {
  failed.push({
- offlineId: sale.offlineId,
+ offlineId,
  error: err instanceof Error ? err.message : 'Akses cawangan ditolak',
  });
  continue;
+ }
+ }
+ if (sale.deviceId !== verifiedDevice.id
+  || sale.enrollmentGeneration !== verifiedDevice.enrollmentGeneration) {
+ failed.push({
+  offlineId,
+  error: 'Tablet atau generasi enrolmen jualan luar talian tidak sepadan',
+ });
+ continue;
+ }
+
+ const shiftKey = `${sale.branchId}:${sale.shiftId}`;
+ if (!checkedShifts.has(shiftKey)) {
+ try {
+  await assertActivePosShiftMember(
+   supabase,
+   profile,
+   sale.shiftId,
+   sale.branchId,
+  );
+  checkedShifts.add(shiftKey);
+ } catch (err) {
+  failed.push({
+   offlineId,
+   error: err instanceof Error ? err.message : 'Keahlian syif aktif diperlukan',
+  });
+  continue;
  }
  }
 
@@ -60,9 +122,9 @@ export async function POST(request: Request) {
  });
 
  if (error) {
- failed.push({ offlineId: sale.offlineId, error: error.message });
+ failed.push({ offlineId, error: error.message });
  } else {
- synced.push(sale.offlineId);
+ synced.push(offlineId);
  }
  }
 

@@ -225,6 +225,9 @@ export interface DailySummary {
 
 export interface OfflineSalePayload {
  offlineId: string;
+ actorId: string;
+ deviceId: string;
+ enrollmentGeneration: number;
  branchId: string;
  shiftId: string;
  items: Array<{ product_id: string; quantity: number }>;

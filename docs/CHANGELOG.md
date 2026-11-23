@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-23 - Android 1.8.6 exact retry-limit quarantine
+
+- Converts an expired Fiuu VT payment to an append-only Finance/HQ quarantine only after the server verifies the bounded STATUS budget, exact cashier, official tablet enrollment, open shift, expired QR and absence of provider-success evidence.
+- Releases the cashier lane without declaring provider cancellation, while routing every late callback back to the original payment and leaving the next customer's checkout unchanged.
+- Fails closed for active launch/callback leases and verifies the committed quarantine before clearing native state; rejected database outcomes can no longer be reported as successful.
+- Restricts offline POS recovery to cash-only sales bound to the original staff, official tablet enrollment and active shift, with a database trigger preventing direct non-cash offline postings.
+- Adds transactional integration coverage plus route/client regressions and prepares Google Play `versionCode 24` (`1.8.6`).
+
 ## 2026-11-23 - Android 1.8.5 bounded Fiuu VT recovery
 
 - Bounds automatic Fiuu VT `STATUS` callback identities to three per payment under a database row lock, preventing an expired or abandoned QR from generating an unbounded retry loop while preserving every prior callback identity for exact late-success reconciliation.

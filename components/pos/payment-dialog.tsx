@@ -36,7 +36,7 @@ import {
 import { readBrowserStorageItem } from '@/lib/pos/browser-storage';
 import { useAuthStore } from '@/stores/auth-store';
 import { usePosStore } from '@/stores/pos-store';
-import type { PaymentMethod, PosQrConfig, SaleResult } from '@/lib/pos/types';
+import type { PaymentMethod, PosDeviceContext, PosQrConfig, SaleResult } from '@/lib/pos/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -79,6 +79,7 @@ interface PaymentDialogProps {
  open: boolean;
  onOpenChange: (open: boolean) => void;
  branchId: string;
+ deviceContext: PosDeviceContext | null;
  onSuccess: (receipt: SaleResult) => void;
  trainingMode?: boolean;
 }
@@ -631,6 +632,7 @@ export function PaymentDialog({
  open,
  onOpenChange,
  branchId,
+ deviceContext,
  onSuccess,
  trainingMode = false,
 }: PaymentDialogProps) {
@@ -1450,42 +1452,80 @@ export function PaymentDialog({
       setQrPollError('Transaksi terdahulu kekal dikuarantin untuk semakan Finance/HQ. Terminal sedang dilepaskan tanpa semakan STATUS tambahan.');
      }
     } catch (error) {
+     let releaseAfterReview = false;
      if (error instanceof PosQrPaymentError
       && error.mode === 'FIUU_VT_RELEASE_RETRY_LIMIT') {
-      const retryAfterMs = Math.max(1_000, error.retryAfterMs ?? 5_000);
-      vtOperationRetryAtRef.current = Date.now() + retryAfterMs;
-      setQrPollError(
-       `Semakan STATUS sedang dihadkan sementara. Troli dikekalkan; RKJ One akan cuba semula dalam kira-kira ${Math.max(1, Math.ceil(retryAfterMs / 1000))} saat tanpa membuka SALE baharu.`,
-      );
-      scheduleFiuuVtRecoveryRetry(Math.min(retryAfterMs, 2_000));
+      if (error.reason === 'PAYMENT_EXPIRED'
+       || error.reason === 'STATUS_ATTEMPT_BUDGET_EXHAUSTED') {
+       try {
+        const parked = await parkFiuuVtProviderErrorPayment(
+         paymentId,
+         'STATUS_RETRY_LIMIT',
+        );
+        retireCurrentCart = retireCurrentCart
+         || currentCartMatchesFiuuVtRetirementLatch(paymentId);
+        setQrPollError(parked.warning
+         ?? 'Had semakan STATUS telah dicapai. Transaksi asal dikuarantin bersama semua bukti untuk semakan Finance/HQ; terminal sedang dilepaskan tanpa mencipta SALE baharu.');
+        releaseAfterReview = true;
+        // Continue into the sealed native-release path below. The server row
+        // is now review-locked, so a late callback remains tied to this exact
+        // payment while the next customer's cart stays independent.
+       } catch (parkError) {
+        const parkNotReady = parkError instanceof PosQrPaymentError
+         && parkError.mode === 'FIUU_VT_STATUS_RETRY_LIMIT_NOT_READY';
+        const retryAfterMs = Math.max(
+         1_000,
+         parkError instanceof PosQrPaymentError
+          ? parkError.retryAfterMs ?? 2_000
+          : 2_000,
+        );
+        vtOperationRetryAtRef.current = Date.now() + retryAfterMs;
+        setQrPollError(parkNotReady
+         ? 'Bukti callback atau lease Fiuu VT masih aktif. RKJ One mengekalkan transaksi asal dan akan cuba kuarantin semula tanpa membuka SALE baharu.'
+         : parkError instanceof Error
+          ? `Transaksi asal belum dapat dikuarantin: ${parkError.message}`
+          : 'Transaksi asal belum dapat dikuarantin dengan selamat.');
+        scheduleFiuuVtRecoveryRetry(Math.min(retryAfterMs, 2_000));
+        return 'STILL_BLOCKED';
+       }
+      } else {
+       const retryAfterMs = Math.max(1_000, error.retryAfterMs ?? 5_000);
+       vtOperationRetryAtRef.current = Date.now() + retryAfterMs;
+       setQrPollError(
+        `Semakan STATUS sedang dihadkan sementara. Troli dikekalkan; RKJ One akan cuba semula dalam kira-kira ${Math.max(1, Math.ceil(retryAfterMs / 1000))} saat tanpa membuka SALE baharu.`,
+       );
+       scheduleFiuuVtRecoveryRetry(Math.min(retryAfterMs, 2_000));
+       return 'STILL_BLOCKED';
+      }
+     }
+     if (!releaseAfterReview) {
+      if (error instanceof PosQrPaymentError
+       && error.mode === 'FIUU_VT_OPERATION_ACTIVE') {
+       const retryAfterMs = Math.max(1_000, error.retryAfterMs ?? FIUU_VT_STATUS_RETRY_MS);
+       vtOperationRetryAtRef.current = Date.now() + retryAfterMs;
+       setQrPollError(
+        `Semakan STATUS transaksi terdahulu sudah aktif. Kaunter akan cuba dilepaskan semula dalam kira-kira ${Math.max(1, Math.ceil(retryAfterMs / 1000))} saat.`,
+       );
+       scheduleFiuuVtRecoveryRetry(Math.min(retryAfterMs, 2_000));
+       return 'STILL_BLOCKED';
+      }
+      if (error instanceof PosQrPaymentError
+       && error.mode === 'FIUU_VT_NATIVE_RECOVERY_NOT_READY') {
+       setQrPollError('Bukti transaksi lama masih diperiksa. RKJ One akan mengasingkannya secara selamat selepas tempoh callback tamat; troli pelanggan semasa tidak berubah.');
+       scheduleFiuuVtRecoveryRetry(1_000);
+       return 'STILL_BLOCKED';
+      }
+      const retryable = error instanceof TypeError
+       || (error instanceof PosQrPaymentError
+        && (error.status === 429 || error.status >= 500))
+       || (error instanceof ClientJsonError
+        && (error.status === 429 || error.status >= 500));
+      setQrPollError(error instanceof Error
+       ? `Status akhir transaksi terdahulu belum dapat disahkan: ${error.message}`
+       : 'Status akhir transaksi terdahulu belum dapat disahkan.');
+      if (retryable) scheduleFiuuVtRecoveryRetry(2_000);
       return 'STILL_BLOCKED';
      }
-     if (error instanceof PosQrPaymentError
-      && error.mode === 'FIUU_VT_OPERATION_ACTIVE') {
-      const retryAfterMs = Math.max(1_000, error.retryAfterMs ?? FIUU_VT_STATUS_RETRY_MS);
-      vtOperationRetryAtRef.current = Date.now() + retryAfterMs;
-      setQrPollError(
-       `Semakan STATUS transaksi terdahulu sudah aktif. Kaunter akan cuba dilepaskan semula dalam kira-kira ${Math.max(1, Math.ceil(retryAfterMs / 1000))} saat.`,
-      );
-      scheduleFiuuVtRecoveryRetry(Math.min(retryAfterMs, 2_000));
-      return 'STILL_BLOCKED';
-     }
-     if (error instanceof PosQrPaymentError
-      && error.mode === 'FIUU_VT_NATIVE_RECOVERY_NOT_READY') {
-      setQrPollError('Bukti transaksi lama masih diperiksa. RKJ One akan mengasingkannya secara selamat selepas tempoh callback tamat; troli pelanggan semasa tidak berubah.');
-      scheduleFiuuVtRecoveryRetry(1_000);
-      return 'STILL_BLOCKED';
-     }
-     const retryable = error instanceof TypeError
-      || (error instanceof PosQrPaymentError
-       && (error.status === 429 || error.status >= 500))
-      || (error instanceof ClientJsonError
-       && (error.status === 429 || error.status >= 500));
-     setQrPollError(error instanceof Error
-      ? `Status akhir transaksi terdahulu belum dapat disahkan: ${error.message}`
-      : 'Status akhir transaksi terdahulu belum dapat disahkan.');
-     if (retryable) scheduleFiuuVtRecoveryRetry(2_000);
-     return 'STILL_BLOCKED';
     }
    }
 
@@ -3751,9 +3791,20 @@ export function PaymentDialog({
 
  try {
  if (!isOnline) {
+  const boundDevice = deviceContext?.device;
+  if (method !== 'CASH') {
+   throw new Error('Bayaran QR atau campuran tidak boleh direkod semasa luar talian. Gunakan tunai atau pulihkan internet.');
+  }
+  if (!profile?.id || !boundDevice || boundDevice.branchId !== branchId
+   || boundDevice.enrollmentGeneration < 1) {
+   throw new Error('Identiti staf dan tablet rasmi belum tersedia. Sambung internet untuk mengesahkan tablet sebelum jualan luar talian.');
+  }
  const offlineId = generateOfflineId();
  enqueueOfflineSale({
  offlineId,
+  actorId: profile.id,
+  deviceId: boundDevice.id,
+  enrollmentGeneration: boundDevice.enrollmentGeneration,
  branchId,
  shiftId: currentShift.id,
  items,
