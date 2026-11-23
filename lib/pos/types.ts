@@ -32,6 +32,10 @@ export type PosOfficialHardwareProfile = 'SAMSUNG_TAB_S10_LITE_5G_128' | 'HONOR_
 export interface PosDeviceManagementStatus {
  nativeApp: boolean;
  packageName: string | null;
+ /** Host RKJ One Staff version reported by the Android package. Older/browser clients may omit it. */
+ versionName?: string | null;
+ /** Host RKJ One Staff Android versionCode. Older/browser clients may omit it. */
+ versionCode?: number | null;
  manufacturer: string | null;
  model: string | null;
  androidVersion: string | null;

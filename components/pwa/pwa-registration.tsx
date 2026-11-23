@@ -8,7 +8,10 @@ export function PwaRegistration() {
  if (!('serviceWorker' in navigator)) return;
 
  const register = () => {
- navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {
+ navigator.serviceWorker.register('/sw.js', {
+  scope: '/',
+  updateViaCache: 'none',
+ }).then((registration) => registration.update()).catch(() => {
  // App remains fully usable in the browser if service worker registration fails.
  });
  };

@@ -2,6 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { isPublicApiPath } from './public-api-paths';
 
 describe('Supabase middleware public API allowlist', () => {
+ it('allows only the exact public release metadata route', () => {
+  expect(isPublicApiPath('/api/release')).toBe(true);
+  expect(isPublicApiPath('/api/release/')).toBe(false);
+  expect(isPublicApiPath('/api/release/extra')).toBe(false);
+ });
+
  it('allows the exact Fiuu VT recovery cron route to use bearer authentication', () => {
   expect(isPublicApiPath('/api/cron/fiuu-vt-recover')).toBe(true);
  });

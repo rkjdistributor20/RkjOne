@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { matchOfficialTablet, POS_OFFICIAL_TABLETS } from '@/lib/pos/official-tablets';
-import type { PosOfficialHardwareProfile } from '@/lib/pos/types';
+import type { PosDeviceManagementStatus, PosOfficialHardwareProfile } from '@/lib/pos/types';
 
 type Branch = { id: string; branch_code: string; branch_name: string };
 type Device = {
@@ -27,17 +27,7 @@ type Device = {
   purchase_date: string | null;
   warranty_expires_at: string | null;
   asset_verified_at: string | null;
-  management: {
-    nativeApp: boolean;
-    deviceOwner: boolean;
-    lockTaskPermitted: boolean;
-    lockTaskActive: boolean;
-    screenLockSecure: boolean;
-    manufacturer: string | null;
-    model: string | null;
-    androidVersion: string | null;
-    reportedAt: string | null;
-  } | null;
+  management: PosDeviceManagementStatus | null;
   branch: { branch_code: string; branch_name: string } | Array<{ branch_code: string; branch_name: string }> | null;
 };
 
@@ -58,6 +48,21 @@ function formatDate(value: string | null) {
     timeStyle: 'short',
     timeZone: 'Asia/Kuala_Lumpur',
   }).format(new Date(value));
+}
+
+export function formatHostAppVersion(
+  management: Pick<PosDeviceManagementStatus, 'versionName' | 'versionCode'> | null | undefined,
+) {
+  const versionName = typeof management?.versionName === 'string'
+    ? management.versionName.trim() || null
+    : null;
+  const versionCode = Number.isSafeInteger(management?.versionCode) && Number(management?.versionCode) > 0
+    ? Number(management?.versionCode)
+    : null;
+  if (versionName && versionCode) return `${versionName} (${versionCode})`;
+  if (versionName) return versionName;
+  if (versionCode) return `Kod ${versionCode}`;
+  return null;
 }
 
 export function PosDevicesPanel() {
@@ -395,6 +400,7 @@ export function PosDevicesPanel() {
           <div className="divide-y">
             {devices.map((device) => {
               const branch = Array.isArray(device.branch) ? device.branch[0] : device.branch;
+              const hostAppVersion = formatHostAppVersion(device.management);
               const hardwareMatch = matchOfficialTablet(
                 device.hardware_profile,
                 device.management?.manufacturer,
@@ -439,6 +445,14 @@ export function PosDevicesPanel() {
                             <Badge variant="outline" className="gap-1 border-amber-300 bg-amber-50 text-amber-900"><CircleAlert className="h-3 w-3" /> Perlu Android Enterprise</Badge>
                           )}
                           {device.management?.model && <span>{device.management.manufacturer} {device.management.model} - Android {device.management.androidVersion}</span>}
+                          <Badge
+                            variant="outline"
+                            className={hostAppVersion
+                              ? 'border-sky-300 bg-sky-50 text-sky-900'
+                              : 'border-amber-300 bg-amber-50 text-amber-900'}
+                          >
+                            RKJ One Staff: {hostAppVersion ?? 'versi belum dilapor'}
+                          </Badge>
                           <Badge
                             variant="outline"
                             className={hardwareMatch.state === 'MATCHED' || hardwareMatch.state === 'BRAND_MATCHED'

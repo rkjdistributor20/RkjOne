@@ -19,6 +19,16 @@ Authentication:
 - Browser page requests without a session redirect to `/login`.
 - Public webhook routes use route-specific signature, payload-size and abuse controls. A provider callback is not trusted until its signature and stored payment identity have been verified.
 
+## Release freshness API
+
+### GET `/api/release`
+
+Public, read-only and `no-store`. Returns only the deployment-unique release ID
+and Git commit SHA needed by the web/Capacitor client to detect a newer frontend.
+It contains no credentials, environment values or operational data. The client
+must defer any hard reload while the POS has a cart, payment recovery marker,
+unsent offline sale, hidden document or offline connection.
+
 ## POS Fiuu DuitNow QR API
 
 RKJ One supports three separate transports. Fiuu VT App-to-App is the approved

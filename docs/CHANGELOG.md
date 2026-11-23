@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-23 - Android 1.8.5 bounded Fiuu VT recovery
+
+- Bounds automatic Fiuu VT `STATUS` callback identities to three per payment under a database row lock, preventing an expired or abandoned QR from generating an unbounded retry loop while preserving every prior callback identity for exact late-success reconciliation.
+- Stops new `STATUS` launches as soon as the original QR validity expires; `SALE`, `VOID`, payment evidence, exact-once receipt fulfilment and the original-order late callback path remain separate and unchanged.
+- Adds deployment freshness checks for the hosted Capacitor frontend and reloads only when the POS is online, visible, has an empty cart, no payment/finalization marker and no unsent offline sale.
+- Stops cache-first handling of Next.js bundles, reports the installed Android `versionName` and `versionCode` to HQ, and prepares Google Play `versionCode 23` (`1.8.5`).
+
 ## 2026-11-23 - Android 1.8.4 durable Fiuu VT new-sale recovery
 
 - Persists the exact payment/order/cart finalization identity before retiring a paid or reviewed cart, including an independently tested `sessionStorage` fallback when a managed WebView denies `localStorage`.

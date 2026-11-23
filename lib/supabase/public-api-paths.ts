@@ -1,5 +1,6 @@
 const PUBLIC_API_PATHS = new Set([
  '/api/health',
+ '/api/release',
  '/api/auth/login',
  // Vercel Cron has no Supabase user session. This exact endpoint performs
  // its own fail-closed Authorization: Bearer CRON_SECRET validation.

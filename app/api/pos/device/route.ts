@@ -16,12 +16,26 @@ function cleanText(value: unknown, maxLength = 120) {
   return typeof value === 'string' ? value.trim().slice(0, maxLength) || null : null;
 }
 
+function cleanVersionName(value: unknown) {
+  if (typeof value !== 'string') return null;
+  const normalized = value
+    .replace(/[\u0000-\u001F\u007F]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return normalized.slice(0, 64) || null;
+}
+
 function normalizeManagementStatus(value: unknown): PosDeviceManagementStatus {
   const source = value && typeof value === 'object' ? value as Record<string, unknown> : {};
   const sdkLevel = Number(source.sdkLevel);
+  const versionCode = Number(source.versionCode);
   return {
     nativeApp: source.nativeApp === true,
     packageName: cleanText(source.packageName),
+    versionName: cleanVersionName(source.versionName),
+    versionCode: Number.isSafeInteger(versionCode) && versionCode >= 1 && versionCode <= 2_100_000_000
+      ? versionCode
+      : null,
     manufacturer: cleanText(source.manufacturer, 80),
     model: cleanText(source.model, 80),
     androidVersion: cleanText(source.androidVersion, 32),

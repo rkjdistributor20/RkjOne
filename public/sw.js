@@ -67,7 +67,6 @@ self.addEventListener('fetch', (event) => {
  if (isSensitivePath(url.pathname)) return;
 
  if (
- url.pathname.startsWith('/_next/static/') ||
  url.pathname.startsWith('/brand/') ||
  url.pathname.endsWith('.png') ||
  url.pathname.endsWith('.jpg') ||

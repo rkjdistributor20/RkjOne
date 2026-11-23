@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { Providers } from '@/components/providers';
+import { getReleaseMetadata } from '@/lib/pwa/release-metadata';
 import './globals.css';
 
 const geistSans = Geist({
@@ -59,10 +60,11 @@ export default function RootLayout({
 }: Readonly<{
  children: React.ReactNode;
 }>) {
+ const currentRelease = getReleaseMetadata();
  return (
  <html lang="ms" className={`${geistSans.variable} ${geistMono.variable} h-full`}>
  <body className="min-h-full antialiased">
- <Providers>{children}</Providers>
+ <Providers currentRelease={currentRelease}>{children}</Providers>
  </body>
  </html>);
 }

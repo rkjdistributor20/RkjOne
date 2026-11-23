@@ -208,6 +208,34 @@ describe('Fiuu VT launch retry leases', () => {
   expect(args.p_callback_host).toBe(buildFiuuVtCallbackHost(String(args.p_attempt_id)));
  });
 
+ it('maps the payment-scoped STATUS circuit breaker to the existing retry response', async () => {
+  const { admin, rpc } = makeAdmin(async () => ({
+   data: {
+    outcome: 'RETRY_LIMIT',
+    reason: 'STATUS_ATTEMPT_BUDGET_EXHAUSTED',
+    retry_after_ms: 30_000,
+   },
+   error: null,
+  }));
+  mocks.createAdminClient.mockReturnValue(admin);
+
+  const response = await invoke('STATUS');
+
+  expect(response.status).toBe(409);
+  expect(await response.json()).toMatchObject({
+   mode: 'FIUU_VT_RELEASE_RETRY_LIMIT',
+   retry_after_ms: 30_000,
+  });
+  expect(response.headers.get('Retry-After')).toBe('30');
+  expect(rpc).toHaveBeenCalledWith(
+   'claim_pos_fiuu_vt_launch_lease',
+   expect.objectContaining({
+    p_payment_id: PAYMENT_ID,
+    p_op_type: 'STATUS',
+   }),
+  );
+ });
+
  it('keeps SALE on the shift-bound launch lease', async () => {
   const { admin, rpc } = makeAdmin(
    async () => launchDecision('SALE'),

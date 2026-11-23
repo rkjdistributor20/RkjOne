@@ -6,6 +6,8 @@ import android.app.admin.DevicePolicyManager;
 import android.app.KeyguardManager;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 import android.os.Build;
 import android.view.View;
 import android.view.WindowManager;
@@ -108,6 +110,7 @@ public class RkjDevicePolicyPlugin extends Plugin {
 
         result.put("nativeApp", true);
         result.put("packageName", packageName);
+        appendHostAppVersion(result, activity, packageName);
         result.put("manufacturer", Build.MANUFACTURER);
         result.put("model", Build.MODEL);
         result.put("androidVersion", Build.VERSION.RELEASE);
@@ -118,5 +121,21 @@ public class RkjDevicePolicyPlugin extends Plugin {
         result.put("screenLockSecure", keyguard != null && keyguard.isDeviceSecure());
         result.put("kioskRequested", isKioskEnabled(activity));
         return result;
+    }
+
+    private static void appendHostAppVersion(JSObject result, Context context, String packageName) {
+        String versionName = "";
+        long versionCode = 0L;
+        try {
+            PackageInfo packageInfo = context.getPackageManager().getPackageInfo(packageName, 0);
+            versionName = packageInfo.versionName == null ? "" : packageInfo.versionName;
+            versionCode = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+                ? packageInfo.getLongVersionCode()
+                : packageInfo.versionCode;
+        } catch (PackageManager.NameNotFoundException ignored) {
+            // The host package should always exist; zero/empty values are rejected by the server.
+        }
+        result.put("versionName", versionName);
+        result.put("versionCode", versionCode);
     }
 }
