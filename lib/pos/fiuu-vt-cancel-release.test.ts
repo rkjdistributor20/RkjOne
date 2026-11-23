@@ -133,13 +133,44 @@ describe('Fiuu VT cancellation request cashier release contract', () => {
   const resumeEnd = paymentDialog.indexOf('const parkStalledFiuuVtPayment', resumeStart);
   const resumeFlow = paymentDialog.slice(resumeStart, resumeEnd);
   expect(flow).toContain('storeDeferredFiuuVtCashierRelease(cashierReleaseKey, deferredRelease)');
-  expect(flow).toContain("activeOperation?.opType === 'VOID'");
+  expect(flow).toContain("activeOperation.opType === 'VOID'");
   expect(flow).toContain('nativeStatus.activeCallbackAttemptId === activeOperation.id');
   expect(resumeFlow).toContain('await markFiuuVtAttemptLaunched');
   expect(resumeFlow).toContain('await releaseFiuuVtCashierAfterVoidLaunch');
   expect(resumeFlow).toContain("window.addEventListener('online', resumeRelease)");
   expect(flow).toContain('Transaksi asal kekal aktif dan tidak ditandakan batal.');
   expect(paymentDialog).toContain('Tekan “Semak & lepaskan” apabila sambungan stabil.');
+ });
+
+ it('never labels a STATUS or SALE conflict as a submitted cancellation', () => {
+  const start = paymentDialog.indexOf('const requestFiuuVtCancellation');
+  const end = paymentDialog.indexOf('const resumeFiuuVtCancellationRelease', start);
+  const flow = paymentDialog.slice(start, end);
+  const conflictStart = flow.indexOf("if (activeOperation?.opType !== 'VOID')");
+  const conflictEnd = flow.indexOf("if (activeOperation.opType === 'VOID')", conflictStart);
+  const conflictFlow = flow.slice(conflictStart, conflictEnd);
+
+  expect(conflictStart).toBeGreaterThan(-1);
+  expect(conflictEnd).toBeGreaterThan(conflictStart);
+  expect(conflictFlow).toContain('setVtCancelRequested(false)');
+  expect(conflictFlow).toContain('setVtStatusRetryPending(false)');
+  expect(conflictFlow).toContain('setVtCancelConfirming(true)');
+  expect(conflictFlow).toContain('Pembatalan belum dihantar');
+  expect(conflictFlow).not.toContain('setVtCancelRequested(true)');
+  expect(conflictFlow).not.toContain('setVtStatusRetryPending(true)');
+  expect(conflictFlow).not.toContain('checkActiveQrStatus(');
+  expect(conflictFlow).toContain('return;');
+ });
+
+ it('requires durable native evidence before presenting an existing VOID as sent', () => {
+  const start = paymentDialog.indexOf('const requestFiuuVtCancellation');
+  const end = paymentDialog.indexOf('const resumeFiuuVtCancellationRelease', start);
+  const flow = paymentDialog.slice(start, end);
+  expect(flow).toContain("activeOperation.state === 'LAUNCHED'");
+  expect(flow).toContain("activeOperation.state === 'CONSUMED'");
+  expect(flow).toContain("nativeStatus.pendingOperation === 'VOID'");
+  expect(flow).toContain('if (!nativeLaunchObserved)');
+  expect(flow).toContain('Pembatalan belum dihantar; cuba semula');
  });
 
  it('does not overwrite a current cleanup identity with a detached late callback', () => {

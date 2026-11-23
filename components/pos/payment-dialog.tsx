@@ -3273,7 +3273,24 @@ export function PaymentDialog({
    if (error instanceof PosQrPaymentError
     && error.mode === 'FIUU_VT_OPERATION_ACTIVE') {
     const activeOperation = error.activeOperation;
-    if (activeOperation?.opType === 'VOID') {
+    const retryAfterMs = error.retryAfterMs ?? FIUU_VT_STATUS_RETRY_MS;
+    vtOperationRetryAtRef.current = Date.now() + retryAfterMs;
+    if (activeOperation?.opType !== 'VOID') {
+     const operationLabel = activeOperation?.opType === 'STATUS'
+      ? 'semakan STATUS'
+      : activeOperation?.opType === 'SALE'
+       ? 'percubaan SALE'
+       : 'operasi Fiuu VT lain';
+     setVtCancelRequested(false);
+     setVtStatusRetryPending(false);
+     setVtCancelConfirming(true);
+     setQrPollError(
+      `Pembatalan belum dihantar kerana ${operationLabel} masih aktif. Cuba “Minta batal” semula dalam kira-kira ${Math.max(1, Math.ceil(retryAfterMs / 1000))} saat; transaksi asal kekal aktif.`,
+     );
+     return;
+    }
+
+    if (activeOperation.opType === 'VOID') {
      const nativeStatus = await readFiuuVtStatus().catch(() => null);
      if (nativeStatus) setVtNativeStatus(nativeStatus);
      const nativeLaunchObserved = activeOperation.state === 'LAUNCHED'
@@ -3308,9 +3325,16 @@ export function PaymentDialog({
       );
       return;
      }
+     if (!nativeLaunchObserved) {
+      setVtCancelRequested(false);
+      setVtStatusRetryPending(false);
+      setVtCancelConfirming(true);
+      setQrPollError(
+       `Permintaan VOID telah disediakan tetapi aplikasi Fiuu belum disahkan terbuka. Pembatalan belum dihantar; cuba semula dalam kira-kira ${Math.max(1, Math.ceil(retryAfterMs / 1000))} saat.`,
+      );
+      return;
+     }
     }
-    const retryAfterMs = error.retryAfterMs ?? FIUU_VT_STATUS_RETRY_MS;
-    vtOperationRetryAtRef.current = Date.now() + retryAfterMs;
     setVtCancelRequested(true);
     setQrPollError(
      `Permintaan batal sedang aktif. RKJ One akan menyemak semula dalam kira-kira ${Math.max(1, Math.ceil(retryAfterMs / 1000))} saat; VOID kedua tidak dihantar. Transaksi asal belum ditandakan batal.`,
