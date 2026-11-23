@@ -241,15 +241,47 @@ describe('Fiuu VT cashier release safety contract', () => {
  });
 
  it('publishes the active payment identity before React can receive a fast callback', () => {
-  const paymentInstallations = [...paymentDialog.matchAll(/activeQrPaymentIdRef\.current = ([^;]+);[\s\S]{0,180}?setQrPayment\(([^)]+)\);/g)]
+  const paymentInstallations = [...paymentDialog.matchAll(/activeQrPaymentIdRef\.current = ([^;]+);[\s\S]{0,80}?activeQrPaymentRef\.current = ([^;]+);[\s\S]{0,180}?setQrPayment\(([^)]+)\);/g)]
    .filter((installation) => installation[2].trim() !== 'null');
 
   expect(paymentInstallations.length).toBeGreaterThanOrEqual(4);
   for (const installation of paymentInstallations) {
-   expect(installation[1].trim()).toBe(installation[2].trim() === 'activePayment'
+   expect(installation[2].trim()).toBe(installation[3].trim());
+   expect(installation[1].trim()).toBe(installation[3].trim() === 'activePayment'
     ? 'activePayment.id'
-    : `${installation[2].trim()}.id`);
+    : `${installation[3].trim()}.id`);
   }
+  const processStart = paymentDialog.indexOf('const processFiuuVtResult = useCallback');
+  const processEnd = paymentDialog.indexOf('processFiuuVtResultRef.current = processFiuuVtResult', processStart);
+  const process = paymentDialog.slice(processStart, processEnd);
+  expect(process).toContain('const activePayment = activeQrPaymentRef.current;');
+  expect(process).not.toContain('const activePayment = qrPayment;');
+ });
+
+ it('completes a durable PAID receipt before native cleanup can block the cashier', () => {
+  const helperStart = paymentDialog.indexOf('const completeServerPaidFiuuVtCheckout');
+  const reconcileStart = paymentDialog.indexOf('const reconcileQrPayment =', helperStart);
+  const helper = paymentDialog.slice(helperStart, reconcileStart);
+  const reconcileEnd = paymentDialog.indexOf('const processFiuuVtResult =', reconcileStart);
+  const reconcile = paymentDialog.slice(reconcileStart, reconcileEnd);
+  const paidStart = reconcile.indexOf("if (status === 'PAID')");
+  const paidEnd = reconcile.indexOf("if (status === 'EXPIRED'", paidStart);
+  const paid = reconcile.slice(paidStart, paidEnd);
+
+  expect(helperStart).toBeGreaterThan(-1);
+  expect(reconcileStart).toBeGreaterThan(helperStart);
+  expect(helper).toContain('vtServerPaidCompletionRef.current.has(activePayment.id)');
+  expect(helper).toContain('storeDeferredFiuuVtFinalization(deferredFinalizationKey');
+  expect(helper).toContain('retireCurrentFiuuVtCartForPendingRelease(activePayment.id, orderId)');
+  expect(helper).toContain('removeStoredQrPaymentFor(activePayment.id)');
+  expect(helper).toContain('onSuccess(receipt)');
+  expect(helper.indexOf('onSuccess(receipt)'))
+   .toBeLessThan(helper.indexOf('removeDeferredFiuuVtFinalization(deferredFinalizationKey)'));
+  expect(helper).toContain('queueMicrotask(() => void drainAndReleaseDeferredFiuuVtNativeState(orderId))');
+  expect(reconcile).toContain("if (!finalizationAllowed && status === 'REPORTED')");
+  expect(reconcile).not.toContain("!finalizationAllowed && (status === 'REPORTED' || status === 'PAID')");
+  expect(paid).toContain('completeServerPaidFiuuVtCheckout(activePayment, response.result)');
+  expect(paid).not.toContain("setQrStatus('PENDING')");
  });
 
  it('waits for callback quiescence before the final empty drain read', () => {

@@ -163,6 +163,7 @@ export function PosTerminal() {
  const [enrolling, setEnrolling] = useState(false);
  const lastPosActivityRef = useRef(lastPosActivityAt);
  const presencePromptRef = useRef(presencePrompt);
+ const offlineSyncInFlightRef = useRef<Promise<void> | null>(null);
 
  const branchName =
  branches.find((b) => b.id === branchId)?.branch_name ??
@@ -452,24 +453,36 @@ export function PosTerminal() {
  setLastPosActivityAt(now);
  }, []);
 
- const syncOffline = useCallback(async () => {
- const queue = getOfflineQueue();
- if (!queue.length || !navigator.onLine || trainingMode) return;
+ const syncOffline = useCallback(() => {
+ const existing = offlineSyncInFlightRef.current;
+ if (existing) return existing;
 
- try {
- const { synced, failed } = await syncOfflineSales(queue);
- synced.forEach((id) => removeOfflineSale(id));
- setOfflineCount(getOfflineQueue().length);
- if (synced.length) {
- toast.success(`${synced.length} jualan luar talian disegerakkan`);
- await loadData();
- }
- if (failed.length) {
- toast.error(`${failed.length} jualan gagal disegerakkan`);
- }
- } catch {
- // Silent fail - will retry
- }
+ const queue = getOfflineQueue();
+ if (!queue.length || !navigator.onLine || trainingMode) return Promise.resolve();
+
+ const work = (async () => {
+  try {
+  const { synced, failed } = await syncOfflineSales(queue);
+  synced.forEach((id) => removeOfflineSale(id));
+  setOfflineCount(getOfflineQueue().length);
+  if (synced.length) {
+  toast.success(`${synced.length} jualan luar talian disegerakkan`);
+  await loadData();
+  }
+  if (failed.length) {
+  toast.error(`${failed.length} jualan gagal disegerakkan`);
+  }
+  } catch {
+  // The queue remains durable and focus/pageshow/online will retry it.
+  }
+ })();
+ const tracked = work.finally(() => {
+  if (offlineSyncInFlightRef.current === tracked) {
+   offlineSyncInFlightRef.current = null;
+  }
+ });
+ offlineSyncInFlightRef.current = tracked;
+ return tracked;
  }, [loadData, setOfflineCount, trainingMode]);
 
  useEffect(() => {
@@ -589,15 +602,24 @@ export function PosTerminal() {
 
  const goOnline = () => {
  setOnline(true);
- syncOffline();
+ void syncOffline();
  };
  const goOffline = () => setOnline(false);
+ const retryVisibleQueue = () => {
+  if (navigator.onLine) void syncOffline();
+ };
+
+ if (navigator.onLine) void syncOffline();
 
  window.addEventListener('online', goOnline);
  window.addEventListener('offline', goOffline);
+ window.addEventListener('focus', retryVisibleQueue);
+ window.addEventListener('pageshow', retryVisibleQueue);
  return () => {
  window.removeEventListener('online', goOnline);
  window.removeEventListener('offline', goOffline);
+ window.removeEventListener('focus', retryVisibleQueue);
+ window.removeEventListener('pageshow', retryVisibleQueue);
  };
  }, [setOnline, setOfflineCount, syncOffline]);
 
