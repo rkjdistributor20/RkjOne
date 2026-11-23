@@ -218,6 +218,40 @@ describe('Fiuu VT cashier release safety contract', () => {
   expect(statusCheck).toContain('// or finalise payment. Do not start a second provider operation here.\n      return;');
  });
 
+ it('recovers an already-paid sale before trusting a stale native SALE marker', () => {
+  const statusCheckStart = paymentDialog.indexOf('const runActiveQrStatusCheck');
+  const statusCheckEnd = paymentDialog.indexOf('const checkActiveQrStatus', statusCheckStart);
+  const statusCheck = paymentDialog.slice(statusCheckStart, statusCheckEnd);
+  const serverRead = statusCheck.indexOf('const serverStatus = await reconcileQrPayment(qrPayment);');
+  const pendingSaleGuard = statusCheck.indexOf("nativeStatus.pendingOperation === 'SALE'\n      && !qrDisplayExpired");
+
+  expect(serverRead).toBeGreaterThan(-1);
+  expect(pendingSaleGuard).toBeGreaterThan(serverRead);
+  expect(statusCheck).toContain('shouldProbeFiuuVtSaleStatus(');
+  expect(statusCheck).toContain('tanpa menghantar SALE kedua');
+ });
+
+ it('runs the lost-SALE watchdog from automatic polling', () => {
+  const pollingStart = paymentDialog.indexOf('const poll = async () =>');
+  const pollingEnd = paymentDialog.indexOf('const appendNumpad', pollingStart);
+  const polling = paymentDialog.slice(pollingStart, pollingEnd);
+
+  expect(polling).toContain('shouldProbeFiuuVtSaleStatus(');
+  expect(polling).toContain('await checkActiveQrStatus(false);');
+ });
+
+ it('publishes the active payment identity before React can receive a fast callback', () => {
+  const paymentInstallations = [...paymentDialog.matchAll(/activeQrPaymentIdRef\.current = ([^;]+);[\s\S]{0,180}?setQrPayment\(([^)]+)\);/g)]
+   .filter((installation) => installation[2].trim() !== 'null');
+
+  expect(paymentInstallations.length).toBeGreaterThanOrEqual(4);
+  for (const installation of paymentInstallations) {
+   expect(installation[1].trim()).toBe(installation[2].trim() === 'activePayment'
+    ? 'activePayment.id'
+    : `${installation[2].trim()}.id`);
+  }
+ });
+
  it('waits for callback quiescence before the final empty drain read', () => {
   const verificationStart = paymentDialog.indexOf('if (verifyDrainAfterCallback');
   const verificationEnd = paymentDialog.indexOf('}, [beginFiuuVtCallbackDrain', verificationStart);

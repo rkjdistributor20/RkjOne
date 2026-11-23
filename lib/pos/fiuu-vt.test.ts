@@ -16,6 +16,7 @@ import {
  paymentIdFromFiuuVtOrderId,
  resolveFiuuVtCleanupOrderId,
  shouldLaunchFiuuVtStatusAfterReconcile,
+ shouldProbeFiuuVtSaleStatus,
 } from './fiuu-vt';
 import {
  getFiuuVtBranches,
@@ -329,6 +330,34 @@ describe('Fiuu VT STATUS recovery', () => {
   'does not relaunch provider STATUS after RKJ reaches %s',
   (status) => {
    expect(shouldLaunchFiuuVtStatusAfterReconcile(status)).toBe(false);
+  },
+ );
+
+ it('starts a STATUS watchdog after the SALE callback grace period', () => {
+  const nativeStatus = {
+   pendingOperation: 'SALE' as const,
+   pendingOperationStartedAt: 10_000,
+  };
+  expect(shouldProbeFiuuVtSaleStatus(nativeStatus, null, 16_999)).toBe(false);
+  expect(shouldProbeFiuuVtSaleStatus(nativeStatus, null, 17_000)).toBe(true);
+ });
+
+ it('uses the WebView fallback clock for an older bridge', () => {
+  const nativeStatus = {
+   pendingOperation: 'SALE' as const,
+   pendingOperationStartedAt: null,
+  };
+  expect(shouldProbeFiuuVtSaleStatus(nativeStatus, 20_000, 26_999)).toBe(false);
+  expect(shouldProbeFiuuVtSaleStatus(nativeStatus, 20_000, 27_000)).toBe(true);
+ });
+
+ it.each(['STATUS', 'VOID', null] as const)(
+  'does not run the SALE watchdog for %s',
+  (pendingOperation) => {
+   expect(shouldProbeFiuuVtSaleStatus({
+    pendingOperation,
+    pendingOperationStartedAt: 1,
+   }, 1, 30_000)).toBe(false);
   },
  );
 });

@@ -160,6 +160,23 @@ export function shouldLaunchFiuuVtStatusAfterReconcile(
  return serverStatus === 'PENDING';
 }
 
+export const FIUU_VT_SALE_CALLBACK_GRACE_MS = 7_000;
+
+export function shouldProbeFiuuVtSaleStatus(
+ nativeStatus: {
+  pendingOperation: 'SALE' | 'STATUS' | 'VOID' | null;
+  pendingOperationStartedAt?: number | null;
+ },
+ fallbackStartedAt: number | null,
+ now = Date.now(),
+ graceMs = FIUU_VT_SALE_CALLBACK_GRACE_MS,
+): boolean {
+ if (nativeStatus.pendingOperation !== 'SALE') return false;
+ const startedAt = nativeStatus.pendingOperationStartedAt ?? fallbackStartedAt;
+ if (typeof startedAt !== 'number' || !Number.isFinite(startedAt) || startedAt <= 0) return false;
+ return now - startedAt >= Math.max(0, graceMs);
+}
+
 const ORDER_ID_PATTERN = /^[A-Za-z0-9_-]{4,64}$/;
 const CALLBACK_ATTEMPT_ID_PATTERN = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 const CALLBACK_HOST_PATTERN = /^a-([a-f0-9]{32})\.fiuu-vt\.rkj\.one$/;
