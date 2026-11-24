@@ -3961,7 +3961,7 @@ export function PaymentDialog({
     }
    const idempotencyKey = qrAttemptKeyRef.current ?? createPosPaymentIdempotencyKey();
    qrAttemptKeyRef.current = idempotencyKey;
-   const { payment } = await createPosQrPayment(payload, idempotencyKey);
+   const { payment, reused_reason: reusedReason } = await createPosQrPayment(payload, idempotencyKey);
    if (payment.status === 'PAID' && payment.integration !== 'vt_app') {
     const existing = await fetchPosQrPayment(payment.id);
     if (!existing.result) throw new Error('Resit bayaran Fiuu belum tersedia. Cuba semula.');
@@ -4014,6 +4014,14 @@ export function PaymentDialog({
    setQrPollError(null);
    setQrImageError(false);
    storeActiveQrPayment(activePayment, idempotencyKey);
+   if (activePayment.integration === 'vt_app'
+    && payment.reused
+    && reusedReason === 'FIUU_ACTIVE_ATTEMPT_EXISTS') {
+    setVtSaleOpened(false);
+    setQrPollError('Percubaan DuitNow QR aktif dipulihkan. SALE baharu tidak dihantar; semak status atau mulakan pembatalan transaksi asal.');
+    toast.info('Transaksi Fiuu VT terdahulu dipulihkan tanpa membuka SALE kedua.');
+    return;
+   }
    if (activePayment.integration === 'vt_app'
     && (payment.status === 'REPORTED' || payment.status === 'PAID')) {
      setVtSaleOpened(true);

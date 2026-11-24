@@ -218,6 +218,21 @@ describe('Fiuu VT cancellation request cashier release contract', () => {
   expect(paymentDialog).toContain('Pembatalan belum direkodkan. RKJ One sedang menyemak bayaran terkini');
  });
 
+ it('restores a matching active server payment without launching a second SALE', () => {
+  const createStart = paymentDialog.indexOf('await createPosQrPayment(payload, idempotencyKey)');
+  const saleLaunch = paymentDialog.indexOf("prepareFiuuVtCallbackAttempt(activePayment.id, 'SALE')", createStart);
+  const recoveryGuard = paymentDialog.indexOf("reusedReason === 'FIUU_ACTIVE_ATTEMPT_EXISTS'", createStart);
+  const guardedFlow = paymentDialog.slice(recoveryGuard, saleLaunch);
+
+  expect(createStart).toBeGreaterThan(-1);
+  expect(recoveryGuard).toBeGreaterThan(createStart);
+  expect(saleLaunch).toBeGreaterThan(recoveryGuard);
+  expect(guardedFlow).toContain('setVtSaleOpened(false)');
+  expect(guardedFlow).toContain('SALE baharu tidak dihantar');
+  expect(guardedFlow).toContain('return;');
+  expect(createRoute).toContain('reused_reason: conflictMode');
+ });
+
  it('requires durable native evidence before presenting an existing VOID as sent', () => {
   const start = paymentDialog.indexOf('const requestFiuuVtCancellation');
   const end = paymentDialog.indexOf('const resumeFiuuVtCancellationRelease', start);

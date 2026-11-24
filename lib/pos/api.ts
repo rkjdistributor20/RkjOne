@@ -280,6 +280,7 @@ export async function createPosQrPayment(
 ) {
  try {
   return await fetchJson<{
+   reused_reason?: 'IDEMPOTENCY_KEY_REUSED' | 'FIUU_ACTIVE_ATTEMPT_EXISTS';
    payment: {
     id: string;
     status: 'PENDING' | 'REPORTED' | 'PAID';

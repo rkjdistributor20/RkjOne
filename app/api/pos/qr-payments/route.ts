@@ -152,6 +152,7 @@ function existingPaymentResponse(
 
  if (payment.status === 'PAID') {
   return NextResponse.json({
+   reused_reason: conflictMode,
    payment: {
     id: payment.id,
     status: 'PAID',
@@ -169,6 +170,7 @@ function existingPaymentResponse(
 
  if (payment.status === 'REPORTED') {
   return NextResponse.json({
+   reused_reason: conflictMode,
    payment: {
     id: payment.id,
     status: 'REPORTED',
@@ -209,6 +211,7 @@ function existingPaymentResponse(
  }
 
  return NextResponse.json({
+  reused_reason: conflictMode,
   payment: {
    id: payment.id,
    status: 'PENDING',
