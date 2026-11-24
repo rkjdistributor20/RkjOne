@@ -57,6 +57,23 @@ export type FiuuVtCleanupAction =
  | 'RELEASE_NATIVE'
  | 'REVIEW_REQUIRED';
 
+export function matchesFiuuVtPaymentIdentity(
+ activePayment: {
+  id: string;
+  integration: string;
+  providerOrderId: string | null;
+ } | null | undefined,
+ paymentId: string,
+ orderId: string,
+): boolean {
+ return Boolean(
+  activePayment
+  && activePayment.integration === 'vt_app'
+  && activePayment.id === paymentId
+  && activePayment.providerOrderId === orderId,
+ );
+}
+
 export function canFinalizeFiuuVtPayment(
  callbackDrainInProgress: boolean,
  reviewRequired: boolean,

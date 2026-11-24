@@ -362,7 +362,7 @@ describe('Fiuu VT one-time callback security and deterministic recovery', () => 
   expect(vtAttemptRoute).toContain("op_type: opType");
   expect(posApi).toContain('export async function createFiuuVtAttempt');
   expect(paymentDialog).toContain("prepareFiuuVtCallbackAttempt(activePayment.id, 'SALE')");
-  expect(paymentDialog).toContain("prepareFiuuVtCallbackAttempt(activePayment.id, 'STATUS')");
+  expect(paymentDialog).toContain("prepareFiuuVtCallbackAttempt(statusPayment.id, 'STATUS')");
   expect(paymentDialog).toContain("prepareFiuuVtCallbackAttempt(qrPayment.id, 'VOID')");
  });
 

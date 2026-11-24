@@ -139,7 +139,8 @@ describe('Fiuu VT cancellation request cashier release contract', () => {
   expect(resumeFlow).toContain('await releaseFiuuVtCashierAfterVoidLaunch');
   expect(resumeFlow).toContain("window.addEventListener('online', resumeRelease)");
   expect(flow).toContain('Transaksi asal kekal aktif dan tidak ditandakan batal.');
-  expect(paymentDialog).toContain('Tekan “Semak & lepaskan” apabila sambungan stabil.');
+  expect(paymentDialog).toContain('Pelepasan pembatalan akan dicuba semula:');
+  expect(paymentDialog).toContain('identiti pemulihan tablet tidak dapat disimpan');
  });
 
  it('never labels a STATUS or SALE conflict as a submitted cancellation', () => {
@@ -245,7 +246,7 @@ describe('Fiuu VT cancellation request cashier release contract', () => {
  });
 
  it('does not overwrite a current cleanup identity with a detached late callback', () => {
-  const detachedStart = paymentDialog.indexOf("if (!isActivePayment || !activePayment)");
+  const detachedStart = paymentDialog.indexOf("if (!callbackStillOwnsCheckout || !currentActivePayment)");
   const detachedEnd = paymentDialog.indexOf("if (response.next_action === 'ACK_ONLY')", detachedStart);
   const detachedFlow = paymentDialog.slice(detachedStart, detachedEnd);
   expect(detachedFlow).toContain('preserveDeferredFiuuVtNativeCleanup(');

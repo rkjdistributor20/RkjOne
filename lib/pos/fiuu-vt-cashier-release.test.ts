@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
  canReleaseQuarantinedFiuuVtNativeState,
  decideFiuuVtCleanupAction,
+ matchesFiuuVtPaymentIdentity,
 } from './fiuu-vt';
 
 const migration = readFileSync(join(
@@ -60,6 +61,23 @@ const detachedPendingCleanupState = {
 } satisfies Parameters<typeof decideFiuuVtCleanupAction>[0];
 
 describe('Fiuu VT cashier release safety contract', () => {
+ it('matches callback ownership only to the exact VT payment and order', () => {
+  const paymentA = {
+   id: 'payment-a',
+   integration: 'vt_app',
+   providerOrderId: 'RKJ_payment-a',
+  };
+  const paymentB = {
+   id: 'payment-b',
+   integration: 'vt_app',
+   providerOrderId: 'RKJ_payment-b',
+  };
+
+  expect(matchesFiuuVtPaymentIdentity(paymentA, paymentA.id, paymentA.providerOrderId)).toBe(true);
+  expect(matchesFiuuVtPaymentIdentity(paymentB, paymentA.id, paymentA.providerOrderId)).toBe(false);
+  expect(matchesFiuuVtPaymentIdentity(null, paymentA.id, paymentA.providerOrderId)).toBe(false);
+ });
+
  it('releases a durably quarantined native order after the callback queue is drained', () => {
   expect(canReleaseQuarantinedFiuuVtNativeState(
    releasableQuarantinedNativeState,
@@ -274,7 +292,7 @@ describe('Fiuu VT cashier release safety contract', () => {
   expect(helperStart).toBeGreaterThan(-1);
   expect(reconcileStart).toBeGreaterThan(helperStart);
   expect(helper).toContain('vtServerPaidCompletionRef.current.has(activePayment.id)');
-  expect(helper).toContain('storeDeferredFiuuVtFinalization(deferredFinalizationKey');
+  expect(helper).toContain('preserveDeferredFiuuVtFinalization(deferredFinalizationKey');
   expect(helper).toContain('retireCurrentFiuuVtCartForPendingRelease(activePayment.id, orderId)');
   expect(helper).toContain('removeStoredQrPaymentFor(activePayment.id)');
   expect(helper).toContain('onSuccess(receipt)');
@@ -625,7 +643,8 @@ describe('Fiuu VT cashier release safety contract', () => {
   expect(paymentDialog).toContain('const drainScope = vtCallbackDrainScopeRef.current');
   expect(paymentDialog).toContain('await processFiuuVtResultRef.current(result)');
   expect(paymentDialog).toContain('scheduleFiuuVtRecoveryRetry(500)');
-  expect(paymentDialog).toContain("} else {\n    vtRecoveryOrderRef.current = null;\n    scheduleFiuuVtRecoveryRetry(500);");
+  expect(paymentDialog).toContain("} else {\n    if (vtRecoveryOrderRef.current === result.orderId) {");
+  expect(paymentDialog).toContain('scheduleFiuuVtRecoveryRetry(500);');
  });
 
  it('unlatches a transient recovery failure so focus or reconnect can retry', () => {
@@ -746,7 +765,7 @@ describe('Fiuu VT cashier release safety contract', () => {
   const retirementStart = paymentDialog.indexOf('const retireCurrentFiuuVtCartForPendingRelease');
   const retirementEnd = paymentDialog.indexOf('const releaseFiuuVtNativeState', retirementStart);
   const retirement = paymentDialog.slice(retirementStart, retirementEnd);
-  const persistIndex = retirement.indexOf('storeDeferredFiuuVtFinalization(deferredFinalizationKey');
+  const persistIndex = retirement.indexOf('preserveDeferredFiuuVtFinalization(deferredFinalizationKey');
   const clearIndex = retirement.indexOf('clearCart();');
   const deferredStart = paymentDialog.indexOf('const retryDeferredCleanup');
   const deferredEnd = paymentDialog.indexOf('useEffect(() => {', deferredStart);
@@ -767,19 +786,80 @@ describe('Fiuu VT cashier release safety contract', () => {
   expect(clearIndex).toBeGreaterThan(persistIndex);
   expect(retirement).toContain('paymentId,\n   orderId,\n   amountRm: latch.amountRm');
   expect(retirement).toContain('cartFingerprint: latch.cartFingerprint');
-  expect(retirement).toContain('storeDeferredFiuuVtNativeCleanup(nativeCleanupKey, orderId)');
+  expect(retirement).toContain('preserveDeferredFiuuVtNativeCleanup(nativeCleanupKey, orderId)');
   expect(deferred).toContain('readDeferredFiuuVtFinalization(deferredFinalizationKey)');
   expect(deferred).toContain('const paymentId = paymentIdFromFiuuVtOrderId(orderId)');
   expect(deferred).toContain('response = await fetchPosQrPayment(paymentId)');
   expect(deferred).toContain("payment.provider !== 'fiuu_vt'");
   expect(deferred).toContain('payment.provider_order_id !== orderId');
   expect(deferred).toContain("payment.status === 'PAID' && !response.result");
+  expect(deferred).toContain("const cashierReleasedPending = payment.status === 'PENDING'");
+  expect(deferred).toContain('Boolean(payment.fiuu_vt_cashier_released_at)');
+  expect(deferred).toContain('|| cashierReleasedPending');
+  expect(deferred).toContain('Transaksi pelanggan terdahulu kekal dipantau mengikut ID asal');
   expect(successIndex).toBeGreaterThan(-1);
   expect(markerRemovalIndex).toBeGreaterThan(successIndex);
   expect(preSale).toContain('readDeferredFiuuVtFinalization(deferredFinalizationKey)');
   expect(preSale).toContain('storedCleanupOrderId !== deferredFinalization.orderId');
   expect(preSale).toContain('deferredFinalization?.orderId ?? null');
   expect(preSale).toContain('rekod akhir pelanggan terdahulu masih dipulihkan');
+ });
+
+ it('detaches the cashier UI immediately after durable release while native cleanup continues', () => {
+  const detachStart = paymentDialog.indexOf('const detachFiuuVtCheckoutAfterCashierRelease');
+  const detachEnd = paymentDialog.indexOf('const releaseFiuuVtNativeState', detachStart);
+  const detach = paymentDialog.slice(detachStart, detachEnd);
+  const resumeStart = paymentDialog.indexOf('const resumeDeferredFiuuVtCancellationRelease');
+  const resumeEnd = paymentDialog.indexOf('useEffect(() => {', resumeStart);
+  const resume = paymentDialog.slice(resumeStart, resumeEnd);
+  const releasedBranch = resume.slice(resume.indexOf('vtCashierReleasedPaymentRef.current = activePayment.id;'));
+  const releaseIndex = resume.indexOf('releaseFiuuVtCashierAfterVoidLaunch(');
+  const detachIndex = resume.indexOf('detachFiuuVtCheckoutAfterCashierRelease(');
+  const backgroundCleanupIndex = resume.indexOf('queueMicrotask(() => void drainAndReleaseDeferredFiuuVtNativeState(');
+
+  expect(detachStart).toBeGreaterThan(-1);
+  expect(detach).toContain('preserveDeferredFiuuVtFinalization(deferredFinalizationKey');
+  expect(detach).toContain('retireCurrentFiuuVtCartForPendingRelease(payment.id, orderId)');
+  expect(detach).toContain('removeStoredQrPaymentFor(payment.id)');
+  expect(detach.indexOf('resetPaymentForm();'))
+   .toBeLessThan(detach.indexOf('onOpenChange(false);'));
+  expect(releaseIndex).toBeGreaterThan(-1);
+  expect(detachIndex).toBeGreaterThan(releaseIndex);
+  expect(backgroundCleanupIndex).toBeGreaterThan(detachIndex);
+  expect(releasedBranch).not.toContain('await completeFiuuVtCashierCleanup(activePayment.providerOrderId)');
+  expect(resume).toContain('removeDeferredFiuuVtCashierRelease(cashierReleaseKey, launchedRelease.attemptId)');
+ });
+
+ it('keeps late cleanup and callbacks from mutating a replacement checkout', () => {
+  const detachStart = paymentDialog.indexOf('const detachFiuuVtCheckoutAfterCashierRelease');
+  const detachEnd = paymentDialog.indexOf('const releaseFiuuVtNativeState', detachStart);
+  const detach = paymentDialog.slice(detachStart, detachEnd);
+  const cleanupStart = paymentDialog.indexOf('const drainAndReleaseDeferredFiuuVtNativeState');
+  const cleanupEnd = paymentDialog.indexOf('const completeFiuuVtCashierCleanup', cleanupStart);
+  const cleanup = paymentDialog.slice(cleanupStart, cleanupEnd);
+  const callbackStart = paymentDialog.indexOf('const processFiuuVtResult = useCallback');
+  const callbackEnd = paymentDialog.indexOf('processFiuuVtResultRef.current = processFiuuVtResult', callbackStart);
+  const callback = paymentDialog.slice(callbackStart, callbackEnd);
+  const closeStart = paymentDialog.indexOf('const handleDialogOpenChange');
+  const closeEnd = paymentDialog.indexOf('const completeServerPaidFiuuVtCheckout', closeStart);
+  const closeHandler = paymentDialog.slice(closeStart, closeEnd);
+  const acknowledgement = callback.indexOf('await acknowledgeResult();');
+  const liveOwnerCheck = callback.indexOf('const currentActivePayment = activeQrPaymentRef.current;', acknowledgement);
+  const statusBranch = callback.slice(callback.indexOf("response.next_action === 'CHECK_STATUS'"));
+
+  expect(detach).toContain('vtCartRetiredPendingReleaseRef.current.delete(payment.id)');
+  expect(detach).toContain('const originalCheckoutStillActive = matchesFiuuVtPaymentIdentity(');
+  expect(detach).toContain('Troli dan dialog pelanggan semasa dikekalkan');
+  expect(cleanup).toContain('matchesFiuuVtPaymentIdentity(activeQrPaymentRef.current, paymentId, orderId)');
+  expect(acknowledgement).toBeGreaterThan(-1);
+  expect(liveOwnerCheck).toBeGreaterThan(acknowledgement);
+  expect(callback).toContain('const drainPaymentId = callbackPaymentId;');
+  expect(statusBranch).toContain('let statusPayment = activeQrPaymentRef.current;');
+  expect(statusBranch.match(/matchesFiuuVtPaymentIdentity\(/g)?.length).toBeGreaterThanOrEqual(2);
+  expect(statusBranch.indexOf('matchesFiuuVtPaymentIdentity('))
+   .toBeLessThan(statusBranch.indexOf('launchFiuuVtStatus('));
+  expect(closeHandler).toContain('vtCashierReleasedPaymentRef.current === qrPayment.id');
+  expect(closeHandler).toContain('detachFiuuVtCheckoutAfterCashierRelease(qrPayment, currentCartLatched)');
  });
 
  it('uses reviewed atomic acknowledgement only after the server accepts the callback', () => {
