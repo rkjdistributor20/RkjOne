@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
  createAdminClient: vi.fn(),
  getFiuuVtBranches: vi.fn(),
+ recordFiuuVtRecoverySuccess: vi.fn(),
  recoverReportedFiuuVtPayment: vi.fn(),
 }));
 
@@ -16,6 +17,9 @@ vi.mock('../../../../lib/pos/fiuu-vt-server', () => ({
 }));
 vi.mock('../../../../lib/pos/fiuu-vt-reliability', () => ({
  recoverReportedFiuuVtPayment: mocks.recoverReportedFiuuVtPayment,
+}));
+vi.mock('../../../../lib/pos/fiuu-vt-recovery-heartbeat', () => ({
+ recordFiuuVtRecoverySuccess: mocks.recordFiuuVtRecoverySuccess,
 }));
 
 import { GET } from './route';
@@ -68,7 +72,7 @@ function arrangeService() {
  };
  const service = {
   from: vi.fn((table: string) => table === 'branches' ? branchQuery : paymentTable),
-  rpc: vi.fn(),
+  rpc: vi.fn().mockResolvedValue({ data: [], error: null }),
  };
  mocks.createAdminClient.mockReturnValue(service);
  return service;
@@ -84,6 +88,7 @@ beforeEach(() => {
  };
  delete process.env.FIUU_VT_RECOVERY_ENABLED;
  mocks.getFiuuVtBranches.mockReturnValue(new Set(['BR001']));
+ mocks.recordFiuuVtRecoverySuccess.mockResolvedValue(true);
  mocks.recoverReportedFiuuVtPayment.mockResolvedValue('fulfilled');
  arrangeService();
 });
@@ -152,6 +157,29 @@ describe('Vercel Cron Fiuu VT recovery endpoint', () => {
    results: {},
   });
   expect(mocks.createAdminClient).toHaveBeenCalledTimes(1);
+  expect(mocks.recordFiuuVtRecoverySuccess).toHaveBeenCalledTimes(1);
+ });
+
+ it('returns 503 when a successful run cannot durably record its heartbeat', async () => {
+  mocks.recordFiuuVtRecoverySuccess.mockResolvedValue(false);
+
+  const response = await GET(request());
+
+  expect(response.status).toBe(503);
+  expect(response.headers.get('cache-control')).toBe('no-store');
+  await expect(response.json()).resolves.toEqual({
+   error: 'Fiuu VT recovery heartbeat could not be recorded',
+  });
+  expect(mocks.recordFiuuVtRecoverySuccess).toHaveBeenCalledTimes(1);
+ });
+
+ it('does not record a heartbeat for an unsuccessful recovery run', async () => {
+  mocks.getFiuuVtBranches.mockReturnValue(new Set());
+
+  const response = await GET(request());
+
+  expect(response.status).toBe(503);
+  expect(mocks.recordFiuuVtRecoverySuccess).not.toHaveBeenCalled();
  });
 
  it('returns 503 without leaking details when the shared runner throws', async () => {

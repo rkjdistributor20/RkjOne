@@ -6,6 +6,7 @@ import {
  posAccessErrorStatus,
 } from '@/lib/pos/access';
 import { assertOfficialPosDevice } from '@/lib/pos/device-auth';
+import { hasRecentFiuuVtRecoverySuccess } from '@/lib/pos/fiuu-vt-recovery-heartbeat';
 import {
  isFiuuVtCashierReleaseEnabledForBranch,
  normalizeFiuuVtBranchCode,
@@ -118,6 +119,12 @@ export async function POST(
     error: 'Pelepasan kaunter Fiuu VT belum diaktifkan untuk cawangan ini.',
     mode: 'FIUU_VT_CASHIER_RELEASE_DISABLED',
    }, { status: 409 });
+  }
+  if (!committedReplay && !await hasRecentFiuuVtRecoverySuccess(service)) {
+   return NextResponse.json({
+    error: 'Pelepasan kaunter Fiuu VT dihentikan sementara kerana worker pemulihan belum disahkan aktif.',
+    mode: 'FIUU_VT_RECOVERY_HEARTBEAT_STALE',
+   }, { status: 503 });
   }
   if (!committedReplay) {
    await assertActivePosShiftMember(service, profile, payment.shift_id, payment.branch_id);

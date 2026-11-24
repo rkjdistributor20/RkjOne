@@ -138,6 +138,7 @@ const BASE_LAUNCH_INPUT: Parameters<typeof buildLaunchControl>[0] = {
   hasFiuuVtPilot: false,
   hasFiuuVtCashierReleasePilot: false,
   hasFiuuVtRecoveryWorkerConfig: false,
+  hasFiuuVtRecoveryHeartbeat: false,
   hasFiuuCloudEcrPilot: false,
   hasFiuuSchema: true,
   posQrPaymentMode: "fiuu",
@@ -168,5 +169,26 @@ describe("Fiuu recovery launch gate", () => {
     }).items.find((item) => item.key === "payment-live");
 
     expect(payment?.status).toBe("ACTION");
+  });
+
+  it("keeps VT cashier release waiting until its worker heartbeat is recent", () => {
+    const configuredOnly = buildLaunchControl({
+      ...BASE_LAUNCH_INPUT,
+      posQrPaymentMode: "fiuu_vt",
+      hasFiuuVtPilot: true,
+      hasFiuuVtCashierReleasePilot: true,
+      hasFiuuVtRecoveryWorkerConfig: true,
+    }).items.find((item) => item.key === "payment-live");
+    expect(configuredOnly?.status).toBe("WAITING");
+
+    const operational = buildLaunchControl({
+      ...BASE_LAUNCH_INPUT,
+      posQrPaymentMode: "fiuu_vt",
+      hasFiuuVtPilot: true,
+      hasFiuuVtCashierReleasePilot: true,
+      hasFiuuVtRecoveryWorkerConfig: true,
+      hasFiuuVtRecoveryHeartbeat: true,
+    }).items.find((item) => item.key === "payment-live");
+    expect(operational?.status).toBe("ACTION");
   });
 });

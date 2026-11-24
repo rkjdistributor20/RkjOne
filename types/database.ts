@@ -6955,6 +6955,24 @@ export type Database = {
           },
         ]
       }
+      pos_fiuu_vt_recovery_heartbeat: {
+        Row: {
+          last_success_at: string
+          updated_at: string
+          worker_name: string
+        }
+        Insert: {
+          last_success_at: string
+          updated_at?: string
+          worker_name: string
+        }
+        Update: {
+          last_success_at?: string
+          updated_at?: string
+          worker_name?: string
+        }
+        Relationships: []
+      }
       pos_online_payments: {
         Row: {
           amount_rm: number
@@ -11391,6 +11409,14 @@ export type Database = {
           p_payment_id: string
         }
         Returns: Json
+      }
+      has_recent_pos_fiuu_vt_recovery_success: {
+        Args: { p_max_age_seconds: number }
+        Returns: boolean
+      }
+      record_pos_fiuu_vt_recovery_success: {
+        Args: never
+        Returns: string
       }
       record_pos_fiuu_vt_provider_error: {
         Args: {

@@ -5,6 +5,7 @@ import {
  recoveryRunResponse,
  runFiuuVtRecovery,
 } from '../../../../lib/pos/fiuu-vt-recovery-worker';
+import { recordFiuuVtRecoverySuccess } from '../../../../lib/pos/fiuu-vt-recovery-heartbeat';
 
 export const maxDuration = 60;
 
@@ -33,7 +34,16 @@ export async function GET(request: Request) {
  }
 
  try {
-  return recoveryRunResponse(await runFiuuVtRecovery());
+  const run = await runFiuuVtRecovery();
+  if (run.status !== 200) return recoveryRunResponse(run);
+  if (!await recordFiuuVtRecoverySuccess()) {
+   console.error('[pos-fiuu-vt] recovery_heartbeat_record_failed');
+   return NextResponse.json(
+    { error: 'Fiuu VT recovery heartbeat could not be recorded' },
+    { status: 503, headers: NO_STORE_HEADERS },
+   );
+  }
+  return recoveryRunResponse(run);
  } catch {
   console.error('[pos-fiuu-vt] recovery_cron_failed');
   return NextResponse.json(

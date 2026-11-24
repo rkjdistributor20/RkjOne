@@ -13,6 +13,7 @@ const BASE_INPUT = {
  hasFiuuVtPilot: false,
  hasFiuuVtCashierReleasePilot: false,
  hasFiuuVtRecoveryWorkerConfig: false,
+ hasFiuuVtRecoveryHeartbeat: false,
  hasFiuuCloudEcrPilot: false,
  hasFiuuSchema: false,
  fiuuLiveUatPassed: false,
@@ -113,11 +114,23 @@ describe('production readiness evidence', () => {
   });
   expect(statusFor(unsafeRelease, 'payment-gateway')).toBe('NEEDS_ACTION');
 
+  const configuredButStale = buildProductionReadiness({
+   ...BASE_INPUT,
+   hasFiuuVtPilot: true,
+   hasFiuuVtCashierReleasePilot: true,
+   hasFiuuVtRecoveryWorkerConfig: true,
+   hasFiuuSchema: true,
+   fiuuLiveUatPassed: true,
+   posQrPaymentMode: 'fiuu_vt',
+  });
+  expect(statusFor(configuredButStale, 'payment-gateway')).toBe('NEEDS_ACTION');
+
   const recoveredRelease = buildProductionReadiness({
    ...BASE_INPUT,
    hasFiuuVtPilot: true,
    hasFiuuVtCashierReleasePilot: true,
    hasFiuuVtRecoveryWorkerConfig: true,
+   hasFiuuVtRecoveryHeartbeat: true,
    hasFiuuSchema: true,
    fiuuLiveUatPassed: true,
    posQrPaymentMode: 'fiuu_vt',

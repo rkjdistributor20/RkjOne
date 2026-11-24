@@ -13,6 +13,7 @@ import {
  isFiuuCloudEcrEnabledForBranch,
 } from '@/lib/pos/fiuu-cloudecr-server';
 import { FIUU_VT_DUITNOW_CHANNEL, FIUU_VT_PACKAGE } from '@/lib/pos/fiuu-vt';
+import { hasRecentFiuuVtRecoverySuccess } from '@/lib/pos/fiuu-vt-recovery-heartbeat';
 import {
  isFiuuVtCashierReleaseEnabledForBranch,
  isFiuuVtEnabledForBranch,
@@ -89,7 +90,8 @@ export async function GET(request: Request) {
    && paymentMode === 'fiuu_vt'
    && isFiuuVtEnabledForBranch(branch.branch_code);
   vtCashierReleaseEnabled = vtEnabled
-   && isFiuuVtCashierReleaseEnabledForBranch(branch.branch_code);
+   && isFiuuVtCashierReleaseEnabledForBranch(branch.branch_code)
+   && await hasRecentFiuuVtRecoverySuccess();
  } catch (configurationError) {
   console.error('[pos-fiuu-vt] invalid_branch_configuration', {
    reason: configurationError instanceof Error ? configurationError.message : 'unknown',

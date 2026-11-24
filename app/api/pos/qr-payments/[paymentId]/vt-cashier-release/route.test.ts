@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
  assertOfficialPosDevice: vi.fn(),
  createAdminClient: vi.fn(),
  getCurrentProfile: vi.fn(),
+ hasRecentFiuuVtRecoverySuccess: vi.fn(),
  isFiuuVtCashierReleaseEnabledForBranch: vi.fn(),
 }));
 
@@ -17,6 +18,9 @@ vi.mock('@/lib/pos/access', () => ({
 }));
 vi.mock('@/lib/pos/device-auth', () => ({
  assertOfficialPosDevice: mocks.assertOfficialPosDevice,
+}));
+vi.mock('@/lib/pos/fiuu-vt-recovery-heartbeat', () => ({
+ hasRecentFiuuVtRecoverySuccess: mocks.hasRecentFiuuVtRecoverySuccess,
 }));
 vi.mock('@/lib/pos/fiuu-vt-server', () => ({
  isFiuuVtCashierReleaseEnabledForBranch: mocks.isFiuuVtCashierReleaseEnabledForBranch,
@@ -99,6 +103,26 @@ describe('Fiuu VT cashier release after cancellation request', () => {
    enrollmentGeneration: 2,
   });
   mocks.isFiuuVtCashierReleaseEnabledForBranch.mockReturnValue(true);
+  mocks.hasRecentFiuuVtRecoverySuccess.mockResolvedValue(true);
+ });
+
+ it('fails closed before first release when the recovery heartbeat is stale', async () => {
+  const admin = makeAdmin();
+  mocks.createAdminClient.mockReturnValue(admin);
+  mocks.hasRecentFiuuVtRecoverySuccess.mockResolvedValue(false);
+
+  const response = await invoke({ attempt_id: ATTEMPT_ID });
+
+  expect(response.status).toBe(503);
+  expect(await response.json()).toMatchObject({
+   mode: 'FIUU_VT_RECOVERY_HEARTBEAT_STALE',
+  });
+  expect(mocks.hasRecentFiuuVtRecoverySuccess).toHaveBeenCalledWith(admin);
+  expect(mocks.assertActivePosShiftMember).not.toHaveBeenCalled();
+  expect(admin.rpc).not.toHaveBeenCalledWith(
+   'release_pos_fiuu_vt_cashier_lane',
+   expect.anything(),
+  );
  });
 
  it('requires an authenticated cashier', async () => {
@@ -118,6 +142,7 @@ describe('Fiuu VT cashier release after cancellation request', () => {
   const admin = makeAdmin();
   mocks.createAdminClient.mockReturnValue(admin);
   mocks.isFiuuVtCashierReleaseEnabledForBranch.mockReturnValue(false);
+  mocks.hasRecentFiuuVtRecoverySuccess.mockResolvedValue(false);
   const response = await invoke({ attempt_id: ATTEMPT_ID });
   expect(response.status).toBe(409);
   expect(await response.json()).toMatchObject({
@@ -204,6 +229,7 @@ describe('Fiuu VT cashier release after cancellation request', () => {
    },
   });
   expect(mocks.assertActivePosShiftMember).not.toHaveBeenCalled();
+  expect(mocks.hasRecentFiuuVtRecoverySuccess).not.toHaveBeenCalled();
   expect(admin.rpc).toHaveBeenCalledWith('release_pos_fiuu_vt_cashier_lane', {
    p_payment_id: PAYMENT_ID,
    p_attempt_id: ATTEMPT_ID,

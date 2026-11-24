@@ -32,6 +32,7 @@ type ReadinessInput = {
  hasFiuuVtPilot: boolean;
  hasFiuuVtCashierReleasePilot: boolean;
  hasFiuuVtRecoveryWorkerConfig: boolean;
+ hasFiuuVtRecoveryHeartbeat: boolean;
  hasFiuuCloudEcrPilot: boolean;
  hasFiuuSchema: boolean;
  fiuuLiveUatPassed: boolean;
@@ -79,7 +80,8 @@ export function buildProductionReadiness(input: ReadinessInput): ProductionReadi
   || (input.posQrPaymentMode === 'fiuu_vt'
    && input.hasFiuuVtPilot
    && (!input.hasFiuuVtCashierReleasePilot
-    || input.hasFiuuVtRecoveryWorkerConfig))
+    || (input.hasFiuuVtRecoveryWorkerConfig
+     && input.hasFiuuVtRecoveryHeartbeat)))
   || (input.posQrPaymentMode === 'fiuu_cloudecr' && input.hasFiuuCloudEcrPilot);
  const fiuuReady = fiuuRuntimeConfigured
   && input.hasFiuuSchema
@@ -162,6 +164,7 @@ export function buildProductionReadiness(input: ReadinessInput): ProductionReadi
   `Pilot VT: ${input.hasFiuuVtPilot ? 'dikonfigurasi' : 'tidak aktif'}`,
   `Pelepasan kaunter VT: ${input.hasFiuuVtCashierReleasePilot ? 'dikonfigurasi' : 'tidak aktif'}`,
   `Worker VT + cron: ${input.hasFiuuVtRecoveryWorkerConfig ? 'lengkap' : 'belum lengkap'}`,
+  `Heartbeat worker VT: ${input.hasFiuuVtRecoveryHeartbeat ? 'segar' : 'tiada atau lapuk'}`,
   `Pilot VT+ cloudECR: ${input.hasFiuuCloudEcrPilot ? 'dikonfigurasi' : 'tidak aktif'}`,
   `Skema Fiuu: ${input.hasFiuuSchema ? 'tersedia' : 'belum tersedia'}`,
  ]),

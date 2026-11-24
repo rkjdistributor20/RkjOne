@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
  getFiuuOpaConfig: vi.fn(),
  getFiuuStaticQrConfig: vi.fn(),
  getPosQrPaymentMode: vi.fn(),
+ hasRecentFiuuVtRecoverySuccess: vi.fn(),
  isFiuuCloudEcrEnabledForBranch: vi.fn(),
  isFiuuOpaEnabledForBranch: vi.fn(),
  isFiuuOpaRolloutActive: vi.fn(),
@@ -47,6 +48,9 @@ vi.mock('@/lib/pos/fiuu-cloudecr-server', () => ({
 vi.mock('@/lib/pos/fiuu-vt', () => ({
  FIUU_VT_DUITNOW_CHANNEL: '24',
  FIUU_VT_PACKAGE: 'com.rms.mobile.razervt',
+}));
+vi.mock('@/lib/pos/fiuu-vt-recovery-heartbeat', () => ({
+ hasRecentFiuuVtRecoverySuccess: mocks.hasRecentFiuuVtRecoverySuccess,
 }));
 vi.mock('@/lib/pos/fiuu-vt-server', () => ({
  isFiuuVtCashierReleaseEnabledForBranch: mocks.isFiuuVtCashierReleaseEnabledForBranch,
@@ -131,6 +135,7 @@ beforeEach(() => {
  mocks.createAdminClient.mockReturnValue(ADMIN_CLIENT);
  mocks.isFiuuVtEnabledForBranch.mockReturnValue(false);
  mocks.isFiuuVtCashierReleaseEnabledForBranch.mockReturnValue(false);
+ mocks.hasRecentFiuuVtRecoverySuccess.mockResolvedValue(true);
  mocks.isFiuuCloudEcrEnabledForBranch.mockReturnValue(false);
  mocks.getFiuuStaticQrConfig.mockReturnValue(null);
  arrangeBranch();
@@ -255,6 +260,25 @@ describe('Fiuu VT registered-device configuration gate', () => {
     cashierReleaseEnabled: true,
    },
   });
+ });
+
+ it('advertises cashier release only while the recovery heartbeat is recent', async () => {
+  mocks.getPosQrPaymentMode.mockReturnValue('fiuu_vt');
+  mocks.isFiuuOpaEnabledForBranch.mockReturnValue(false);
+  mocks.isFiuuVtEnabledForBranch.mockReturnValue(true);
+  mocks.isFiuuVtCashierReleaseEnabledForBranch.mockReturnValue(true);
+  mocks.hasRecentFiuuVtRecoverySuccess.mockResolvedValue(false);
+
+  const response = await GET(new Request(
+   `http://localhost/api/pos/qr-config?branch_id=${BRANCH_ID}`,
+  ));
+
+  expect(response.status).toBe(200);
+  await expect(response.json()).resolves.toMatchObject({
+   mode: 'FIUU_VT_APP',
+   vt: { cashierReleaseEnabled: false },
+  });
+  expect(mocks.hasRecentFiuuVtRecoverySuccess).toHaveBeenCalledTimes(1);
  });
 
  it('fails closed while the branch tablet is not registered', async () => {

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, ProfileWithBranch } from "@/types/database";
+import { hasRecentFiuuVtRecoverySuccess } from "../pos/fiuu-vt-recovery-heartbeat";
 import {
   buildProductionReadiness,
   type ProductionReadinessSnapshot,
@@ -315,6 +316,7 @@ export function buildLaunchControl(input: {
   hasFiuuVtPilot: boolean;
   hasFiuuVtCashierReleasePilot: boolean;
   hasFiuuVtRecoveryWorkerConfig: boolean;
+  hasFiuuVtRecoveryHeartbeat: boolean;
   hasFiuuCloudEcrPilot: boolean;
   hasFiuuSchema: boolean;
   posQrPaymentMode: "manual" | "fiuu" | "fiuu_vt" | "fiuu_cloudecr";
@@ -343,7 +345,8 @@ export function buildLaunchControl(input: {
     (input.posQrPaymentMode === "fiuu_vt"
       && input.hasFiuuVtPilot
       && (!input.hasFiuuVtCashierReleasePilot
-        || input.hasFiuuVtRecoveryWorkerConfig)) ||
+        || (input.hasFiuuVtRecoveryWorkerConfig
+          && input.hasFiuuVtRecoveryHeartbeat))) ||
     (input.posQrPaymentMode === "fiuu_cloudecr" && input.hasFiuuCloudEcrPilot)) &&
     input.hasFiuuSchema;
   const items: LaunchControlItem[] = [
@@ -442,7 +445,14 @@ export async function buildSystemHealthSnapshot(
   profile: ProfileWithBranch,
 ): Promise<SystemHealthSnapshot> {
   const now = new Date().toISOString();
-  const [branches, legalEntities, activeProfiles, accessReadiness, hasFiuuSchema] =
+  const [
+    branches,
+    legalEntities,
+    activeProfiles,
+    accessReadiness,
+    hasFiuuSchema,
+    hasFiuuVtRecoveryHeartbeat,
+  ] =
     await Promise.all([
       countTable(supabase, "branches"),
       countTable(supabase, "legal_entities"),
@@ -452,6 +462,7 @@ export async function buildSystemHealthSnapshot(
       }),
       loadAccessReadiness(supabase),
       hasFiuuDatabaseSchema(supabase),
+      hasRecentFiuuVtRecoverySuccess(),
     ]);
   // Migration history is not exposed through the public Data API.
   // Keep it unknown here and verify it through the CLI or dashboard.
@@ -507,6 +518,7 @@ export async function buildSystemHealthSnapshot(
     hasFiuuVtPilot,
     hasFiuuVtCashierReleasePilot,
     hasFiuuVtRecoveryWorkerConfig,
+    hasFiuuVtRecoveryHeartbeat,
     hasFiuuCloudEcrPilot,
     hasFiuuSchema,
     fiuuLiveUatPassed: false,
@@ -531,6 +543,7 @@ export async function buildSystemHealthSnapshot(
     hasFiuuVtPilot,
     hasFiuuVtCashierReleasePilot,
     hasFiuuVtRecoveryWorkerConfig,
+    hasFiuuVtRecoveryHeartbeat,
     hasFiuuCloudEcrPilot,
     hasFiuuSchema,
     posQrPaymentMode,
@@ -707,7 +720,7 @@ export async function buildSystemHealthSnapshot(
           "payment-env",
           "Kesiapan Fiuu live",
           "WARN",
-          `Mod QR POS ${posQrPaymentMode}; pemetaan OPA tujuh medan ${hasFiuuCredentials ? "lengkap" : "belum lengkap"}; konfigurasi worker pemulihan OPA ${hasFiuuRecoveryWorkerConfig ? "lengkap" : "belum lengkap"}; scheduler/operational gate ${hasFiuuRecoveryOperationalGate ? "disahkan" : "belum dibuktikan"}; skema dan kawalan rollout Fiuu ${hasFiuuSchema ? "tersedia" : "belum tersedia"}; pilot VT ${hasFiuuVtPilot ? "dikonfigurasi" : "tidak aktif"}; pelepasan kaunter VT ${hasFiuuVtCashierReleasePilot ? "dikonfigurasi" : "tidak aktif"}; worker VT+cron ${hasFiuuVtRecoveryWorkerConfig ? "lengkap" : "belum lengkap"}; pilot VT+ cloudECR ${hasFiuuCloudEcrPilot ? "dikonfigurasi" : "tidak aktif"}; UAT transaksi live belum direkodkan.`,
+          `Mod QR POS ${posQrPaymentMode}; pemetaan OPA tujuh medan ${hasFiuuCredentials ? "lengkap" : "belum lengkap"}; konfigurasi worker pemulihan OPA ${hasFiuuRecoveryWorkerConfig ? "lengkap" : "belum lengkap"}; scheduler/operational gate ${hasFiuuRecoveryOperationalGate ? "disahkan" : "belum dibuktikan"}; skema dan kawalan rollout Fiuu ${hasFiuuSchema ? "tersedia" : "belum tersedia"}; pilot VT ${hasFiuuVtPilot ? "dikonfigurasi" : "tidak aktif"}; pelepasan kaunter VT ${hasFiuuVtCashierReleasePilot ? "dikonfigurasi" : "tidak aktif"}; worker VT+cron ${hasFiuuVtRecoveryWorkerConfig ? "lengkap" : "belum lengkap"}; heartbeat VT ${hasFiuuVtRecoveryHeartbeat ? "segar" : "tiada atau lapuk"}; pilot VT+ cloudECR ${hasFiuuCloudEcrPilot ? "dikonfigurasi" : "tidak aktif"}; UAT transaksi live belum direkodkan.`,
           "Kekalkan QR statik/manual di luar pilot sehingga migrasi, bukti provider dan settlement disahkan.",
         ),
       ],
