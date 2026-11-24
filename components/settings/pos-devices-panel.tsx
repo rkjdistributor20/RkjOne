@@ -8,7 +8,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { matchOfficialTablet, POS_OFFICIAL_TABLETS } from '@/lib/pos/official-tablets';
-import type { PosDeviceManagementStatus, PosOfficialHardwareProfile } from '@/lib/pos/types';
+import type {
+  PosDeviceManagementStatus,
+  PosFiuuVtAppStatus,
+  PosOfficialHardwareProfile,
+} from '@/lib/pos/types';
 
 type Branch = { id: string; branch_code: string; branch_name: string };
 type Device = {
@@ -28,6 +32,7 @@ type Device = {
   warranty_expires_at: string | null;
   asset_verified_at: string | null;
   management: PosDeviceManagementStatus | null;
+  fiuu_vt: PosFiuuVtAppStatus | null;
   branch: { branch_code: string; branch_name: string } | Array<{ branch_code: string; branch_name: string }> | null;
 };
 
@@ -452,6 +457,16 @@ export function PosDevicesPanel() {
                               : 'border-amber-300 bg-amber-50 text-amber-900'}
                           >
                             RKJ One Staff: {hostAppVersion ?? 'versi belum dilapor'}
+                          </Badge>
+                          <Badge
+                            variant="outline"
+                            className={device.fiuu_vt?.installed && device.fiuu_vt?.trustedInstall
+                              ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
+                              : 'border-amber-300 bg-amber-50 text-amber-900'}
+                          >
+                            Fiuu VT: {device.fiuu_vt?.installed
+                              ? `${device.fiuu_vt.versionName ?? 'versi tidak diketahui'}${device.fiuu_vt.trustedInstall ? ' - Play Store' : ' - sumber tidak dipercayai'}`
+                              : 'belum dilapor / tidak dipasang'}
                           </Badge>
                           <Badge
                             variant="outline"

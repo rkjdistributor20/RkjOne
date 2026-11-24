@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
  isFiuuOpaEnabledForBranch: vi.fn(),
  isFiuuOpaRolloutActive: vi.fn(),
  isFiuuVtEnabledForBranch: vi.fn(),
+ isFiuuVtCashierReleaseDeviceReady: vi.fn(),
  isFiuuVtCashierReleaseEnabledForBranch: vi.fn(),
  posAccessErrorStatus: vi.fn(),
 }));
@@ -53,6 +54,7 @@ vi.mock('@/lib/pos/fiuu-vt-recovery-heartbeat', () => ({
  hasRecentFiuuVtRecoverySuccess: mocks.hasRecentFiuuVtRecoverySuccess,
 }));
 vi.mock('@/lib/pos/fiuu-vt-server', () => ({
+ isFiuuVtCashierReleaseDeviceReady: mocks.isFiuuVtCashierReleaseDeviceReady,
  isFiuuVtCashierReleaseEnabledForBranch: mocks.isFiuuVtCashierReleaseEnabledForBranch,
  isFiuuVtEnabledForBranch: mocks.isFiuuVtEnabledForBranch,
 }));
@@ -134,6 +136,7 @@ beforeEach(() => {
  mocks.isFiuuOpaRolloutActive.mockResolvedValue(true);
  mocks.createAdminClient.mockReturnValue(ADMIN_CLIENT);
  mocks.isFiuuVtEnabledForBranch.mockReturnValue(false);
+ mocks.isFiuuVtCashierReleaseDeviceReady.mockReturnValue(true);
  mocks.isFiuuVtCashierReleaseEnabledForBranch.mockReturnValue(false);
  mocks.hasRecentFiuuVtRecoverySuccess.mockResolvedValue(true);
  mocks.isFiuuCloudEcrEnabledForBranch.mockReturnValue(false);
@@ -279,6 +282,24 @@ describe('Fiuu VT registered-device configuration gate', () => {
    vt: { cashierReleaseEnabled: false },
   });
   expect(mocks.hasRecentFiuuVtRecoverySuccess).toHaveBeenCalledTimes(1);
+ });
+
+ it('does not advertise cashier release to an old or unreported host build', async () => {
+  mocks.getPosQrPaymentMode.mockReturnValue('fiuu_vt');
+  mocks.isFiuuOpaEnabledForBranch.mockReturnValue(false);
+  mocks.isFiuuVtEnabledForBranch.mockReturnValue(true);
+  mocks.isFiuuVtCashierReleaseEnabledForBranch.mockReturnValue(true);
+  mocks.isFiuuVtCashierReleaseDeviceReady.mockReturnValue(false);
+
+  const response = await GET(new Request(
+   `http://localhost/api/pos/qr-config?branch_id=${BRANCH_ID}`,
+  ));
+
+  await expect(response.json()).resolves.toMatchObject({
+   mode: 'FIUU_VT_APP',
+   vt: { cashierReleaseEnabled: false },
+  });
+  expect(mocks.hasRecentFiuuVtRecoverySuccess).not.toHaveBeenCalled();
  });
 
  it('fails closed while the branch tablet is not registered', async () => {

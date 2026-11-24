@@ -20,8 +20,10 @@ import {
  fetchPosDeviceContext,
  enrollPosDevice,
  syncPosDeviceManagement,
+ syncPosDeviceFiuuVtStatus,
 } from '@/lib/pos/api';
 import { enableOfficialPosKiosk, readDeviceManagementStatus } from '@/lib/pos/device-management-client';
+import { readFiuuVtStatus } from '@/lib/pos/fiuu-vt-client';
 import {
  getOfflineQueue,
  removeOfflineSale,
@@ -377,9 +379,31 @@ export function PosTerminal() {
   void (async () => {
    const status = await readDeviceManagementStatus();
    const result = await syncPosDeviceManagement(status).catch(() => null);
+   const fiuuVtStatus = await readFiuuVtStatus().catch(() => null);
+   const fiuuVtResult = fiuuVtStatus
+    ? await syncPosDeviceFiuuVtStatus({
+     nativeAndroid: fiuuVtStatus.nativeAndroid,
+     installed: fiuuVtStatus.installed,
+     trustedInstall: fiuuVtStatus.trustedInstall,
+     packageName: fiuuVtStatus.packageName,
+     versionName: fiuuVtStatus.versionName,
+     versionCode: fiuuVtStatus.versionCode ?? null,
+     installSource: fiuuVtStatus.installSource ?? null,
+     bridgeApiVersion: fiuuVtStatus.bridgeApiVersion ?? null,
+     stateSchemaVersion: fiuuVtStatus.stateSchemaVersion ?? null,
+     callbackRegistryRecoveryRequired: fiuuVtStatus.callbackRegistryRecoveryRequired === true,
+    }).catch(() => null)
+    : null;
    if (!cancelled && result) {
     setDeviceContext((current) => current?.device
-     ? { ...current, device: { ...current.device, management: result.management } }
+     ? {
+      ...current,
+      device: {
+       ...current.device,
+       management: result.management,
+       fiuuVt: fiuuVtResult?.fiuuVt ?? current.device.fiuuVt,
+      },
+     }
      : current);
    }
   })();

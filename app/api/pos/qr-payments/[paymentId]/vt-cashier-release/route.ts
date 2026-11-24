@@ -8,6 +8,7 @@ import {
 import { assertOfficialPosDevice } from '@/lib/pos/device-auth';
 import { hasRecentFiuuVtRecoverySuccess } from '@/lib/pos/fiuu-vt-recovery-heartbeat';
 import {
+ isFiuuVtCashierReleaseDeviceReady,
  isFiuuVtCashierReleaseEnabledForBranch,
  normalizeFiuuVtBranchCode,
 } from '@/lib/pos/fiuu-vt-server';
@@ -119,6 +120,12 @@ export async function POST(
     error: 'Pelepasan kaunter Fiuu VT belum diaktifkan untuk cawangan ini.',
     mode: 'FIUU_VT_CASHIER_RELEASE_DISABLED',
    }, { status: 409 });
+  }
+  if (!committedReplay && !isFiuuVtCashierReleaseDeviceReady(device.management)) {
+   return NextResponse.json({
+    error: 'Kemas kini RKJ One Staff melalui Google Play sebelum menggunakan pelepasan kaunter Fiuu VT.',
+    mode: 'FIUU_VT_APP_UPDATE_REQUIRED',
+   }, { status: 426 });
   }
   if (!committedReplay && !await hasRecentFiuuVtRecoverySuccess(service)) {
    return NextResponse.json({

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-24 - Android 1.8.7 durable callback recovery
+
+- Recovers a successful Fiuu VT callback even if the server process stops after the one-time callback claim but before the payment row is updated.
+- Requires a recent successful recovery-worker heartbeat and RKJ One Staff `versionCode 25` before the early cashier-release path is advertised or accepted.
+- Reports the installed RKJ One Staff and Fiuu VT package versions to HQ for per-tablet rollout verification without exposing payment secrets.
+- Keeps late successes attached to the original order and routes terminal/review-state conflicts to the Finance/HQ queue instead of the next customer.
+
 ## 2026-11-23 - Android 1.8.6 exact retry-limit quarantine
 
 - Converts an expired Fiuu VT payment to an append-only Finance/HQ quarantine only after the server verifies the bounded STATUS budget, exact cashier, official tablet enrollment, open shift, expired QR and absence of provider-success evidence.

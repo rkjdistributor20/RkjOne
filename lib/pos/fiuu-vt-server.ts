@@ -1,6 +1,9 @@
 import { getPosQrPaymentMode } from './fiuu';
+import type { PosDeviceManagementStatus } from './types';
 
 export const FIUU_VT_PREVIEW_LATE_RECOVERY_MS = 24 * 60 * 60 * 1000;
+export const FIUU_VT_CASHIER_RELEASE_MIN_VERSION_CODE = 25;
+const RKJ_ONE_STAFF_ANDROID_PACKAGE = 'com.rkjone.staff';
 
 export const FIUU_VT_BRANCH_CODE_PATTERN = /^BR(00[1-9]|0[12]\d|03[0-6])$/;
 
@@ -66,6 +69,18 @@ export function isFiuuVtCashierReleaseRuntimeReady(): boolean {
  // fallback) and the Vercel Cron bearer secret before advertising the flow.
  return process.env.FIUU_VT_RECOVERY_ENABLED?.trim().toLowerCase() === 'true'
   && (process.env.CRON_SECRET ?? '').trim().length >= 32;
+}
+
+export function isFiuuVtCashierReleaseDeviceReady(
+ management: PosDeviceManagementStatus | null | undefined,
+): boolean {
+ const versionCode = Number(management?.versionCode);
+ return management?.nativeApp === true
+  && management.packageName === RKJ_ONE_STAFF_ANDROID_PACKAGE
+  && Number.isSafeInteger(versionCode)
+  && versionCode >= FIUU_VT_CASHIER_RELEASE_MIN_VERSION_CODE
+  && typeof management.reportedAt === 'string'
+  && Number.isFinite(Date.parse(management.reportedAt));
 }
 
 export function isFiuuVtCashierReleaseEnabledForBranch(branchCode: string): boolean {

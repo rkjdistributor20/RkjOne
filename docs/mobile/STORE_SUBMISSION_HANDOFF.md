@@ -4,7 +4,7 @@ Dokumen ini ialah rujukan terakhir untuk submit RKJ One Staff ke Google Play Con
 
 ## Status Teknikal
 
-- Mobile readiness audit: `54 passed, 0 warning, 0 failure`
+- Mobile readiness audit: mesti dijalankan semula terhadap AAB `1.8.7` selepas build akhir
 - Production URL: `https://rkj.one`
 - Privacy policy: `https://rkj.one/privacy`
 - Support: `https://rkj.one/support`
@@ -12,10 +12,10 @@ Dokumen ini ialah rujukan terakhir untuk submit RKJ One Staff ke Google Play Con
 - Terms of use: `https://rkj.one/terms`
 - App name: `RKJ One Staff`
 - Package / bundle identifier: `com.rkjone.staff`
-- Version name: `1.4`
-- Version code: `5`
+- Current Play version: `1.8.4` (`22`), rollout `100%`
+- Candidate version: `1.8.7` (`25`), menunggu gate production dan BR001
 - App access: restricted internal staff login
-- Google Play Production: available, rollout `100%` (verified 2026-08-05)
+- Google Play Production: available, rollout `100%` (verified 2026-11-24)
 
 ## Legal Entity
 
@@ -34,13 +34,13 @@ Account owner email: rkjdistributor20@gmail.com
 
 ## Google Play Console
 
-Artefak release semasa yang telah diterbitkan:
+Artefak production semasa yang telah diterbitkan:
 
 ```text
-RKJ One Staff 1.4 (version code 5)
+RKJ One Staff 1.8.4 (version code 22)
 ```
 
-Jangan upload semula AAB dengan version code yang sama. Bina AAB baharu hanya untuk perubahan native dan naikkan version code terlebih dahulu.
+Calon `1.8.7` menggunakan version code `25` dan laluan `artifacts/android/rkj-one-staff-1.8.7-release.aab`. Jangan submit calon lama `1.8.6`; perubahan native 1.8.7 diperlukan untuk version gate, pemulihan callback dan telemetri armada.
 
 Store listing:
 
@@ -146,5 +146,5 @@ Sebelum production release di store:
 
 - Pastikan reviewer credential masih boleh login.
 - Pastikan screenshots tidak dedah gaji, password, token, IC, nombor bank penuh, atau dokumen sensitif.
-- Pastikan payment online live hanya dibuka selepas Fiuu/provider approve dan webhook production lulus.
-- Release dahulu ke Internal testing / TestFlight, bukan public production terus.
+- Pastikan payment online live hanya dibuka pada allowlist cawangan selepas Fiuu/provider, worker recovery dan heartbeat production lulus.
+- Jalankan BR001 sebagai canary; perluaskan production mengikut kumpulan dan hentikan kumpulan seterusnya jika ada masalah kritikal.

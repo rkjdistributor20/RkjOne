@@ -38,11 +38,19 @@ const PROFILE = {
 };
 const DEVICE_ID = '33333333-3333-4333-8333-333333333333';
 
-function arrangeAdmin(metadata: Record<string, unknown> = { retained: true }) {
+function arrangeAdmin(
+  metadata: Record<string, unknown> = { retained: true },
+  currentError: unknown = null,
+) {
+  const maybeSingle = vi.fn().mockResolvedValue({
+    data: currentError ? null : { metadata },
+    error: currentError,
+  });
+  const organizationFilter = vi.fn().mockReturnValue({ maybeSingle });
   const selectQuery = {
     select: vi.fn().mockReturnValue({
       eq: vi.fn().mockReturnValue({
-        maybeSingle: vi.fn().mockResolvedValue({ data: { metadata }, error: null }),
+        eq: organizationFilter,
       }),
     }),
   };
@@ -56,6 +64,7 @@ function arrangeAdmin(metadata: Record<string, unknown> = { retained: true }) {
     .mockReturnValueOnce(selectQuery)
     .mockReturnValueOnce(updateQuery);
   mocks.createAdminClient.mockReturnValue({ from });
+  return { organizationFilter };
 }
 
 function request(status: Record<string, unknown>) {
@@ -63,6 +72,14 @@ function request(status: Record<string, unknown>) {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ status }),
+  });
+}
+
+function fiuuRequest(status: Record<string, unknown>) {
+  return new Request('http://localhost/api/pos/device', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fiuu_vt_status: status }),
   });
 }
 
@@ -117,5 +134,70 @@ describe('PUT /api/pos/device host app version reporting', () => {
     expect(response.status).toBe(200);
     expect(body.management.versionName).toBeNull();
     expect(body.management.versionCode).toBeNull();
+  });
+});
+
+describe('PUT /api/pos/device Fiuu VT app reporting', () => {
+  it('persists normalized Fiuu app evidence without replacing host management state', async () => {
+    arrangeAdmin({
+      retained: true,
+      device_management: { nativeApp: true, versionName: '1.8.7', versionCode: 25 },
+    });
+
+    const response = await PUT(fiuuRequest({
+      nativeAndroid: true,
+      installed: true,
+      trustedInstall: true,
+      packageName: 'com.rms.mobile.razervt',
+      versionName: ' 3.2.1\n ',
+      versionCode: '321',
+      installSource: 'com.android.vending',
+      bridgeApiVersion: '11',
+      stateSchemaVersion: 7,
+      callbackRegistryRecoveryRequired: false,
+    }));
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.management).toMatchObject({ versionName: '1.8.7', versionCode: 25 });
+    expect(body.fiuuVt).toEqual(expect.objectContaining({
+      installed: true,
+      trustedInstall: true,
+      packageName: 'com.rms.mobile.razervt',
+      versionName: '3.2.1',
+      versionCode: 321,
+      installSource: 'com.android.vending',
+      bridgeApiVersion: 11,
+      stateSchemaVersion: 7,
+      callbackRegistryRecoveryRequired: false,
+    }));
+    expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({
+      metadata: expect.objectContaining({
+        retained: true,
+        device_management: expect.objectContaining({ versionCode: 25 }),
+        fiuu_vt_app: expect.objectContaining({ versionCode: 321 }),
+      }),
+    }));
+  });
+
+  it('fails closed for an empty update body', async () => {
+    arrangeAdmin({});
+    const response = await PUT(new Request('http://localhost/api/pos/device', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    }));
+
+    expect(response.status).toBe(400);
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
+
+  it('does not overwrite metadata when the current device row cannot be read', async () => {
+    arrangeAdmin({}, { message: 'read failed' });
+
+    const response = await PUT(fiuuRequest({ installed: true }));
+
+    expect(response.status).toBe(400);
+    expect(mocks.update).not.toHaveBeenCalled();
   });
 });

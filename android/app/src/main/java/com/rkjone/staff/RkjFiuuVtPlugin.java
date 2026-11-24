@@ -132,6 +132,8 @@ public class RkjFiuuVtPlugin extends Plugin {
         result.put("trustedInstall", isTrustedInstall(LEGACY_FIUU_PACKAGE));
         result.put("packageName", LEGACY_FIUU_PACKAGE);
         result.put("versionName", packageVersion(LEGACY_FIUU_PACKAGE));
+        result.put("versionCode", packageVersionCode(LEGACY_FIUU_PACKAGE));
+        result.put("installSource", packageInstallSource(LEGACY_FIUU_PACKAGE));
         result.put("pendingOrderId", emptyToNull(preferences.getString(PENDING_ORDER, "")));
         result.put("pendingAmount", emptyToNull(preferences.getString(PENDING_AMOUNT, "")));
         result.put("pendingOperation", emptyToNull(pendingOperation));
@@ -3096,6 +3098,8 @@ public class RkjFiuuVtPlugin extends Plugin {
         result.put("launchable", launchable);
         result.put("ready", installed && trustedInstall && enabled && launchable);
         result.put("versionName", installed ? packageVersion(FIUU_VT_PLUS_PACKAGE) : "");
+        result.put("versionCode", installed ? packageVersionCode(FIUU_VT_PLUS_PACKAGE) : 0L);
+        result.put("installSource", installed ? packageInstallSource(FIUU_VT_PLUS_PACKAGE) : "");
         return result;
     }
 
@@ -3145,6 +3149,11 @@ public class RkjFiuuVtPlugin extends Plugin {
 
     @SuppressWarnings("deprecation")
     private boolean isTrustedInstall(String packageName) {
+        return "com.android.vending".equals(packageInstallSource(packageName));
+    }
+
+    @SuppressWarnings("deprecation")
+    private String packageInstallSource(String packageName) {
         try {
             String installer;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -3154,9 +3163,9 @@ public class RkjFiuuVtPlugin extends Plugin {
             } else {
                 installer = getContext().getPackageManager().getInstallerPackageName(packageName);
             }
-            return "com.android.vending".equals(installer);
+            return installer == null ? "" : installer;
         } catch (PackageManager.NameNotFoundException error) {
-            return false;
+            return "";
         }
     }
 

@@ -10,9 +10,9 @@ Dokumen ini merekod status PWA, Android shell dan laluan penerbitan Play Store/A
 - Android shell sudah dibuat dengan Capacitor menggunakan package id `com.rkjone.staff`.
 - Android app memuatkan production URL `https://rkj.one`.
 - Halaman privacy policy tersedia di `https://rkj.one/privacy`.
-- Fiuu DuitNow QR dinamik disediakan dalam kod tetapi kekal dalam mod manual sehingga channel merchant, sandbox callback dan pilot satu cawangan diluluskan. Android shell memuatkan `https://rkj.one`, jadi perubahan web tidak memerlukan AAB baharu selagi kod native, permission dan konfigurasi Capacitor tidak berubah.
-- Android debug APK sudah berjaya dibina di `android/app/build/outputs/apk/debug/app-debug.apk`.
-- Android release AAB sudah berjaya dibina dan ditandatangani di `android/app/build/outputs/bundle/release/app-release.aab`.
+- Fiuu DuitNow QR dinamik dikawal oleh allowlist cawangan, version gate Android dan heartbeat recovery worker. BR001 kekal canary sehingga aliran A -> B serta callback lewat/berulang disahkan.
+- Output Gradle sementara disimpan di `%LOCALAPPDATA%\RKJOne\gradle-builds` untuk mengelakkan masalah laluan OneDrive.
+- AAB release yang boleh dihantar disalin ke `artifacts/android/rkj-one-staff-<version>-release.aab` oleh skrip build.
 - iOS project scaffold sudah dibuat di `ios/` untuk sambungan build di Mac/Xcode.
 - Bahan Play Store/App Store sudah dijana di `outputs/mobile-release/store-assets/`.
 - Dokumen submission tersedia di `docs/mobile/`.
@@ -44,10 +44,9 @@ npm run build
 npm run mobile:android:release
 ```
 
-Fail untuk upload Play Store:
+Fail calon untuk upload Play Store:
 
-- `android/app/build/outputs/bundle/release/app-release.aab`
-- Salinan release juga boleh dikumpulkan di `outputs/mobile-release/builds/` jika diperlukan.
+- `artifacts/android/rkj-one-staff-1.8.7-release.aab`
 
 Signing key lokal:
 

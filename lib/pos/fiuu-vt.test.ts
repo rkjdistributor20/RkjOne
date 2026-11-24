@@ -23,6 +23,8 @@ import {
  getFiuuVtCashierReleaseBranches,
  getFiuuVtLateRecoveryMs,
  getFiuuVtValiditySeconds,
+ FIUU_VT_CASHIER_RELEASE_MIN_VERSION_CODE,
+ isFiuuVtCashierReleaseDeviceReady,
  isFiuuVtCashierReleaseRuntimeReady,
  isFiuuVtEnabledForBranch,
  isFiuuVtCashierReleaseEnabledForBranch,
@@ -366,6 +368,47 @@ describe('Fiuu VT STATUS recovery', () => {
 });
 
 describe('Fiuu VT registered-branch gate', () => {
+ it('requires the Play-delivered cashier-release build before enabling the flow', () => {
+  const base = {
+   nativeApp: true,
+   packageName: 'com.rkjone.staff',
+   manufacturer: 'Samsung',
+   model: 'SM-X406B',
+   androidVersion: '16',
+   sdkLevel: 36,
+   deviceOwner: false,
+   lockTaskPermitted: false,
+   lockTaskActive: false,
+   screenLockSecure: true,
+   kioskRequested: false,
+   reportedAt: '2026-11-24T13:00:00.000Z',
+  };
+
+  expect(FIUU_VT_CASHIER_RELEASE_MIN_VERSION_CODE).toBe(25);
+  expect(isFiuuVtCashierReleaseDeviceReady({
+   ...base,
+   versionName: '1.8.7',
+   versionCode: 25,
+  })).toBe(true);
+  expect(isFiuuVtCashierReleaseDeviceReady({
+   ...base,
+   versionName: '1.8.6',
+   versionCode: 24,
+  })).toBe(false);
+  expect(isFiuuVtCashierReleaseDeviceReady({
+   ...base,
+   nativeApp: false,
+   versionName: '1.8.7',
+   versionCode: 25,
+  })).toBe(false);
+  expect(isFiuuVtCashierReleaseDeviceReady({
+   ...base,
+   packageName: 'com.rkjone.staff.debug',
+   versionName: '1.8.7-debug',
+   versionCode: 25,
+  })).toBe(false);
+ });
+
  it('allows the bounded late-recovery exception on Preview only', () => {
   process.env.VERCEL_ENV = 'preview';
   expect(getFiuuVtLateRecoveryMs()).toBe(24 * 60 * 60 * 1000);

@@ -15,6 +15,7 @@ import {
 import { FIUU_VT_DUITNOW_CHANNEL, FIUU_VT_PACKAGE } from '@/lib/pos/fiuu-vt';
 import { hasRecentFiuuVtRecoverySuccess } from '@/lib/pos/fiuu-vt-recovery-heartbeat';
 import {
+ isFiuuVtCashierReleaseDeviceReady,
  isFiuuVtCashierReleaseEnabledForBranch,
  isFiuuVtEnabledForBranch,
 } from '@/lib/pos/fiuu-vt-server';
@@ -91,6 +92,7 @@ export async function GET(request: Request) {
    && isFiuuVtEnabledForBranch(branch.branch_code);
   vtCashierReleaseEnabled = vtEnabled
    && isFiuuVtCashierReleaseEnabledForBranch(branch.branch_code)
+   && isFiuuVtCashierReleaseDeviceReady(deviceContext.device?.management)
    && await hasRecentFiuuVtRecoverySuccess();
  } catch (configurationError) {
   console.error('[pos-fiuu-vt] invalid_branch_configuration', {

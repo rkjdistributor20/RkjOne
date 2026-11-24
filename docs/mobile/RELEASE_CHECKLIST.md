@@ -1,6 +1,6 @@
 # RKJ One Staff - Final Release Checklist
 
-Last verified: 2026-08-05
+Last verified: 2026-11-24
 
 ## Sudah Siap
 
@@ -21,19 +21,19 @@ Last verified: 2026-08-05
 - D-U-N-S rasmi RKJ Distributor telah diterima: `47-331-2040` / digit-only `473312040`.
 - iOS export-compliance flag ditetapkan untuk standard HTTPS/TLS sahaja.
 - App Store review notes, privacy answers dan Custom App flow sudah disediakan.
-- Google Play Production version `1.4` (version code `5`) tersedia di Google Play dengan rollout `100%`.
+- Google Play Production version `1.8.4` (version code `22`) tersedia di Google Play dengan rollout `100%`.
 - Android shell semasa menggunakan package `com.rkjone.staff` dan memuatkan `https://rkj.one`.
-- Google Play audit menemui tiga cadangan pada `1.4`: edge-to-edge, API StatusBar deprecated dan R8. Release candidate `1.5` (code `6`) membaiki ketiga-tiganya dan mesti melalui internal testing sebelum Production.
+- Calon Android `1.8.7` (version code `25`) mengandungi version gate pelepasan kaunter, pemulihan callback durable dan pelaporan versi aplikasi Fiuu VT.
 
 ## Perlu Dibuat Dalam Akaun Store
 
 Google Play Console:
 
-- Pantau Android vitals, crash dan ANR untuk release Production `1.4` (code `5`).
+- Pantau Android vitals, crash dan ANR untuk release Production semasa dan calon `1.8.7`.
 - Pastikan test login reviewer kekal aktif dan terhad kepada BR011.
-- Hanya bina AAB baharu jika native code, permission, package metadata, signing, target SDK atau konfigurasi Capacitor berubah.
-- Perubahan Fiuu semasa ialah server-side; ia tidak memerlukan AAB baharu.
-- Uji release candidate `1.5` pada sekurang-kurangnya satu Android 14 dan satu Android 15/16: splash, status/navigation bar, login persistence, keyboard, rotation, offline fallback dan kiosk mode.
+- Gunakan AAB `artifacts/android/rkj-one-staff-1.8.7-release.aab`; sahkan version code `25`, hash SHA-256 dan sijil upload sebelum muat naik.
+- Uji `1.8.7` pada BR001 Android 16 dan sekurang-kurangnya satu profil tablet rasmi lain: kiosk, login, QR A -> B, bayaran berjaya, callback lewat/berulang dan pemulihan internet.
+- Jangan perluaskan allowlist cashier-release jika heartbeat worker melebihi 180 saat atau versi tablet/Fiuu VT belum dilapor.
 
 Apple:
 

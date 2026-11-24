@@ -11221,6 +11221,18 @@ export type Database = {
         Args: { p_confirmed_by: string; p_payment_id: string }
         Returns: Json
       }
+      list_pos_fiuu_vt_received_attempts: {
+        Args: {
+          p_branch_codes: string[]
+          p_branch_ids: string[]
+          p_limit?: number
+        }
+        Returns: { attempt_id: string }[]
+      }
+      recover_pos_fiuu_vt_received_attempt: {
+        Args: { p_attempt_id: string }
+        Returns: Json
+      }
       quarantine_pos_fiuu_vt_recovery_failure: {
         Args: {
           p_expected_updated_at: string

@@ -7,6 +7,13 @@ const MIGRATION = readFileSync(
  resolve(process.cwd(), 'supabase/migrations/20261112120000_harden_fiuu_vt_server_recovery.sql'),
  'utf8',
 );
+const RECEIVED_ATTEMPT_RECOVERY_MIGRATION = readFileSync(
+ resolve(
+  process.cwd(),
+  'supabase/migrations/20261124120000_recover_received_fiuu_vt_callbacks.sql',
+ ),
+ 'utf8',
+);
 
 describe('Fiuu VT recovery persistence', () => {
  it.each([
@@ -18,6 +25,46 @@ describe('Fiuu VT recovery persistence', () => {
   [20, 900_000],
  ])('backs off attempt %i by %i ms', (attempt, expected) => {
   expect(getFiuuVtRecoveryBackoffMs(attempt)).toBe(expected);
+ });
+
+ it('atomically recovers every expired-lease native callback without client replay', () => {
+  expect(RECEIVED_ATTEMPT_RECOVERY_MIGRATION).toContain(
+   'CREATE OR REPLACE FUNCTION public.recover_pos_fiuu_vt_received_attempt',
+  );
+  expect(RECEIVED_ATTEMPT_RECOVERY_MIGRATION).toContain(
+   "v_attempt.state <> 'RECEIVED'",
+  );
+  expect(RECEIVED_ATTEMPT_RECOVERY_MIGRATION).toContain(
+   "v_attempt.op_type NOT IN ('SALE', 'STATUS', 'VOID')",
+  );
+  expect(RECEIVED_ATTEMPT_RECOVERY_MIGRATION).toContain(
+   'public.record_pos_fiuu_vt_provider_error',
+  );
+  expect(RECEIVED_ATTEMPT_RECOVERY_MIGRATION).toContain(
+   "RETURN jsonb_build_object('outcome', 'NON_SUCCESS_RECORDED')",
+  );
+  expect(RECEIVED_ATTEMPT_RECOVERY_MIGRATION).toContain(
+   'v_attempt.processing_lease_expires_at > v_now',
+  );
+  expect(RECEIVED_ATTEMPT_RECOVERY_MIGRATION).toContain(
+   'public.recover_pos_fiuu_vt_reported_payment',
+  );
+  expect(RECEIVED_ATTEMPT_RECOVERY_MIGRATION).toContain(
+   "SET state = 'CONSUMED'",
+  );
+  expect(RECEIVED_ATTEMPT_RECOVERY_MIGRATION).toContain(
+   "'LATE_SUCCESS_REVIEW'",
+  );
+  expect(RECEIVED_ATTEMPT_RECOVERY_MIGRATION).toContain(
+   'v_payment.fiuu_vt_cashier_released_at IS NOT NULL',
+  );
+  expect(RECEIVED_ATTEMPT_RECOVERY_MIGRATION).toContain(
+   "v_invalid_reason := 'TRANSACTION_ALREADY_OWNED'",
+  );
+  expect(RECEIVED_ATTEMPT_RECOVERY_MIGRATION).toContain(
+   'FROM PUBLIC, anon, authenticated',
+  );
+  expect(RECEIVED_ATTEMPT_RECOVERY_MIGRATION).toContain('TO service_role');
  });
 
  it('stores one-time callback attempts behind service-role-only access', () => {

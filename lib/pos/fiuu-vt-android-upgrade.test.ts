@@ -107,6 +107,18 @@ function methodBody(startMarker: string, endMarker: string) {
 }
 
 describe('Fiuu VT Android 1.8.2 to 1.8.4 persisted-state recovery', () => {
+ it('reports the installed Fiuu package version and Play install source for fleet audit', () => {
+  const getStatus = methodBody(
+   'public synchronized void getStatus(PluginCall call)',
+   'public void getVtPlusStatus(PluginCall call)',
+  );
+
+  expect(getStatus).toContain('result.put("versionName", packageVersion(LEGACY_FIUU_PACKAGE))');
+  expect(getStatus).toContain('result.put("versionCode", packageVersionCode(LEGACY_FIUU_PACKAGE))');
+  expect(getStatus).toContain('result.put("installSource", packageInstallSource(LEGACY_FIUU_PACKAGE))');
+  expect(plugin).toContain('return "com.android.vending".equals(packageInstallSource(packageName))');
+ });
+
  it('releases only the orphaned STATUS 5000 blocker while retaining its audit evidence', () => {
   const migrated = releaseLegacyStatus5000(upgradeState());
 

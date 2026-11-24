@@ -10,7 +10,7 @@ import {
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { enforceRateLimit } from '@/lib/security/rate-limit';
-import type { PosDeviceManagementStatus } from '@/lib/pos/types';
+import type { PosDeviceManagementStatus, PosFiuuVtAppStatus } from '@/lib/pos/types';
 
 function cleanText(value: unknown, maxLength = 120) {
   return typeof value === 'string' ? value.trim().slice(0, maxLength) || null : null;
@@ -45,6 +45,35 @@ function normalizeManagementStatus(value: unknown): PosDeviceManagementStatus {
     lockTaskActive: source.lockTaskActive === true,
     screenLockSecure: source.screenLockSecure === true,
     kioskRequested: source.kioskRequested === true,
+    reportedAt: new Date().toISOString(),
+  };
+}
+
+function cleanPackageName(value: unknown) {
+  const packageName = cleanText(value, 160);
+  return packageName && /^[a-zA-Z][a-zA-Z0-9_]*(?:\.[a-zA-Z0-9_]+)+$/.test(packageName)
+    ? packageName
+    : null;
+}
+
+function cleanNonNegativeInteger(value: unknown, maximum: number) {
+  const number = Number(value);
+  return Number.isSafeInteger(number) && number >= 0 && number <= maximum ? number : null;
+}
+
+function normalizeFiuuVtStatus(value: unknown): PosFiuuVtAppStatus {
+  const source = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  return {
+    nativeAndroid: source.nativeAndroid === true,
+    installed: source.installed === true,
+    trustedInstall: source.trustedInstall === true,
+    packageName: cleanPackageName(source.packageName),
+    versionName: cleanVersionName(source.versionName),
+    versionCode: cleanNonNegativeInteger(source.versionCode, 2_100_000_000),
+    installSource: cleanPackageName(source.installSource),
+    bridgeApiVersion: cleanNonNegativeInteger(source.bridgeApiVersion, 10_000),
+    stateSchemaVersion: cleanNonNegativeInteger(source.stateSchemaVersion, 10_000),
+    callbackRegistryRecoveryRequired: source.callbackRegistryRecoveryRequired === true,
     reportedAt: new Date().toISOString(),
   };
 }
@@ -166,24 +195,42 @@ export async function PUT(request: Request) {
   }
 
   const body = await request.json().catch(() => ({}));
-  const management = normalizeManagementStatus(body.status);
+  const hasManagementStatus = Object.prototype.hasOwnProperty.call(body, 'status');
+  const hasFiuuVtStatus = Object.prototype.hasOwnProperty.call(body, 'fiuu_vt_status');
+  if (!hasManagementStatus && !hasFiuuVtStatus) {
+    return NextResponse.json({ error: 'Status tablet diperlukan.' }, { status: 400 });
+  }
   const admin = createAdminClient();
-  const { data: current } = await (admin as any)
+  const { data: current, error: currentError } = await (admin as any)
     .from('pos_devices')
     .select('metadata')
     .eq('id', context.device.id)
+    .eq('organization_id', profile.organization_id)
     .maybeSingle();
+  if (currentError || !current) {
+    return NextResponse.json({ error: 'Status tablet sedia ada tidak dapat dibaca.' }, { status: 400 });
+  }
   const metadata = current?.metadata && typeof current.metadata === 'object' ? current.metadata : {};
+  const management = hasManagementStatus
+    ? normalizeManagementStatus(body.status)
+    : (metadata as { device_management?: PosDeviceManagementStatus }).device_management ?? null;
+  const fiuuVt = hasFiuuVtStatus
+    ? normalizeFiuuVtStatus(body.fiuu_vt_status)
+    : (metadata as { fiuu_vt_app?: PosFiuuVtAppStatus }).fiuu_vt_app ?? null;
   const now = new Date().toISOString();
   const { error } = await (admin as any)
     .from('pos_devices')
     .update({
-      metadata: { ...metadata, device_management: management },
+      metadata: {
+        ...metadata,
+        ...(hasManagementStatus ? { device_management: management } : {}),
+        ...(hasFiuuVtStatus ? { fiuu_vt_app: fiuuVt } : {}),
+      },
       last_seen_at: now,
       updated_at: now,
     })
     .eq('id', context.device.id)
     .eq('organization_id', profile.organization_id);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  return NextResponse.json({ success: true, management });
+  return NextResponse.json({ success: true, management, fiuuVt });
 }

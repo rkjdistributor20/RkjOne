@@ -22,14 +22,16 @@ const REPORT_MD = path.join(OUT_DIR, 'release-readiness-audit.md');
 
 const PRODUCTION_URL = process.env.PRODUCTION_URL ?? 'https://rkj.one';
 const REVIEWER_FILE = path.join(OUT_DIR, 'play-store-reviewer-account.json');
-const ANDROID_RELEASE_AAB = 'artifacts/android/rkj-one-staff-1.8.6-release.aab';
-const ANDROID_RELEASE_SHA256 = '290A2BE17E9952B27DCCF25603477C89A2918AE58A64DE16B77D993A9EADCDD1';
+const ANDROID_RELEASE_AAB = 'artifacts/android/rkj-one-staff-1.8.7-release.aab';
+const ANDROID_RELEASE_SHA256 = 'D834DC386CC7156D1A0AAC0AD5E1F19D5FA6EF00CBFBB6CCAE07A02E5B2CDE4D';
 const REQUIRED_DOCS = [
   'docs/mobile/PLAY_STORE_SUBMISSION.md',
   'docs/mobile/APP_STORE_SUBMISSION.md',
   'docs/mobile/APPLE_ACCOUNT_GUIDE.md',
   'docs/mobile/DATA_SAFETY.md',
   'docs/mobile/RELEASE_CHECKLIST.md',
+  'docs/mobile/PLAY_STORE_RELEASE_1_8_7.md',
+  'docs/mobile/FIUU_VT_1_8_7_ROLLBACK.md',
   'docs/MOBILE_APP_RELEASE.md',
   'app/privacy/page.tsx',
   'app/support/page.tsx',
@@ -402,10 +404,10 @@ async function main() {
   const androidAabSha256 = androidAabExists
     ? createHash('sha256').update(fs.readFileSync(androidAabPath)).digest('hex').toUpperCase()
     : null;
-  record('Security', 'Android 1.8.6 release AAB exists', androidAabExists);
+  record('Security', 'Android 1.8.7 release AAB exists', androidAabExists);
   record(
     'Security',
-    'Android 1.8.6 release AAB checksum',
+    'Android 1.8.7 release AAB checksum',
     Boolean(ANDROID_RELEASE_SHA256) && androidAabSha256 === ANDROID_RELEASE_SHA256,
     androidAabSha256 ? `SHA-256 ${androidAabSha256}` : 'missing',
   );

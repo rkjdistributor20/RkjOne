@@ -24,6 +24,8 @@ export type FiuuVtNativeStatus = {
  trustedInstall: boolean;
  packageName: string;
  versionName: string;
+ versionCode?: number;
+ installSource?: string;
  pendingOrderId: string | null;
  pendingAmount?: string | null;
  pendingOperation: 'SALE' | 'STATUS' | 'VOID' | null;
@@ -332,6 +334,8 @@ export async function readFiuuVtStatus(): Promise<FiuuVtNativeStatus> {
    trustedInstall: false,
    packageName: 'com.rms.mobile.razervt',
    versionName: '',
+   versionCode: 0,
+   installSource: '',
    pendingOrderId: null,
     pendingAmount: null,
    pendingOperation: null,

@@ -97,18 +97,18 @@ Pastikan jawapan selari dengan app sebenar:
 
 ## 6. Upload Release
 
-Mula dengan `Internal testing`.
+Gunakan release production berperingkat hanya selepas gate BR001 lulus. Jangan submit draf `1.8.6` yang lama.
 
 Upload:
 
 ```text
-outputs/mobile-release/builds/rkj-one-staff-v1.0-release.aab
+artifacts/android/rkj-one-staff-1.8.7-release.aab
 ```
 
 Release notes:
 
 ```text
-Initial internal release for RKJ staff operations: secure login, POS, stock SOP, shift workflow, HR/payroll reference, logistics, approvals and reports.
+Pemulihan pembayaran Fiuu VT diperkukuh supaya callback lewat kekal pada pesanan asal, pelepasan kaunter bergantung pada worker yang sihat dan versi tablet dapat disahkan oleh HQ.
 ```
 
 ## 7. Final Review Sebelum Submit
@@ -121,6 +121,8 @@ Initial internal release for RKJ staff operations: secure login, POS, stock SOP,
 - App access reviewer credential entered.
 - Data Safety complete.
 - Content Rating complete.
-- Internal testing release created.
+- Hash, version code dan sijil upload AAB disahkan.
+- Migrasi dan deployment production sihat.
+- UAT tablet fizikal BR001 lulus sebelum rollout kumpulan seterusnya.
 
-Jangan release public production sebelum internal testing lulus.
+Jangan perluaskan rollout production sebelum canary BR001 dan konfigurasi tablet utama lulus.

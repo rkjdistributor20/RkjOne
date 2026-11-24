@@ -48,6 +48,20 @@ export interface PosDeviceManagementStatus {
  reportedAt: string | null;
 }
 
+export interface PosFiuuVtAppStatus {
+ nativeAndroid: boolean;
+ installed: boolean;
+ trustedInstall: boolean;
+ packageName: string | null;
+ versionName: string | null;
+ versionCode: number | null;
+ installSource: string | null;
+ bridgeApiVersion: number | null;
+ stateSchemaVersion: number | null;
+ callbackRegistryRecoveryRequired: boolean;
+ reportedAt: string | null;
+}
+
 export interface PosDeviceContext {
  mode: 'PRODUCTION' | 'TRAINING';
  device: {
@@ -61,6 +75,7 @@ export interface PosDeviceContext {
   lastSeenAt: string | null;
   hardwareProfile: PosOfficialHardwareProfile | null;
   management: PosDeviceManagementStatus | null;
+  fiuuVt: PosFiuuVtAppStatus | null;
  } | null;
  reason?: string;
 }

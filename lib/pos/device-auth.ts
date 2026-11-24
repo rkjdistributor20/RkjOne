@@ -5,7 +5,11 @@ import type { ProfileWithBranch } from '@/types/database';
 import { PosAccessError } from '@/lib/pos/access';
 import { verifyKioskBypassToken } from '@/lib/pos/kiosk-token';
 import { isOfficialHardwareProfile } from '@/lib/pos/official-tablets';
-import type { PosDeviceManagementStatus, PosOfficialHardwareProfile } from '@/lib/pos/types';
+import type {
+  PosDeviceManagementStatus,
+  PosFiuuVtAppStatus,
+  PosOfficialHardwareProfile,
+} from '@/lib/pos/types';
 
 export const POS_DEVICE_COOKIE = 'rkj_pos_device';
 export const POS_KIOSK_BYPASS_COOKIE = 'rkj_pos_kiosk_bypass';
@@ -23,6 +27,7 @@ export type PosDeviceContext = {
     lastSeenAt: string | null;
     hardwareProfile: PosOfficialHardwareProfile | null;
     management: PosDeviceManagementStatus | null;
+    fiuuVt: PosFiuuVtAppStatus | null;
   } | null;
   reason?: string;
 };
@@ -123,6 +128,7 @@ export async function getPosDeviceContext(
       lastSeenAt: data.last_seen_at ?? null,
       hardwareProfile: hardwareProfile as PosOfficialHardwareProfile,
       management: (metadata as { device_management?: PosDeviceManagementStatus }).device_management ?? null,
+      fiuuVt: (metadata as { fiuu_vt_app?: PosFiuuVtAppStatus }).fiuu_vt_app ?? null,
     },
   };
 }

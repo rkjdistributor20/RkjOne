@@ -45,6 +45,7 @@ export async function GET() {
     devices: (devices ?? []).map((device: any) => ({
       ...device,
       management: device.metadata?.device_management ?? null,
+      fiuu_vt: device.metadata?.fiuu_vt_app ?? null,
       hardware_profile: device.metadata?.official_hardware_profile ?? null,
       enrollment_ready: Boolean(device.enrollment_code_hash),
       enrollment_code_hash: undefined,

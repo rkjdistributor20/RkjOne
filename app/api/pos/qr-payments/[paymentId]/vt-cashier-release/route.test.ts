@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
  createAdminClient: vi.fn(),
  getCurrentProfile: vi.fn(),
  hasRecentFiuuVtRecoverySuccess: vi.fn(),
+ isFiuuVtCashierReleaseDeviceReady: vi.fn(),
  isFiuuVtCashierReleaseEnabledForBranch: vi.fn(),
 }));
 
@@ -23,6 +24,7 @@ vi.mock('@/lib/pos/fiuu-vt-recovery-heartbeat', () => ({
  hasRecentFiuuVtRecoverySuccess: mocks.hasRecentFiuuVtRecoverySuccess,
 }));
 vi.mock('@/lib/pos/fiuu-vt-server', () => ({
+ isFiuuVtCashierReleaseDeviceReady: mocks.isFiuuVtCashierReleaseDeviceReady,
  isFiuuVtCashierReleaseEnabledForBranch: mocks.isFiuuVtCashierReleaseEnabledForBranch,
  normalizeFiuuVtBranchCode: vi.fn((value: unknown) => (
   typeof value === 'string' ? value.trim().toUpperCase() : null
@@ -103,7 +105,23 @@ describe('Fiuu VT cashier release after cancellation request', () => {
    enrollmentGeneration: 2,
   });
   mocks.isFiuuVtCashierReleaseEnabledForBranch.mockReturnValue(true);
+  mocks.isFiuuVtCashierReleaseDeviceReady.mockReturnValue(true);
   mocks.hasRecentFiuuVtRecoverySuccess.mockResolvedValue(true);
+ });
+
+ it('rejects first release from an old or unreported host build', async () => {
+  const admin = makeAdmin();
+  mocks.createAdminClient.mockReturnValue(admin);
+  mocks.isFiuuVtCashierReleaseDeviceReady.mockReturnValue(false);
+
+  const response = await invoke({ attempt_id: ATTEMPT_ID });
+
+  expect(response.status).toBe(426);
+  expect(await response.json()).toMatchObject({
+   mode: 'FIUU_VT_APP_UPDATE_REQUIRED',
+  });
+  expect(mocks.hasRecentFiuuVtRecoverySuccess).not.toHaveBeenCalled();
+  expect(mocks.assertActivePosShiftMember).not.toHaveBeenCalled();
  });
 
  it('fails closed before first release when the recovery heartbeat is stale', async () => {

@@ -17,6 +17,7 @@ import type {
  ProductStockInfo,
  PosDeviceContext,
  PosDeviceManagementStatus,
+ PosFiuuVtAppStatus,
  SaleResult,
 } from './types';
 import type { Product } from '@/types/database';
@@ -81,6 +82,15 @@ export async function syncPosDeviceManagement(status: PosDeviceManagementStatus)
  return fetchJson<{ success: true; management: PosDeviceManagementStatus }>('/api/pos/device', {
   method: 'PUT',
   body: JSON.stringify({ status }),
+ });
+}
+
+export async function syncPosDeviceFiuuVtStatus(
+ status: Omit<PosFiuuVtAppStatus, 'reportedAt'>,
+) {
+ return fetchJson<{ success: true; fiuuVt: PosFiuuVtAppStatus }>('/api/pos/device', {
+  method: 'PUT',
+  body: JSON.stringify({ fiuu_vt_status: status }),
  });
 }
 

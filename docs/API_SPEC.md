@@ -4,7 +4,7 @@
 
 `GET /api/pos/qr-config?branch_id=<uuid>` requires an authenticated RKJ One profile and applies the standard POS branch-scope check. It returns the active QR mode, selected branch identity, and the versioned static Fiuu QR descriptor where configured. It advertises dynamic OPA only after `is_pos_fiuu_opa_branch_active` returns `true` for the exact tenant, branch and full rollout configuration fingerprint. A missing RPC, RPC error, `false` result or non-`ACTIVE` rollout fails closed and does not advertise dynamic QR. No Fiuu secret or server credential is returned.
 
-Last updated: 2026-11-23
+Last updated: 2026-11-24
 
 Base URL:
 
@@ -38,6 +38,21 @@ from the exact enrolled tablet rather than cryptographic provider proof. A branc
 that is listed in the server allowlist but does not yet have its own active,
 verified and currently enrolled official tablet fails closed to its static/manual
 QR workflow.
+
+### GET/PUT `/api/pos/device`
+
+Returns the authenticated POS device context. `PUT` accepts either a native
+RKJ One Staff management report, a normalized `fiuu_vt_status` report, or both.
+The server stamps `reportedAt`, validates package/version fields, preserves
+unrelated device metadata and never accepts a client-supplied timestamp. Fiuu
+telemetry records installation, trusted Play installer, package, version,
+bridge/schema versions and callback-registry recovery state; no Fiuu credential
+or payment payload is stored in this metadata.
+
+The cashier-release gate additionally requires an official native RKJ One Staff
+package reporting version code `25` or newer. A stale, browser-only, debug or
+unreported build receives an update-required response and cannot detach a
+pending payment from the cashier lane.
 
 ### POST `/api/pos/qr-payments`
 
@@ -109,7 +124,15 @@ Requires the same authenticated official device and a fresh matching STATUS `00`
 
 ### GET `/api/cron/fiuu-vt-recover`
 
-Vercel Cron entry point for one-minute server recovery of durable VT `REPORTED` payments. The route requires the platform cron secret, processes a bounded batch and delegates to the same exact-once fulfillment path used by authenticated polling. It never creates a new provider SALE.
+Vercel Cron entry point for one-minute server recovery of durable VT `REPORTED`
+payments and native callback attempts that reached durable `RECEIVED` state
+before a payment-row write was interrupted. The route requires the platform
+cron secret, processes bounded branch-scoped batches and delegates to the same
+exact-once fulfillment path used by authenticated polling. It also quarantines
+cashier-released payments after their callback grace. Any malformed callback
+queue row, recovery RPC failure, invalid response or unknown released-payment
+outcome returns `503`, so the worker heartbeat is not refreshed and new cashier
+release fails closed. It never creates a new provider SALE.
 
 ### POST `/api/internal/pos/fiuu-vt/recover`
 

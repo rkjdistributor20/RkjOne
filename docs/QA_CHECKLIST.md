@@ -124,18 +124,21 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [ ] Owner gives fresh confirmation immediately before any Production migration, credential, environment or deployment change.
 - [ ] The ordered nine-migration Fiuu chain is applied to Production only after a current recovery point, rollback owner, maintenance window, complete BR001 evidence and per-branch rollout prerequisites are recorded.
 
-## Fiuu VT cashier-release resilience — 2026-11-12
+## Fiuu VT cashier-release resilience — 2026-11-24
 
 - [x] Automated tests cover pre-launch cancellation, active-pending release, expired-payment release, bounded late STATUS success, missing STATUS retry and STATUS/VOID arbitration.
 - [x] The server retry lease waits at least 25 seconds, reuses the existing attempt and never submits a second SALE.
 - [x] Native callbacks are stored by payment attempt across activity recreation/app restart; a later attempt cannot overwrite an older callback.
 - [x] A durable `REPORTED` success can be fulfilled exactly once by the protected recovery worker without the cashier screen remaining open.
+- [x] A durable native callback stranded in `RECEIVED` is recovered against its original payment; invalid evidence, transaction-ID collision and post-release success are quarantined for HQ instead of being attached to the next order.
+- [x] Worker heartbeat fails closed for malformed callback rows, callback recovery RPC failures and released-payment quarantine failures or unknown outcomes.
+- [x] RKJ One Staff `1.8.7` / code `25` AAB metadata, SHA-256 and upload certificate are verified; code `24` and unreported/non-official hosts cannot use cashier release.
 - [x] The default VT customer payment window is 180 seconds in code and deployment documentation.
-- [ ] Install the exact Preview APK on the enrolled BR001 tablet and prove that the cashier can cancel before handoff, release an active unpaid attempt, and release an expired attempt while preserving the cart.
+- [ ] Install the exact Play-delivered `1.8.7` build on the enrolled BR001 tablet and prove that the cashier can cancel before handoff, release an active unpaid attempt, and release an expired attempt while preserving the cart.
 - [ ] Prove on the physical tablet that a late successful callback wins over cancellation and creates exactly one receipt, stock movement and shift total.
 - [ ] Prove app-kill/reopen and offline/online recovery without a duplicate SALE or a permanently blocked counter.
 - [ ] Verify the paired 58 mm printer still prints once and that QR-only payment never opens the cash drawer.
-- [ ] Record Preview runtime logs, migration target and rollback evidence. Production and Play remain unchanged until fresh action-time confirmation.
+- [ ] Record Production runtime logs, migration target, backup and rollback evidence before opening the BR001 cashier-release gate.
 
 ## Deployment Review
 

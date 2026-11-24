@@ -1,17 +1,17 @@
 # RKJ One Staff - Play Store Submission Pack
 
-Status teknikal Android semasa sudah diterbitkan di Google Play Production.
-
-Release `1.5` (version code `6`) sedang disediakan untuk internal testing. Ia menggantikan plugin StatusBar lama dengan SystemBars rasmi Capacitor 8, mengaktifkan edge-to-edge secara eksplisit dan mengaktifkan R8/resource shrinking. Jangan promosikan ke Production sebelum ujian peranti sebenar lulus.
+Status terakhir disahkan pada 24 November 2026. Google Play Production masih menjalankan `1.8.4` (version code `22`) pada rollout 100%. Calon seterusnya ialah `1.8.7` (version code `25`) dan belum boleh dihantar sehingga migrasi, worker recovery, deployment web production dan UAT fizikal BR001 lulus.
 
 ## Fail Utama
 
-- Current production release: `RKJ One Staff 1.4`
+- Current production release: `RKJ One Staff 1.8.4`
 - Package name: `com.rkjone.staff`
-- Version code: `5`
-- Version name: `1.4`
-- Rollout: `100%` (verified 2026-08-05)
-- Next candidate: `1.5` (version code `6`), internal testing dahulu
+- Version code: `22`
+- Version name: `1.8.4`
+- Rollout: `100%` (verified 2026-11-24)
+- Next candidate: `1.8.7` (version code `25`)
+- Candidate AAB: `artifacts/android/rkj-one-staff-1.8.7-release.aab`
+- Pilot gate: BR001 sahaja sehingga ujian pesanan A -> B, callback lewat/berulang dan gangguan internet lulus
 - Privacy policy: `https://rkj.one/privacy`
 - Support: `https://rkj.one/support`
 - Account deletion: `https://rkj.one/delete-account`
@@ -102,11 +102,11 @@ Rujuk `docs/mobile/DATA_SAFETY.md`.
 ## Checklist Submit
 
 - Guna D-U-N-S `473312040` untuk akaun Organization Google Play Console jika diminta.
-- Upload `app-release.aab`.
+- Upload hanya `artifacts/android/rkj-one-staff-1.8.7-release.aab` selepas hash, sijil signing dan version code disahkan.
 - Upload 5 phone screenshots.
 - Upload feature graphic.
 - Masukkan privacy policy URL.
 - Isi Data Safety.
 - Pilih app access restricted dan beri test account.
 - Pastikan Content Rating diisi sebagai aplikasi business/internal operations.
-- Jalankan internal testing track dahulu sebelum production release.
+- Kekalkan allowlist Fiuu VT dan cashier-release pada BR001 dahulu; perluaskan berperingkat hanya selepas bukti tablet fizikal lulus.

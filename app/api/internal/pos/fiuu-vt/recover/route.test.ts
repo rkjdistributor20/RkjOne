@@ -63,9 +63,11 @@ function payment(id: string): Record<string, unknown> {
 function arrangeService(input: {
  branchRows?: Array<Record<string, unknown>>;
  payments?: Array<Record<string, unknown>>;
+ receivedAttempts?: Array<Record<string, unknown>>;
  releasedPayments?: Array<Record<string, unknown>>;
  branchError?: unknown;
  paymentError?: unknown;
+ receivedAttemptError?: unknown;
  releasedPaymentError?: unknown;
  rotationError?: unknown;
  rotationData?: Record<string, unknown> | null;
@@ -73,6 +75,8 @@ function arrangeService(input: {
  quarantineData?: Record<string, unknown> | null;
  releasedQuarantineError?: unknown;
  releasedQuarantineData?: Record<string, unknown> | null;
+ receivedRecoveryError?: unknown;
+ receivedRecoveryData?: Record<string, unknown> | null;
 } = {}) {
  const branchQuery = {
   select: vi.fn(),
@@ -137,6 +141,22 @@ function arrangeService(input: {
   update: vi.fn().mockReturnValue(rotationQuery),
  };
  const rpc = vi.fn((name: string) => {
+  if (name === 'list_pos_fiuu_vt_received_attempts') {
+   return Promise.resolve({
+    data: input.receivedAttemptError ? null : input.receivedAttempts ?? [],
+    error: input.receivedAttemptError ?? null,
+   });
+  }
+  if (name === 'recover_pos_fiuu_vt_received_attempt') {
+   return Promise.resolve({
+    data: input.receivedRecoveryError
+     ? null
+     : input.receivedRecoveryData === undefined
+      ? { outcome: 'FULFILLED' }
+      : input.receivedRecoveryData,
+    error: input.receivedRecoveryError ?? null,
+   });
+  }
   if (name === 'quarantine_pos_fiuu_vt_released_timeout') {
    return Promise.resolve({
     data: input.releasedQuarantineError
@@ -316,6 +336,74 @@ describe('Fiuu VT reported-payment recovery worker', () => {
   expect(mocks.recoverReportedFiuuVtPayment).toHaveBeenCalledWith(service, row);
  });
 
+ it('recovers a durable STATUS success whose payment-row write was interrupted', async () => {
+  const staleReceived = {
+   attempt_id: '55555555-5555-4555-8555-555555555555',
+  };
+  const { rpc } = arrangeService({
+   receivedAttempts: [staleReceived],
+  });
+
+  const response = await POST(request());
+
+  expect(response.status).toBe(200);
+  await expect(response.json()).resolves.toMatchObject({
+   examined: 0,
+   receivedAttemptsExamined: 1,
+   receivedAttemptResults: { FULFILLED: 1 },
+  });
+  expect(rpc).toHaveBeenCalledWith('list_pos_fiuu_vt_received_attempts', {
+   p_branch_ids: [BRANCH_ID],
+   p_branch_codes: ['BR001'],
+   p_limit: 100,
+  });
+  expect(rpc).toHaveBeenCalledWith('recover_pos_fiuu_vt_received_attempt', {
+   p_attempt_id: staleReceived.attempt_id,
+  });
+ });
+
+ it('fails the run when the received-attempt queue cannot be read', async () => {
+  arrangeService({
+   receivedAttemptError: { message: 'unavailable' },
+  });
+
+  const response = await POST(request());
+
+  expect(response.status).toBe(503);
+  await expect(response.json()).resolves.toEqual({
+   error: 'Fiuu VT received-attempt queue unavailable',
+  });
+ });
+
+ it('fails the run and withholds worker health when one received attempt RPC fails', async () => {
+  arrangeService({
+   receivedAttempts: [{ attempt_id: '55555555-5555-4555-8555-555555555555' }],
+   receivedRecoveryError: { message: 'rpc failed' },
+  });
+
+  const response = await POST(request());
+
+  expect(response.status).toBe(503);
+  await expect(response.json()).resolves.toMatchObject({
+   error: 'Fiuu VT received-attempt recovery is incomplete',
+   receivedAttemptsExamined: 1,
+   receivedAttemptResults: { RPC_ERROR: 1 },
+  });
+ });
+
+ it('fails the run when the received-attempt queue contains a malformed row', async () => {
+  arrangeService({ receivedAttempts: [{ unexpected: 'shape' }] });
+
+  const response = await POST(request());
+
+  expect(response.status).toBe(503);
+  await expect(response.json()).resolves.toMatchObject({
+   error: 'Fiuu VT received-attempt recovery is incomplete',
+   receivedAttemptsExamined: 0,
+   receivedAttemptResults: { MALFORMED_QUEUE_ROW: 1 },
+  });
+ });
+
  it('quarantines only stale cashier-released PENDING rows after the callback grace', async () => {
   const released = {
    id: PAYMENT_ID,
@@ -357,6 +445,43 @@ describe('Fiuu VT reported-payment recovery worker', () => {
    },
   );
   expect(mocks.recoverReportedFiuuVtPayment).not.toHaveBeenCalled();
+ });
+
+ it('fails the run and withholds worker health when released-payment quarantine fails', async () => {
+  arrangeService({
+   releasedPayments: [{
+    id: PAYMENT_ID,
+    updated_at: '2026-11-12T01:00:10.000Z',
+   }],
+   releasedQuarantineError: { message: 'rpc failed' },
+  });
+
+  const response = await POST(request());
+
+  expect(response.status).toBe(503);
+  await expect(response.json()).resolves.toMatchObject({
+   error: 'Fiuu VT released-payment recovery is incomplete',
+   releasedExamined: 1,
+   releasedResults: { RPC_ERROR: 1 },
+  });
+ });
+
+ it('fails the run when released-payment quarantine returns an unknown outcome', async () => {
+  arrangeService({
+   releasedPayments: [{
+    id: PAYMENT_ID,
+    updated_at: '2026-11-12T01:00:10.000Z',
+   }],
+   releasedQuarantineData: { outcome: 'UNEXPECTED' },
+  });
+
+  const response = await POST(request());
+
+  expect(response.status).toBe(503);
+  await expect(response.json()).resolves.toMatchObject({
+   error: 'Fiuu VT released-payment recovery is incomplete',
+   releasedResults: { UNEXPECTED: 1 },
+  });
  });
 
  it('continues past poison rows, recovers a later valid row, and rotates deferred rows', async () => {

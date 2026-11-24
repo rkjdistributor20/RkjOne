@@ -18,10 +18,12 @@ type RecoveryBody = {
  branches?: string[];
  skippedBranches?: string[];
  examined?: number;
+ receivedAttemptsExamined?: number;
  releasedExamined?: number;
  rotated?: number;
  quarantined?: number;
  results?: Record<string, number>;
+ receivedAttemptResults?: Record<string, number>;
  releasedResults?: Record<string, number>;
 };
 
@@ -238,6 +240,66 @@ export async function runFiuuVtRecovery(): Promise<FiuuVtRecoveryRun> {
   }
  }
 
+ // The callback claim durably writes a native result to the attempt before
+ // the route updates the payment. If the process stops in that narrow window,
+ // tablet replay must not be the only path to a receipt. The service-role RPC
+ // joins attempts to the exact configured branch set, avoiding an unbounded
+ // global scan and preventing unrelated tenants from entering this pass.
+ const { data: receivedAttemptRows, error: receivedAttemptError } = await service.rpc(
+  'list_pos_fiuu_vt_received_attempts',
+  {
+   p_branch_ids: branchIds,
+   p_branch_codes: validBranches,
+   p_limit: RECOVERY_SCAN_SIZE,
+  },
+ );
+ if (receivedAttemptError || !Array.isArray(receivedAttemptRows)) {
+  console.error('[pos-fiuu-vt] received_attempt_queue_failed');
+  return unavailable('Fiuu VT received-attempt queue unavailable');
+ }
+ const receivedAttemptResults: Record<string, number> = {};
+ let receivedAttemptRunHealthy = true;
+ const receivedAttempts: Array<{ id: string }> = [];
+ for (const row of receivedAttemptRows) {
+  if (!row || typeof row !== 'object' || Array.isArray(row)
+   || typeof (row as Record<string, unknown>).attempt_id !== 'string') {
+   receivedAttemptRunHealthy = false;
+   receivedAttemptResults.MALFORMED_QUEUE_ROW = (
+    receivedAttemptResults.MALFORMED_QUEUE_ROW ?? 0
+   ) + 1;
+   continue;
+  }
+  receivedAttempts.push({ id: String((row as Record<string, unknown>).attempt_id) });
+ }
+
+ const unhealthyAttemptOutcomes = new Set([
+  'RPC_ERROR',
+  'INVALID_RESPONSE',
+  'INVALID_REQUEST',
+  'INVALID_EVIDENCE',
+  'INELIGIBLE',
+  'RETRY',
+ ]);
+ for (const attempt of receivedAttempts) {
+  const { data, error } = await service.rpc(
+   'recover_pos_fiuu_vt_received_attempt',
+   { p_attempt_id: attempt.id },
+  );
+  const outcome = error
+   ? 'RPC_ERROR'
+   : data && typeof data === 'object' && !Array.isArray(data)
+    && typeof (data as Record<string, unknown>).outcome === 'string'
+    ? String((data as Record<string, unknown>).outcome)
+    : 'INVALID_RESPONSE';
+  receivedAttemptResults[outcome] = (receivedAttemptResults[outcome] ?? 0) + 1;
+  if (unhealthyAttemptOutcomes.has(outcome)) {
+   receivedAttemptRunHealthy = false;
+   console.error('[pos-fiuu-vt] received_attempt_recovery_failed', {
+    attemptId: attempt.id,
+   });
+  }
+ }
+
  // A released cashier lane must not leave its original payment PENDING
  // forever. This scan is deliberately separate from successful STATUS=00
  // recovery above: after QR expiry plus the existing late-callback grace, an
@@ -266,6 +328,14 @@ export async function runFiuuVtRecovery(): Promise<FiuuVtRecoveryRun> {
  }
 
  const releasedResults: Record<string, number> = {};
+ let releasedRunHealthy = true;
+ const healthyReleasedOutcomes = new Set([
+  'QUARANTINED',
+  'STATUS_CHANGED',
+  'TOO_EARLY',
+  'CALLBACK_ACTIVE',
+  'NOT_FOUND',
+ ]);
  for (const payment of releasedPending ?? []) {
   const { data, error } = await service.rpc(
    'quarantine_pos_fiuu_vt_released_timeout',
@@ -282,27 +352,51 @@ export async function runFiuuVtRecovery(): Promise<FiuuVtRecoveryRun> {
     : 'INVALID_RESPONSE';
   releasedResults[outcome] = (releasedResults[outcome] ?? 0) + 1;
   if (outcome === 'QUARANTINED') quarantined += 1;
-  if (error || outcome === 'INVALID_RESPONSE') {
+  if (!healthyReleasedOutcomes.has(outcome)) {
+   releasedRunHealthy = false;
    console.error('[pos-fiuu-vt] released_payment_quarantine_failed', {
     paymentId: payment.id,
    });
   }
  }
 
- return {
-  status: 200,
-  body: {
+ const body: RecoveryBody = {
    ok: true,
    branch: validBranches.length === 1 ? validBranches[0] : null,
    branches: validBranches,
    skippedBranches,
    examined: reported?.length ?? 0,
+   receivedAttemptsExamined: receivedAttempts.length,
    releasedExamined: releasedPending?.length ?? 0,
    rotated,
    quarantined,
    results,
+   receivedAttemptResults,
    releasedResults,
-  },
+ };
+ if (!receivedAttemptRunHealthy) {
+  return {
+   status: 503,
+   body: {
+    ...body,
+    ok: undefined,
+    error: 'Fiuu VT received-attempt recovery is incomplete',
+   },
+  };
+ }
+ if (!releasedRunHealthy) {
+  return {
+   status: 503,
+   body: {
+    ...body,
+    ok: undefined,
+    error: 'Fiuu VT released-payment recovery is incomplete',
+   },
+  };
+ }
+ return {
+  status: 200,
+  body,
  };
 }
 
