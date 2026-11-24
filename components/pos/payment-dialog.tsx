@@ -677,6 +677,7 @@ export function PaymentDialog({
  const [vtStatusLoading, setVtStatusLoading] = useState(false);
  const [vtSaleOpened, setVtSaleOpened] = useState(false);
  const [vtCancelConfirming, setVtCancelConfirming] = useState(false);
+ const [vtCancelRequesting, setVtCancelRequesting] = useState(false);
  const [vtCancelRequested, setVtCancelRequested] = useState(false);
  const [vtStatusRetryPending, setVtStatusRetryPending] = useState(false);
  const [vtParkAvailable, setVtParkAvailable] = useState(false);
@@ -696,6 +697,7 @@ export function PaymentDialog({
  const vtCartRetiredPendingReleaseRef = useRef(new Set<string>());
  const vtPendingReceiptAfterReleaseRef = useRef(new Map<string, SaleResult>());
  const vtCashierReleasedPaymentRef = useRef<string | null>(null);
+ const vtCancellationRequestInFlightRef = useRef(false);
  const vtCancellationReleaseInFlightRef = useRef(new Map<string, Promise<boolean>>());
  const dialogOpenRef = useRef(open);
  const vtNativeReleaseWindowRef = useRef<{ orderId: string; startedAt: number } | null>(null);
@@ -1038,6 +1040,7 @@ export function PaymentDialog({
 	setVtCleanupRunning(false);
 	setVtSaleOpened(false);
 	setVtCancelConfirming(false);
+	setVtCancelRequesting(false);
 	setVtCancelRequested(false);
 	setVtStatusRetryPending(false);
 	setVtParkAvailable(false);
@@ -3199,7 +3202,9 @@ export function PaymentDialog({
 
  const requestFiuuVtCancellation = useCallback(async () => {
   if (!qrPayment || qrPayment.integration !== 'vt_app' || !qrPayment.providerOrderId) return;
-  setCheckingQrStatus(true);
+  if (vtCancellationRequestInFlightRef.current) return;
+  vtCancellationRequestInFlightRef.current = true;
+  setVtCancelRequesting(true);
   setVtCancelConfirming(false);
   setQrPollError(null);
   vtResultFingerprintRef.current = null;
@@ -3345,7 +3350,8 @@ export function PaymentDialog({
      : 'Pembatalan Fiuu VT tidak dapat dimulakan. Transaksi asal kekal aktif dan tidak ditandakan batal.');
    }
   } finally {
-   setCheckingQrStatus(false);
+   vtCancellationRequestInFlightRef.current = false;
+   setVtCancelRequesting(false);
   }
  }, [cashierReleaseKey, processFiuuVtResult, qrPayment, readActiveFiuuVtResult, reconcileQrPayment, resumeDeferredFiuuVtCancellationRelease]);
 
@@ -4702,17 +4708,21 @@ export function PaymentDialog({
        </Button>
       </div>
      </div>
-    ) : qrStatus === 'PENDING' && vtCancelConfirming ? (
+     ) : qrStatus === 'PENDING'
+      && !vtCancelRequested
+      && (vtCancelConfirming || vtCancelRequesting) ? (
      <div className="flex w-full flex-col gap-2 rounded-xl border border-red-200 bg-red-50 p-3">
        <p className="text-sm font-semibold text-red-950">
-        Menutup paparan QR tidak membatalkan transaksi. “Minta batal” akan membuka Fiuu VT, merekodkan permintaan VOID, kemudian mengasingkan transaksi asal supaya pelanggan seterusnya boleh dilayan tanpa menunggu tempoh sah QR.
+         {vtCancelRequesting
+          ? 'Pembatalan belum direkodkan. RKJ One sedang menyemak bayaran terkini dan membuka Fiuu VT untuk menghantar VOID sebenar.'
+          : 'Menutup paparan QR tidak membatalkan transaksi. “Minta batal” akan membuka Fiuu VT, merekodkan permintaan VOID, kemudian mengasingkan transaksi asal supaya pelanggan seterusnya boleh dilayan tanpa menunggu tempoh sah QR.'}
        </p>
       <div className="flex gap-2">
        <Button
         type="button"
         variant="outline"
         className="h-11 flex-1 bg-white"
-        disabled={checkingQrStatus}
+         disabled={vtCancelRequesting}
         onClick={() => setVtCancelConfirming(false)}
        >
         Terus tunggu
@@ -4721,10 +4731,10 @@ export function PaymentDialog({
         type="button"
         variant="destructive"
         className="h-11 flex-[1.5] font-bold"
-        disabled={checkingQrStatus}
+         disabled={vtCancelRequesting}
         onClick={() => void requestFiuuVtCancellation()}
        >
-        {checkingQrStatus ? 'Menyemak dahulu...' : 'Minta batal & pelanggan seterusnya'}
+         {vtCancelRequesting ? 'Membuka Fiuu VT...' : 'Minta batal & pelanggan seterusnya'}
        </Button>
       </div>
      </div>
@@ -4762,7 +4772,7 @@ export function PaymentDialog({
           type="button"
           variant="outline"
           className="h-11 w-full border-red-300 bg-red-50 font-semibold text-red-800 hover:bg-red-100 hover:text-red-900"
-          disabled={checkingQrStatus}
+          disabled={vtCancelRequesting}
           onClick={() => setVtCancelConfirming(true)}
          >
           Pelanggan tidak bayar — mula batal
@@ -4788,7 +4798,7 @@ export function PaymentDialog({
           type="button"
           variant="outline"
           className="h-12 border-red-300 bg-red-50 font-bold text-red-800 hover:bg-red-100 hover:text-red-900"
-          disabled={checkingQrStatus}
+           disabled={vtCancelRequesting}
           onClick={() => setVtCancelConfirming(true)}
          >
           Batalkan pembayaran

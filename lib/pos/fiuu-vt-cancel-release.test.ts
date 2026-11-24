@@ -162,6 +162,62 @@ describe('Fiuu VT cancellation request cashier release contract', () => {
   expect(conflictFlow).toContain('return;');
  });
 
+ it('keeps explicit cancel actionable during STATUS work and deduplicates repeated taps', () => {
+  const start = paymentDialog.indexOf('const requestFiuuVtCancellation');
+  const end = paymentDialog.indexOf('const resumeFiuuVtCancellationRelease', start);
+  const flow = paymentDialog.slice(start, end);
+  const cancelLabel = paymentDialog.indexOf('Batalkan pembayaran');
+  const cancelButtonStart = paymentDialog.lastIndexOf('<Button', cancelLabel);
+  const cancelButton = paymentDialog.slice(
+   cancelButtonStart,
+   paymentDialog.indexOf('</Button>', cancelLabel),
+  );
+  const confirmationStart = paymentDialog.indexOf(
+   '&& (vtCancelConfirming || vtCancelRequesting)',
+  );
+  const confirmationEnd = paymentDialog.indexOf(
+   ") : qrStatus === 'PENDING' && vtCancelRequested",
+   confirmationStart,
+  );
+  const confirmation = paymentDialog.slice(confirmationStart, confirmationEnd);
+
+  expect(flow).toContain('if (vtCancellationRequestInFlightRef.current) return;');
+  expect(flow).toContain('vtCancellationRequestInFlightRef.current = true;');
+  expect(flow.indexOf('vtCancellationRequestInFlightRef.current = true;'))
+   .toBeLessThan(flow.indexOf("prepareFiuuVtCallbackAttempt(qrPayment.id, 'VOID')"));
+  expect(flow).toContain('vtCancellationRequestInFlightRef.current = false;');
+  expect(cancelButtonStart).toBeGreaterThan(-1);
+  expect(cancelButton).toContain('disabled={vtCancelRequesting}');
+  expect(cancelButton).not.toContain('disabled={checkingQrStatus}');
+  expect(confirmationStart).toBeGreaterThan(-1);
+  expect(confirmationEnd).toBeGreaterThan(confirmationStart);
+  expect(paymentDialog.slice(confirmationStart - 80, confirmationStart))
+   .toContain('&& !vtCancelRequested');
+  expect(confirmation).toContain('disabled={vtCancelRequesting}');
+  expect(confirmation).not.toContain('disabled={checkingQrStatus}');
+ });
+
+ it('checks late success before VOID and labels cancellation only after native launch', () => {
+  const start = paymentDialog.indexOf('const requestFiuuVtCancellation');
+  const end = paymentDialog.indexOf('const resumeFiuuVtCancellationRelease', start);
+  const flow = paymentDialog.slice(start, end);
+  const resultRead = flow.indexOf('await readActiveFiuuVtResult(qrPayment.id)');
+  const resultProcess = flow.indexOf('await processFiuuVtResult(pendingResult)');
+  const serverReconcile = flow.indexOf('await reconcileQrPayment(qrPayment)');
+  const prepareVoid = flow.indexOf("prepareFiuuVtCallbackAttempt(qrPayment.id, 'VOID')");
+  const launchVoid = flow.indexOf('await launchTrackedFiuuVt(');
+  const markRequested = flow.indexOf('setVtCancelRequested(true)', launchVoid);
+
+  expect(resultRead).toBeGreaterThan(-1);
+  expect(resultProcess).toBeGreaterThan(resultRead);
+  expect(serverReconcile).toBeGreaterThan(resultProcess);
+  expect(prepareVoid).toBeGreaterThan(serverReconcile);
+  expect(launchVoid).toBeGreaterThan(prepareVoid);
+  expect(markRequested).toBeGreaterThan(launchVoid);
+  expect(flow.slice(0, launchVoid)).not.toContain('setVtCancelRequested(true)');
+  expect(paymentDialog).toContain('Pembatalan belum direkodkan. RKJ One sedang menyemak bayaran terkini');
+ });
+
  it('requires durable native evidence before presenting an existing VOID as sent', () => {
   const start = paymentDialog.indexOf('const requestFiuuVtCancellation');
   const end = paymentDialog.indexOf('const resumeFiuuVtCancellationRelease', start);
