@@ -720,9 +720,13 @@ describe('Fiuu VT cashier release safety contract', () => {
   const mixedQr = paymentDialog.slice(mixedQrStart, mixedQrEnd);
 
   expect(paymentDialog).toContain("const qrAmount = method === 'QR'\n  ? defaultAmount");
-  expect(fullQr).toContain('value={qrAmount}');
-  expect(fullQr).toContain('readOnly');
+  expect(fullQr).toContain('<output');
+  expect(fullQr).toContain('data-testid="full-qr-amount"');
+  expect(fullQr).toContain('{qrAmount}');
+  expect(fullQr).not.toContain('<Input');
+  expect(fullQr).not.toContain('readOnly');
   expect(fullQr).not.toContain('setQrAmountOverride(e.target.value)');
+  expect(mixedQr).toContain('<Input');
   expect(mixedQr).toContain('setQrAmountOverride(e.target.value)');
   expect(paymentDialog).toContain("setQrAmountOverride(stored.payment.paymentMethod === 'MIXED'");
   expect(paymentDialog).toContain("setQrAmountOverride(recoveredMethod === 'MIXED'");

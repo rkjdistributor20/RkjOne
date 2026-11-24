@@ -4535,15 +4535,13 @@ export function PaymentDialog({
  <div className="space-y-3">
  <div className="space-y-1.5">
  <Label className="text-xs text-muted-foreground">Amaun QR</Label>
- <Input
- type="number"
- min="0"
- step="0.01"
- className="h-14 text-center text-2xl font-bold tabular-nums"
- value={qrAmount}
-  readOnly
-  aria-readonly="true"
- />
+ <output
+ className="flex h-14 w-full items-center justify-center rounded-md border bg-muted/20 text-center text-2xl font-bold tabular-nums"
+ aria-label="Amaun DuitNow QR penuh"
+ data-testid="full-qr-amount"
+ >
+ {qrAmount}
+ </output>
  </div>
  <Button
  type="button"
