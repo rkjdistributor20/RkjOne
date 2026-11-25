@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-25 - POS staff approval refresh
+
+- Jualan and Ringkasan share the same session-, branch- and shift-scoped staff membership read. While awaiting approval at Jualan, the tablet rechecks every 15 seconds in the foreground; the sale API still requires an active membership.
+
 ## 2026-11-24 - Android 1.8.7 durable callback recovery
 
 - Recovers a successful Fiuu VT callback even if the server process stops after the one-time callback claim but before the payment row is updated.

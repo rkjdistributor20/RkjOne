@@ -14,7 +14,6 @@ import {
  fetchStockAvailability,
  fetchExpiredStock,
  fetchPosStockSop,
- fetchShiftMembers,
  submitPosPresenceCheck,
  syncOfflineSales,
  fetchPosDeviceContext,
@@ -55,6 +54,7 @@ import type { RotiExpirySummary } from '@/lib/stock/expiry';
 import { needsBranchPicker } from '@/lib/auth/branch-scope';
 import { canUsePosRejectStock } from '@/lib/auth/stock-access';
 import { canViewFullPosHistory, requiresActivePosShiftMember } from '@/lib/pos/access';
+import { getPosShiftMemberStats, usePosShiftMembers } from '@/lib/pos/shift-members-query';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -155,10 +155,6 @@ export function PosTerminal() {
  const [lastPosActivityAt, setLastPosActivityAt] = useState(() => Date.now());
  const [presencePrompt, setPresencePrompt] = useState<{ promptedAt: string; dueAt: number } | null>(null);
  const [presenceSaving, setPresenceSaving] = useState(false);
- const [shiftMemberStats, setShiftMemberStats] = useState({ active: 0, pending: 0 });
- const [currentShiftMemberStatus, setCurrentShiftMemberStatus] = useState<
- 'UNAVAILABLE' | 'NONE' | 'PENDING_APPROVAL' | 'ACTIVE'
- >('UNAVAILABLE');
  const [deviceContext, setDeviceContext] = useState<PosDeviceContext | null>(null);
  const [deviceLoading, setDeviceLoading] = useState(true);
  const [enrollmentCode, setEnrollmentCode] = useState('');
@@ -191,6 +187,15 @@ export function PosTerminal() {
  const shiftRequired = !shift && !trainingMode;
  const shiftMembershipRequired = Boolean(
  !trainingMode && shift?.id && requiresActivePosShiftMember(profile?.role));
+ const shiftMembers = usePosShiftMembers(
+  trainingMode ? null : branchId, shift?.id, profile?.id,
+  shiftMembershipRequired && activeTab === 'sale' && !paymentOpen,
+ );
+ const { refetch: refetchShiftMembers } = shiftMembers;
+ const shiftMemberStats = getPosShiftMemberStats(
+  shiftMembers.isSuccess ? shiftMembers.data.members : [], profile?.id);
+ const currentShiftMemberStatus = !shift?.id ? 'NONE'
+  : shiftMembers.isSuccess ? shiftMemberStats.status : 'UNAVAILABLE';
  const shiftMembershipBlocked = shiftMembershipRequired && currentShiftMemberStatus !== 'ACTIVE';
  const blockingStockCheck = requiredStockCheck === 'OPENING';
  const advisoryStockCheck =
@@ -423,32 +428,8 @@ export function PosTerminal() {
  }
 
  const loadShiftMemberStats = useCallback(async () => {
- if (!branchId || !shift?.id) {
- setShiftMemberStats({ active: 0, pending: 0 });
- setCurrentShiftMemberStatus('NONE');
- return;
- }
-
- try {
- const res = await fetchShiftMembers(branchId, shift.id);
- const members = res.members ?? [];
- const currentMember = members.find(
- (member) => member.profile_id === profile?.id && member.status === 'ACTIVE') ??
- members.find(
- (member) => member.profile_id === profile?.id && member.status === 'PENDING_APPROVAL');
- setShiftMemberStats({
- active: members.filter((member) => member.status === 'ACTIVE').length,
- pending: members.filter((member) => member.status === 'PENDING_APPROVAL').length,
- });
- setCurrentShiftMemberStatus(
- currentMember?.status === 'ACTIVE' || currentMember?.status === 'PENDING_APPROVAL'
- ? currentMember.status
- : 'NONE');
- } catch {
- setShiftMemberStats({ active: 0, pending: 0 });
- setCurrentShiftMemberStatus('UNAVAILABLE');
- }
- }, [branchId, profile?.id, shift?.id]);
+  if (branchId && shift?.id && profile?.id && !trainingMode) await refetchShiftMembers();
+ }, [branchId, profile?.id, refetchShiftMembers, shift?.id, trainingMode]);
 
  const loadTransactions = useCallback(async () => {
  if (!branchId) {
@@ -539,10 +520,6 @@ export function PosTerminal() {
  void loadTransactions();
  }
  }, [activeTab, loadTransactions]);
-
- useEffect(() => {
- void loadShiftMemberStats();
- }, [loadShiftMemberStats]);
 
  useEffect(() => {
  if (!dismissedStockPrompt) return;
@@ -1093,7 +1070,7 @@ export function PosTerminal() {
  </TabsContent>}
 
  {!trainingMode && <TabsContent value="summary" className="mt-4">
- <DailySummaryPanel onShiftMembersChange={() => void loadShiftMemberStats()} />
+ <DailySummaryPanel />
  </TabsContent>}
 
  {!trainingMode && showRejectTab && branchId && (

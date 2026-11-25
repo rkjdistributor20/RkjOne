@@ -9,6 +9,7 @@ import {
 import { assertOfficialPosDevice } from '@/lib/pos/device-auth';
 
 const SHIFT_ROLES = new Set(['PIC', 'JUALAN', 'PEMBANTU', 'GANTI']);
+const SHIFT_MEMBER_READ_HEADERS = { 'Cache-Control': 'private, no-store' };
 
 function validIsoOrNow(value: unknown) {
   if (!value) return new Date().toISOString();
@@ -187,7 +188,10 @@ export async function GET(request: Request) {
     ]);
 
     if (!shift) {
-      return NextResponse.json({ shift: null, members: [], availableStaff });
+      return NextResponse.json(
+        { shift: null, members: [], availableStaff, viewerProfileId: profile.id },
+        { headers: SHIFT_MEMBER_READ_HEADERS }
+      );
     }
 
     const { data, error } = await db
@@ -202,7 +206,8 @@ export async function GET(request: Request) {
       shift,
       members: data ?? [],
       availableStaff,
-    });
+      viewerProfileId: profile.id,
+    }, { headers: SHIFT_MEMBER_READ_HEADERS });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Gagal memuatkan staf syif' },

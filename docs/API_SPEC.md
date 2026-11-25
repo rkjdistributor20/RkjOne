@@ -1,5 +1,11 @@
 # RKJ One API Spec
 
+`GET /api/pos/shift-members` reads the open shift under the existing auth and
+branch guard. The response includes `viewerProfileId` for the authenticated
+session and uses `Cache-Control: private, no-store`. The POS client rejects a
+response for a different viewer, shift or branch. This read does not create or
+approve a membership.
+
 ## POS operational closure with Fiuu VT review (candidate; default off)
 
 `PATCH /api/pos/shift` checks the authenticated cashier, branch and registered

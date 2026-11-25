@@ -137,14 +137,15 @@ export async function closeShift(
  });
 }
 
-export async function fetchShiftMembers(branchId: string, shiftId?: string) {
+export async function fetchShiftMembers(branchId: string, shiftId?: string, signal?: AbortSignal) {
  const params = new URLSearchParams({ branch_id: branchId });
  if (shiftId) params.set('shift_id', shiftId);
  return fetchJson<{
  shift: { id: string; shift_number: string; branch_id: string; organization_id: string } | null;
  members: PosShiftStaffMember[];
  availableStaff: PosShiftAvailableStaff[];
- }>(`/api/pos/shift-members?${params}`);
+  viewerProfileId: string;
+ }>(`/api/pos/shift-members?${params}`, { cache: 'no-store', signal }, { dedupe: false });
 }
 
 export async function joinPosShiftMember(payload: {

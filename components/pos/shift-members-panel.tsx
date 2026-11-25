@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
   CheckCircle2,
@@ -15,7 +15,6 @@ import {
 import {
   approvePosShiftMember,
   endPosShiftMember,
-  fetchShiftMembers,
   joinPosShiftMember,
   rejectPosShiftMember,
 } from '@/lib/pos/api';
@@ -27,6 +26,7 @@ import type {
 import { useAuthStore } from '@/stores/auth-store';
 import { usePosStore } from '@/stores/pos-store';
 import { canApprovePosShiftStaff } from '@/lib/pos/access';
+import { usePosShiftMembers } from '@/lib/pos/shift-members-query';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -45,6 +45,9 @@ const ROLE_LABELS: Record<PosShiftMemberRole, string> = {
   PEMBANTU: 'Pembantu',
   GANTI: 'Staf Ganti',
 };
+
+const EMPTY_MEMBERS: PosShiftStaffMember[] = [];
+const EMPTY_AVAILABLE_STAFF: PosShiftAvailableStaff[] = [];
 
 function formatTime(value?: string | null) {
   if (!value) return '-';
@@ -87,20 +90,18 @@ function isOpenMember(member: PosShiftStaffMember) {
   return member.status === 'ACTIVE' || member.status === 'PENDING_APPROVAL';
 }
 
-export function ShiftMembersPanel({
-  onMembershipChange,
-}: {
-  onMembershipChange?: () => void;
-}) {
+export function ShiftMembersPanel() {
   const profile = useAuthStore((s) => s.profile);
   const branchId = usePosStore((s) => s.branchId);
   const shift = usePosStore((s) => s.shift);
 
-  const [members, setMembers] = useState<PosShiftStaffMember[]>([]);
-  const [availableStaff, setAvailableStaff] = useState<PosShiftAvailableStaff[]>([]);
+  const membership = usePosShiftMembers(branchId, shift?.id, profile?.id);
+  const members = membership.isSuccess ? membership.data.members : EMPTY_MEMBERS;
+  const availableStaff = membership.isSuccess ? membership.data.availableStaff : EMPTY_AVAILABLE_STAFF;
+  const isLoading = membership.isPending;
+  const loadMembers = membership.refetch;
   const [selectedStaff, setSelectedStaff] = useState('');
   const [role, setRole] = useState<PosShiftMemberRole>('JUALAN');
-  const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   const canApprove = canApprovePosShiftStaff(profile?.role);
@@ -154,24 +155,6 @@ export function ShiftMembersPanel({
     [availableStaff, profile?.id]
   );
 
-  const loadMembers = useCallback(async () => {
-    if (!branchId || !shift?.id) return;
-    setIsLoading(true);
-    try {
-      const res = await fetchShiftMembers(branchId, shift.id);
-      setMembers(res.members ?? []);
-      setAvailableStaff(res.availableStaff ?? []);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Gagal memuatkan staf syif');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [branchId, shift?.id]);
-
-  useEffect(() => {
-    loadMembers();
-  }, [loadMembers]);
-
   useEffect(() => {
     if (selectedStaff && selectableStaff.some((staff) => staffOptionValue(staff) === selectedStaff)) {
       return;
@@ -204,7 +187,6 @@ export function ShiftMembersPanel({
       });
       showJoinToast(res);
       await loadMembers();
-      onMembershipChange?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Gagal rekod masuk syif');
     } finally {
@@ -232,7 +214,6 @@ export function ShiftMembersPanel({
       });
       showJoinToast(res);
       await loadMembers();
-      onMembershipChange?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Gagal tambah staf syif');
     } finally {
@@ -249,7 +230,6 @@ export function ShiftMembersPanel({
       });
       toast.success(`${member.full_name} disahkan sebagai staf syif POS`);
       await loadMembers();
-      onMembershipChange?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Gagal sahkan staf syif');
     } finally {
@@ -266,7 +246,6 @@ export function ShiftMembersPanel({
       });
       toast.success(`Permohonan ${member.full_name} ditolak`);
       await loadMembers();
-      onMembershipChange?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Gagal tolak staf syif');
     } finally {
@@ -283,7 +262,6 @@ export function ShiftMembersPanel({
       });
       toast.success(`Tamat tugas direkod untuk ${member.full_name}`);
       await loadMembers();
-      onMembershipChange?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Gagal tamatkan tugas staf');
     } finally {
@@ -452,7 +430,14 @@ export function ShiftMembersPanel({
         )}
 
         <div className="space-y-2">
-          {isLoading ? (
+          {membership.isError ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm text-muted-foreground">Status staf syif tidak dapat disahkan.</p>
+              <Button type="button" variant="outline" size="sm" disabled={membership.isFetching} onClick={() => void loadMembers()}>
+                Semak semula
+              </Button>
+            </div>
+          ) : isLoading ? (
             <p className="text-sm text-muted-foreground">Memuatkan staf syif...</p>
           ) : activeMembers.length ? (
             activeMembers.map((member) => (

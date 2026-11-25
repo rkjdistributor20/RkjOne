@@ -60,6 +60,7 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [ ] Client API calls handle auth redirects and JSON errors.
 - [x] Approval Center bypasses stale browser data and refreshes pending requests created or resolved on another device.
 - [x] POS shift approval activates only the matching pending member within the same organization and branch.
+- [ ] Keep the cashier on Jualan while HQ approves the same pending PIC on a separate session. Both Jualan and Ringkasan must reflect the same approval without reopening the app; a different cashier or shift must still be blocked. Repeat after temporary connectivity loss.
 
 ## HRMIS 3-Company Review
 

@@ -10,6 +10,7 @@ Status key: `Todo`, `In Progress`, `Review`, `Blocked`, `Done`.
 |----|--------|------|------------|
 | POS-VT-CLOSE | Review | Atomic close and immutable snapshot; verified late posting against original shift. | Local BR001 fixture, then registered tablet pilot only; approval applies only after no-active-payment check. |
 | POS-VT-EVIDENCE | Blocked | Verify independent Fiuu evidence for historical VT merchant/terminal. | Merchant-scoped inquiry or report sample containing RKJ order reference, amount/currency, merchant or terminal mapping and final status; no guessing from error codes. |
+| POS-STAFF-REFRESH | Review | Share the approved shift-member read between Jualan and Ringkasan. | Scoped by session, branch and open shift; test external approval without relaunch and confirm on an authorized cashier tablet without adding duplicate requests. |
 
 ## Milestone 1 - Foundation & AI Project Governance
 
