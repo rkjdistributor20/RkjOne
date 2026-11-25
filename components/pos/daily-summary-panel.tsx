@@ -22,6 +22,7 @@ export function DailySummaryPanel({
 }) {
  const summary = usePosStore((s) => s.dailySummary);
  const shift = usePosStore((s) => s.shift);
+ const qrClose = summary?.latest_qr_shift_close;
  const todayBusinessStartedAt =
  summary?.business_started_at ??
  shift?.business_started_at ??
@@ -136,6 +137,23 @@ export function DailySummaryPanel({
  {summary.void_count} / {summary.refund_count}
  </span>
  </div>
+ </CardContent>
+ </Card>)}
+
+ {qrClose && (
+ <Card>
+ <CardHeader className="pb-2">
+ <CardTitle className="text-sm font-medium">Penutupan terakhir — {qrClose.shift_number}</CardTitle>
+ </CardHeader>
+ <CardContent className="space-y-1 text-sm">
+ <p>Tamat kerja: {new Date(qrClose.actual_work_ended_at).toLocaleString('ms-MY', { timeZone: 'Asia/Kuala_Lumpur' })}</p>
+ <p>Tunai sebenar semasa tutup: {formatRM(Number(qrClose.closing_cash))}</p>
+ <p>QR direkod semasa tutup: {formatRM(Number(qrClose.confirmed_qr_at_close_rm))}</p>
+ <p>QR disahkan selepas tutup: {formatRM(Number(qrClose.qr_confirmed_after_close_rm))}</p>
+ <p className="text-muted-foreground">
+ {qrClose.qr_review_remaining} percubaan dalam semakan ({formatRM(Number(qrClose.qr_review_remaining_attempt_rm))}).
+ Amaun ini belum dikira sebagai wang diterima.
+ </p>
  </CardContent>
  </Card>)}
 

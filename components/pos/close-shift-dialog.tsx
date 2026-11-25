@@ -82,7 +82,7 @@ export function CloseShiftDialog({
  return;
  }
  const cash = Number(closingCash);
- if (!Number.isFinite(cash) || cash < 0) {
+ if (!closingCash.trim() || !Number.isFinite(cash) || cash < 0) {
  toast.error('Masukkan jumlah tunai sebenar yang sah');
  return;
  }
@@ -118,8 +118,16 @@ export function CloseShiftDialog({
  notes || undefined,
  actualEndDate.toISOString());
  setShift(null);
- toast.success(
- `Syif ditutup. Bezaan: ${formatRM(Number(result.variance ?? 0))}`);
+ const reviewCount = Number(result.qr_review_count ?? 0);
+ const varianceMessage = `Beza tunai: ${formatRM(Number(result.variance ?? 0))}.`;
+ if (reviewCount > 0) {
+ toast.success('Syif ditutup. Sebahagian transaksi QR masih dalam semakan.', {
+ description: `${varianceMessage} QR direkod: ${formatRM(Number(result.confirmed_qr_rm ?? 0))}. ${reviewCount} percubaan QR dalam semakan (${formatRM(Number(result.qr_review_attempt_total_rm ?? 0))}) belum dikira sebagai wang diterima.`,
+ duration: 10000,
+ });
+ } else {
+ toast.success(`Syif ditutup. ${varianceMessage}`);
+ }
  onOpenChange(false);
  onSuccess();
  } catch (err) {
@@ -150,6 +158,10 @@ export function CloseShiftDialog({
  <div className="flex justify-between font-semibold">
  <span>Tunai dijangka</span>
  <span>{formatRM(expectedCash)}</span>
+ </div>
+ <div className="flex justify-between">
+ <span>QR yang telah direkod</span>
+ <span>{formatRM(Number(shift?.total_qr ?? 0))}</span>
  </div>
  <div className="flex justify-between">
  <span>Jumlah jualan</span>

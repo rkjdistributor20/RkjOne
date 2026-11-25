@@ -10,14 +10,14 @@ const OUTCOMES = new Set(['CONFIRMED_NOT_CHARGED', 'CONFIRMED_CHARGED']);
 type ResolveOutcome = 'CONFIRMED_NOT_CHARGED' | 'CONFIRMED_CHARGED';
 type ResolveRpcClient = {
  rpc: (
- name: 'resolve_pos_fiuu_vt_provider_error',
+ name: 'resolve_pos_fiuu_vt_review_for_shift',
  args: {
  p_payment_id: string;
  p_actor_id: string;
  p_outcome: ResolveOutcome;
  p_provider_transaction_id: string | null;
  p_notes: string;
- }) => PromiseLike<{ data: unknown; error: { message: string } | null }>;
+ }) => PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }>;
 };
 
 export async function POST(
@@ -39,9 +39,11 @@ export async function POST(
  providerTransactionId?: string | null;
  notes?: string;
  } | null;
- const outcome = body?.outcome?.trim() as ResolveOutcome | undefined;
- const notes = body?.notes?.trim() ?? '';
- const providerTransactionId = body?.providerTransactionId?.trim() || null;
+ const outcome = typeof body?.outcome === 'string' ? body.outcome.trim() as ResolveOutcome : undefined;
+ const notes = typeof body?.notes === 'string' ? body.notes.trim() : '';
+ const providerTransactionId = typeof body?.providerTransactionId === 'string'
+ ? body.providerTransactionId.trim() || null
+ : null;
 
  if (!outcome || !OUTCOMES.has(outcome)) {
  return NextResponse.json({ error: 'Keputusan semakan tidak sah' }, { status: 400 });
@@ -56,7 +58,7 @@ export async function POST(
  }
 
  const db = createAdminClient() as unknown as ResolveRpcClient;
- const { data, error } = await db.rpc('resolve_pos_fiuu_vt_provider_error', {
+ const { data, error } = await db.rpc('resolve_pos_fiuu_vt_review_for_shift', {
  p_payment_id: id,
  p_actor_id: profile.id,
  p_outcome: outcome,
@@ -65,6 +67,11 @@ export async function POST(
  });
 
  if (error) {
+ if (error.code === '23505') {
+ return NextResponse.json({
+ error: 'Rujukan atau pesanan ini sudah dipadankan dengan jualan. Jangan cipta jualan kedua; semak caj pendua atau rujukan tersebut di Fiuu.',
+ }, { status: 409 });
+ }
  return NextResponse.json({
  error: 'Resolusi gagal. Pastikan transaksi masih dalam kuarantin dan bukti semakan lengkap.',
  }, { status: 400 });

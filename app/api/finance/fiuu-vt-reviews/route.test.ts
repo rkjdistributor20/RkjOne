@@ -49,6 +49,7 @@ describe('GET /api/finance/fiuu-vt-reviews', () => {
  fiuu_vt_reconciliation_state: 'PROVIDER_ERROR_REVIEW',
  fiuu_vt_review_evidence: { reason: 'timeout', secretKey: 'do-not-return' },
  provider_transaction_id: null,
+ provider_result: { opType: 'VOID', errorCode: '5000', secretKey: 'not-in-summary' },
  provider_confirmed_at: null,
  provider_confirmed_by: null,
  paid_at: null,
@@ -66,7 +67,9 @@ describe('GET /api/finance/fiuu-vt-reviews', () => {
  expect(body.reviews[0]).toMatchObject({
  order_id: 'RKJ_ORDER_1',
  review_evidence: { reason: 'timeout', secretKey: '[DILINDUNGI]' },
+ last_provider_evidence: { operation: 'VOID', error_code: '5000', status_code: null },
  });
+ expect(JSON.stringify(body)).not.toContain('not-in-summary');
  expect(query.eq).toHaveBeenCalledWith('organization_id', PROFILE.organization_id);
  expect(query.eq).toHaveBeenCalledWith('provider', 'fiuu_vt');
  expect(query.eq).toHaveBeenCalledWith('status', 'QUARANTINED');

@@ -65,6 +65,12 @@ export class PosAccessError extends Error {
  }
 }
 
+export class PosMissingOpenShiftError extends PosAccessError {
+ constructor() {
+  super('Tiada syif POS aktif untuk cawangan ini. Buka syif sebelum memulihkan terminal pembayaran.', 403);
+ }
+}
+
 export function posAccessErrorStatus(error: unknown, fallback = 403) {
  return error instanceof PosAccessError ? error.status : fallback;
 }
@@ -175,10 +181,7 @@ export async function getOpenPosBranchShiftId(
 
  if (error) throw new Error(error.message);
  if (!shift) {
-  throw new PosAccessError(
-   'Tiada syif POS aktif untuk cawangan ini. Buka syif sebelum memulihkan terminal pembayaran.',
-   403,
-  );
+   throw new PosMissingOpenShiftError();
  }
  return shift.id as string;
 }

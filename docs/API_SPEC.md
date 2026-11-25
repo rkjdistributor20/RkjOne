@@ -1,5 +1,36 @@
 # RKJ One API Spec
 
+## POS operational closure with Fiuu VT review (candidate; default off)
+
+`PATCH /api/pos/shift` checks the authenticated cashier, branch and registered
+tablet. The service RPC commits end-of-work time, staff end records, cash count,
+and the close atomically. Only an opted-in branch may detach pure-QR VT attempts
+that are already quarantined or explicitly released; real active checkouts,
+unreleased attempts, and unresolved mixed tender retain the close interlock.
+The close returns confirmed QR and separate `qr_review_count` and
+`qr_review_attempt_total_rm` values. These are attempts, not recognized revenue.
+
+`GET /api/pos/summary` includes `latest_qr_shift_close`, a branch-scoped view
+of the last captured close. It separates counted cash, QR confirmed at close,
+QR posted later and remaining review attempts. The source snapshot is immutable
+to application users. It is not a journal of provider settlement.
+
+The existing VT worker still recovers durable callbacks and escalates aged
+released attempts without inventing a final outcome. Between shifts, the
+original actor on the same verified tablet can deliver only a matched existing
+callback for a payment reserved in the closed shift snapshot. For an exception,
+Finance uses verified provider order, amount and merchant/terminal evidence
+before posting a late charge via the existing Finance endpoint. The payment,
+sale, receipt, stock and audit remain linked to the original shift. A duplicate
+provider reference or already-fulfilled stable VT cart cannot create a sale twice.
+Legacy attempts without stable cart identifiers require additional review.
+
+The current Fiuu VT app-to-app result does not identify the receiving merchant
+account. No authenticated server inquiry for these VT intents has been verified.
+The candidate does not apply OPA credentials to VT or treat timeout, expiry or
+error 5000 as proof of no charge. Independent provider evidence is required
+before automating that decision for historical or conflicting records.
+
 ## POS branch QR configuration
 
 `GET /api/pos/qr-config?branch_id=<uuid>` requires an authenticated RKJ One profile and applies the standard POS branch-scope check. It returns the active QR mode, selected branch identity, and the versioned static Fiuu QR descriptor where configured. It advertises dynamic OPA only after `is_pos_fiuu_opa_branch_active` returns `true` for the exact tenant, branch and full rollout configuration fingerprint. A missing RPC, RPC error, `false` result or non-`ACTIVE` rollout fails closed and does not advertise dynamic QR. No Fiuu secret or server credential is returned.

@@ -236,6 +236,16 @@ export interface DailySummary {
  business_started_at?: string | null;
  payroll_started_at?: string | null;
  actual_work_ended_at?: string | null;
+ latest_qr_shift_close?: {
+  shift_number: string;
+  closed_at: string;
+  actual_work_ended_at: string;
+  closing_cash: number;
+  confirmed_qr_at_close_rm: number;
+  qr_confirmed_after_close_rm: number;
+  qr_review_remaining: number;
+  qr_review_remaining_attempt_rm: number;
+ } | null;
 }
 
 export interface OfflineSalePayload {

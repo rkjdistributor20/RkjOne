@@ -4,6 +4,13 @@ Last updated: 2026-11-04
 
 Status key: `Todo`, `In Progress`, `Review`, `Blocked`, `Done`.
 
+## POS closure without blocking on detached QR
+
+| ID | Status | Task | Acceptance |
+|----|--------|------|------------|
+| POS-VT-CLOSE | Review | Atomic close and immutable snapshot; verified late posting against original shift. | Local BR001 fixture, then registered tablet pilot only; approval applies only after no-active-payment check. |
+| POS-VT-EVIDENCE | Blocked | Verify independent Fiuu evidence for historical VT merchant/terminal. | Merchant-scoped inquiry or report sample containing RKJ order reference, amount/currency, merchant or terminal mapping and final status; no guessing from error codes. |
+
 ## Milestone 1 - Foundation & AI Project Governance
 
 | ID | Status | Owner | Task | Acceptance |

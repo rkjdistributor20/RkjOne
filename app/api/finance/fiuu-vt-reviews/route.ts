@@ -6,6 +6,19 @@ import type { Json } from '@/types/database';
 const REVIEW_ROLES = new Set(['SUPER_ADMIN', 'ADMIN', 'FINANCE']);
 const SENSITIVE_KEY_PATTERN = /(secret|password|token|credential|authorization|signature|api[_-]?key)/i;
 
+function providerEvidenceSummary(value: Json | null | undefined) {
+ if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+ const operation = value.opType;
+ if (operation !== 'SALE' && operation !== 'STATUS' && operation !== 'VOID') return null;
+ const code = value.errorCode;
+ const status = value.status;
+ return {
+  operation,
+  error_code: typeof code === 'string' && /^[A-Za-z0-9_-]{1,32}$/.test(code) ? code : null,
+  status_code: typeof status === 'string' && /^\d{2}$/.test(status) ? status : null,
+ };
+}
+
 function sanitizeEvidence(value: Json, depth = 0): unknown {
  if (depth > 6) return '[dipendekkan]';
  if (value === null || typeof value !== 'object') return value;
@@ -51,6 +64,7 @@ export async function GET(request: Request) {
  fiuu_vt_reconciliation_state,
  fiuu_vt_review_evidence,
  provider_transaction_id,
+ provider_result,
  provider_confirmed_at,
  provider_confirmed_by,
  paid_at,
@@ -78,6 +92,7 @@ export async function GET(request: Request) {
  error_code: row.fiuu_vt_provider_error_code,
  error_count: row.fiuu_vt_provider_error_count,
  error_at: row.fiuu_vt_provider_error_at,
+ last_provider_evidence: providerEvidenceSummary(row.provider_result),
  review_state: row.fiuu_vt_reconciliation_state,
  review_evidence: sanitizeEvidence(row.fiuu_vt_review_evidence),
  provider_transaction_id: row.provider_transaction_id,

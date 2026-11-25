@@ -5,6 +5,7 @@ import {
  assertActivePosShiftMember,
  assertCanAccessPosBranch,
  getOpenPosBranchShiftId,
+ PosMissingOpenShiftError,
  posAccessErrorStatus,
 } from '@/lib/pos/access';
 import { assertOfficialPosDevice } from '@/lib/pos/device-auth';
@@ -291,21 +292,33 @@ export async function POST(
    || (payment.status === 'QUARANTINED' && payment.fiuu_vt_review_required)
   );
   if (nativeReleaseStatusCandidate || turnoverOperationCandidate) {
-   const openShiftId = await getOpenPosBranchShiftId(service, profile, payment.branch_id);
+   const openShiftId = await getOpenPosBranchShiftId(service, profile, payment.branch_id).catch(async (err: unknown) => {
+    if (!(err instanceof PosMissingOpenShiftError)
+     || payment.created_by !== profile.id || !exactAuthorizationAttempt) throw err;
+    const { data: closedReview, error } = await service.rpc('is_pos_fiuu_vt_closed_review', {
+     p_payment_id: payment.id,
+     p_actor_id: profile.id,
+    });
+    if (error || closedReview !== true) throw err;
+    // Only the original creator on the same verified tablet may deliver
+    // registered callbacks while the next shift is not yet open. The
+    // ordinary device, generation and callback checks still apply below.
+    return null;
+   });
    nativeReleaseStatusResult = nativeReleaseStatusCandidate && (payment.status === 'QUARANTINED'
     || payment.shift_id !== openShiftId
     || payment.created_by !== profile.id);
    // SALE/VOID turnover is strictly a prior-shift recovery path. A different
-   // cashier in the same shift must not inherit another cashier's callback,
-   // even when the native attempt identity is otherwise exact.
-   turnoverCallbackResult = turnoverOperationCandidate
-    && payment.shift_id !== openShiftId;
-   await assertActivePosShiftMember(
-    service,
-    profile,
-    nativeReleaseStatusResult || turnoverCallbackResult ? openShiftId : payment.shift_id,
-    payment.branch_id,
-   );
+   // cashier in the same shift must not inherit another cashier's callback.
+   turnoverCallbackResult = turnoverOperationCandidate && payment.shift_id !== openShiftId;
+   if (openShiftId !== null) {
+    await assertActivePosShiftMember(
+     service,
+     profile,
+     nativeReleaseStatusResult || turnoverCallbackResult ? openShiftId : payment.shift_id,
+     payment.branch_id,
+    );
+   }
   } else {
    await assertActivePosShiftMember(service, profile, payment.shift_id, payment.branch_id);
   }

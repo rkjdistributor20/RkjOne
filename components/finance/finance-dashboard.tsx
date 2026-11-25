@@ -651,8 +651,8 @@ export function FinanceDashboard() {
  <div className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-red-950">
  <p className="font-semibold">Jangan caj pelanggan ini semula.</p>
  <p className="mt-1 text-xs">
- Semak portal/rekod Fiuu dahulu. Pilih hanya satu keputusan berdasarkan bukti penyedia;
- tindakan ini direkodkan untuk audit.
+ Padankan rujukan pesanan, amaun dan akaun penerimaan dalam rekod Fiuu sebelum memilih keputusan.
+ Tamat tempoh atau kod 5000 sahaja bukan bukti pelanggan tidak dicaj. Tindakan direkodkan untuk audit.
  </p>
  </div>
 
@@ -687,6 +687,13 @@ export function FinanceDashboard() {
  {review.error_at ? new Date(review.error_at).toLocaleString('ms-MY') : '-'}
  </div>
  <div><span className="text-muted-foreground">Keadaan semakan</span><br />{review.review_state ?? '-'}</div>
+ {review.last_provider_evidence && (
+ <div className="sm:col-span-2">
+ <span className="text-muted-foreground">Respons terakhir yang diterima daripada terminal</span><br />
+ {review.last_provider_evidence.operation}
+ {review.last_provider_evidence.error_code ? ` · ralat ${review.last_provider_evidence.error_code}` : ''}
+ {review.last_provider_evidence.status_code ? ` · status ${review.last_provider_evidence.status_code}` : ''}
+ </div>)}
  {review.provider_transaction_id && (
  <div className="sm:col-span-2">
  <span className="text-muted-foreground">ID transaksi penyedia sedia ada</span><br />

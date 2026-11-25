@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { callRpc } from '@/lib/supabase/rpc';
 import { getCurrentProfile } from '@/lib/auth/session';
 import {
@@ -10,7 +11,6 @@ import {
 } from '@/lib/pos/access';
 import type { PosShiftSummary } from '@/lib/pos/types';
 import { assertOfficialPosDevice } from '@/lib/pos/device-auth';
-import { FIUU_CALLBACK_GRACE_MS } from '@/lib/pos/fiuu';
 
 export async function GET(request: Request) {
  const profile = await getCurrentProfile();
@@ -262,7 +262,8 @@ export async function PATCH(request: Request) {
  const body = await request.json();
  const { shift_id, closing_cash, notes, actual_work_ended_at } = body;
 
- if (!shift_id || closing_cash === undefined || !actual_work_ended_at) {
+ if (!shift_id || typeof closing_cash !== 'number' || !Number.isFinite(closing_cash)
+  || closing_cash < 0 || !actual_work_ended_at) {
  return NextResponse.json(
  { error: 'shift_id, closing_cash dan waktu tamat bekerja sebenar wajib diisi' },
  { status: 400 });
@@ -298,47 +299,15 @@ export async function PATCH(request: Request) {
  return NextResponse.json({ error: 'Open shift not found' }, { status: 400 });
  }
 
+ let closeDevice: Awaited<ReturnType<typeof assertOfficialPosDevice>>;
  try {
  await assertCanAccessPosBranch(supabase, profile, shift.branch_id);
  await assertAreaManagerScheduledForPos(supabase, profile, shift.branch_id);
- await assertOfficialPosDevice(profile, shift.branch_id);
+ closeDevice = await assertOfficialPosDevice(profile, shift.branch_id);
  } catch (err) {
  return NextResponse.json(
  { error: err instanceof Error ? err.message : 'Akses cawangan ditolak' },
  { status: posAccessErrorStatus(err) });
- }
-
- const { data: unresolvedPayments, error: pendingPaymentError } = await supabase
- .from('pos_online_payments')
- .select('id, status, provider, expires_at')
- .eq('organization_id', shift.organization_id)
- .eq('branch_id', shift.branch_id)
- .eq('shift_id', shift_id)
- .in('status', ['PENDING', 'REPORTED', 'EXPIRED'])
- .limit(50);
-
- if (pendingPaymentError) {
- return NextResponse.json({ error: pendingPaymentError.message }, { status: 400 });
- }
- const nowMs = Date.now();
- const blockingPayment = (unresolvedPayments ?? []).find((payment) => {
-  if (payment.status === 'REPORTED') return true;
-  const expiresAtMs = payment.expires_at ? new Date(payment.expires_at).getTime() : Number.POSITIVE_INFINITY;
-  if (payment.status === 'PENDING' && expiresAtMs > nowMs) return true;
-  return (payment.provider === 'fiuu'
-    || payment.provider === 'fiuu_vt'
-    || payment.provider === 'fiuu_cloudecr')
-   && (payment.status === 'PENDING' || payment.status === 'EXPIRED')
-   && Number.isFinite(expiresAtMs)
-   && expiresAtMs + FIUU_CALLBACK_GRACE_MS > nowMs;
- });
- if (blockingPayment) {
- return NextResponse.json(
- {
- error:
- 'Syif tidak boleh ditutup sementara bayaran QR masih menunggu pengesahan. Sahkan, batalkan atau tunggu bayaran tamat tempoh dahulu.',
- },
- { status: 409 });
  }
 
  const { data: closeCheck, error: closeCheckError } = await db
@@ -402,42 +371,23 @@ export async function PATCH(request: Request) {
 
  }
 
- const { data, error } = await callRpc(supabase, 'close_pos_shift', {
+ const { data, error } = await callRpc(createAdminClient(), 'close_pos_shift_with_qr_review', {
  p_shift_id: shift_id,
- p_closing_cash: Number(closing_cash),
- p_notes: notes ?? null,
+ p_actor_id: profile.id,
+ p_device_id: closeDevice.id,
+ p_enrollment_generation: closeDevice.enrollmentGeneration,
+ p_closing_cash: closing_cash,
+ p_actual_work_ended_at: actualWorkEndedAt.toISOString(),
+ ...(typeof notes === 'string' ? { p_notes: notes } : {}),
  });
 
  if (error) {
+ if (error.code === '23514' && error.message.includes('Fiuu payment remains unresolved')) {
+ return NextResponse.json({
+  error: 'Masih ada bayaran QR yang belum boleh dipindahkan ke semakan latar belakang. Semak bayaran aktif di kaunter, atau hubungi HQ jika tiada bayaran aktif.',
+ }, { status: 409 });
+ }
  return NextResponse.json({ error: error.message }, { status: 400 });
- }
-
- if (activeShiftMembers.length) {
- const { error: endMembersError } = await db
- .from('pos_shift_staff_members')
- .update({
- status: 'ENDED',
- ended_at: actualWorkEndedAt.toISOString(),
- ended_by: profile.id,
- })
- .eq('shift_id', shift_id)
- .eq('status', 'ACTIVE');
-
- if (endMembersError) {
- return NextResponse.json({ error: endMembersError.message }, { status: 400 });
- }
- }
-
- const { error: workEndError } = await db
- .from('pos_shifts')
- .update({ actual_work_ended_at: actualWorkEndedAt.toISOString() })
- .eq('id', shift_id);
-
- if (
- workEndError &&
- !String(workEndError.message ?? '').includes('actual_work_ended_at')
- ) {
- return NextResponse.json({ error: workEndError.message }, { status: 400 });
  }
 
  const resultPayload =
@@ -446,9 +396,6 @@ export async function PATCH(request: Request) {
  : { value: data };
 
  return NextResponse.json({
- result: {
- ...resultPayload,
- actual_work_ended_at: actualWorkEndedAt.toISOString(),
- },
+ result: resultPayload,
  });
 }

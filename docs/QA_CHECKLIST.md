@@ -4,6 +4,13 @@ Last updated: 2026-11-04
 
 Use this checklist for QA AI, Code Reviewer AI, and human review before merge/deploy.
 
+## POS closure with detached VT review
+
+- Run `supabase/tests/fiuu_vt_shift_close.sql` inside a rolled-back local transaction with both 20261125 migrations. Verify default-off, active QR rollback (including staff and cash), 11 unresolved attempts, successor shift, background timeout after closure, and exact-once late posting.
+- On BR001, match actual counted cash and actual work-end timestamp before closing. Confirm no active checkout or unsynced cash sale. Check summary displays outstanding QR separately and open the next shift with the actual operator.
+- Verify a late confirmation with documented provider evidence on the original shift, then replay. Check one receipt, one stock deduction, no movement of successor-shift totals, and unchanged original cash/end time snapshot.
+- Ship the two migrations first with no rollout rows; verify backup and deploy the compatible web build before any branch opt-in. Do not enlarge the pilot or mark provider records resolved from local simulation. Disable future opt-in on rollback; keep the late-posting and evidence recovery paths for shifts already closed.
+
 ## General Code Review
 
 - [ ] Scope matches owner request.

@@ -51,7 +51,7 @@ describe('POST /api/finance/fiuu-vt-reviews/[id]/resolve', () => {
  });
 
  expect(response.status).toBe(200);
- expect(mocks.rpc).toHaveBeenCalledWith('resolve_pos_fiuu_vt_provider_error', {
+ expect(mocks.rpc).toHaveBeenCalledWith('resolve_pos_fiuu_vt_review_for_shift', {
  p_payment_id: PAYMENT_ID,
  p_actor_id: PROFILE.id,
  p_outcome: 'CONFIRMED_CHARGED',

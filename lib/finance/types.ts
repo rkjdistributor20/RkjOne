@@ -127,6 +127,11 @@ export interface FiuuVtProviderErrorReview {
  error_at: string | null;
  review_state: string | null;
  review_evidence: unknown;
+ last_provider_evidence?: {
+  operation: 'SALE' | 'STATUS' | 'VOID';
+  error_code: string | null;
+  status_code: string | null;
+ } | null;
  provider_transaction_id: string | null;
  provider_confirmed_at: string | null;
  provider_confirmed_by: string | null;

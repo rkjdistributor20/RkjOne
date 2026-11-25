@@ -11034,6 +11034,18 @@ export type Database = {
         Args: { p_closing_cash: number; p_notes?: string; p_shift_id: string }
         Returns: Json
       }
+      close_pos_shift_with_qr_review: {
+        Args: {
+          p_actual_work_ended_at: string
+          p_actor_id: string
+          p_closing_cash: number
+          p_device_id: string
+          p_enrollment_generation: number
+          p_notes?: string
+          p_shift_id: string
+        }
+        Returns: Json
+      }
       complete_route_handoff: {
         Args: { p_primary_plan_id: string }
         Returns: Json
@@ -11478,6 +11490,14 @@ export type Database = {
           p_opening_cash?: number
           p_staff_id?: string
         }
+        Returns: Json
+      }
+      is_pos_fiuu_vt_closed_review: {
+        Args: { p_actor_id: string; p_payment_id: string }
+        Returns: boolean
+      }
+      latest_pos_fiuu_vt_shift_close: {
+        Args: { p_branch_id: string }
         Returns: Json
       }
       optimize_delivery_order_route: {

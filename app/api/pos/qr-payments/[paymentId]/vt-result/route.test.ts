@@ -12,7 +12,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/auth/session', () => ({
  getCurrentProfile: mocks.getCurrentProfile,
 }));
-vi.mock('@/lib/pos/access', () => ({
+vi.mock('@/lib/pos/access', async () => ({
+ ...await import('../../../../../../lib/pos/access'),
  assertActivePosShiftMember: mocks.assertActivePosShiftMember,
  assertCanAccessPosBranch: mocks.assertCanAccessPosBranch,
  getOpenPosBranchShiftId: mocks.getOpenPosBranchShiftId,
@@ -37,6 +38,7 @@ vi.mock('@/lib/supabase/admin', () => ({
 }));
 
 import { createHash } from 'node:crypto';
+import { PosMissingOpenShiftError } from '@/lib/pos/access';
 import { buildFiuuVtCallbackHost } from '../../../../../../lib/pos/fiuu-vt';
 import { POST } from './route';
 
@@ -145,6 +147,7 @@ function makeAdmin(
  options: {
   beforeFirstPaymentUpdate?: (row: Row) => void;
   beforeCallbackClaim?: (paymentRow: Row, attemptRow: Row) => void;
+  inClosedShiftSnapshot?: boolean;
  } = {},
 ) {
  const state = {
@@ -215,6 +218,9 @@ function makeAdmin(
   from: vi.fn((table: 'pos_online_payments' | 'pos_fiuu_vt_attempts') => query(table)),
   rpc: vi.fn(async (name: string, args: Row) => {
    state.rpcCalls.push({ name, args: { ...args } });
+   if (name === 'is_pos_fiuu_vt_closed_review') {
+    return { data: options.inClosedShiftSnapshot === true, error: null };
+   }
    if (name === 'claim_pos_fiuu_vt_callback_processing') {
     const current = state.attempt;
     if (!current
@@ -1095,6 +1101,25 @@ describe('Fiuu VT one-time callback reconciliation', () => {
    'branch-1',
   );
   expect(mocks.getOpenPosBranchShiftId).toHaveBeenCalled();
+ });
+
+ it.each([true, false])('requires an exact closed review snapshot between shifts (%s)', async (inClosedShiftSnapshot) => {
+  const { admin } = makeAdmin(payment({
+   shift_id: 'closed-shift-1',
+   status: 'QUARANTINED',
+   fiuu_vt_review_required: true,
+   fiuu_vt_reconciliation_state: 'PROVIDER_ERROR_REVIEW',
+  }), attempt(), { inClosedShiftSnapshot });
+  mocks.createAdminClient.mockReturnValue(admin);
+  mocks.getOpenPosBranchShiftId.mockRejectedValue(new PosMissingOpenShiftError());
+
+  const response = await invoke(callback('STATUS', '55'));
+
+  expect(response.status).toBe(inClosedShiftSnapshot ? 200 : 403);
+  expect(admin.rpc).toHaveBeenCalledWith('is_pos_fiuu_vt_closed_review', {
+   p_payment_id: PAYMENT_ID, p_actor_id: PROFILE.id,
+  });
+  expect(mocks.assertActivePosShiftMember).not.toHaveBeenCalled();
  });
 
  it('quarantines a successful STATUS from a prior shift instead of fulfilling closed-shift stock', async () => {

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { callRpc } from '@/lib/supabase/rpc';
 import { getCurrentProfile } from '@/lib/auth/session';
 import {
  assertCanAccessPosBranch,
@@ -67,6 +68,12 @@ export async function GET(request: Request) {
  }
 
  const { startIso, endIso } = malaysiaDayRange(date);
+ const { data: latestQrShiftClose, error: latestQrShiftCloseError } = await callRpc(
+  supabase, 'latest_pos_fiuu_vt_shift_close', { p_branch_id: branchId },
+ );
+ if (latestQrShiftCloseError) {
+  console.error('[pos-summary] shift_close_snapshot_unavailable', { code: latestQrShiftCloseError.code });
+ }
  const { data: shifts, error: shiftsError } = await db
  .from('pos_shifts')
  .select('*')
@@ -103,6 +110,7 @@ export async function GET(request: Request) {
  return NextResponse.json({
  summary: {
  ...summary,
+ latest_qr_shift_close: latestQrShiftCloseError ? null : latestQrShiftClose,
  business_started_at: businessStartedAt,
  payroll_started_at: payrollStartedAt,
  actual_work_ended_at: actualWorkEndedAt,
