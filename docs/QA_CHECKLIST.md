@@ -147,6 +147,11 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [ ] Install the exact Play-delivered `1.8.7` build on the enrolled BR001 tablet and prove that the cashier can cancel before handoff, release an active unpaid attempt, and release an expired attempt while preserving the cart.
 - [ ] Prove on the physical tablet that a late successful callback wins over cancellation and creates exactly one receipt, stock movement and shift total.
 - [ ] Prove app-kill/reopen and offline/online recovery without a duplicate SALE or a permanently blocked counter.
+- [x] Simulate Fiuu VT creation committed before loss of network response or a 502: retry by the original request key, return the original PENDING payment and do not insert another.
+- [x] Verify pre-checkout draft recovery with the same cart ID, current catalog, device enrollment, staff and shift; verify retired checkout and same-product new draft remain distinct (unit tests).
+- [ ] On BR001 use Farah's valid session: record the loaded POS Web build and Android version, test a draft with Wi-Fi and mobile data off for 10 seconds, then reconnect without taking payment.
+- [ ] Show the new RM3.50 Kaya Butter QR before the tablet goes offline; payer stays online. Reconnect and verify one paid order, receipt and stock deduction set, QR totals and automatic cart clearance.
+- [ ] Reopen the app after the paid order, then put the same product in a new unpaid draft. Reconnect and reopen; verify the draft remains and neither sale nor receipt is repeated.
 - [ ] Verify the paired 58 mm printer still prints once and that QR-only payment never opens the cash drawer.
 - [ ] Record Production runtime logs, migration target, backup and rollback evidence before opening the BR001 cashier-release gate.
 

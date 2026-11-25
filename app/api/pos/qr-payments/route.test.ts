@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => ({
  inventoryRpc: vi.fn(),
  isFiuuOpaEnabledForBranch: vi.fn(),
  isFiuuOpaRolloutActive: vi.fn(),
- isValidPosPaymentIdempotencyKey: vi.fn(),
+ isFiuuVtEnabledForBranch: vi.fn(),
  posAccessErrorStatus: vi.fn(),
 }));
 
@@ -72,21 +72,19 @@ vi.mock('@/lib/pos/fiuu-cloudecr-server', () => ({
  isFiuuCloudEcrEnabledForBranch: vi.fn(() => false),
 }));
 vi.mock('@/lib/pos/fiuu-vt', () => ({
- buildFiuuVtOrderId: vi.fn(),
+ buildFiuuVtOrderId: vi.fn((id: string) => `RKJ_${id.replaceAll('-', '').toUpperCase()}`),
 }));
 vi.mock('@/lib/pos/fiuu-vt-reliability', () => ({
  FIUU_VT_RECONCILIATION_QUARANTINE_MS: 30_000,
 }));
 vi.mock('@/lib/pos/fiuu-vt-server', () => ({
- getFiuuVtValiditySeconds: vi.fn(),
- isFiuuVtEnabledForBranch: vi.fn(() => false),
+ getFiuuVtValiditySeconds: vi.fn(() => 900),
+ isFiuuVtEnabledForBranch: mocks.isFiuuVtEnabledForBranch,
 }));
-vi.mock('@/lib/pos/payment-idempotency', () => ({
- isSamePosPaymentIntent: vi.fn(() => false),
- isValidPosPaymentIdempotencyKey: mocks.isValidPosPaymentIdempotencyKey,
-}));
-
 import { POST } from './route';
+import { createPosQrPayment, PosQrPaymentError } from '../../../../lib/pos/api';
+import { shouldKeepPosQrAttemptKey } from '../../../../lib/pos/payment-idempotency';
+vi.mock('@/lib/pos/payment-idempotency', async () => import('../../../../lib/pos/payment-idempotency'));
 
 const ORGANIZATION_ID = '66666666-6666-4666-8666-666666666666';
 const BRANCH_ID = '33333333-3333-4333-8333-333333333333';
@@ -196,7 +194,6 @@ beforeEach(() => {
   role: 'STAFF',
  });
  mocks.getPosQrPaymentMode.mockReturnValue('fiuu');
- mocks.isValidPosPaymentIdempotencyKey.mockReturnValue(true);
  mocks.createClient.mockResolvedValue({});
  mocks.assertCanAccessPosBranch.mockResolvedValue(undefined);
  mocks.assertAreaManagerScheduledForPos.mockResolvedValue(undefined);
@@ -209,6 +206,7 @@ beforeEach(() => {
  mocks.assertActivePosShiftMember.mockResolvedValue(undefined);
  mocks.posAccessErrorStatus.mockReturnValue(403);
  mocks.isFiuuOpaEnabledForBranch.mockReturnValue(false);
+ mocks.isFiuuVtEnabledForBranch.mockReturnValue(false);
  mocks.getFiuuOpaConfig.mockReturnValue(OPA_CONFIG);
  mocks.getFiuuOpaConfigurationFingerprint.mockReturnValue('a'.repeat(64));
  mocks.isFiuuOpaRolloutActive.mockResolvedValue(false);
@@ -216,6 +214,55 @@ beforeEach(() => {
 
 afterEach(() => {
  vi.restoreAllMocks();
+ vi.unstubAllGlobals();
+});
+
+describe('Fiuu VT create with a lost server response', () => {
+ it.each(['offline', 'gateway 502'])('reuses the committed attempt after %s', async (fault) => {
+  mocks.getPosQrPaymentMode.mockReturnValue('fiuu_vt');
+  mocks.isFiuuVtEnabledForBranch.mockReturnValue(true);
+  const { adminQuery } = arrangeReadyPaymentPath();
+  const payload = {
+   branchId: BRANCH_ID,
+   shiftId: SHIFT_ID,
+   cart_session_id: 'cart-vt-network-test',
+   payment_method: 'QR' as const,
+   cash_amount: 0,
+   qr_amount: 2.5,
+   items: [{ product_id: PRODUCT_ID, quantity: 1 }],
+  };
+  const originalKey = 'fiuu-vt-br001-attempt-0001';
+  let firstResponse: unknown;
+  vi.stubGlobal('fetch', vi.fn(async (url, init) => {
+   const response = await POST(new Request(new URL(url, 'http://localhost'), init));
+   if (!firstResponse) {
+    expect(response.status).toBeLessThan(300);
+    firstResponse = await response.json();
+    const [saved] = adminQuery.insert.mock.calls[0];
+    adminQuery.maybeSingle.mockResolvedValueOnce({ data: saved, error: null });
+    if (fault === 'offline') throw new TypeError('Network connection lost');
+    return new Response('Bad Gateway', { status: 502 });
+   }
+   return response;
+  }));
+  let retainedKey = originalKey;
+  await expect(createPosQrPayment(payload, retainedKey).catch((error: unknown) => {
+   if (!shouldKeepPosQrAttemptKey(error instanceof PosQrPaymentError ? error : null)) {
+    retainedKey = 'fiuu-vt-br001-should-not-replace';
+   }
+   throw error;
+  })).rejects.toBeInstanceOf(fault === 'offline' ? TypeError : PosQrPaymentError);
+
+  const retry = await createPosQrPayment(payload, retainedKey);
+  const [saved] = adminQuery.insert.mock.calls[0];
+  expect(retainedKey).toBe(originalKey);
+  expect(retry).toMatchObject({ reused_reason: 'IDEMPOTENCY_KEY_REUSED',
+   payment: { id: saved.id, provider_order_id: saved.provider_order_id, status: 'PENDING', reused: true } });
+  expect(adminQuery.insert).toHaveBeenCalledTimes(1);
+  expect(adminQuery.update.mock.calls.every(([row]) => row.status !== 'PAID'
+   && row.status !== 'CANCELLED')).toBe(true);
+  expect(mocks.createFiuuDynamicQr).not.toHaveBeenCalled();
+ });
 });
 
 describe('Fiuu OPA payment rollout gate', () => {

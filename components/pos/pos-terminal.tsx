@@ -37,6 +37,8 @@ import { OpenShiftDialog } from '@/components/pos/open-shift-dialog';
 import { CloseShiftDialog } from '@/components/pos/close-shift-dialog';
 import { ProductGrid } from '@/components/pos/product-grid';
 import { CartPanel } from '@/components/pos/cart-panel';
+import { usePreCheckoutDraft } from '@/components/pos/use-pre-checkout-draft';
+import { posPreCheckoutDraftKey } from '@/lib/pos/pre-checkout-draft';
 import { PaymentDialog } from '@/components/pos/payment-dialog';
 import { ReceiptDialog } from '@/components/pos/receipt-dialog';
 import { ReceiptPrinterSettingsDialog } from '@/components/pos/receipt-printer-settings';
@@ -110,7 +112,10 @@ function DeviceReadinessPanel({ status }: { status: PosDeviceManagementStatus | 
  );
 }
 
-export function PosTerminal() {
+export function PosTerminal({ webCommit, draftRecoveryBranches }: {
+ webCommit: string;
+ draftRecoveryBranches: string[];
+}) {
  const router = useRouter();
  const { t } = useLanguage();
  const profile = useAuthStore((s) => s.profile);
@@ -133,6 +138,7 @@ export function PosTerminal() {
  const lastReceipt = usePosStore((s) => s.lastReceipt);
  const setLastReceipt = usePosStore((s) => s.setLastReceipt);
  const cart = usePosStore((s) => s.cart);
+ const hasProducts = usePosStore((s) => s.products.length > 0);
  const shift = usePosStore((s) => s.shift);
 
  const [branches, setBranches] = useState<
@@ -206,6 +212,23 @@ export function PosTerminal() {
  const sopWouldBlockSales =
  sopStatusUnavailable || shiftRequired || shiftMembershipBlocked || blockingSopStatus || pendingDeliveryCount > 0 || blockingStockCheck || Boolean(activePresenceLeave);
  const salesBlocked = trainingMode ? false : !canBypassPosSop && sopWouldBlockSales;
+ const draftKey = !trainingMode && productionDevice?.management?.nativeApp
+  && productionDevice.management.packageName === 'com.rkjone.staff'
+  && draftRecoveryBranches.includes(productionDevice.branchCode ?? '')
+  && profile?.organization_id && branchId && productionDevice.branchId === branchId
+  && shift?.status === 'OPEN' && shift.branch_id === branchId && shift.organization_id === profile.organization_id
+  ? posPreCheckoutDraftKey({ organizationId: profile.organization_id, branchId,
+     deviceId: productionDevice.id, enrollmentGeneration: productionDevice.enrollmentGeneration,
+     shiftId: shift.id, staffId: profile.id })
+  : null;
+ const prepareCheckout = usePreCheckoutDraft(draftKey, hasProducts);
+ const openCheckout = useCallback(() => {
+  if (!prepareCheckout()) {
+   toast.error('Simpanan troli tidak dapat dilepaskan. Muat semula sebelum menerima bayaran.');
+   return;
+  }
+  setPaymentOpen(true);
+ }, [prepareCheckout]);
  const shouldRunPresenceCheck =
  profile?.role === 'STAFF' &&
  Boolean(branchId && shift?.id) &&
@@ -632,12 +655,12 @@ export function PosTerminal() {
 
  if (e.key === 'F2' && (shift || trainingMode) && cart.length > 0 && !salesBlocked) {
  e.preventDefault();
- setPaymentOpen(true);
+ openCheckout();
  }
  }
  window.addEventListener('keydown', onKeyDown);
  return () => window.removeEventListener('keydown', onKeyDown);
- }, [activeTab, paymentOpen, receiptOpen, shift, trainingMode, cart.length, salesBlocked]);
+ }, [activeTab, paymentOpen, receiptOpen, shift, trainingMode, cart.length, salesBlocked, openCheckout]);
 
  async function handlePresenceConfirm() {
  if (!branchId || !shift?.id || !presencePrompt) return;
@@ -785,6 +808,10 @@ export function PosTerminal() {
      <div>
       <p className="font-semibold">POS rasmi - {productionDevice.deviceName}</p>
       <p className="text-xs text-emerald-800">Dikunci kepada {productionDevice.branchCode} - {productionDevice.branchName}</p>
+      <p className="text-xs text-emerald-800" title={webCommit}>
+       Web {webCommit.slice(0, 12)}
+       {productionDevice.management?.versionName && ` · Aplikasi ${productionDevice.management.versionName} (${productionDevice.management.versionCode ?? '—'})`}
+      </p>
       {productionDevice.hardwareProfile && (
        <p className="mt-0.5 text-xs text-emerald-800">Model ditetapkan: {POS_OFFICIAL_TABLETS[productionDevice.hardwareProfile].label}</p>
       )}
@@ -1050,7 +1077,7 @@ export function PosTerminal() {
  <ProductGrid trainingMode={trainingMode} />
  </div>
  <div className="flex min-h-0 flex-col overflow-hidden">
-  <CartPanel trainingMode={trainingMode} onCheckout={() => setPaymentOpen(true)} />
+  <CartPanel trainingMode={trainingMode} onCheckout={openCheckout} />
  </div>
  </div>
  </div>)}

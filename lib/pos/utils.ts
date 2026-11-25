@@ -9,7 +9,7 @@ import {
  toTotalPcs,
  type PosMenuCategory,
  type PosRotiMenuCategory,
-} from '@/lib/stock/catalog';
+} from '../stock/catalog';
 
 export { POS_MENU_CATEGORIES, POS_MENU_STOCK_CODES, POS_ROTI_MENU_CATEGORIES };
 export type { PosMenuCategory, PosRotiMenuCategory };

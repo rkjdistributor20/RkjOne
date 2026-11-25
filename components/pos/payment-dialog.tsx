@@ -28,6 +28,7 @@ import { formatRM, generateOfflineId } from '@/lib/pos/utils';
 import {
  createPosPaymentIdempotencyKey,
  isValidPosPaymentIdempotencyKey,
+ shouldKeepPosQrAttemptKey,
 } from '@/lib/pos/payment-idempotency';
 import {
  posFiuuVtPaymentFingerprint,
@@ -4251,7 +4252,7 @@ export function PaymentDialog({
     }
    return;
   } catch (error) {
-   if (error instanceof PosQrPaymentError && error.mode !== 'FIUU_ATTEMPT_INITIALIZING') {
+   if (!shouldKeepPosQrAttemptKey(error instanceof PosQrPaymentError ? error : null)) {
     qrAttemptKeyRef.current = null;
     removeStoredQrPayment();
    }

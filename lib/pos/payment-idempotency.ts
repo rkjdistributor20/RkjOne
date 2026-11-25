@@ -32,6 +32,13 @@ export function createPosPaymentIdempotencyKey(): string {
  return globalThis.crypto.randomUUID();
 }
 
+export function shouldKeepPosQrAttemptKey(error: { status: number; mode: string | null } | null): boolean {
+ // No usable response, gateway/server errors and throttling cannot prove that
+ // the original create did not reach the server. Retrying must look up its key.
+ return !error || error.status >= 500 || error.status === 408 || error.status === 429
+  || error.mode === 'FIUU_ATTEMPT_INITIALIZING';
+}
+
 export function isSamePosPaymentIntent(
  existing: PosPaymentIntentIdentity,
  expected: PosPaymentIntentIdentity,
