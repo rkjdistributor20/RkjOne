@@ -6,6 +6,8 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 
 ## POS closure with detached VT review
 
+- [ ] After a verified QR receipt, the exact initiating cart clears. A late or replayed response must preserve a different cart with the same items and total. Reopen POS, then disconnect and reconnect with a new draft; do not create a second charge for an already-paid cart.
+
 - Run `supabase/tests/fiuu_vt_shift_close.sql` inside a rolled-back local transaction with both 20261125 migrations. Verify default-off, active QR rollback (including staff and cash), 11 unresolved attempts, successor shift, background timeout after closure, and exact-once late posting.
 - On BR001, match actual counted cash and actual work-end timestamp before closing. Confirm no active checkout or unsynced cash sale. Check summary displays outstanding QR separately and open the next shift with the actual operator.
 - Verify a late confirmation with documented provider evidence on the original shift, then replay. Check one receipt, one stock deduction, no movement of successor-shift totals, and unchanged original cash/end time snapshot.

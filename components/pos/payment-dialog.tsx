@@ -31,7 +31,7 @@ import {
 } from '@/lib/pos/payment-idempotency';
 import {
  posFiuuVtPaymentFingerprint,
- posPaymentFingerprint,
+ posPaymentFingerprintFromSalePayload,
 } from '@/lib/pos/payment-fingerprint';
 import { readBrowserStorageItem } from '@/lib/pos/browser-storage';
 import { useAuthStore } from '@/stores/auth-store';
@@ -907,15 +907,6 @@ export function PaymentDialog({
  const qrNum = parseMoney(qrAmount);
  const totalCents = Math.round(total * 100);
  const qrCents = Math.round(qrNum * 100);
- const currentPaymentFingerprint = shift ? posPaymentFingerprint({
-  branchId,
-  shiftId: shift.id,
-  cartSessionId,
-  items: cart.map((item) => ({ product_id: item.productId, quantity: item.quantity })),
-  payment_method: method,
-  cash_amount: method === 'QR' ? 0 : cashNum,
-  qr_amount: method === 'CASH' ? 0 : qrNum,
- }) : null;
  const currentFiuuVtPaymentFingerprint = useCallback((amountRm: number) => {
   // Always read the live store snapshot. Async cleanup may outlive the render
   // that started it; a captured cart value could otherwise match and erase a
@@ -925,7 +916,7 @@ export function PaymentDialog({
    (sum, item) => sum + item.price * item.quantity,
    0,
   );
-  return current.shift ? posFiuuVtPaymentFingerprint({
+  return current.shift && current.branchId === branchId ? posFiuuVtPaymentFingerprint({
    branchId,
    shiftId: current.shift.id,
    cartSessionId: current.cartSessionId,
@@ -937,11 +928,23 @@ export function PaymentDialog({
    qrAmount: amountRm,
   }) : null;
  }, [branchId]);
- const activeQrPaymentMatchesCurrentCart = useCallback((payment: ActiveQrPayment) => (
-  payment.integration === 'vt_app'
-   ? currentFiuuVtPaymentFingerprint(payment.amountRm) === payment.cartFingerprint
-   : currentPaymentFingerprint === payment.cartFingerprint
- ), [currentFiuuVtPaymentFingerprint, currentPaymentFingerprint]);
+ const activeQrPaymentMatchesCurrentCart = useCallback((payment: ActiveQrPayment) => {
+  if (payment.integration === 'vt_app') {
+   return currentFiuuVtPaymentFingerprint(payment.amountRm) === payment.cartFingerprint;
+  }
+  const current = usePosStore.getState();
+  if (!current.shift || current.branchId !== branchId) return false;
+  const fingerprint = posPaymentFingerprintFromSalePayload({
+   branchId,
+   shiftId: current.shift.id,
+   cart_session_id: current.cartSessionId,
+   items: current.cart.map((item) => ({ product_id: item.productId, quantity: item.quantity })),
+   payment_method: payment.paymentMethod,
+   cash_amount: payment.cashAmountRm,
+   qr_amount: payment.amountRm,
+  });
+  return fingerprint !== null && fingerprint === payment.cartFingerprint;
+ }, [branchId, currentFiuuVtPaymentFingerprint]);
 
  const latchCurrentFiuuVtCartRetirement = useCallback((
   paymentId: string,
@@ -4047,6 +4050,10 @@ export function PaymentDialog({
    || (qrConfig?.mode === 'FIUU_VT_APP' && !vtManualFallback);
   if (usesQr && usesAutomaticQr) {
   try {
+   // The checkout request uses cart_session_id, not cartSessionId. Use the
+   // same conversion as the server's durable recovery path before any SALE.
+   const checkoutFingerprint = posPaymentFingerprintFromSalePayload(payload);
+   if (!checkoutFingerprint) throw new Error('Identiti troli tidak sah. QR belum dijana.');
     if (qrConfig?.mode === 'FIUU_VT_APP'
      && (!vtNativeStatus?.nativeAndroid || !vtNativeStatus.installed || !vtNativeStatus.trustedInstall)) {
      throw new Error('Aplikasi rasmi Fiuu VT daripada Managed Google Play belum tersedia. Gunakan QR cawangan manual.');
@@ -4136,7 +4143,16 @@ export function PaymentDialog({
     if (!existing.result) throw new Error('Resit bayaran Fiuu belum tersedia. Cuba semula.');
     removeStoredQrPayment();
     toast.success('Bayaran DuitNow QR telah disahkan oleh Fiuu.');
-    clearCart();
+    const current = usePosStore.getState();
+    if (current.branchId === payload.branchId
+     && current.shift?.id === payload.shiftId
+     && current.cartSessionId === payload.cart_session_id
+     && checkoutFingerprint === posPaymentFingerprintFromSalePayload({
+      ...payload,
+      items: current.cart.map((item) => ({ product_id: item.productId, quantity: item.quantity })),
+     })) {
+     clearCart();
+    }
     resetPaymentForm();
     dialogOpenRef.current = false;
     onOpenChange(false);
@@ -4167,7 +4183,7 @@ export function PaymentDialog({
     environment: payment.environment,
      integration: payment.integration,
      providerOrderId: payment.provider_order_id,
-    cartFingerprint: posPaymentFingerprint(payload),
+    cartFingerprint: checkoutFingerprint,
    };
    if (activePayment.integration === 'vt_app') {
     beginFiuuVtCallbackDrain(activePayment.id);

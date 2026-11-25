@@ -105,6 +105,38 @@ describe('POS payment fingerprint', () => {
   })).toBe(clientFingerprint);
  });
 
+ it.each([
+  { total: 2.50, qr: 2.50, cash: 0, method: 'QR' as const },
+  { total: 2.50, qr: 1.50, cash: 1, method: 'MIXED' as const },
+ ])('matches the submitted $method cart on completion, not a new identical cart', (mode) => {
+  const items = [{ product_id: 'ROTI-KAYA', quantity: 1 }];
+  const submitted = {
+   ...basePayload,
+   items,
+   payment_method: mode.method,
+   cash_amount: mode.cash,
+   qr_amount: mode.qr,
+   cart_session_id: 'customer-a',
+  };
+  const live = {
+   branchId: submitted.branchId, shiftId: submitted.shiftId,
+   items, total: mode.total, qrAmount: mode.qr, cartSessionId: 'customer-a',
+  };
+  const inFlight = posPaymentFingerprintFromSalePayload(submitted);
+  expect(inFlight).toBeTruthy();
+  expect(inFlight).not.toBe(posPaymentFingerprint(submitted)); // former bug
+  expect(posFiuuVtPaymentFingerprint(live)).toBe(inFlight);
+  for (const different of [
+   { ...live, cartSessionId: 'customer-b' },
+   { ...live, cartSessionId: 'cart-after-reload' },
+   { ...live, shiftId: 'next-shift' },
+   { ...live, branchId: 'next-branch' },
+   { ...live, items: [{ ...items[0], quantity: 2 }], total: 5 },
+  ]) {
+   expect(posFiuuVtPaymentFingerprint(different)).not.toBe(inFlight);
+  }
+ });
+
  it('rejects malformed or incomplete sale payloads', () => {
   expect(posPaymentFingerprintFromSalePayload(null)).toBeNull();
   expect(posPaymentFingerprintFromSalePayload({ ...basePayload, items: [] })).toBeNull();

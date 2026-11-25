@@ -152,6 +152,7 @@ function arrangeReadyPaymentPath() {
   is: vi.fn(),
   lte: vi.fn().mockResolvedValue({ data: null, error: null }),
   contains: vi.fn(),
+  limit: vi.fn(),
   maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
   single: vi.fn().mockResolvedValue({ data: { id: 'payment-id' }, error: null }),
  };
@@ -162,13 +163,14 @@ function arrangeReadyPaymentPath() {
  adminQuery.in.mockReturnValue(adminQuery);
  adminQuery.is.mockReturnValue(adminQuery);
  adminQuery.contains.mockReturnValue(adminQuery);
+ adminQuery.limit.mockReturnValue(adminQuery);
  const admin = { from: vi.fn().mockReturnValue(adminQuery) };
  mocks.createAdminClient.mockReturnValue(admin);
 
  return { admin, adminQuery };
 }
 
-function paymentRequest() {
+function paymentRequest(cartSessionId?: string) {
  return new Request('http://localhost/api/pos/qr-payments', {
   method: 'POST',
   headers: { 'content-type': 'application/json' },
@@ -176,6 +178,7 @@ function paymentRequest() {
    idempotency_key: 'fiuu-opa-br001-attempt-0001',
    branchId: BRANCH_ID,
    shiftId: SHIFT_ID,
+   ...(cartSessionId ? { cart_session_id: cartSessionId } : {}),
    payment_method: 'QR',
    cash_amount: 0,
    qr_amount: 2.5,
@@ -262,5 +265,26 @@ describe('Fiuu OPA payment rollout gate', () => {
   );
   expect(adminQuery.insert).not.toHaveBeenCalled();
   expect(mocks.createFiuuDynamicQr).not.toHaveBeenCalled();
+ });
+});
+
+describe('paid cart protection', () => {
+ it.each([
+  { lookup: { data: { id: 'paid-payment' }, error: null }, status: 409 },
+  { lookup: { data: null, error: { message: 'lookup unavailable' } }, status: 503 },
+ ])('does not start Fiuu SALE if a cart is paid or cannot be checked ($status)', async ({ lookup, status }) => {
+  mocks.isFiuuOpaEnabledForBranch.mockReturnValue(true);
+  mocks.isFiuuOpaRolloutActive.mockResolvedValue(true);
+  const { adminQuery } = arrangeReadyPaymentPath();
+  adminQuery.maybeSingle
+   .mockResolvedValueOnce({ data: null, error: null }) // idempotency lookup
+   .mockResolvedValueOnce(lookup);
+  const response = await POST(paymentRequest('paid-cart'));
+  expect(response.status).toBe(status);
+  expect(adminQuery.eq).toHaveBeenCalledWith('sale_payload->>cart_session_id', 'paid-cart');
+  expect(adminQuery.eq).toHaveBeenCalledWith('status', 'PAID');
+  expect(adminQuery.insert).not.toHaveBeenCalled();
+  expect(mocks.createFiuuDynamicQr).not.toHaveBeenCalled();
+  if (status === 409) await expect(response.json()).resolves.toMatchObject({ mode: 'POS_CART_ALREADY_PAID' });
  });
 });

@@ -541,6 +541,30 @@ export async function POST(request: Request) {
   return existingPaymentResponse(existingPayment, expectedIntent, transport);
  }
 
+ // A new idempotency key does not make a paid cart a new customer order.
+ // Check before allocating a new payment or asking Fiuu to open another SALE.
+ if (body.cart_session_id) {
+  const { data: paidCart, error: paidCartError } = await admin
+   .from('pos_online_payments')
+   .select('id')
+   .eq('organization_id', profile.organization_id)
+   .eq('branch_id', body.branchId)
+   .eq('shift_id', body.shiftId)
+   .eq('status', 'PAID')
+   .eq('sale_payload->>cart_session_id', body.cart_session_id)
+   .limit(1)
+   .maybeSingle();
+  if (paidCartError) {
+   return NextResponse.json({ error: 'Status troli tidak dapat disahkan. QR baharu tidak dijana.' }, { status: 503 });
+  }
+  if (paidCart) {
+   return NextResponse.json({
+    error: 'Troli ini sudah dibayar. Semak resit di Sejarah. Jangan caj pelanggan sekali lagi.',
+    mode: 'POS_CART_ALREADY_PAID',
+   }, { status: 409 });
+  }
+ }
+
  const { data: activePayment, error: activeError } = await admin
   .from('pos_online_payments')
   .select(existingSelect)

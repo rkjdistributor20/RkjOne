@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-25 - POS QR cart completion
+
+- Match the submitted QR cart session to the live cart before clearing it, and refuse a new QR attempt for an already-paid cart even when the idempotency key changes.
+
 ## 2026-11-25 - POS staff approval refresh
 
 - Jualan and Ringkasan share the same session-, branch- and shift-scoped staff membership read. While awaiting approval at Jualan, the tablet rechecks every 15 seconds in the foreground; the sale API still requires an active membership.
