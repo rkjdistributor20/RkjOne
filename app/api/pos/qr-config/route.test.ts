@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
  isFiuuOpaEnabledForBranch: vi.fn(),
  isFiuuOpaRolloutActive: vi.fn(),
  isFiuuVtEnabledForBranch: vi.fn(),
+ isFiuuVtNewSaleEnabledForBranch: vi.fn(),
  isFiuuVtCashierReleaseDeviceReady: vi.fn(),
  isFiuuVtCashierReleaseEnabledForBranch: vi.fn(),
  posAccessErrorStatus: vi.fn(),
@@ -57,6 +58,7 @@ vi.mock('@/lib/pos/fiuu-vt-server', () => ({
  isFiuuVtCashierReleaseDeviceReady: mocks.isFiuuVtCashierReleaseDeviceReady,
  isFiuuVtCashierReleaseEnabledForBranch: mocks.isFiuuVtCashierReleaseEnabledForBranch,
  isFiuuVtEnabledForBranch: mocks.isFiuuVtEnabledForBranch,
+ isFiuuVtNewSaleEnabledForBranch: mocks.isFiuuVtNewSaleEnabledForBranch,
 }));
 vi.mock('@/lib/pos/fiuu-static', () => ({
  getFiuuStaticQrConfig: mocks.getFiuuStaticQrConfig,
@@ -136,6 +138,7 @@ beforeEach(() => {
  mocks.isFiuuOpaRolloutActive.mockResolvedValue(true);
  mocks.createAdminClient.mockReturnValue(ADMIN_CLIENT);
  mocks.isFiuuVtEnabledForBranch.mockReturnValue(false);
+ mocks.isFiuuVtNewSaleEnabledForBranch.mockReturnValue(false);
  mocks.isFiuuVtCashierReleaseDeviceReady.mockReturnValue(true);
  mocks.isFiuuVtCashierReleaseEnabledForBranch.mockReturnValue(false);
  mocks.hasRecentFiuuVtRecoverySuccess.mockResolvedValue(true);
@@ -247,6 +250,7 @@ describe('Fiuu VT registered-device configuration gate', () => {
   mocks.getPosQrPaymentMode.mockReturnValue('fiuu_vt');
   mocks.isFiuuOpaEnabledForBranch.mockReturnValue(false);
   mocks.isFiuuVtEnabledForBranch.mockReturnValue(true);
+  mocks.isFiuuVtNewSaleEnabledForBranch.mockReturnValue(true);
   mocks.isFiuuVtCashierReleaseEnabledForBranch.mockReturnValue(true);
 
   const response = await GET(new Request(
@@ -269,6 +273,7 @@ describe('Fiuu VT registered-device configuration gate', () => {
   mocks.getPosQrPaymentMode.mockReturnValue('fiuu_vt');
   mocks.isFiuuOpaEnabledForBranch.mockReturnValue(false);
   mocks.isFiuuVtEnabledForBranch.mockReturnValue(true);
+  mocks.isFiuuVtNewSaleEnabledForBranch.mockReturnValue(true);
   mocks.isFiuuVtCashierReleaseEnabledForBranch.mockReturnValue(true);
   mocks.hasRecentFiuuVtRecoverySuccess.mockResolvedValue(false);
 
@@ -288,6 +293,7 @@ describe('Fiuu VT registered-device configuration gate', () => {
   mocks.getPosQrPaymentMode.mockReturnValue('fiuu_vt');
   mocks.isFiuuOpaEnabledForBranch.mockReturnValue(false);
   mocks.isFiuuVtEnabledForBranch.mockReturnValue(true);
+  mocks.isFiuuVtNewSaleEnabledForBranch.mockReturnValue(true);
   mocks.isFiuuVtCashierReleaseEnabledForBranch.mockReturnValue(true);
   mocks.isFiuuVtCashierReleaseDeviceReady.mockReturnValue(false);
 
@@ -302,10 +308,31 @@ describe('Fiuu VT registered-device configuration gate', () => {
   expect(mocks.hasRecentFiuuVtRecoverySuccess).not.toHaveBeenCalled();
  });
 
+ it('keeps the existing manual QR and native recovery when the branch is not approved for VT sales', async () => {
+  const staticQr = { branchCode: 'BR001', imageUrl: '/branch-qr.png', recipientName: 'ROTI KAYA JUNUS' };
+  mocks.getPosQrPaymentMode.mockReturnValue('fiuu_vt');
+  mocks.isFiuuVtEnabledForBranch.mockReturnValue(true);
+  mocks.getFiuuStaticQrConfig.mockReturnValue(staticQr);
+
+  const response = await GET(new Request(
+   `http://localhost/api/pos/qr-config?branch_id=${BRANCH_ID}`,
+  ));
+
+  await expect(response.json()).resolves.toMatchObject({
+   mode: 'FIUU_STATIC_MANUAL',
+   configured: true,
+   staticQr,
+   vt: null,
+   vtRecoveryEnabled: true,
+  });
+  expect(mocks.hasRecentFiuuVtRecoverySuccess).not.toHaveBeenCalled();
+ });
+
  it('fails closed while the branch tablet is not registered', async () => {
   mocks.getPosQrPaymentMode.mockReturnValue('fiuu_vt');
   mocks.isFiuuOpaEnabledForBranch.mockReturnValue(false);
   mocks.isFiuuVtEnabledForBranch.mockReturnValue(true);
+  mocks.isFiuuVtNewSaleEnabledForBranch.mockReturnValue(true);
   mocks.getPosDeviceContext.mockResolvedValue({ mode: 'TRAINING', device: null });
 
   const response = await GET(new Request(
@@ -323,6 +350,7 @@ describe('Fiuu VT registered-device configuration gate', () => {
   mocks.getPosQrPaymentMode.mockReturnValue('fiuu_vt');
   mocks.isFiuuOpaEnabledForBranch.mockReturnValue(false);
   mocks.isFiuuVtEnabledForBranch.mockReturnValue(true);
+  mocks.isFiuuVtNewSaleEnabledForBranch.mockReturnValue(true);
   mocks.getPosDeviceContext.mockResolvedValue({
    mode: 'PRODUCTION',
    device: { branchId: '44444444-4444-4444-8444-444444444444' },

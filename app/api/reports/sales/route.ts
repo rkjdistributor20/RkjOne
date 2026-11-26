@@ -13,7 +13,7 @@ export async function GET(request: Request) {
  new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
 
  const supabase = await createClient();
- const { data, error } = await supabase.from('pos_daily_summaries').select('summary_date, total_sales, total_cash, total_qr, transaction_count').eq('organization_id', profile.organization_id).gte('summary_date', from).lte('summary_date', to).order('summary_date');
+ const { data, error } = await supabase.from('pos_operational_daily_summaries').select('summary_date, total_sales, total_cash, total_qr, transaction_count').eq('organization_id', profile.organization_id).gte('summary_date', from).lte('summary_date', to).order('summary_date');
 
  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

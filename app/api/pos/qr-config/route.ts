@@ -18,6 +18,7 @@ import {
  isFiuuVtCashierReleaseDeviceReady,
  isFiuuVtCashierReleaseEnabledForBranch,
  isFiuuVtEnabledForBranch,
+ isFiuuVtNewSaleEnabledForBranch,
 } from '@/lib/pos/fiuu-vt-server';
 import { getFiuuStaticQrConfig } from '@/lib/pos/fiuu-static';
 import { enforceRateLimit } from '@/lib/security/rate-limit';
@@ -68,6 +69,7 @@ export async function GET(request: Request) {
  const paymentMode = getPosQrPaymentMode();
  let dynamicEnabled = false;
  let vtEnabled = false;
+ let vtRecoveryEnabled = false;
  let vtCashierReleaseEnabled = false;
  let cloudEcrEnabled = false;
  try {
@@ -87,9 +89,10 @@ export async function GET(request: Request) {
   });
  }
  try {
-  vtEnabled = officialDeviceReady
+  vtRecoveryEnabled = officialDeviceReady
    && paymentMode === 'fiuu_vt'
    && isFiuuVtEnabledForBranch(branch.branch_code);
+  vtEnabled = vtRecoveryEnabled && isFiuuVtNewSaleEnabledForBranch(branch.branch_code);
   vtCashierReleaseEnabled = vtEnabled
    && isFiuuVtCashierReleaseEnabledForBranch(branch.branch_code)
    && isFiuuVtCashierReleaseDeviceReady(deviceContext.device?.management)
@@ -125,6 +128,7 @@ export async function GET(request: Request) {
     name: branch.branch_name,
    },
    staticQr,
+   ...(vtRecoveryEnabled && !vtEnabled ? { vtRecoveryEnabled: true } : {}),
    vt: vtEnabled ? {
     packageName: FIUU_VT_PACKAGE,
     channel: FIUU_VT_DUITNOW_CHANNEL,

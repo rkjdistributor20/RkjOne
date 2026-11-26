@@ -28,7 +28,7 @@ export async function GET(request: Request) {
  { status: 403 });
  }
 
- let summariesQuery = supabase.from('pos_daily_summaries').select('total_sales, total_cash, total_qr, transaction_count, void_count, refund_count').eq('organization_id', profile.organization_id).gte('summary_date', from).lte('summary_date', to);
+ let summariesQuery = supabase.from('pos_operational_daily_summaries').select('total_sales, total_cash, total_qr, transaction_count, void_count, refund_count').eq('organization_id', profile.organization_id).gte('summary_date', from).lte('summary_date', to);
 
  if (scope.branchIds !== null) {
  summariesQuery = applyBranchIdsFilter(summariesQuery, 'branch_id', scope.branchIds);

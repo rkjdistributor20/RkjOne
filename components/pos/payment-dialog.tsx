@@ -984,6 +984,9 @@ export function PaymentDialog({
 
  const shortfall = Math.max(total - paidAmount, 0);
  const requiresQrConfig = method !== 'CASH' && !trainingMode;
+ const fiuuVtRecoveryOnly = qrConfig?.mode === 'FIUU_STATIC_MANUAL'
+  && qrConfig.vtRecoveryEnabled === true;
+ const fiuuVtNativeRecoveryEnabled = qrConfig?.mode === 'FIUU_VT_APP' || fiuuVtRecoveryOnly;
  const vtManualFallback = qrConfig?.mode === 'FIUU_VT_APP'
   && Boolean(vtNativeStatus && (
    !vtNativeStatus.nativeAndroid
@@ -1000,7 +1003,7 @@ export function PaymentDialog({
  const fiuuVtNativeCleanupPending = Boolean(
   method !== 'CASH'
   && !qrPayment
-  && qrConfig?.mode === 'FIUU_VT_APP'
+  && fiuuVtNativeRecoveryEnabled
   && vtNativeStatus?.nativeAndroid
   && (vtNativeStatus.pendingOrderId
    || vtNativeStatus.resultAvailable
@@ -1023,7 +1026,8 @@ export function PaymentDialog({
 	? 'Maklumat DuitNow QR cawangan sedang dimuatkan.'
 	: requiresQrConfig && qrConfigError
 	? qrConfigError
-	: requiresQrConfig && qrConfig?.mode === 'FIUU_VT_APP' && vtStatusLoading
+	: requiresQrConfig && fiuuVtNativeRecoveryEnabled
+  && (vtStatusLoading || (fiuuVtRecoveryOnly && !vtNativeStatus))
 	? 'Menyemak aplikasi Fiuu VT pada tablet.'
 	: requiresManualQrVerification && !qrConfig?.staticQr
 	? 'DuitNow QR belum dipadankan untuk cawangan ini. Hubungi HQ.'
@@ -1908,7 +1912,7 @@ export function PaymentDialog({
 	}, [branchId, method, open, qrConfigRetry, trainingMode]);
 
  useEffect(() => {
-  if (!open || qrConfig?.mode !== 'FIUU_VT_APP' || trainingMode) {
+  if (!open || !fiuuVtNativeRecoveryEnabled || trainingMode) {
    setVtNativeStatus(null);
    setVtStatusLoading(false);
    return;
@@ -1937,7 +1941,7 @@ export function PaymentDialog({
   return () => {
    cancelled = true;
   };
- }, [open, qrConfig?.mode, trainingMode]);
+ }, [open, fiuuVtNativeRecoveryEnabled, trainingMode]);
 
  const recoverFiuuVtPayment = useCallback(async (
   nativeStatus: FiuuVtNativeStatus,
@@ -3947,6 +3951,10 @@ export function PaymentDialog({
   if (fiuuVtNativeCleanupPending) {
    const cleanupOutcome = await handleFiuuVtNativeCleanup();
    if (cleanupOutcome !== 'CLEAN_FOR_NEW_CART') return;
+   if (fiuuVtRecoveryOnly) {
+    setManualQrVerified(false);
+    return;
+   }
   }
   if (paymentErrorWithoutNativeCleanup) {
    toast.error(paymentErrorWithoutNativeCleanup);
@@ -4682,6 +4690,7 @@ export function PaymentDialog({
 
     {!qrConfigLoading && !qrConfigError
      && (qrConfig?.mode === 'FIUU_STATIC_MANUAL' || vtManualFallback)
+      && (!fiuuVtRecoveryOnly || (vtNativeStatus && !vtStatusLoading && !fiuuVtNativeCleanupPending))
      && qrConfig.staticQr && (
     <>
      <div className="mx-auto max-w-72 overflow-hidden rounded-2xl border-4 border-white bg-white shadow-md ring-1 ring-slate-200">

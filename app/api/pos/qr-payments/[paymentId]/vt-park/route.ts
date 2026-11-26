@@ -17,6 +17,23 @@ function jsonRecord(value: Json | null): Record<string, unknown> | null {
   : null;
 }
 
+function statusRetryLimitNotReadyMessage(result?: Record<string, unknown> | null) {
+ if (result?.outcome === 'CALLBACK_ACTIVE') {
+  return 'Percubaan bayaran Fiuu VT masih aktif atau responsnya belum selesai diproses. Troli dikekalkan; jangan mulakan bayaran QR baharu.';
+ }
+ if (result?.outcome === 'NOT_ELIGIBLE') {
+  switch (result.reason) {
+   case 'STATUS_RETRY_BUDGET_NOT_EXHAUSTED':
+    return 'Semakan STATUS belum mencapai had dan tempoh menunggu belum tamat. Troli dikekalkan; jangan mulakan bayaran QR baharu.';
+   case 'ATTEMPT_PROVIDER_SUCCESS_EVIDENCE':
+    return 'Bukti daripada Fiuu ditemui untuk percubaan asal. Semak transaksi asal; jangan caj semula.';
+   case 'PAYMENT_STATE_OR_PROVIDER_EVIDENCE':
+    return 'Status transaksi atau bukti daripada Fiuu memerlukan semakan. Semak transaksi asal; jangan caj semula.';
+  }
+ }
+ return 'Kuarantin transaksi asal belum dapat disahkan. Troli dikekalkan; jangan mulakan bayaran QR baharu.';
+}
+
 export async function POST(
  request: Request,
  context: { params: Promise<{ paymentId: string }> },
@@ -102,7 +119,7 @@ export async function POST(
    error: nativeStorageRecovery
     ? 'Transaksi lama masih dalam tempoh penerimaan callback. RKJ One akan cuba pelepasan selamat semula sebentar lagi.'
     : statusRetryLimitRecovery
-     ? 'Transaksi lama masih mempunyai callback atau lease aktif. RKJ One akan cuba kuarantin semula tanpa membuka SALE baharu.'
+     ? statusRetryLimitNotReadyMessage()
      : 'Transaksi belum selamat untuk dikuarantin. Semak STATUS Fiuu VT sekali lagi.',
    mode: nativeStorageRecovery
     ? 'FIUU_VT_NATIVE_RECOVERY_NOT_READY'
@@ -137,7 +154,7 @@ export async function POST(
      ? 'Transaksi Fiuu VT bukan milik sesi tablet ini'
      : status === 404
       ? 'Transaksi Fiuu VT tidak dijumpai'
-      : 'Transaksi lama belum selamat untuk dikuarantin. Bukti dan troli dikekalkan.',
+      : statusRetryLimitNotReadyMessage(result),
     mode: 'FIUU_VT_STATUS_RETRY_LIMIT_NOT_READY',
     retry_after_ms: status === 409 ? 2_000 : undefined,
    }, { status });

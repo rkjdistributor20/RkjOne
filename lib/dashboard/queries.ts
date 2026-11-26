@@ -146,9 +146,9 @@ export async function getDashboardStats(
  const { today, weekStart, monthStart } = getDashboardDateWindow();
 
  const [todayRes, weekRes, monthRes, approvalsRes, kioskOverview] = await Promise.all([
- supabase.from('pos_daily_summaries').select('total_sales').eq('organization_id', orgId).eq('summary_date', today).in('branch_id', branchIds),
- supabase.from('pos_daily_summaries').select('total_sales').eq('organization_id', orgId).gte('summary_date', weekStart).in('branch_id', branchIds),
- supabase.from('pos_daily_summaries').select('total_sales').eq('organization_id', orgId).gte('summary_date', monthStart).in('branch_id', branchIds),
+ supabase.from('pos_operational_daily_summaries').select('total_sales').eq('organization_id', orgId).eq('summary_date', today).in('branch_id', branchIds),
+ supabase.from('pos_operational_daily_summaries').select('total_sales').eq('organization_id', orgId).gte('summary_date', weekStart).in('branch_id', branchIds),
+ supabase.from('pos_operational_daily_summaries').select('total_sales').eq('organization_id', orgId).gte('summary_date', monthStart).in('branch_id', branchIds),
  supabase.from('approval_requests').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).eq('status', 'PENDING').in('branch_id', branchIds),
  Promise.resolve(snapshotKioskOverview),
  ]);
@@ -261,11 +261,11 @@ export async function getPosOverview(
  };
  }
 
- let summariesQuery = supabase.from('pos_daily_summaries').select('branch_id, total_sales, transaction_count').eq('organization_id', orgId).eq('summary_date', today);
+ let summariesQuery = supabase.from('pos_operational_daily_summaries').select('branch_id, total_sales, transaction_count').eq('organization_id', orgId).eq('summary_date', today);
 
- let shiftsQuery = supabase.from('pos_shifts').select('branch_id').eq('organization_id', orgId).eq('status', 'OPEN');
+ let shiftsQuery = supabase.from('pos_operational_shifts').select('branch_id').eq('organization_id', orgId).eq('status', 'OPEN');
 
- let recentQuery = supabase.from('pos_transactions').select(
+ let recentQuery = supabase.from('pos_operational_transactions').select(
  'id, transaction_number, total, payment_method, created_at, branch_id').eq('organization_id', orgId).eq('status', 'COMPLETED').gte('created_at', `${today}T00:00:00`).order('created_at', { ascending: false }).limit(5);
 
  if (scopedBranchIds !== null) {

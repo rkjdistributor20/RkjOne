@@ -61,7 +61,7 @@ export async function GET(request: Request) {
 
  const db = supabase as any;
 
- const { data, error } = await supabase.from('pos_daily_summaries').select('*').eq('branch_id', branchId).eq('summary_date', date).maybeSingle();
+ const { data, error } = await supabase.from('pos_operational_daily_summaries').select('*').eq('branch_id', branchId).eq('summary_date', date).maybeSingle();
 
  if (error) {
  return NextResponse.json({ error: error.message }, { status: 500 });
@@ -74,8 +74,21 @@ export async function GET(request: Request) {
  if (latestQrShiftCloseError) {
   console.error('[pos-summary] shift_close_snapshot_unavailable', { code: latestQrShiftCloseError.code });
  }
+ // A trial close remains visible to Finance on the original shift, but it
+ // is not the last real shift on the operational summary.
+ const latestClosedShiftNumber = latestQrShiftClose && typeof latestQrShiftClose === 'object'
+  && !Array.isArray(latestQrShiftClose)
+  && typeof latestQrShiftClose.shift_number === 'string'
+  ? latestQrShiftClose.shift_number : null;
+ const { data: operationalClose, error: operationalCloseError } = latestClosedShiftNumber
+  ? await supabase.from('pos_operational_shifts').select('id')
+   .eq('branch_id', branchId).eq('shift_number', latestClosedShiftNumber).maybeSingle()
+  : { data: null, error: null };
+ if (operationalCloseError) {
+  console.error('[pos-summary] shift_close_classification_unavailable', { code: operationalCloseError.code });
+ }
  const { data: shifts, error: shiftsError } = await db
- .from('pos_shifts')
+ .from('pos_operational_shifts')
  .select('*')
  .eq('branch_id', branchId)
  .gte('opened_at', startIso)
@@ -110,7 +123,7 @@ export async function GET(request: Request) {
  return NextResponse.json({
  summary: {
  ...summary,
- latest_qr_shift_close: latestQrShiftCloseError ? null : latestQrShiftClose,
+ latest_qr_shift_close: !latestQrShiftCloseError && operationalClose ? latestQrShiftClose : null,
  business_started_at: businessStartedAt,
  payroll_started_at: payrollStartedAt,
  actual_work_ended_at: actualWorkEndedAt,

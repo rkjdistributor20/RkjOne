@@ -219,6 +219,13 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 - [ ] Run signed live-provider callback UAT with the selected payment provider before opening live customer payment volume.
 - [ ] Run the `docs/POS_BLUETOOTH_PRINTER.md` acceptance test on a physical POS-5890U-L before promoting Android 1.6.
 
+## RKJ One Staff operational release — 26 November 2026
+
+- [x] Play Console: Android 1.8.7 (versionCode 25) published to Production, rollout 100%; existing AAB identity and signature preserved.
+- [x] Existing BR001 evidence: separate sale after cashier release, provider-confirmed online payment, receipt and stock posted once, and draft preserved after a disconnect with no active payment.
+- [ ] Physical reconnect during an active payment was not verified. The delayed/repeated callback result is a local simulation, not provider certification. No further paid UAT is requested for this release.
+- [ ] Confirm current Fiuu terminal/merchant and receiving account before allowing new automatic VT sales outside the verified per-pilot list. Keep established recovery and Finance review available.
+
 ## Booking API QA Notes
 
 Current review findings to fix before UI/external integration:

@@ -13,6 +13,8 @@ export interface PosQrConfig {
   imageUrl: string;
   recipientName: 'ROTI KAYA JUNUS';
  } | null;
+ /** A listed official tablet can recover older VT payments in static/manual mode. */
+ vtRecoveryEnabled?: boolean;
  vt?: {
   packageName: 'com.rms.mobile.razervt';
   channel: 'RPP_DuitNowQR-Offline';

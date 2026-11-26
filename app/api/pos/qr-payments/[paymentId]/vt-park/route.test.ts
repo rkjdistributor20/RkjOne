@@ -234,11 +234,11 @@ describe('POST /api/pos/qr-payments/[paymentId]/vt-park', () => {
   });
  });
 
- it('keeps the lane closed when STATUS retry-limit quarantine still has active evidence', async () => {
+ it('keeps the lane closed without asserting a cause when the STATUS quarantine RPC errors', async () => {
   const admin = adminFor();
   admin.rpc.mockResolvedValueOnce({
    data: null,
-   error: { message: 'launch lease active' },
+   error: { message: 'database unavailable' },
   });
   mocks.createAdminClient.mockReturnValue(admin);
 
@@ -246,24 +246,30 @@ describe('POST /api/pos/qr-payments/[paymentId]/vt-park', () => {
 
   expect(response.status).toBe(409);
   expect(await response.json()).toMatchObject({
+   error: 'Kuarantin transaksi asal belum dapat disahkan. Troli dikekalkan; jangan mulakan bayaran QR baharu.',
    mode: 'FIUU_VT_STATUS_RETRY_LIMIT_NOT_READY',
    retry_after_ms: 2_000,
   });
  });
 
  it.each([
-  ['FORBIDDEN', 403],
-  ['NOT_FOUND', 404],
-  ['CALLBACK_ACTIVE', 409],
-  ['NOT_ELIGIBLE', 409],
-  ['STATUS_CHANGED', 409],
+  ['FORBIDDEN', undefined, 403, 'Transaksi Fiuu VT bukan milik sesi tablet ini'],
+  ['NOT_FOUND', undefined, 404, 'Transaksi Fiuu VT tidak dijumpai'],
+  ['CALLBACK_ACTIVE', 'LAUNCH_OR_CALLBACK_PROCESSING_NOT_TERMINAL', 409, 'Percubaan bayaran Fiuu VT masih aktif'],
+  ['NOT_ELIGIBLE', 'STATUS_RETRY_BUDGET_NOT_EXHAUSTED', 409, 'Semakan STATUS belum mencapai had dan tempoh menunggu belum tamat'],
+  ['NOT_ELIGIBLE', 'ATTEMPT_PROVIDER_SUCCESS_EVIDENCE', 409, 'Bukti daripada Fiuu ditemui untuk percubaan asal'],
+  ['NOT_ELIGIBLE', 'PAYMENT_STATE_OR_PROVIDER_EVIDENCE', 409, 'Status transaksi atau bukti daripada Fiuu memerlukan semakan'],
+  ['NOT_ELIGIBLE', 'UNKNOWN_REASON', 409, 'Kuarantin transaksi asal belum dapat disahkan'],
+  ['STATUS_CHANGED', undefined, 409, 'Kuarantin transaksi asal belum dapat disahkan'],
  ] as const)('does not report a rejected database outcome %s as quarantined', async (
   outcome,
+  reason,
   expectedStatus,
+  expectedMessage,
  ) => {
   const admin = adminFor();
   admin.rpc.mockResolvedValueOnce({
-   data: { outcome },
+   data: { outcome, reason },
    error: null,
   });
   mocks.createAdminClient.mockReturnValue(admin);
@@ -272,7 +278,9 @@ describe('POST /api/pos/qr-payments/[paymentId]/vt-park', () => {
 
   expect(response.status).toBe(expectedStatus);
   expect(await response.json()).toMatchObject({
+   error: expect.stringContaining(expectedMessage),
    mode: 'FIUU_VT_STATUS_RETRY_LIMIT_NOT_READY',
+   ...(expectedStatus === 409 ? { retry_after_ms: 2_000 } : {}),
   });
  });
 

@@ -204,7 +204,7 @@ export async function loadAdminOverview(
  issues,
  'pos_daily_summaries',
  service
- .from('pos_daily_summaries')
+ .from('pos_operational_daily_summaries')
  .select('summary_date,total_sales,total_cash,total_qr,transaction_count,void_count,refund_count')
  .eq('organization_id', organizationId)
  .gte('summary_date', period.monthStart)

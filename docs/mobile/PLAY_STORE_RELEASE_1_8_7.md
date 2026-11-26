@@ -2,7 +2,7 @@
 
 ## Release
 
-- Track: `Production` selepas BR001 lulus UAT tablet sebenar
+- Track: `Production`, diterbitkan 24 November 2026, rollout Google Play 100%.
 - Version code: `25`
 - Version name: `1.8.7`
 - AAB: `artifacts/android/rkj-one-staff-1.8.7-release.aab`
@@ -34,3 +34,5 @@ Fiuu VT cancellation can now safely release the cashier without waiting for the 
 - Metadata bundle: application ID `com.rkjone.staff`, variant `release`, version code `25`, version name `1.8.7`.
 - Pemeriksaan tandatangan Java standard berjaya; amaran yang tinggal ialah sijil upload self-signed, tiada timestamp dan sifat ZIP/JAR App Bundle yang dijangka.
 - Sijil upload sepadan dengan release Play Store terdahulu.
+
+Semakan Play Console pada 26 November 2026: versi 1.8.7 (25) ialah keluaran Production terkini dan tiada perubahan belum diterbitkan. Aplikasi rasmi memuatkan `https://rkj.one`; pembaikan susulan Web/SQL tidak memerlukan muat naik AAB baharu. Rollout Google Play 100% tidak bermaksud setiap tablet sudah memasangnya.

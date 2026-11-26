@@ -18,7 +18,7 @@ export async function GET(request: Request) {
 
  const supabase = await createClient();
 
- const { data: txs, error: txError } = await supabase.from('pos_transactions').select('id').eq('organization_id', profile.organization_id).eq('status', 'COMPLETED').gte('created_at', `${from}T00:00:00`).lte('created_at', `${to}T23:59:59`).limit(500);
+ const { data: txs, error: txError } = await supabase.from('pos_operational_transactions').select('id').eq('organization_id', profile.organization_id).eq('status', 'COMPLETED').gte('created_at', `${from}T00:00:00`).lte('created_at', `${to}T23:59:59`).limit(500);
  if (txError) return NextResponse.json({ error: txError.message }, { status: 500 });
 
  const txIds = ((txs ?? []) as { id: string }[]).map((t) => t.id);

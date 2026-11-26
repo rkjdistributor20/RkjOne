@@ -28,6 +28,7 @@ import {
  isFiuuVtCashierReleaseRuntimeReady,
  isFiuuVtEnabledForBranch,
  isFiuuVtCashierReleaseEnabledForBranch,
+ isFiuuVtNewSaleEnabledForBranch,
  normalizeFiuuVtBranchCode,
 } from './fiuu-vt-server';
 
@@ -446,6 +447,22 @@ describe('Fiuu VT registered-branch gate', () => {
   expect(isFiuuVtCashierReleaseRuntimeReady()).toBe(true);
   expect(isFiuuVtCashierReleaseEnabledForBranch('BR001')).toBe(true);
   expect(isFiuuVtCashierReleaseEnabledForBranch('BR002')).toBe(false);
+ });
+
+ it('requires both branch lists for new VT sales without shrinking the recovery roster', () => {
+  process.env.POS_QR_PAYMENT_MODE = 'fiuu_vt';
+  process.env.POS_FIUU_VT_BRANCHES = 'BR001,BR002';
+  delete process.env.POS_FIUU_VT_CASHIER_RELEASE_BRANCHES;
+  expect(isFiuuVtNewSaleEnabledForBranch('BR001')).toBe(false);
+
+  process.env.POS_FIUU_VT_CASHIER_RELEASE_BRANCHES = 'BR001,BR003';
+  expect(isFiuuVtNewSaleEnabledForBranch('br001')).toBe(true);
+  expect(isFiuuVtNewSaleEnabledForBranch('BR002')).toBe(false);
+  expect(isFiuuVtNewSaleEnabledForBranch('BR003')).toBe(false);
+  expect(isFiuuVtEnabledForBranch('BR002')).toBe(true);
+
+  process.env.POS_QR_PAYMENT_MODE = 'manual';
+  expect(isFiuuVtNewSaleEnabledForBranch('BR001')).toBe(false);
  });
 
  it.each([

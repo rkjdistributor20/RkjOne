@@ -17,7 +17,7 @@ export async function GET(request: Request) {
  : 50;
 
  const supabase = await createClient();
- const { data, error } = await supabase.from('pos_shifts').select(`
+ const { data, error } = await supabase.from('pos_operational_shifts').select(`
  total_sales,
  staff:staff(id, staff_code, full_name, branch:branches(branch_name))
  `).eq('organization_id', profile.organization_id).eq('status', 'CLOSED').gte('closed_at', `${from}T00:00:00`).lte('closed_at', `${to}T23:59:59`);

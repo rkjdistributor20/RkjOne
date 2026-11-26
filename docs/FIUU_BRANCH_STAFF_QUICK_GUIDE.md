@@ -1,31 +1,22 @@
 # Panduan pantas Fiuu untuk staf cawangan
 
-Last updated: 2026-11-04
+Last updated: 2026-11-26
 
 ## Status semasa
 
-- **Tablet rasmi yang sudah didaftarkan:** gunakan aliran automatik Fiuu VT
-  App-to-App. BR001 telah lulus UAT operasi termasuk bayaran, resit, stok, syif
-  dan cetakan. Setiap cawangan lain hanya mendapat aliran ini selepas tablet
-  fizikal cawangan itu didaftarkan sendiri.
-- **Tablet belum didaftarkan atau tidak sepadan:** sistem kekal menggunakan QR
-  statik/manual yang dipadankan kepada cawangan. Staf mesti menyemak bukti
-  bayaran berjaya sebelum mengesahkan; jangan cuba menggunakan tablet cawangan
-  lain.
-- **OPA automatik semua cawangan:** belum aktif. Jangan anggap ikon QR atau
-  paparan `Menunggu` sebagai bayaran berjaya.
+- **Kemas kini** [RKJ One Staff di Google Play](https://play.google.com/store/apps/details?id=com.rkjone.staff) kepada **1.8.7 (kod 25)** atau keluaran rasmi yang lebih baharu. Buka aplikasi dan pastikan kod cawangan serta versi pada kad POS betul.
+- **QR automatik:** guna Fiuu VT hanya apabila HQ telah mengesahkan tablet, terminal dan akaun penerimaan untuk cawangan itu. Ikon DuitNow tidak membuktikan bahawa QR automatik sudah aktif.
+- **QR manual:** guna hanya QR cawangan yang akaun penerimaannya sudah disahkan HQ. Jika tablet belum didaftarkan atau tidak sepadan dengan cawangan, minta HQ betulkan pendaftaran dahulu; jangan pinjam identiti tablet lain.
 
 ## Sebelum mula jualan
 
 1. Pastikan nama dan kod cawangan pada RKJ One adalah cawangan sebenar tablet.
-2. Log masuk menggunakan akaun staf sendiri dan buka syif yang betul.
-3. Semak stok pembukaan dan pastikan printer 58 mm menunjukkan sedia.
-4. Pastikan tiada bayaran QR lama berstatus `Menunggu`, `PENDING` atau
-   `REPORTED`. Jika ada, tekan **Semak status** atau panggil penyelia; jangan
-   jana QR baharu.
+2. Log masuk dengan akaun sendiri. Buka syif operasi dengan jumlah float yang benar-benar dikira. Sertai syif dan tunggu kelulusan PIC atau keahlian jika diminta.
+3. Rekod stok pembukaan melalui **Stok & SOP**. Jika resit bercetak diperlukan, pastikan pencetak 58 mm menunjukkan sedia.
+4. Jika bayaran di kaunter masih aktif atau belum jelas, tekan **Semak status** atau hubungi penyelia. Jangan caj semula. Jika sistem mengesahkan kaunter sudah dilepaskan, transaksi semakan HQ kekal pada pesanan asal dan tidak perlu dibayar semula untuk meneruskan pelanggan seterusnya.
 5. Semak jumlah troli sebelum memilih kaedah bayaran.
 
-## Jualan DuitNow QR — tablet belum berdaftar (manual/static)
+## Jualan DuitNow QR — mod manual yang disahkan
 
 1. Pilih produk dan tekan **Sahkan Bayaran**.
 2. Pilih **DuitNow QR** dan pastikan jumlah pada skrin sama dengan jumlah troli.
@@ -66,16 +57,14 @@ penyelia mengesahkan cubaan lama sudah gagal/luput dengan selamat.
    salinan aplikasi atau kod pendaftaran antara cawangan.
 4. Pastikan POS memaparkan cawangan yang betul. Jika aliran masih manual, jangan
    paksa VT; hubungi HQ untuk semak aset, status cawangan dan pendaftaran.
-5. Buat satu transaksi kecil terkawal, cetak resit dan padankan jualan, stok,
-   syif serta settlement sebelum penggunaan biasa.
+5. Semak bahawa versi dan padanan peranti telah diterima oleh HQ. Gunakan hanya kaedah bayaran yang disahkan untuk cawangan tersebut.
 
 ## Selepas setiap jualan
 
 - Semak nombor resit dan jumlah pada skrin.
 - Pastikan printer mencetak satu salinan; cetak semula hanya daripada resit
   sedia ada, bukan dengan mencipta jualan baharu.
-- Jika resit tidak keluar tetapi jualan sudah berjaya, buka resit sedia ada dan
-  cetak semula. Jangan caj pelanggan lagi.
+- Jika cetakan gagal, gunakan **Cetak terus** daripada dialog resit yang masih terbuka. Jika dialog sudah ditutup, berikan nombor resit kepada penyelia untuk semakan. Jangan caj pelanggan lagi.
 - Catat dan laporkan sebarang perbezaan jumlah, resit berganda, stok tidak
   berubah atau status tergantung kepada penyelia.
 

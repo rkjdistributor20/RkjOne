@@ -41,7 +41,7 @@ export async function GET(request: Request) {
  { status: posAccessErrorStatus(err) });
  }
 
- let query = supabase.from('pos_transactions').select(
+ let query = supabase.from('pos_operational_transactions').select(
  `
  *,
  pos_transaction_items (*)

@@ -152,7 +152,7 @@ async function loadSalesByStaff(
  const map = new Map<string, number>();
  if (staffIds.length === 0) return map;
 
- const { data } = await supabase.from('pos_shifts').select('staff_id, total_sales').in('staff_id', staffIds).eq('status', 'CLOSED').gte('closed_at', `${periodStart}T00:00:00`).lte('closed_at', `${periodEnd}T23:59:59`);
+ const { data } = await supabase.from('pos_operational_shifts').select('staff_id, total_sales').in('staff_id', staffIds).eq('status', 'CLOSED').gte('closed_at', `${periodStart}T00:00:00`).lte('closed_at', `${periodEnd}T23:59:59`);
 
  for (const row of data ?? []) {
  const id = row.staff_id as string;

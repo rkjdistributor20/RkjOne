@@ -48,7 +48,7 @@ export async function getAreaManagerBranchMetrics(
  const [branchesRes, summariesRes, shiftsRes, staffRes, attendanceRes] =
  await Promise.all([
  supabase.from('branches').select('id, branch_code, branch_name').eq('organization_id', orgId).in('id', branchIds).eq('status', 'ACTIVE').order('branch_code'),
- supabase.from('pos_daily_summaries').select('branch_id, summary_date, total_sales, transaction_count').eq('organization_id', orgId).in('branch_id', branchIds).gte('summary_date', monthStart),
+ supabase.from('pos_operational_daily_summaries').select('branch_id, summary_date, total_sales, transaction_count').eq('organization_id', orgId).in('branch_id', branchIds).gte('summary_date', monthStart),
  supabase.from('pos_shifts').select('branch_id').eq('organization_id', orgId).eq('status', 'OPEN').in('branch_id', branchIds),
  supabase.from('staff').select('branch_id').eq('organization_id', orgId).eq('status', 'ACTIVE').in('branch_id', branchIds),
  supabase.from('attendance_records').select('branch_id, staff_id').eq('organization_id', orgId).eq('attendance_date', today).in('branch_id', branchIds),

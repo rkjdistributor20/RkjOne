@@ -45,6 +45,7 @@ import {
 import {
  getFiuuVtValiditySeconds,
  isFiuuVtEnabledForBranch,
+ isFiuuVtNewSaleEnabledForBranch,
 } from '@/lib/pos/fiuu-vt-server';
 import {
  isSamePosPaymentIntent,
@@ -624,6 +625,22 @@ export async function POST(request: Request) {
    transport,
    'FIUU_ACTIVE_ATTEMPT_EXISTS',
   );
+ }
+
+ if (transport.integration === 'vt_app') {
+  // Existing attempts above remain discoverable for recovery. The smaller
+  // verified-branch list controls only allocation of a fresh VT payment.
+  try {
+   if (!isFiuuVtNewSaleEnabledForBranch(branchCode)) {
+    return NextResponse.json({
+     error: 'QR automatik Fiuu VT belum dibenarkan untuk cawangan ini. Gunakan tunai atau QR manual cawangan jika tersedia.',
+     mode: 'FIUU_VT_BRANCH_NOT_ENABLED',
+    }, { status: 409 });
+   }
+  } catch (error) {
+   console.error('[pos-fiuu-vt] invalid_new_sale_configuration', { reason: errorMessage(error) });
+   return NextResponse.json({ error: 'Konfigurasi jualan Fiuu VT tidak sah. Hubungi HQ.' }, { status: 503 });
+  }
  }
 
  if (transport.integration === 'opa') {

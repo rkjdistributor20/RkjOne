@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
  createAdminClient: vi.fn(),
  getOpenPosBranchShiftId: vi.fn(),
  getCurrentProfile: vi.fn(),
+ isFiuuVtNewSaleEnabledForBranch: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/session', () => ({
@@ -27,6 +28,7 @@ vi.mock('@/lib/pos/fiuu-vt', async () => ({
  ...await import('../../../../../../lib/pos/fiuu-vt'),
 }));
 vi.mock('@/lib/pos/fiuu-vt-server', () => ({
+ isFiuuVtNewSaleEnabledForBranch: mocks.isFiuuVtNewSaleEnabledForBranch,
  normalizeFiuuVtBranchCode: vi.fn((value: unknown) => (
   typeof value === 'string' ? value.trim().toUpperCase() : null
  )),
@@ -177,6 +179,37 @@ describe('Fiuu VT launch retry leases', () => {
   mocks.assertCanAccessPosBranch.mockResolvedValue(undefined);
   mocks.assertActivePosShiftMember.mockResolvedValue(undefined);
   mocks.getOpenPosBranchShiftId.mockResolvedValue('shift-1');
+  mocks.isFiuuVtNewSaleEnabledForBranch.mockReturnValue(true);
+ });
+
+ it('cannot launch an older unstarted SALE on a branch limited to recovery', async () => {
+  const { admin, rpc } = makeAdmin(async () => launchDecision('SALE'), payment({
+   provider_transaction_id: null,
+   provider_sale_reported_at: null,
+  }));
+  mocks.createAdminClient.mockReturnValue(admin);
+  mocks.isFiuuVtNewSaleEnabledForBranch.mockReturnValue(false);
+
+  const response = await invoke('SALE');
+
+  expect(response.status).toBe(409);
+  await expect(response.json()).resolves.toMatchObject({ mode: 'FIUU_VT_BRANCH_NOT_ENABLED' });
+  expect(mocks.isFiuuVtNewSaleEnabledForBranch).toHaveBeenCalledWith('BR001');
+  expect(rpc).not.toHaveBeenCalled();
+ });
+
+ it.each(['STATUS', 'VOID'] as const)('keeps %s available on a branch limited to recovery', async (opType) => {
+  const { admin, rpc } = makeAdmin(async () => launchDecision(opType));
+  mocks.createAdminClient.mockReturnValue(admin);
+  mocks.isFiuuVtNewSaleEnabledForBranch.mockReturnValue(false);
+
+  const response = await invoke(opType);
+
+  expect(response.status).toBe(200);
+  expect(rpc).toHaveBeenCalledWith('claim_pos_fiuu_vt_launch_lease', expect.objectContaining({
+   p_op_type: opType,
+  }));
+  expect(mocks.isFiuuVtNewSaleEnabledForBranch).not.toHaveBeenCalled();
  });
 
  it('claims the normal shift-bound lease for the current cashier STATUS launch', async () => {

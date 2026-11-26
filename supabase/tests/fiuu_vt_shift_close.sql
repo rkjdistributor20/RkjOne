@@ -26,6 +26,12 @@ DECLARE
   v_total_before NUMERIC;
   v_new_shift UUID;
   v_tx UUID;
+  v_callback UUID;
+  v_callback_host TEXT;
+  v_provider_order TEXT;
+  v_recovered JSONB;
+  v_successor_payment UUID := gen_random_uuid();
+  v_successor_tx UUID;
   v_closed_at TIMESTAMPTZ;
   v_ended_at TIMESTAMPTZ;
   v_blocked BOOLEAN;
@@ -189,8 +195,42 @@ BEGIN
     RAISE EXCEPTION 'Background review stopped or invented a provider outcome after shift close: %', v_background;
   END IF;
 
-  -- Simulate Finance confirming provider evidence after close. Change the
-  -- catalog price to prove the original prices, not today's, are used.
+  -- Simulate a durable, matching STATUS callback resuming after the close.
+  -- The worker must leave it on the original order for Finance. This starts
+  -- at RECEIVED; it does not exercise tablet delivery or provider authentication.
+  v_callback := gen_random_uuid();
+  v_callback_host := 'a-' || replace(v_callback::TEXT, '-', '') || '.fiuu-vt.rkj.one';
+  SELECT provider_order_id INTO STRICT v_provider_order
+  FROM public.pos_online_payments WHERE id = v_payment_ids[1];
+  INSERT INTO public.pos_fiuu_vt_attempts (
+    id, payment_id, provider_order_id, op_type, callback_host, state,
+    expires_at, received_at, result_json
+  ) VALUES (
+    v_callback, v_payment_ids[1], v_provider_order, 'STATUS', v_callback_host,
+    'RECEIVED', clock_timestamp() + interval '1 minute', clock_timestamp(),
+    jsonb_build_object(
+      'opType', 'STATUS', 'status', '00', 'orderId', v_provider_order,
+      'transactionId', 'FIXTURE-LATE-PROVIDER-001', 'amountRm', '2.50',
+      'currency', 'MYR', 'channel', 'RPP_DuitNowQR-Offline',
+      'callbackAttemptId', v_callback::TEXT, 'callbackHost', v_callback_host
+    )
+  );
+  v_recovered := public.recover_pos_fiuu_vt_received_attempt(v_callback);
+  IF v_recovered->>'outcome' IS DISTINCT FROM 'QUARANTINED_LATE_SUCCESS'
+    OR (public.recover_pos_fiuu_vt_received_attempt(v_callback)->>'outcome')
+       IS DISTINCT FROM 'ALREADY_QUARANTINED'
+    OR NOT EXISTS (
+      SELECT 1 FROM public.pos_online_payments WHERE id = v_payment_ids[1]
+        AND provider_transaction_id = 'FIXTURE-LATE-PROVIDER-001'
+        AND shift_id = v_shift AND status = 'QUARANTINED'
+        AND fiuu_vt_reconciliation_state = 'LATE_SUCCESS_REVIEW'
+        AND transaction_id IS NULL AND paid_at IS NULL
+    ) THEN
+    RAISE EXCEPTION 'Late received callback was misattributed or processed twice: %', v_recovered;
+  END IF;
+
+  -- Confirm that provider evidence using the Finance path. Change the
+  -- catalog price to prove it uses the original pricing.
   UPDATE public.products SET price = 3.50 WHERE id = v_product;
   v_sale := public.resolve_pos_fiuu_vt_review_for_shift(
     v_payment_ids[1], v_finance, 'CONFIRMED_CHARGED', 'FIXTURE-LATE-PROVIDER-001', 'Synthetic matched provider evidence'
@@ -228,6 +268,62 @@ BEGIN
       AND action = 'FIUU_VT_LATE_QR_POSTED') <> 1 THEN
     RAISE EXCEPTION 'Late sale, stock, snapshot or idempotency result was unsafe';
   END IF;
-  RAISE NOTICE 'Passed: default-off, active QR block with rollback, STAFF closure with 11 reviews, successor shift, background timeout, Finance late QR with original pricing, single receipt/stock/audit, duplicate-cart rollback';
+
+  -- Simulate the client losing connectivity after the server saves STATUS.
+  -- While the client lease is active the job does nothing. On expiry it
+  -- fulfils one sale and subsequent runs cannot repeat that fulfilment.
+  UPDATE public.products SET price = 2.50 WHERE id = v_product;
+  v_provider_order := 'RKJ_' || upper(replace(v_successor_payment::TEXT, '-', ''));
+  INSERT INTO public.pos_online_payments (
+    id, organization_id, branch_id, shift_id, amount_rm, status, provider,
+    provider_order_id, sale_payload, created_by, expires_at, idempotency_key
+  ) VALUES (
+    v_successor_payment, v_branch.organization_id, v_branch.id, v_new_shift,
+    2.50, 'PENDING', 'fiuu_vt', v_provider_order,
+    v_product_payload || jsonb_build_object('shiftId', v_new_shift, 'cart_session_id', gen_random_uuid()),
+    v_actor, clock_timestamp() + interval '15 minutes', v_successor_payment::TEXT
+  );
+  v_callback := gen_random_uuid();
+  v_callback_host := 'a-' || replace(v_callback::TEXT, '-', '') || '.fiuu-vt.rkj.one';
+  INSERT INTO public.pos_fiuu_vt_attempts (
+    id, payment_id, provider_order_id, op_type, callback_host, state,
+    expires_at, received_at, result_json, processing_lease_token,
+    processing_lease_expires_at, processing_lease_generation
+  ) VALUES (
+    v_callback, v_successor_payment, v_provider_order, 'STATUS', v_callback_host,
+    'RECEIVED', clock_timestamp() + interval '1 minute', clock_timestamp(),
+    jsonb_build_object(
+      'opType', 'STATUS', 'status', '00', 'orderId', v_provider_order,
+      'transactionId', 'FIXTURE-RESUMED-PROVIDER-001', 'amountRm', '2.50',
+      'currency', 'MYR', 'channel', 'RPP_DuitNowQR-Offline',
+      'callbackAttemptId', v_callback::TEXT, 'callbackHost', v_callback_host
+    ), gen_random_uuid(), clock_timestamp() + interval '1 minute', 1
+  );
+  IF (public.recover_pos_fiuu_vt_received_attempt(v_callback)->>'outcome')
+    IS DISTINCT FROM 'ACTIVE' OR EXISTS (
+      SELECT 1 FROM public.pos_transactions WHERE shift_id = v_new_shift
+    ) THEN
+    RAISE EXCEPTION 'Recovery raced the active client processing lease';
+  END IF;
+  UPDATE public.pos_fiuu_vt_attempts
+    SET processing_lease_expires_at = clock_timestamp() - interval '1 second'
+    WHERE id = v_callback;
+  v_recovered := public.recover_pos_fiuu_vt_received_attempt(v_callback);
+  SELECT transaction_id INTO STRICT v_successor_tx FROM public.pos_online_payments
+    WHERE id = v_successor_payment AND status = 'PAID';
+  IF v_recovered->>'outcome' IS DISTINCT FROM 'FULFILLED'
+    OR (public.recover_pos_fiuu_vt_received_attempt(v_callback)->>'outcome')
+       IS DISTINCT FROM 'ALREADY_PROCESSED'
+    OR (SELECT count(*) FROM public.pos_transactions WHERE shift_id = v_new_shift) <> 1
+    OR (SELECT count(*) FROM public.pos_receipts WHERE transaction_id = v_successor_tx) <> 1
+    OR (SELECT count(*) FROM public.pos_stock_deductions WHERE transaction_id = v_successor_tx) <> 1
+    OR (SELECT quantity FROM public.inventory_balances WHERE location_id = v_location AND stock_item_id = v_stock.id)
+      IS DISTINCT FROM v_stock_before - 2
+    OR (SELECT total_sales FROM public.pos_shifts WHERE id = v_new_shift)
+      IS DISTINCT FROM v_total_before + 2.50
+    OR (SELECT count(*) FROM public.pos_transactions WHERE shift_id = v_shift) <> 1 THEN
+    RAISE EXCEPTION 'Interrupted STATUS recovery or replay changed sale, receipt, stock or shift incorrectly: %', v_recovered;
+  END IF;
+  RAISE NOTICE 'Passed: active QR guard, STAFF closure, late STATUS isolated to original shift, Finance exact replay, successor STATUS resumes after lease expiry with one sale/receipt/deduction';
 END;
 $$;

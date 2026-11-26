@@ -12,7 +12,10 @@ import {
  buildFiuuVtCallbackHost,
  type FiuuVtOperation,
 } from '@/lib/pos/fiuu-vt';
-import { normalizeFiuuVtBranchCode } from '@/lib/pos/fiuu-vt-server';
+import {
+ isFiuuVtNewSaleEnabledForBranch,
+ normalizeFiuuVtBranchCode,
+} from '@/lib/pos/fiuu-vt-server';
 import { enforceRateLimit } from '@/lib/security/rate-limit';
 import { createAdminClient } from '@/lib/supabase/admin';
 import type { Json } from '@/types/database';
@@ -261,6 +264,7 @@ export async function POST(
  }
 
  let detachedStatus = false;
+ let deviceBranchCode: string | null = null;
 
  try {
   await assertCanAccessPosBranch(service, profile, payment.branch_id);
@@ -283,7 +287,7 @@ export async function POST(
    await assertActivePosShiftMember(service, profile, payment.shift_id, payment.branch_id);
   }
   const salePayload = jsonRecord(payment.sale_payload);
-  const deviceBranchCode = normalizeFiuuVtBranchCode(device.branchCode);
+  deviceBranchCode = normalizeFiuuVtBranchCode(device.branchCode);
   const paymentBranchCode = normalizeFiuuVtBranchCode(salePayload?.fiuu_branch_code);
   if ((!detachedStatus && payment.created_by !== profile.id)
    || salePayload?.fiuu_device_id !== device.id
@@ -324,6 +328,24 @@ export async function POST(
    error: 'SALE Fiuu VT sudah bermula. Gunakan semakan STATUS; jangan buka SALE kedua.',
    mode: 'FIUU_VT_STATUS_REQUIRED',
   }, { status: 409 });
+ }
+
+ // An older unlaunched intent must not bypass the new-sale gate. Existing
+ // STATUS/VOID operations and PATCH acknowledgements stay on their old paths.
+ if (opType === 'SALE') {
+  try {
+   if (!deviceBranchCode || !isFiuuVtNewSaleEnabledForBranch(deviceBranchCode)) {
+    return NextResponse.json({
+     error: 'QR automatik Fiuu VT belum dibenarkan untuk cawangan ini. Semak status transaksi asal; jangan caj semula.',
+     mode: 'FIUU_VT_BRANCH_NOT_ENABLED',
+    }, { status: 409 });
+   }
+  } catch (error) {
+   console.error('[pos-fiuu-vt] invalid_new_sale_configuration', {
+    reason: error instanceof Error ? error.message : 'unknown',
+   });
+   return NextResponse.json({ error: 'Konfigurasi jualan Fiuu VT tidak sah. Hubungi HQ.' }, { status: 503 });
+  }
  }
 
  const attemptId = randomUUID();

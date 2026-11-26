@@ -17,7 +17,7 @@ export async function GET(request: Request) {
  : 50;
 
  const supabase = await createClient();
- const { data, error } = await supabase.from('pos_daily_summaries').select(`
+ const { data, error } = await supabase.from('pos_operational_daily_summaries').select(`
  total_sales, total_cash, total_qr, transaction_count,
  branch:branches(id, branch_code, branch_name, region:regions(name))
  `).eq('organization_id', profile.organization_id).gte('summary_date', from).lte('summary_date', to);

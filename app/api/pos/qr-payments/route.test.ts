@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
  isFiuuOpaEnabledForBranch: vi.fn(),
  isFiuuOpaRolloutActive: vi.fn(),
  isFiuuVtEnabledForBranch: vi.fn(),
+ isFiuuVtNewSaleEnabledForBranch: vi.fn(),
  posAccessErrorStatus: vi.fn(),
 }));
 
@@ -80,6 +81,7 @@ vi.mock('@/lib/pos/fiuu-vt-reliability', () => ({
 vi.mock('@/lib/pos/fiuu-vt-server', () => ({
  getFiuuVtValiditySeconds: vi.fn(() => 900),
  isFiuuVtEnabledForBranch: mocks.isFiuuVtEnabledForBranch,
+ isFiuuVtNewSaleEnabledForBranch: mocks.isFiuuVtNewSaleEnabledForBranch,
 }));
 import { POST } from './route';
 import { createPosQrPayment, PosQrPaymentError } from '../../../../lib/pos/api';
@@ -207,6 +209,7 @@ beforeEach(() => {
  mocks.posAccessErrorStatus.mockReturnValue(403);
  mocks.isFiuuOpaEnabledForBranch.mockReturnValue(false);
  mocks.isFiuuVtEnabledForBranch.mockReturnValue(false);
+ mocks.isFiuuVtNewSaleEnabledForBranch.mockReturnValue(false);
  mocks.getFiuuOpaConfig.mockReturnValue(OPA_CONFIG);
  mocks.getFiuuOpaConfigurationFingerprint.mockReturnValue('a'.repeat(64));
  mocks.isFiuuOpaRolloutActive.mockResolvedValue(false);
@@ -221,6 +224,7 @@ describe('Fiuu VT create with a lost server response', () => {
  it.each(['offline', 'gateway 502'])('reuses the committed attempt after %s', async (fault) => {
   mocks.getPosQrPaymentMode.mockReturnValue('fiuu_vt');
   mocks.isFiuuVtEnabledForBranch.mockReturnValue(true);
+  mocks.isFiuuVtNewSaleEnabledForBranch.mockReturnValue(true);
   const { adminQuery } = arrangeReadyPaymentPath();
   const payload = {
    branchId: BRANCH_ID,
@@ -240,6 +244,8 @@ describe('Fiuu VT create with a lost server response', () => {
     firstResponse = await response.json();
     const [saved] = adminQuery.insert.mock.calls[0];
     adminQuery.maybeSingle.mockResolvedValueOnce({ data: saved, error: null });
+    // Turning off fresh sales must not hide the original payment on retry.
+    mocks.isFiuuVtNewSaleEnabledForBranch.mockReturnValue(false);
     if (fault === 'offline') throw new TypeError('Network connection lost');
     return new Response('Bad Gateway', { status: 502 });
    }
@@ -262,6 +268,21 @@ describe('Fiuu VT create with a lost server response', () => {
   expect(adminQuery.update.mock.calls.every(([row]) => row.status !== 'PAID'
    && row.status !== 'CANCELLED')).toBe(true);
   expect(mocks.createFiuuDynamicQr).not.toHaveBeenCalled();
+ });
+});
+
+describe('Fiuu VT new-sale branch gate', () => {
+ it('rejects a fresh VT payment on a recovery-only branch without inserting it', async () => {
+  mocks.getPosQrPaymentMode.mockReturnValue('fiuu_vt');
+  mocks.isFiuuVtEnabledForBranch.mockReturnValue(true);
+  const { adminQuery } = arrangeReadyPaymentPath();
+
+  const response = await POST(paymentRequest());
+
+  expect(response.status).toBe(409);
+  await expect(response.json()).resolves.toMatchObject({ mode: 'FIUU_VT_BRANCH_NOT_ENABLED' });
+  expect(adminQuery.maybeSingle).toHaveBeenCalledTimes(3);
+  expect(adminQuery.insert).not.toHaveBeenCalled();
  });
 });
 

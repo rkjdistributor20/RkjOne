@@ -160,6 +160,61 @@ describe('Vercel Cron Fiuu VT recovery endpoint', () => {
   expect(mocks.recordFiuuVtRecoverySuccess).toHaveBeenCalledTimes(1);
  });
 
+ it('does not finalize or classify an expired VT payment whose only SALE callback never arrived', async () => {
+  const service = arrangeService();
+  const pending = {
+   id: '33333333-3333-4333-8333-333333333333',
+   provider: 'fiuu_vt',
+   status: 'PENDING',
+   provider_result: null,
+   fiuu_vt_review_required: false,
+   fiuu_vt_cashier_released_at: null,
+   expires_at: '2026-11-25T15:53:29Z',
+  };
+  const launched = { attempt_id: '44444444-4444-4444-8444-444444444444', state: 'LAUNCHED' };
+  const before = { ...pending };
+  const table = service.from('pos_online_payments');
+  if (!('update' in table)) throw new Error('Missing payment table fixture');
+  table.select.mockImplementation(() => {
+   let matches = true;
+   const value = (column: string) => pending[column as keyof typeof pending];
+   const query = {
+    eq(column: string, expected: unknown) {
+     matches &&= value(column) === expected; // includes the unavailable provider STATUS result
+     return query;
+    },
+    not(column: string, operator: string, expected: unknown) {
+     expect(operator).toBe('is');
+     matches &&= value(column) !== expected; // in particular, not a released lane
+     return query;
+    },
+    in(column: string, allowed: unknown[]) {
+     if (column === 'status') matches &&= allowed.includes(pending.status);
+     return query;
+    },
+    or() { return query; },
+    order() { return query; },
+    limit: async () => ({ data: matches ? [pending] : [], error: null }),
+   };
+   return query;
+  });
+  service.rpc.mockImplementation(async (name: string) => {
+   if (name !== 'list_pos_fiuu_vt_received_attempts') throw new Error(`Unexpected write RPC: ${name}`);
+   return { data: [launched].filter(attempt => attempt.state === 'RECEIVED'), error: null };
+  });
+
+  const response = await GET(request());
+
+  expect(response.status).toBe(200);
+  await expect(response.json()).resolves.toMatchObject({
+   ok: true, examined: 0, receivedAttemptsExamined: 0, releasedExamined: 0, quarantined: 0,
+  });
+  expect(service.rpc).toHaveBeenCalledTimes(1);
+  expect(mocks.recoverReportedFiuuVtPayment).not.toHaveBeenCalled();
+  expect(table.update).not.toHaveBeenCalled();
+  expect(pending).toEqual(before);
+ });
+
  it('returns 503 when a successful run cannot durably record its heartbeat', async () => {
   mocks.recordFiuuVtRecoverySuccess.mockResolvedValue(false);
 

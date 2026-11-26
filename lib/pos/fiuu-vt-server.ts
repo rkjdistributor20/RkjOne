@@ -63,6 +63,15 @@ export function isFiuuVtEnabledForBranch(branchCode: string): boolean {
   && getFiuuVtBranches().has(normalizedBranchCode);
 }
 
+// The VT roster also covers reconciliation. Only the cashier-release rollout
+// branches are approved to start new VT sales.
+export function isFiuuVtNewSaleEnabledForBranch(branchCode: string): boolean {
+ const normalizedBranchCode = normalizeFiuuVtBranchCode(branchCode);
+ return normalizedBranchCode !== null
+  && isFiuuVtEnabledForBranch(normalizedBranchCode)
+  && getFiuuVtCashierReleaseBranches().has(normalizedBranchCode);
+}
+
 export function isFiuuVtCashierReleaseRuntimeReady(): boolean {
  // Cashier release creates a detached PENDING payment that must be recovered
  // independently of the tablet. Require the dedicated gate (no legacy

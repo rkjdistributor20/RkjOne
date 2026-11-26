@@ -10786,6 +10786,9 @@ export type Database = {
       }
     }
     Views: {
+      pos_operational_daily_summaries: Pick<Database["public"]["Tables"]["pos_daily_summaries"], "Row" | "Relationships">
+      pos_operational_transactions: Pick<Database["public"]["Tables"]["pos_transactions"], "Row" | "Relationships">
+      pos_operational_shifts: Pick<Database["public"]["Tables"]["pos_shifts"], "Row" | "Relationships">
       dashboard_daily_rollups: {
         Row: {
           branch_count: number | null
