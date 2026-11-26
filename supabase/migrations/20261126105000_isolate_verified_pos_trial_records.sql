@@ -374,7 +374,8 @@ BEGIN
   SELECT pg_get_functiondef(p.oid) INTO v_definition
   FROM pg_catalog.pg_proc p
   WHERE p.oid = v_dashboard_oid
-    AND md5(p.prosrc) = 'cc9e5ac34c61b8cc0d79c29ddef7d953'
+    -- The same source body was stored with CRLF locally and LF in production.
+    AND md5(replace(p.prosrc, E'\r\n', E'\n')) = 'a1ccd37041d42d3f0afd93198266580e'
     AND p.provolatile = 's' AND NOT p.prosecdef
     AND p.proconfig = ARRAY['search_path=public'];
   IF NOT FOUND THEN
