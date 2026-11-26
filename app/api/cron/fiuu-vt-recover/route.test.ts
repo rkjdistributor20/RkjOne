@@ -72,7 +72,7 @@ function arrangeService() {
  };
  const service = {
   from: vi.fn((table: string) => table === 'branches' ? branchQuery : paymentTable),
-  rpc: vi.fn(async (name: string) => ({
+  rpc: vi.fn(async (name: string): Promise<{ data: unknown; error: { message: string } | null }> => ({
    data: name === 'reconcile_pos_fiuu_vt_review_status' ? { verified: 0 } : [], error: null,
   })),
  };
@@ -160,6 +160,17 @@ describe('Vercel Cron Fiuu VT recovery endpoint', () => {
    automaticReview: { verified: 0 },
   });
   expect(mocks.createAdminClient).toHaveBeenCalledTimes(1);
+  expect(mocks.recordFiuuVtRecoverySuccess).toHaveBeenCalledTimes(1);
+ });
+
+ it('keeps the existing heartbeat healthy when only optional evidence verification fails', async () => {
+  const service = arrangeService();
+  service.rpc.mockImplementation(async (name: string) => name === 'reconcile_pos_fiuu_vt_review_status'
+   ? { data: null, error: { message: 'fixture error' } }
+   : { data: [], error: null });
+  const response = await GET(request());
+  expect(response.status).toBe(200);
+  await expect(response.json()).resolves.toMatchObject({ automaticReview: { error: 'unavailable' } });
   expect(mocks.recordFiuuVtRecoverySuccess).toHaveBeenCalledTimes(1);
  });
 
