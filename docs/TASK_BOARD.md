@@ -6,6 +6,9 @@ Status key: `Todo`, `In Progress`, `Review`, `Blocked`, `Done`.
 
 ## POS closure without blocking on detached QR
 
+- Pending manual QR that is already linked to its sale can follow the shift into review. The closure snapshot records unverified QR separately without altering counted cash. Only the enrolled production fleet is eligible for the expansion migration.
+- The VT recovery worker can verify an exact, non-conflicting durable `STATUS 00` without waiting for shift close. Ledger posting of quarantined payments still needs HQ when cross-tender ownership is not known. Gmail notices and manual QR without both exact association and provider proof remain exceptions.
+
 | ID | Status | Task | Acceptance |
 |----|--------|------|------------|
 | POS-VT-CLOSE | Review | Atomic close and immutable snapshot; verified late posting against original shift. | Local BR001 fixture, then registered tablet pilot only; approval applies only after no-active-payment check. |

@@ -37,6 +37,15 @@ function sanitizeEvidence(value: Json, depth = 0): unknown {
  ]));
 }
 
+function hasMatchedStatus(evidence: Json, latest: Json, transactionId: string | null): boolean {
+ if (!transactionId || !evidence || typeof evidence !== 'object' || Array.isArray(evidence)
+  || !latest || typeof latest !== 'object' || Array.isArray(latest)) return false;
+ const match = evidence.automaticStatusValidated;
+ return Boolean(match && typeof match === 'object' && !Array.isArray(match)
+  && match.source === 'REGISTERED_VT_STATUS' && match.providerTransactionId === transactionId
+  && latest.opType === 'STATUS' && latest.status === '00' && latest.transactionId === transactionId);
+}
+
 export async function GET(request: Request) {
  const profile = await getCurrentProfile();
  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -93,6 +102,8 @@ export async function GET(request: Request) {
  error_count: row.fiuu_vt_provider_error_count,
  error_at: row.fiuu_vt_provider_error_at,
  last_provider_evidence: providerEvidenceSummary(row.provider_result),
+ automatic_status_matched: row.fiuu_vt_reconciliation_state === 'LATE_SUCCESS_REVIEW'
+  && hasMatchedStatus(row.fiuu_vt_review_evidence, row.provider_result, row.provider_transaction_id),
  review_state: row.fiuu_vt_reconciliation_state,
  review_evidence: sanitizeEvidence(row.fiuu_vt_review_evidence),
  provider_transaction_id: row.provider_transaction_id,

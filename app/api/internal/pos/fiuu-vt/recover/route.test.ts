@@ -141,6 +141,9 @@ function arrangeService(input: {
   update: vi.fn().mockReturnValue(rotationQuery),
  };
  const rpc = vi.fn((name: string) => {
+  if (name === 'reconcile_pos_fiuu_vt_review_status') {
+   return Promise.resolve({ data: { verified: 0 }, error: null });
+  }
   if (name === 'list_pos_fiuu_vt_received_attempts') {
    return Promise.resolve({
     data: input.receivedAttemptError ? null : input.receivedAttempts ?? [],

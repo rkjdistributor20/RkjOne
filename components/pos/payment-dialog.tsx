@@ -700,6 +700,7 @@ export function PaymentDialog({
 	const [qrConfigError, setQrConfigError] = useState<string | null>(null);
 	const [qrConfigRetry, setQrConfigRetry] = useState(0);
 	const [manualQrVerified, setManualQrVerified] = useState(false);
+ const [manualFiuuReference, setManualFiuuReference] = useState('');
  const [vtNativeStatus, setVtNativeStatus] = useState<FiuuVtNativeStatus | null>(null);
  const [vtStatusLoading, setVtStatusLoading] = useState(false);
  const [vtSaleOpened, setVtSaleOpened] = useState(false);
@@ -1046,6 +1047,8 @@ export function PaymentDialog({
  ? `Bayaran kurang ${formatRM(shortfall)}.`
  : requiresManualQrVerification && !manualQrVerified
  ? 'Semak bukti bayaran pelanggan dan tandakan pengesahan DuitNow QR.'
+ : requiresManualQrVerification && manualFiuuReference && !/^[0-9]{6,30}$/.test(manualFiuuReference)
+ ? 'Gunakan ID transaksi Fiuu sebanyak 6–30 digit, atau biarkan kosong.'
  : null;
  const paymentError = fiuuVtNativeCleanupPending
   ? 'Terminal Fiuu VT sedang membersihkan transaksi terdahulu. Troli pelanggan ini dikekalkan; tunggu beberapa saat.'
@@ -1889,6 +1892,7 @@ export function PaymentDialog({
   setQrConfigLoading(true);
   setQrConfigError(null);
   setManualQrVerified(false);
+  setManualFiuuReference('');
 
   void fetchPosQrConfig(branchId)
    .then((config) => {
@@ -4270,7 +4274,11 @@ export function PaymentDialog({
   }
  }
 
- const { result, manual_payment_review_error: manualReviewError } = await createSale(payload);
+ const { result, manual_payment_review_error: manualReviewError } = await createSale({
+  ...payload,
+  ...(requiresManualQrVerification && manualFiuuReference
+   ? { manual_fiuu_transaction_id: manualFiuuReference } : {}),
+ });
  if (usesQr && manualReviewError) {
   toast.warning(
    `Jualan ${result.receipt_number} direkod, tetapi senarai semakan Kewangan gagal dikemas kini. Hubungi HQ dan jangan rekod jualan semula.`,
@@ -4763,6 +4771,7 @@ export function PaymentDialog({
   </div>
 
   {requiresManualQrVerification && qrConfig?.staticQr && (
+   <>
    <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border-2 border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">
     <input
      type="checkbox"
@@ -4774,6 +4783,16 @@ export function PaymentDialog({
      Saya telah melihat status <strong>Berjaya</strong> pada telefon pelanggan dan amaun sepadan.
     </span>
    </label>
+   <label className="mt-3 block text-sm font-medium">
+    ID transaksi Fiuu (jika ada pada resit Fiuu)
+    <input className="mt-1 w-full rounded-md border bg-background px-3 py-2" value={manualFiuuReference}
+      inputMode="numeric" maxLength={30}
+      onChange={(event) => setManualFiuuReference(event.target.value.replace(/\D/g, ''))} />
+    <span className="mt-1 block text-xs font-normal text-muted-foreground">
+     Biarkan kosong jika tiada. Rekod boleh disemak selepas syif ditutup.
+    </span>
+   </label>
+   </>
   )}
  </div>)}
 

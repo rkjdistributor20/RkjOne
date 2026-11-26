@@ -8,6 +8,14 @@ approve a membership.
 
 ## POS operational closure with Fiuu VT review (candidate; default off)
 
+`POST /api/pos/transactions` records a POS manual QR (or mixed sale with a QR
+part) and its `PENDING` review in one database transaction. The optional
+`manual_fiuu_transaction_id` is a candidate only. It never approves payment.
+The original shift closure reports confirmed QR at close, review amounts and
+later confirmations separately. Exact native `STATUS 00` from a registered
+terminal can be automatically recorded as matched evidence for HQ without
+posting a second sale. This version does not ingest Gmail.
+
 `PATCH /api/pos/shift` checks the authenticated cashier, branch and registered
 tablet. The service RPC commits end-of-work time, staff end records, cash count,
 and the close atomically. Only an opted-in branch may detach pure-QR VT attempts

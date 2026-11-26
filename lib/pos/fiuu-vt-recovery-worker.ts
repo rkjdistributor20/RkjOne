@@ -25,6 +25,7 @@ type RecoveryBody = {
  results?: Record<string, number>;
  receivedAttemptResults?: Record<string, number>;
  releasedResults?: Record<string, number>;
+ automaticReview?: { verified: number } | { error: 'unavailable' };
 };
 
 export type FiuuVtRecoveryRun = {
@@ -393,6 +394,20 @@ export async function runFiuuVtRecovery(): Promise<FiuuVtRecoveryRun> {
     error: 'Fiuu VT released-payment recovery is incomplete',
    },
   };
+ }
+ try {
+  const { data, error } = await service.rpc('reconcile_pos_fiuu_vt_review_status', {
+   p_branch_ids: branchIds,
+   p_limit: 12,
+  });
+  const counts = data && typeof data === 'object' && !Array.isArray(data) ? data as Record<string, unknown> : null;
+  if (error || typeof counts?.verified !== 'number') throw new Error('Automatic review unavailable');
+  body.automaticReview = { verified: counts.verified };
+ } catch {
+  // An optional evidence-scan failure must not stale the existing recovery
+  // heartbeat or block a live cashier lane.
+  console.error('[pos-fiuu-vt] automatic_status_review_unavailable');
+  body.automaticReview = { error: 'unavailable' };
  }
  return {
   status: 200,

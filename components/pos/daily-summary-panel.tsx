@@ -144,7 +144,7 @@ export function DailySummaryPanel() {
  <CardContent className="space-y-1 text-sm">
  <p>Tamat kerja: {new Date(qrClose.actual_work_ended_at).toLocaleString('ms-MY', { timeZone: 'Asia/Kuala_Lumpur' })}</p>
  <p>Tunai sebenar semasa tutup: {formatRM(Number(qrClose.closing_cash))}</p>
- <p>QR direkod semasa tutup: {formatRM(Number(qrClose.confirmed_qr_at_close_rm))}</p>
+ <p>QR disahkan semasa tutup: {formatRM(Number(qrClose.confirmed_qr_at_close_rm))}</p>
  <p>QR disahkan selepas tutup: {formatRM(Number(qrClose.qr_confirmed_after_close_rm))}</p>
  <p className="text-muted-foreground">
  {qrClose.qr_review_remaining} percubaan dalam semakan ({formatRM(Number(qrClose.qr_review_remaining_attempt_rm))}).

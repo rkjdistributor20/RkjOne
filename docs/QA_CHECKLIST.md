@@ -6,6 +6,9 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
 
 ## POS closure with detached VT review
 
+- In a disposable database run `supabase/tests/pos_qr_review_shift_close_local.sql` with the 20261126183000 migration substituted at `-- MIGRATION UNCHANGED`. Verify mixed manual QR registration/replay, unchanged counted cash, active VT blocking, rejection of mismatched/trial evidence and exactly one late evidence audit with no rebooking. The fixture stubs existing sale and close endpoints.
+- Staff need not close a live shift or create a test charge solely to validate rollout. When an ordinary shift is closed, verify actual cash, QR confirmed at close and remaining QR separately; the open successor shift must remain unaffected by reconciliation.
+
 - [ ] After a verified QR receipt, the exact initiating cart clears. A late or replayed response must preserve a different cart with the same items and total. Reopen POS, then disconnect and reconnect with a new draft; do not create a second charge for an already-paid cart.
 
 - Run `supabase/tests/fiuu_vt_shift_close.sql` inside a rolled-back local transaction with both 20261125 migrations. Verify default-off, active QR rollback (including staff and cash), 11 unresolved attempts, successor shift, background timeout after closure, and exact-once late posting.

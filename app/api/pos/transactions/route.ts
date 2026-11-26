@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { callRpc } from '@/lib/supabase/rpc';
+import { getManualQrSaleKey } from '@/lib/pos/manual-qr-sale-key';
 import { inventoryRpc } from '@/lib/supabase/inventory-rpc';
 import { getCurrentProfile } from '@/lib/auth/session';
 import {
@@ -73,10 +74,11 @@ export async function POST(request: Request) {
  }
 
  const supabase = await createClient();
+ let saleDevice: Awaited<ReturnType<typeof assertOfficialPosDevice>>;
  try {
  await assertCanAccessPosBranch(supabase, profile, body.branchId);
  await assertAreaManagerScheduledForPos(supabase, profile, body.branchId);
- await assertOfficialPosDevice(profile, body.branchId);
+ saleDevice = await assertOfficialPosDevice(profile, body.branchId);
  await assertActivePosShiftMember(supabase, profile, body.shiftId, body.branchId);
  } catch (err) {
  return NextResponse.json(
@@ -120,6 +122,23 @@ export async function POST(request: Request) {
  { status: 400 });
  }
 
+ const qrAmount = Number(body.qr_amount ?? 0);
+ if (qrAmount > 0 && (body.payment_method === 'QR' || body.payment_method === 'MIXED')) {
+  const manualCart = getManualQrSaleKey(body.shiftId, body.cart_session_id);
+  const ref = body.manual_fiuu_transaction_id;
+  if (ref !== undefined && (typeof ref !== 'string' || !/^[0-9]{6,30}$/.test(ref))) {
+   return NextResponse.json({ error: 'ID transaksi Fiuu tidak sah.' }, { status: 400 });
+  }
+  const { data, error } = await callRpc(createAdminClient(), 'process_pos_manual_qr_sale', {
+   p_actor_id: profile.id, p_device_id: saleDevice.id,
+   p_enrollment_generation: saleDevice.enrollmentGeneration,
+   p_shift_id: body.shiftId, p_branch_id: body.branchId,
+   p_sale: { ...body, offline_id: manualCart ?? body.offline_id },
+  });
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  return NextResponse.json(data);
+ }
+
  const { data, error } = await callRpc(supabase, 'process_pos_sale', {
  p_shift_id: body.shiftId,
  p_branch_id: body.branchId,
@@ -137,42 +156,5 @@ export async function POST(request: Request) {
  return NextResponse.json({ error: error.message }, { status: 400 });
  }
 
- const result = data as SaleResult;
- const qrAmount = Number(body.qr_amount ?? 0);
- let manualPaymentReview: { id: string; status: string } | null = null;
- let manualPaymentReviewError: string | null = null;
-
- if (qrAmount > 0) {
- const admin = createAdminClient();
- const { data: review, error: reviewError } = await admin
- .from('pos_online_payments')
- .insert({
- organization_id: profile.organization_id,
- branch_id: body.branchId,
- shift_id: body.shiftId,
- amount_rm: qrAmount,
- status: 'PENDING',
- provider: 'manual_qr',
- gateway_ref: `MANUAL-${result.transaction_number}`,
- checkout_url: null,
- sale_payload: {
- ...body,
- manual_verification_required: true,
- manual_verification_source: 'POS_QR_MANUAL',
- transaction_number: result.transaction_number,
- },
- transaction_id: result.transaction_id,
- created_by: profile.id,
- })
- .select('id, status')
- .single();
-
- if (reviewError) {
- manualPaymentReviewError = reviewError.message;
- } else if (review) {
- manualPaymentReview = review;
- }
- }
-
- return NextResponse.json({ result, manual_payment_review: manualPaymentReview, manual_payment_review_error: manualPaymentReviewError });
+ return NextResponse.json({ result: data as SaleResult, manual_payment_review: null, manual_payment_review_error: null });
 }

@@ -122,7 +122,7 @@ export function CloseShiftDialog({
  const varianceMessage = `Beza tunai: ${formatRM(Number(result.variance ?? 0))}.`;
  if (reviewCount > 0) {
  toast.success('Syif ditutup. Sebahagian transaksi QR masih dalam semakan.', {
- description: `${varianceMessage} QR direkod: ${formatRM(Number(result.confirmed_qr_rm ?? 0))}. ${reviewCount} percubaan QR dalam semakan (${formatRM(Number(result.qr_review_attempt_total_rm ?? 0))}) belum dikira sebagai wang diterima.`,
+ description: `${varianceMessage} QR disahkan: ${formatRM(Number(result.confirmed_qr_rm ?? 0))}. ${reviewCount} rekod QR dalam semakan (${formatRM(Number(result.qr_review_attempt_total_rm ?? 0))}) belum dikira sebagai wang diterima.`,
  duration: 10000,
  });
  } else {

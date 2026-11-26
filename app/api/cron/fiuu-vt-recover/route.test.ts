@@ -72,7 +72,9 @@ function arrangeService() {
  };
  const service = {
   from: vi.fn((table: string) => table === 'branches' ? branchQuery : paymentTable),
-  rpc: vi.fn().mockResolvedValue({ data: [], error: null }),
+  rpc: vi.fn(async (name: string) => ({
+   data: name === 'reconcile_pos_fiuu_vt_review_status' ? { verified: 0 } : [], error: null,
+  })),
  };
  mocks.createAdminClient.mockReturnValue(service);
  return service;
@@ -155,6 +157,7 @@ describe('Vercel Cron Fiuu VT recovery endpoint', () => {
    examined: 0,
    rotated: 0,
    results: {},
+   automaticReview: { verified: 0 },
   });
   expect(mocks.createAdminClient).toHaveBeenCalledTimes(1);
   expect(mocks.recordFiuuVtRecoverySuccess).toHaveBeenCalledTimes(1);
@@ -199,6 +202,7 @@ describe('Vercel Cron Fiuu VT recovery endpoint', () => {
    return query;
   });
   service.rpc.mockImplementation(async (name: string) => {
+   if (name === 'reconcile_pos_fiuu_vt_review_status') return { data: { verified: 0 }, error: null };
    if (name !== 'list_pos_fiuu_vt_received_attempts') throw new Error(`Unexpected write RPC: ${name}`);
    return { data: [launched].filter(attempt => attempt.state === 'RECEIVED'), error: null };
   });
@@ -209,7 +213,7 @@ describe('Vercel Cron Fiuu VT recovery endpoint', () => {
   await expect(response.json()).resolves.toMatchObject({
    ok: true, examined: 0, receivedAttemptsExamined: 0, releasedExamined: 0, quarantined: 0,
   });
-  expect(service.rpc).toHaveBeenCalledTimes(1);
+  expect(service.rpc).toHaveBeenCalledTimes(2);
   expect(mocks.recoverReportedFiuuVtPayment).not.toHaveBeenCalled();
   expect(table.update).not.toHaveBeenCalled();
   expect(pending).toEqual(before);

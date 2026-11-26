@@ -701,6 +701,12 @@ export function FinanceDashboard() {
  </div>)}
  </div>
 
+ {review.automatic_status_matched && (
+ <p className="mt-3 rounded-lg bg-emerald-50 p-3 text-xs text-emerald-900">
+ STATUS Fiuu sepadan secara automatik. Semak sama ada pesanan ini sudah direkod melalui kaedah lain sebelum membuat pelarasan.
+ </p>
+ )}
+
  {review.review_evidence !== null && (
  <details className="mt-3 rounded-lg border px-3 py-2 text-xs">
  <summary className="cursor-pointer font-medium">Lihat bukti operasi</summary>

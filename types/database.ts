@@ -11546,6 +11546,21 @@ export type Database = {
         Args: { p_max_stops?: number; p_order_id: string }
         Returns: Json
       }
+      reconcile_pos_fiuu_vt_review_status: {
+        Args: { p_branch_ids: string[]; p_limit?: number }
+        Returns: Json
+      }
+      process_pos_manual_qr_sale: {
+        Args: {
+          p_actor_id: string
+          p_device_id: string
+          p_enrollment_generation: number
+          p_shift_id: string
+          p_branch_id: string
+          p_sale: Json
+        }
+        Returns: Json
+      }
       process_pos_sale: {
         Args: {
           p_branch_id: string

@@ -700,6 +700,12 @@ export async function POST(
      reason: 'SUCCESS_AFTER_PROVIDER_ERROR_QUARANTINE',
      attemptId: attempt.id,
      firstEvidence: attempt.result_json,
+     providerSuccess: !isFiuuVtErrorResult(result) && result.opType === 'STATUS' ? {
+      transactionId: result.transactionId,
+      result: safeResult,
+      saleReportedAt: null,
+      statusCheckedAt: observedAt,
+     } : null,
     })
    : null;
   const quarantined = review
