@@ -206,6 +206,11 @@ BEGIN
  SET LOCAL ROLE authenticated;
  c_old := (submit_stock_count(l,lines,'POS_MID_SHIFT')->>'count_id')::uuid;
  c_new := (submit_stock_count(l,lines,'POS_MID_SHIFT')->>'count_id')::uuid;
+ -- The legacy fixture shares one transaction timestamp. Model two real
+ -- submissions explicitly so UUID ordering cannot randomly invert the test.
+ RESET ROLE;
+ UPDATE stock_counts SET created_at=created_at-interval '1 microsecond' WHERE id=c_old;
+ SET LOCAL ROLE authenticated;
  SELECT id INTO req FROM approval_requests WHERE entity_id=c_old;
  PERFORM set_config('request.jwt.claim.sub',am::text,true);
  BEGIN
@@ -258,3 +263,40 @@ BEGIN
  IF EXISTS(SELECT 1 FROM stock_counts WHERE id=c) THEN RAISE EXCEPTION 'Counts visible after scope revocation'; END IF;
  RESET ROLE;
 END $fixture$;
+
+-- LOAD OPERATION RETRY MIGRATION
+DO $retry$
+DECLARE
+ o uuid:=gen_random_uuid(); a uuid:=gen_random_uuid(); b uuid:=gen_random_uuid(); l uuid:=gen_random_uuid();
+ item uuid:=gen_random_uuid(); first_id uuid:=gen_random_uuid(); change_id uuid:=gen_random_uuid();
+ one jsonb; two jsonb; change jsonb;
+BEGIN
+ INSERT INTO organizations VALUES(o);
+ INSERT INTO profiles VALUES(a,o,'AREA_MANAGER','ACTIVE');
+ INSERT INTO branches VALUES(b,o);
+ INSERT INTO profile_branch_access VALUES(a,b);
+ INSERT INTO inventory_locations(id,organization_id,location_type,name,branch_id) VALUES(l,o,'BRANCH_KIOSK','Retry fixture',b);
+ INSERT INTO stock_items VALUES(item,o,'PCS','Retry item');
+ one:=jsonb_build_object('source','External fixture','items',jsonb_build_array(jsonb_build_object('stock_item_id',item,'quantity',5,'unit','PCS')));
+ PERFORM set_config('request.jwt.claim.sub',a::text,true);
+ SET LOCAL ROLE authenticated;
+ two:=post_am_stock_operation(l,first_id,'RECEIVE',one);
+ IF (post_am_stock_operation(l,first_id,'RECEIVE',one)->>'receive_id') IS DISTINCT FROM (two->>'receive_id')
+  OR (SELECT count(*) FROM stock_movements WHERE reference_id=(two->>'receive_id')::uuid)<>1 THEN
+  RAISE EXCEPTION 'Duplicate receipt or changed receipt id'; END IF;
+ BEGIN
+  PERFORM post_am_stock_operation(l,first_id,'RECEIVE',one||'{"source":"other"}');
+  RAISE SQLSTATE 'XX000' USING MESSAGE='Same key accepted different payload';
+ EXCEPTION WHEN serialization_failure THEN NULL; END;
+ change:=jsonb_build_object('reason','Fixture adjustment','items',jsonb_build_array(
+  jsonb_build_object('stock_item_id',item,'expected_quantity',5,'quantity_after',4)));
+ two:=post_am_stock_operation(l,change_id,'ADJUSTMENT',change);
+ IF (post_am_stock_operation(l,change_id,'ADJUSTMENT',change)->>'adjustment_id') IS DISTINCT FROM (two->>'adjustment_id')
+  OR (SELECT count(*) FROM stock_movements WHERE reference_id=(two->>'adjustment_id')::uuid)<>1 THEN
+  RAISE EXCEPTION 'Adjustment replay re-posted or mismatched'; END IF;
+ IF has_function_privilege('authenticated','public.post_am_stock_receipt(uuid,jsonb,text,text,text)','EXECUTE')
+  OR has_function_privilege('authenticated','public.post_am_stock_adjustment(uuid,text,jsonb)','EXECUTE') THEN
+  RAISE EXCEPTION 'Legacy unkeyed write stays callable';
+ END IF;
+ RESET ROLE;
+END $retry$;

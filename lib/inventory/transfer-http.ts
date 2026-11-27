@@ -52,7 +52,7 @@ export function transferRpcError(error: { code: string; message: string }) {
  return NextResponse.json({ error: message }, { status });
 }
 
-type TransferAction = 'dispatch_stock_transfer' | 'complete_stock_transfer' | 'cancel_stock_transfer';
+type TransferAction = 'dispatch_stock_transfer' | 'complete_stock_transfer' | 'cancel_stock_transfer' | 'reverse_stock_transfer';
 
 export function transferAction(action: TransferAction) {
  return async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -60,15 +60,46 @@ export function transferAction(action: TransferAction) {
   const { id } = await params;
   if (!isTransferUuid(id)) return NextResponse.json({ error: 'ID pindahan tidak sah' }, { status: 400 });
   const args: Record<string, unknown> = { p_transfer_id: id };
-  if (action === 'cancel_stock_transfer') {
+  let rpc: string = action;
+  if (action === 'complete_stock_transfer' && request.body !== null) {
+   const body: unknown = await request.json().catch(() => null);
+   const key = request.headers.get('Idempotency-Key');
+   if (!isObject(body) || !isTransferUuid(key) ||
+    typeof body.receipt_version !== 'number' || !Number.isInteger(body.receipt_version) ||
+    body.receipt_version < 0 || body.receipt_version >= 2_147_483_647 ||
+    typeof body.finalize !== 'boolean' || !Array.isArray(body.items) || body.items.length > 500 ||
+    (body.reason != null && (typeof body.reason !== 'string' || body.reason.trim().length > 500))) {
+    return NextResponse.json({ error: 'Butiran atau kunci penerimaan tidak sah' }, { status: 400 });
+   }
+   const items = [];
+   const seen = new Set<string>();
+   for (const line of body.items) {
+    if (!isObject(line) || !isTransferUuid(line.item_id) || typeof line.quantity !== 'number' ||
+     !Number.isFinite(line.quantity) || line.quantity < 0 || line.quantity >= 10_000_000_000 ||
+     Number(line.quantity.toFixed(4)) !== line.quantity || seen.has(line.item_id.toLowerCase())) {
+     return NextResponse.json({ error: 'Baris penerimaan tidak sah' }, { status: 400 });
+    }
+    const item_id = line.item_id.toLowerCase();
+    seen.add(item_id);
+    items.push({ item_id, quantity: line.quantity });
+   }
+   rpc = 'receive_stock_transfer';
+   Object.assign(args, {
+    p_request_id: key, p_receipt_version: body.receipt_version, p_items: items,
+    p_finalize: body.finalize, p_reason: typeof body.reason === 'string' ? body.reason.trim() || null : null,
+   });
+  } else if (action === 'complete_stock_transfer' && request.headers.has('Idempotency-Key')) {
+   return NextResponse.json({ error: 'Butiran penerimaan diperlukan' }, { status: 400 });
+  } else if (action === 'cancel_stock_transfer' || action === 'reverse_stock_transfer') {
    const body: unknown = await request.json().catch(() => null);
    const reason = isObject(body) && typeof body.reason === 'string' ? body.reason.trim() : '';
    if (!reason || reason.length > 500) {
-    return NextResponse.json({ error: 'Sebab pembatalan (1 hingga 500 aksara) diperlukan' }, { status: 400 });
+    const label = action === 'cancel_stock_transfer' ? 'pembatalan' : 'pembalikan';
+    return NextResponse.json({ error: `Sebab ${label} (1 hingga 500 aksara) diperlukan` }, { status: 400 });
    }
    args.p_reason = reason;
   }
-  const { data, error } = await inventoryRpc(await createClient(), action, args);
+  const { data, error } = await inventoryRpc(await createClient(), rpc, args);
   if (error) return transferRpcError(error);
   return NextResponse.json({ result: data });
  };

@@ -31,12 +31,20 @@ export async function POST(request: Request) {
  (body.notes != null && typeof body.notes !== 'string')) {
  return NextResponse.json({ error: 'Nyatakan sumber luar dan dokumen rujukan yang sah' }, { status: 400 });
  }
- const { data, error } = await inventoryRpc(supabase, 'post_am_stock_receipt', {
+ const requestId = request.headers.get('Idempotency-Key');
+ if (!isStockRecordId(requestId)) {
+ return NextResponse.json({ error: 'Kunci cubaan semula diperlukan. Muat semula halaman stok.' }, { status: 400 });
+ }
+ const { data, error } = await inventoryRpc(supabase, 'post_am_stock_operation', {
  p_location_id: body.location_id,
- p_items: body.items,
- p_source: body.source,
- p_document_reference: body.document_reference ?? null,
- p_notes: body.notes ?? null,
+ p_request_id: requestId,
+ p_action: 'RECEIVE',
+ p_payload: {
+ items: body.items,
+ source: body.source,
+ document_reference: body.document_reference ?? null,
+ notes: body.notes ?? null,
+ },
  });
  if (error) {
  const message = error.code === '23505' && error.message.includes('stock_receives_manual_document_once')

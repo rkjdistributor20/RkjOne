@@ -23,7 +23,7 @@ export async function GET(request: Request) {
  }
 
  const { data, error } = await supabase.from('stock_counts').select(`
- id, count_number, notes, created_at,
+ id, count_number, notes, created_at, captured_at,
  counter:profiles!stock_counts_counted_by_fkey(full_name),
  items:stock_count_items(stock_item_id, system_quantity, counted_quantity, unit, production_date,
  stock_item:stock_items(name))

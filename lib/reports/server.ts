@@ -4,17 +4,18 @@ import { resolveScopedBranches } from '@/lib/auth/branch-scope';
 import { getCurrentProfile } from '@/lib/auth/session';
 import { isDashboardRouteAllowed } from '@/lib/auth/route-access';
 import { createClient } from '@/lib/supabase/server';
-import { inventoryCsv, movementCsv, transactionCsv } from './csv';
+import { inventoryCsv, movementCsv, shiftClosureCsv, staffCsv, transactionCsv } from './csv';
 import { parseReportFilters } from './filters';
-import type { InventoryReportRow, MovementReportRow, ReportTransaction } from './types';
+import type { InventoryReportRow, MovementReportRow, ReportTransaction, ShiftClosureRow, StaffPerformanceRow } from './types';
 
 type Report = 'scope' | 'overview' | 'sales' | 'branches' | 'products' | 'staff' |
- 'inventory' | 'movements' | 'transactions' | 'receipt' | 'payments' | 'fleet';
+ 'inventory' | 'movements' | 'transactions' | 'receipt' | 'payments' | 'fleet' | 'shift-closures';
 
 const noStore = { 'Cache-Control': 'private, no-store' };
 const exportLimit = 5000;
 const pageKeys = {
  staff: 'staff', transactions: 'transactions', payments: 'payments', inventory: 'items', movements: 'movements',
+ 'shift-closures': 'closures',
 } as const;
 const limits: Partial<Record<Report, number>> = { products: 15, branches: 50, inventory: 100 };
 
@@ -38,7 +39,7 @@ export function reportRoute(report: Report) {
   }
   const { branchId, transactionId, from, to, format, movementType, page } = filters;
   const exporting = format === 'csv';
-  if (exporting && report !== 'transactions' && report !== 'inventory' && report !== 'movements') {
+  if (exporting && !['transactions', 'inventory', 'movements', 'staff', 'shift-closures'].includes(report)) {
    return json({ error: 'Eksport tidak disokong untuk laporan ini' }, 400);
   }
   if (report === 'receipt' && !transactionId) return json({ error: 'Transaksi diperlukan' }, 400);
@@ -83,6 +84,8 @@ export function reportRoute(report: Report) {
   }
 
   const csv = report === 'transactions' ? transactionCsv(rows as ReportTransaction[])
+   : report === 'staff' ? staffCsv(rows as StaffPerformanceRow[])
+   : report === 'shift-closures' ? shiftClosureCsv(rows as ShiftClosureRow[])
    : report === 'movements' ? movementCsv(rows as MovementReportRow[]) : inventoryCsv(rows as InventoryReportRow[]);
   const suffix = report === 'inventory' ? to : `${from}_${to}`;
   return new NextResponse(csv, {

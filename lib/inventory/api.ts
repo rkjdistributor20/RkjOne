@@ -15,6 +15,7 @@ import type {
  TransferKioskOption,
 } from './types';
 import { fetchJson } from '@/lib/client/fetch-json';
+import { withStockOperationId } from './stock-operation-retry';
 
 export async function fetchLocations(type?: string, branchId?: string) {
  const params = new URLSearchParams();
@@ -94,10 +95,12 @@ export async function receiveStock(
  source?: string,
  notes?: string,
  documentReference?: string) {
- return fetchJson<{ result: Record<string, string> }>('/api/inventory/receive', {
+ const body = JSON.stringify({ location_id: locationId, items, source, notes, document_reference: documentReference });
+ return withStockOperationId('receive', body, id => fetchJson<{ result: Record<string, string> }>('/api/inventory/receive', {
  method: 'POST',
- body: JSON.stringify({ location_id: locationId, items, source, notes, document_reference: documentReference }),
- });
+ headers: { 'Idempotency-Key': id },
+ body,
+ }));
 }
 
 export async function createTransfer(payload: TransferCreateInput, requestId: string) {
@@ -130,10 +133,12 @@ export async function submitAdjustment(
  locationId: string,
  reason: string,
  items: AdjustmentItemInput[]) {
- return fetchJson<{ result: Record<string, string> }>('/api/inventory/adjustments', {
+ const body = JSON.stringify({ location_id: locationId, reason, items });
+ return withStockOperationId('adjustment', body, id => fetchJson<{ result: Record<string, string> }>('/api/inventory/adjustments', {
  method: 'POST',
- body: JSON.stringify({ location_id: locationId, reason, items }),
- });
+ headers: { 'Idempotency-Key': id },
+ body,
+ }));
 }
 
 export async function submitCount(

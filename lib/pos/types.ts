@@ -360,6 +360,12 @@ export interface PosStockCheck {
  status: string;
  notes: string | null;
  created_at: string;
+ captured_at?: string | null;
+}
+
+export interface PosStockCountCapture {
+ id: string;
+ captured_at: string;
 }
 
 export interface PosStockEstimateItem {

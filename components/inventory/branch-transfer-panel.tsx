@@ -48,6 +48,7 @@ import {
 } from '@/lib/stock/catalog';
 import { Badge } from '@/components/ui/badge';
 import { TransferCancelButton } from '@/components/inventory/transfer-cancel-button';
+import { TransferReceiptActions } from '@/components/inventory/transfer-receipt-actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -1204,16 +1205,9 @@ export function BranchTransferPanel() {
  {t.status}
  </Badge>
  </div>
+ <TransferReceiptActions transfer={t} onChanged={loadTransfers} onLegacyComplete={handleComplete} />
  <div className="mt-2 flex flex-wrap gap-2">
  {t.can_dispatch && <Button size="sm" variant="outline" onClick={() => handleDispatch(t.id)}>Hantar</Button>}
- {t.can_complete && (
- <Button
- size="sm"
- className="mt-2 bg-amber-500 hover:bg-amber-600"
- onClick={() => handleComplete(t.id)}
- >
- Terima di Destinasi
- </Button>)}
  {t.can_cancel && <TransferCancelButton id={t.id} onCancelled={loadTransfers} />}
  </div>
  {t.cancellation_reason && <p className="text-xs text-muted-foreground">Sebab batal: {t.cancellation_reason}</p>}

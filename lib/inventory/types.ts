@@ -166,11 +166,12 @@ export interface PendingInventoryCount {
  id: string;
  count_number: string;
  created_at: string;
+ captured_at: string | null;
  notes: string | null;
  counter: { full_name: string } | null;
  items: Array<{
  stock_item_id: string;
- system_quantity: number;
+ system_quantity: number | null;
  counted_quantity: number;
  unit: string;
  production_date: string | null;

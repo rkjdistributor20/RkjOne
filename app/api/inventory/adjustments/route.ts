@@ -27,10 +27,15 @@ export async function POST(request: Request) {
  } catch (err) {
  return NextResponse.json({ error: stockGuardErrorMessage(err) }, { status: 403 });
  }
- const { data, error } = await inventoryRpc(supabase, 'post_am_stock_adjustment', {
+ const requestId = request.headers.get('Idempotency-Key');
+ if (!isStockRecordId(requestId)) {
+ return NextResponse.json({ error: 'Kunci cubaan semula diperlukan. Muat semula halaman stok.' }, { status: 400 });
+ }
+ const { data, error } = await inventoryRpc(supabase, 'post_am_stock_operation', {
  p_location_id: body.location_id,
- p_reason: body.reason,
- p_items: body.items,
+ p_request_id: requestId,
+ p_action: 'ADJUSTMENT',
+ p_payload: { reason: body.reason, items: body.items },
  });
  if (error) return NextResponse.json({ error: error.message }, { status: stockPostingErrorStatus(error.code) });
  return NextResponse.json({ result: data });

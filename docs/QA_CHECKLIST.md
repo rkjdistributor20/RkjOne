@@ -13,6 +13,11 @@ Use this checklist for QA AI, Code Reviewer AI, and human review before merge/de
   identity, denial for a mismatched device/branch, no stale approval replay
   and continued offline cash-only behavior. Do not create production sales
   or real staff UAT solely to validate a release.
+- Follow-up checks: replay one external receipt and one adjustment, retry a
+  partial receipt with the same key, reject stale receipt versions, require
+  the other end to accept a reversal, verify a missing capture cannot approve,
+  reject staff schedule overlap across midnight, and apply the same branch
+  scope to closure/discrepancy report exports.
 
 ## POS closure with detached VT review
 

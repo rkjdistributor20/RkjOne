@@ -43,7 +43,7 @@ it('limits actuals and comparisons to tenant/branch and uses the MYT opening win
  const branches = queryFor([{ id: A, branch_code: 'BR1', branch_name: 'Branch A' }]);
  const staff = queryFor([{ id: 'staff', full_name: 'Staff A' }]);
  mocks.from.mockImplementation((table: string) => ({
-  pos_operational_shifts: actuals, staff_shifts: planned, branches, staff,
+  pos_operational_shifts: actuals, roster_planned_shifts: planned, branches, staff,
  })[table as 'pos_operational_shifts']);
  const response = await get();
  expect(response.status).toBe(200);
@@ -52,10 +52,12 @@ it('limits actuals and comparisons to tenant/branch and uses the MYT opening win
  expect(actuals.gte).toHaveBeenCalledWith('opened_at', '2026-11-29T16:00:00.000Z');
  expect(actuals.lt).toHaveBeenCalledWith('opened_at', '2026-12-06T16:00:00.000Z');
  expect(planned.in).toHaveBeenCalledWith('branch_id', [A]);
- expect(planned.eq).toHaveBeenCalledWith('status', 'APPROVED');
+ expect(planned.eq).toHaveBeenCalledWith('status', 'PUBLISHED');
  expect(planned.gte).toHaveBeenCalledWith('shift_date', '2026-11-29');
  expect(staff.eq).toHaveBeenCalledWith('organization_id', 'org');
  expect(await response.json()).toMatchObject({ actuals: [{
-  branch_label: 'BR1 · Branch A', staff_name: 'Staff A', closed_at: null, comparison: 'DIFFERENT',
+  branch_label: 'BR1 · Branch A', staff_name: 'Staff A',
+  opened_at: '2026-11-29T18:00:00Z', closed_at: null, comparison: 'DIFFERENT',
+  planned: { starts_at: '2026-11-29T14:00:00.000Z', ends_at: '2026-11-29T22:00:00.000Z' },
  }] });
 });

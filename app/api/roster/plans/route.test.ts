@@ -82,13 +82,13 @@ describe('weekly planner API', () => {
   });
  });
 
- it('surfaces the database refusal for out-of-branch staff and protected attendance slots', async () => {
+ it('surfaces the database refusal for out-of-branch staff and overlapping slots', async () => {
   mocks.rpc.mockResolvedValueOnce({ error: { code: '42501', message: 'Staff outside branch' } })
-   .mockResolvedValueOnce({ error: { code: '23505', message: 'Attendance already used' } });
+   .mockResolvedValueOnce({ error: { code: '23505', message: 'Jadual staf bertindih' } });
   expect((await save({ ...body, entries: [entry] })).status).toBe(403);
   const result = await save({ ...body, entries: [entry] });
   expect(result.status).toBe(409);
-  expect(await result.json()).toEqual({ error: 'Attendance already used' });
+  expect(await result.json()).toEqual({ error: 'Jadual staf bertindih' });
  });
 
  it('checks the stored plan branch against common scope before publishing by ID', async () => {
@@ -103,5 +103,17 @@ describe('weekly planner API', () => {
   expect(query.eq).toHaveBeenCalledWith('organization_id', 'org');
   expect(mocks.scope).toHaveBeenCalledWith(expect.anything(), PROFILE, BRANCH);
   expect(mocks.rpc).not.toHaveBeenCalled();
+ });
+
+ it('publishing an overlapping draft returns a conflict', async () => {
+  mocks.from.mockReturnValue({
+   select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(),
+   maybeSingle: vi.fn().mockResolvedValue({ data: { branch_id: BRANCH }, error: null }),
+  });
+  mocks.rpc.mockResolvedValueOnce({ error: { code: '23505', message: 'Jadual staf bertindih' } });
+  const result = await publish(new Request(requestUrl), { params: Promise.resolve({ id: PLAN }) });
+  expect(mocks.rpc).toHaveBeenCalledWith('publish_weekly_roster', { p_plan_id: PLAN });
+  expect(result.status).toBe(409);
+  expect(await result.json()).toEqual({ error: 'Jadual staf bertindih' });
  });
 });

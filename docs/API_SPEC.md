@@ -15,6 +15,16 @@
   stock and transfer routes enforce branch rights by posting side. Online
   manual QR and offline cash post through separate registered-device RPCs.
 
+The AM follow-up adds a mandatory `Idempotency-Key` UUID on direct AM stock
+receipts and adjustments; repeating the same operation returns its existing
+document. Different payloads under the same key return a conflict. Standalone
+transfer receipts use item quantities, an expected receipt version and an
+idempotency key. A recorded excess does not credit unshipped stock. Eligible
+reversals use a linked return document and the original source must receive it.
+Staff counts can carry a server-issued capture; data without a verified
+baseline stay as evidence requiring recount. Review reports include recorded
+VOID/refund details, actual POS/attendance times, and shift cash differences.
+
 `GET /api/pos/shift-members` reads the open shift under the existing auth and
 branch guard. The response includes `viewerProfileId` for the authenticated
 session and uses `Cache-Control: private, no-store`. The POS client rejects a

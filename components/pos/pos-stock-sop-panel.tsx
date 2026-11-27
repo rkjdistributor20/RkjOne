@@ -23,6 +23,7 @@ import {
  type LucideIcon,
 } from 'lucide-react';
 import {
+ capturePosStockCount,
  confirmPosStockDelivery,
  fetchPosStockSop,
  returnPosPresenceLeave,
@@ -31,11 +32,13 @@ import {
  submitPosSupplyRequest,
 } from '@/lib/pos/api';
 import { fetchStockItems } from '@/lib/inventory/api';
+import { getOfflineQueue } from '@/lib/pos/offline-queue';
 import type { StockItemOption } from '@/lib/inventory/types';
 import type {
  PosPresenceReason,
  PosShiftStockCheckType,
  PosStockEstimateItem,
+ PosStockCountCapture,
  PosStockReceipt,
  PosStockSopResponse,
 } from '@/lib/pos/types';
@@ -468,6 +471,8 @@ export function PosStockSopPanel({
  const [productionDate, setProductionDate] = useState(todayIso());
  const [checkNotes, setCheckNotes] = useState('');
  const [recount, setRecount] = useState<{ countId: string; branchId: string } | null>(null);
+ const [capture, setCapture] = useState<(PosStockCountCapture & { branchId: string; profileId: string; checkType: PosShiftStockCheckType }) | null>(null);
+ const staffCapture = capture?.branchId === branchId && capture.profileId === profile?.id ? capture : null;
  const recountOf = recount?.branchId === branchId ? recount.countId : null;
  const [checkLines, setCheckLines] = useState<Line[]>([emptyLine()]);
  const [presenceReason, setPresenceReason] = useState<PosPresenceReason>('REST');
@@ -835,11 +840,37 @@ export function PosStockSopPanel({
  });
  }
 
+ async function startStockCountCapture() {
+ if (!profile || savingId) return;
+ if (getOfflineQueue().some((sale) => sale.branchId === branchId)) {
+ toast.error('Tunggu jualan luar talian cawangan disegerakkan sebelum mengambil snapshot stok.');
+ return;
+ }
+ setSavingId('stock-capture');
+ try {
+ const { capture: issued } = await capturePosStockCount(branchId, visibleStockIds);
+ setCapture({ ...issued, branchId, profileId: profile.id, checkType });
+ // Never attach a newly issued version to quantities entered beforehand.
+ setCheckLines((rows) => rows.map((row) => ({ ...row, quantity: '' })));
+ } catch (err) {
+ toast.error(err instanceof Error ? err.message : 'Gagal ambil snapshot kiraan stok');
+ } finally {
+ setSavingId(null);
+ }
+ }
+
  async function handleStockCheck() {
+ if (savingId) return;
+ const staff = profile?.role === 'STAFF';
+ const submittedCheckType = staffCapture?.checkType ?? checkType;
  const hasPendingDriverDelivery = (data?.receipts ?? []).some(
  (receipt) => receipt.status === 'DRIVER_DROPPED' || receipt.status === 'DISCREPANCY_PENDING_APPROVAL');
- if (checkType === 'OPENING' && hasPendingDriverDelivery && !canBypassPosSop) {
+ if (submittedCheckType === 'OPENING' && hasPendingDriverDelivery && !canBypassPosSop && (!staff || staffCapture)) {
  toast.error('Sahkan penerimaan stok driver dahulu sebelum kiraan stok pembukaan dan jualan POS.');
+ return;
+ }
+ if (staff && checkLines.some((line) => !line.quantity.trim())) {
+ toast.error('Isi kuantiti fizikal setiap baris (isi 0 jika tiada), atau buang baris yang tidak dikira.');
  return;
  }
  const items = cleanStockCountLines(checkLines) as Array<{
@@ -860,24 +891,27 @@ export function PosStockSopPanel({
  const { result } = await submitPosStockCheck({
  branch_id: branchId,
  shift_id: data?.sopStatus?.shift_id ?? undefined,
- check_type: checkType,
+ check_type: submittedCheckType,
  recount_of: recountOf ?? undefined,
+ capture_id: staffCapture?.id,
  production_date: productionDate || undefined,
  notes: checkNotes || undefined,
  items,
  });
- const requiresManagerApproval = Boolean(
- (result as { requires_manager_approval?: boolean })?.requires_manager_approval);
- if (requiresManagerApproval) {
+ const requiresManagerApproval = result.requires_manager_approval === true;
+ if (result.correction_required === true) {
+ toast.warning(typeof result.rejection_reason === 'string' ? result.rejection_reason : 'Kiraan perlu dibuat semula.');
+ } else if (requiresManagerApproval) {
  toast.info('Kiraan stok dihantar. AM/OM akan menyemak sebelum baki rasmi dikemas kini.');
  } else {
  toast.success('Kiraan stok disahkan. POS kembali ke Jualan.');
  }
  setCheckNotes('');
  setRecount(null);
+ setCapture(null);
  setCheckLines([emptyLine(firstVisibleStock?.id, firstVisibleStock?.base_unit, productionDate)]);
  await loadData();
- if (!recountOf) onSuccess?.({ action: 'stock_check', requiresManagerApproval });
+ if (result.shift_check_recorded === true) onSuccess?.({ action: 'stock_check', requiresManagerApproval });
  } catch (err) {
  toast.error(err instanceof Error ? err.message : 'Gagal hantar kiraan stok');
  } finally {
@@ -942,7 +976,7 @@ export function PosStockSopPanel({
  const normalMode = shiftIsOpen && !activeLeave && !deliveryIsRequired && !stockCheckIsRequired;
  const showPresencePanel = shiftIsOpen && (Boolean(activeLeave) || showSecondaryTools);
  const showDeliveryPanel = deliveryIsRequired || showSecondaryTools;
- const showStockCheckPanel = !openingStockLockedByDelivery && (stockCheckIsRequired || showSecondaryTools || Boolean(recountOf));
+ const showStockCheckPanel = !openingStockLockedByDelivery && (stockCheckIsRequired || showSecondaryTools || Boolean(recountOf) || Boolean(staffCapture));
  const showRequestPanel = showSecondaryTools;
  const showRecordPanel = showSecondaryTools;
  const focusTone = !shiftIsOpen || activeLeave || deliveryIsRequired || stockCheckIsRequired
@@ -1012,12 +1046,13 @@ export function PosStockSopPanel({
  </div>
 
  {rejectedChecks.length > 0 && <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
- <p className="font-semibold">Kiraan stok ditolak</p>
+ <p className="font-semibold">Kiraan stok perlu tindakan</p>
  {rejectedChecks.map((check) => <div key={check.id} className="flex flex-wrap items-center justify-between gap-2">
  <p>{check.count_number}{check.rejection_reason ? ` — ${check.rejection_reason}` : ''}</p>
  <Button type="button" size="sm" variant="outline" disabled={!shiftIsOpen || openingStockLockedByDelivery || Boolean(savingId)}
  onClick={() => {
  setRecount({ countId: check.id, branchId });
+ setCapture(null);
  setCheckType(requiredStockCheck ?? 'MID_SHIFT');
  setCheckNotes('');
  setCheckLines(visibleStockItems.map((item) => emptyLine(item.id, item.base_unit, productionDate)));
@@ -1373,15 +1408,29 @@ export function PosStockSopPanel({
  </div>
  <Badge variant="outline" className="gap-1 bg-white px-3 py-1.5 text-emerald-700">
  <ShoppingBasket className="h-3.5 w-3.5" />
- {CHECK_TYPES.find((type) => type.value === checkType)?.label ?? 'Kiraan stok'}
+ {CHECK_TYPES.find((type) => type.value === (staffCapture?.checkType ?? checkType))?.label ?? 'Kiraan stok'}
  </Badge>
  </div>
  </CardHeader>
  <CardContent className="space-y-4">
+ {profile?.role === 'STAFF' && <div className="space-y-2 rounded-lg border p-3 text-sm">
+ {staffCapture ? <p>
+ Snapshot: {new Date(staffCapture.captured_at).toLocaleString('ms-MY', { timeZone: 'Asia/Kuala_Lumpur' })}.
+ Isi baki fizikal pada masa snapshot. Jika pergerakan semasa mengira menyebabkan baki pada masa itu tidak pasti, mula semula.
+ </p> : <p>
+ Selepas jualan luar talian disegerakkan, ambil snapshot sebelum mengira stok fizikal. Untuk kiraan tanpa snapshot, hantar angka asal sebagai rekod
+ pembetulan; baki rasmi tidak akan berubah dan anda akan diminta membuat kiraan semula.
+ </p>}
+ <Button type="button" size="sm" variant="outline"
+ disabled={!shiftIsOpen || !visibleStockIds.length || Boolean(savingId)} onClick={() => void startStockCountCapture()}>
+ {savingId === 'stock-capture' ? 'Mengambil snapshot...' : staffCapture ? 'Mula semula (kosongkan kuantiti)' : 'Ambil snapshot & mula kira (kosongkan kuantiti)'}
+ </Button>
+ </div>}
  {recountOf && <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
  <p>Kiraan baharu untuk {rejectedChecks.find((check) => check.id === recountOf)?.count_number ?? 'rekod yang ditolak'}. Masukkan baki fizikal semasa.</p>
  <Button type="button" size="sm" variant="outline" disabled={Boolean(savingId)} onClick={() => {
  setRecount(null);
+ setCapture(null);
  setCheckType(requiredStockCheck ?? 'MID_SHIFT');
  setCheckLines(visibleStockItems.map((item) => emptyLine(item.id, item.base_unit, productionDate)));
  }}>
@@ -1684,8 +1733,8 @@ export function PosStockSopPanel({
  value={checkNotes}
  onChange={(e) => setCheckNotes(e.target.value)}
  />
- <Button className="w-full bg-emerald-600 hover:bg-emerald-700" onClick={handleStockCheck} disabled={savingId === 'stock-check'}>
- {savingId === 'stock-check' ? 'Menghantar...' : 'Hantar kiraan stok'}
+ <Button className="w-full bg-emerald-600 hover:bg-emerald-700" onClick={handleStockCheck} disabled={Boolean(savingId)}>
+ {savingId === 'stock-check' ? 'Menghantar...' : profile?.role === 'STAFF' && !staffCapture ? 'Hantar tanpa snapshot (perlu kira semula)' : 'Hantar kiraan stok'}
  </Button>
  </CardContent>
  </Card>
@@ -1849,7 +1898,8 @@ export function PosStockSopPanel({
  <Badge variant={statusVariant(check.status)}>{STATUS_LABELS[check.status] ?? check.status}</Badge>
  </div>
  <p className="mt-1 text-xs text-muted-foreground">
- {new Date(check.created_at).toLocaleString('ms-MY')}
+ {check.captured_at ? `Snapshot: ${new Date(check.captured_at).toLocaleString('ms-MY', { timeZone: 'Asia/Kuala_Lumpur' })} · ` : ''}
+ Dihantar: {new Date(check.created_at).toLocaleString('ms-MY', { timeZone: 'Asia/Kuala_Lumpur' })}
  {check.notes ? ` - ${check.notes}` : ''}
  </p>
  </div>)))}

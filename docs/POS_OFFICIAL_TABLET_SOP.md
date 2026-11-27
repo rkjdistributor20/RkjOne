@@ -37,6 +37,15 @@ Setiap cawangan hanya boleh mempunyai satu tablet rasmi yang aktif pada satu mas
 6. Jalankan transaksi, semak kaedah bayaran, dan keluarkan resit.
 7. Tutup syif serta rekod kiraan tunai dan stok pada akhir operasi.
 
+## Kiraan Stok Staf Jika Sambungan Terputus
+
+1. Pastikan jualan luar talian pada tablet telah disegerakkan. Pada SOP Stok, tekan **Ambil snapshot & mula kira** sebelum memasukkan kuantiti fizikal. Gunakan angka pada masa snapshot. Jika pergerakan semasa mengira menyebabkan angka pada masa itu tidak pasti, mula semula dengan snapshot baharu; jangan salin angka lama ke snapshot baharu.
+2. Jika sambungan putus selepas snapshot, kekalkan borang terbuka dan hantar apabila sambungan kembali. Masa snapshot dan masa hantar direkod berasingan. AM/OM meluluskan versi yang sah dengan melaras beza snapshot sahaja, tanpa menimpa jualan, penerimaan atau pindahan selepas snapshot.
+3. Jika tiada snapshot yang sah, hantar angka asal **tanpa snapshot** sebagai rekod pembetulan. Sistem tidak pos pelarasan dan tidak menggantikan masa kiraan dengan masa hantar. Pilih **Kira semula / Hantar semula** dan buat pemerhatian baharu dengan snapshot baharu. AM/OM juga boleh menolak snapshot lapuk dengan sebab untuk tindakan yang sama.
+4. Semakan atau kiraan semula tidak mengunci jualan dan tidak membatalkan semakan syif yang sudah dibuat. Kiraan lama tidak melengkapkan semakan pembukaan untuk syif lain. Tugas pembukaan sedia ada, pengesahan penerimaan driver dan kawalan peranti kekal berasingan.
+
+Nota: borang yang masih terbuka boleh dihantar semula selepas sambungan kembali; tiada giliran penghantaran automatik atau pemulihan draf selepas halaman ditutup/dimuat semula.
+
 ## Mod Kiosk Selepas Login
 
 - Tablet rasmi terus membuka halaman POS selepas pengguna login.

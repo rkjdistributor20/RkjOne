@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { inventoryRpc } from '@/lib/supabase/inventory-rpc';
 import { getCurrentProfile } from '@/lib/auth/session';
 import { RKJ_MANUFACTURING_OWN_PRODUCT_CODES } from '@/lib/stock/catalog';
@@ -404,7 +405,7 @@ export async function GET(request: Request) {
  .limit(10),
  supabase
  .from('stock_counts')
- .select('id, count_number, status, notes, created_at')
+ .select('id, count_number, status, notes, created_at, captured_at')
  .eq('organization_id', profile.organization_id)
  .eq('location_id', location.id)
  .order('created_at', { ascending: false })
@@ -449,8 +450,9 @@ export async function POST(request: Request) {
  if (!branchId) {
   return NextResponse.json({ error: 'Branch required' }, { status: 400 });
  }
+ let stockDevice: Awaited<ReturnType<typeof assertOfficialPosDevice>>;
  try {
-  await assertOfficialPosDevice(profile, branchId);
+  stockDevice = await assertOfficialPosDevice(profile, branchId);
  } catch (err) {
   return NextResponse.json(
    { error: err instanceof Error ? err.message : 'Tablet POS rasmi diperlukan' },
@@ -494,6 +496,19 @@ export async function POST(request: Request) {
  return NextResponse.json({ result: data });
  }
 
+ if (action === 'capture_stock_count') {
+ const itemIds: unknown = body.stock_item_ids;
+ if (!Array.isArray(itemIds) || itemIds.length < 1 || itemIds.length > 100 || !itemIds.every(isStockRecordId)) {
+ return NextResponse.json({ error: 'Masukkan 1 hingga 100 item yang sah untuk snapshot' }, { status: 400 });
+ }
+ const location = await getBranchLocation(supabase, branchId);
+ const { data: capture, error } = await inventoryRpc(supabase, 'capture_pos_stock_count', {
+ p_location_id: location.id, p_stock_item_ids: [...new Set(itemIds)],
+ });
+ if (error) return NextResponse.json({ error: error.message }, { status: error.code === '42501' ? 403 : 400 });
+ return NextResponse.json({ capture });
+ }
+
  if (action === 'stock_check') {
  const location = await getBranchLocation(supabase, branchId);
  const checkType = String(body.check_type ?? 'MID_SHIFT').toUpperCase();
@@ -504,31 +519,17 @@ export async function POST(request: Request) {
  if (recountOf !== null && (!isStockRecordId(recountOf) || profile.role !== 'STAFF')) {
  return NextResponse.json({ error: 'Rujukan kiraan semula tidak sah' }, { status: 400 });
  }
- // A recount is a new observation in the current shift, never a rewrite of
- // the rejected observation or its original shift's check log.
- const shiftId = recountOf ? await getOpenShiftId(supabase, branchId)
- : body.shift_id ?? await getOpenShiftId(supabase, branchId);
- if (!shiftId) {
+ const isStaffCount = profile.role === 'STAFF';
+ const captureId = isStockRecordId(body.capture_id) ? body.capture_id : null;
+ const shiftId = isStaffCount ? null : body.shift_id ?? await getOpenShiftId(supabase, branchId);
+ if (!isStaffCount && !shiftId) {
  return NextResponse.json({ error: 'Buka syif POS dahulu sebelum buat kiraan stok' }, { status: 400 });
- }
- if (profile.role === 'STAFF' && checkType === 'OPENING') {
- const { count: pendingDeliveryCount, error: pendingDeliveryError } = await db
- .from('pos_stock_receipts')
- .select('id', { count: 'exact', head: true })
- .eq('branch_id', branchId)
- .in('status', ['DRIVER_DROPPED', 'DISCREPANCY_PENDING_APPROVAL']);
-
- if (pendingDeliveryError) throw new Error(pendingDeliveryError.message);
- if (Number(pendingDeliveryCount ?? 0) > 0) {
- return NextResponse.json(
- { error: 'Sahkan penerimaan stok driver dahulu sebelum kiraan stok pembukaan dan jualan POS.' },
- { status: 400 });
- }
  }
  const items = Array.isArray(body.items) ? (body.items as SubmittedStockCountItem[]) : [];
  if (!items.length) return NextResponse.json({ error: 'Masukkan item kiraan stok' }, { status: 400 });
 
- const stockEstimate = await getLastCloseShiftEstimate(supabase, branchId, location);
+ // A present-day estimate cannot describe the variance of an offline observation.
+ const stockEstimate = isStaffCount ? null : await getLastCloseShiftEstimate(supabase, branchId, location);
  const aiVarianceItems = buildAiVarianceItems(items, stockEstimate);
  const submitAutoApproved = ['SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER'].includes(profile.role);
  const shouldApprovePendingCount = profile.role === 'AREA_MANAGER';
@@ -549,28 +550,40 @@ export async function POST(request: Request) {
  aiVarianceItems.length
  ? `Beza AI: ${aiVarianceItems.map((item) =>
  `${item.item_code || 'Item stok'} staf ${formatVarianceQuantity(item.counted_quantity)} ${item.unit}, AI ${formatVarianceQuantity(item.ai_quantity)} ${item.unit}`).join('; ')}`
- : 'Beza AI: tiada',
+ : stockEstimate ? 'Beza AI: tiada' : null,
  body.notes ? String(body.notes) : null,
  ].filter(Boolean).join(' | ');
 
- const { data, error } = await inventoryRpc(supabase, 'submit_stock_count', {
+ const { data, error } = isStaffCount
+ ? await inventoryRpc(createAdminClient(), 'record_verified_pos_staff_stock_check', {
+ p_actor: profile.id, p_device: stockDevice.id, p_generation: stockDevice.enrollmentGeneration,
+ p_branch: branchId, p_location: location.id, p_items: items, p_count_notes: notes || null,
+ p_recount: recountOf, p_capture: captureId, p_check_type: checkType,
+ p_production_date: body.production_date || null, p_shift_notes: body.notes ?? null,
+ })
+ : await inventoryRpc(supabase, 'submit_stock_count', {
  p_location_id: location.id,
  p_items: items,
  p_notes: notes || null,
- ...(recountOf ? { p_recount_of: recountOf } : {}),
  });
  if (error) {
  if (error.code === '23505' && error.message.includes('stock_counts_recount_once')) {
  return NextResponse.json({ error: 'Kiraan baharu untuk rekod ini sudah dihantar.' }, { status: 409 });
  }
+ if (error.code === '23505' && isStaffCount) return NextResponse.json({ error: error.message }, { status: 409 });
+ if (error.code === '40001') return NextResponse.json({ error: error.message }, { status: 409 });
  if (error.code === '42501') return NextResponse.json({ error: error.message }, { status: 403 });
  throw new Error(error.message);
  }
 
- const countId =
- data && typeof data === 'object' && 'count_id' in data
- ? String((data as { count_id?: string }).count_id ?? '')
- : null;
+ const resultPayload: Record<string, unknown> = data && typeof data === 'object' && !Array.isArray(data)
+ ? data : { value: data };
+ const countId = typeof resultPayload.count_id === 'string' ? resultPayload.count_id : null;
+ if (isStaffCount && resultPayload.correction_required === true) {
+ return NextResponse.json({ result: {
+ ...resultPayload, requires_manager_approval: false, approval_status: 'RECOUNT_REQUIRED',
+ } });
+ }
 
  if (countId && shouldApprovePendingCount) {
  const { error: approveError } = await inventoryRpc(supabase, 'approve_stock_count', {
@@ -579,14 +592,8 @@ export async function POST(request: Request) {
  if (approveError) throw new Error(approveError.message);
  }
 
- if (recountOf) {
- return NextResponse.json({ result: {
- count_id: countId,
- requires_manager_approval: true,
- approval_status: 'PENDING_AM_OM',
- ai_variance_items: aiVarianceItems,
- } });
- }
+ // Ordinary staff are recorded by the atomic RPC above.
+ if (shiftId) {
 
  const { error: logError } = await db
  .from('pos_shift_stock_check_logs')
@@ -640,14 +647,12 @@ export async function POST(request: Request) {
  }
  }
 
- const resultPayload =
- data && typeof data === 'object' && !Array.isArray(data)
- ? { ...(data as Record<string, unknown>) }
- : { value: data };
+ }
 
  return NextResponse.json({
  result: {
  ...resultPayload,
+ shift_check_recorded: isStaffCount ? resultPayload.shift_check_recorded === true : Boolean(shiftId),
  requires_manager_approval: requiresManagerApproval,
  approval_status: requiresManagerApproval ? 'PENDING_AM_OM' : 'OFFICIAL',
  ai_variance_items: aiVarianceItems,

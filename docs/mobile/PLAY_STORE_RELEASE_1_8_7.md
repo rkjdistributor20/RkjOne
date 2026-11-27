@@ -36,3 +36,10 @@ Fiuu VT cancellation can now safely release the cashier without waiting for the 
 - Sijil upload sepadan dengan release Play Store terdahulu.
 
 Semakan Play Console pada 26 November 2026: versi 1.8.7 (25) ialah keluaran Production terkini dan tiada perubahan belum diterbitkan. Aplikasi rasmi memuatkan `https://rkj.one`; pembaikan susulan Web/SQL tidak memerlukan muat naik AAB baharu. Rollout Google Play 100% tidak bermaksud setiap tablet sudah memasangnya.
+
+Disahkan semula pada 27 November 2026: `com.rkjone.staff` **1.8.7 (25)** tersedia
+di Google Play Production pada rollout **100%**. Matriks AM susulan ialah
+keluaran web/SQL sahaja. Sampel telemetri pelayan: 10 daripada 35 tablet
+berdaftar pernah melaporkan 1.8.7 (25), dengan 8 laporan dalam 24 jam terakhir
+ketika semakan. Play Console turut memaparkan tarikh akhir deklarasi trader
+**1 Februari 2027** untuk pemilik akaun pembangun.

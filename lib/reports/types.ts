@@ -59,8 +59,24 @@ export interface StaffPerformanceRow {
  shift_number: string | null;
  opened_at: string | null;
  closed_at: string | null;
+ shift_closed_at: string | null;
+ cashier_started_at: string | null;
+ cashier_ended_at: string | null;
  total_sales: number;
  transaction_count: number;
+}
+
+export interface ShiftClosureRow {
+ branch_code: string;
+ branch_name: string;
+ shift_id: string;
+ shift_number: string;
+ opened_at: string;
+ closed_at: string;
+ actual_work_ended_at: string | null;
+ expected_cash: number | null;
+ closing_cash: number | null;
+ cash_variance: number | null;
 }
 
 export interface InventoryReportRow {
@@ -98,6 +114,8 @@ export interface ReportTransaction {
  receipt_number: string | null;
  status: 'COMPLETED' | 'VOIDED' | 'REFUNDED';
  sold_at: string;
+ reversed_at: string | null;
+ reversal_reason: string | null;
  payment_method: 'CASH' | 'QR' | 'MIXED';
  total: number;
  cash: number;

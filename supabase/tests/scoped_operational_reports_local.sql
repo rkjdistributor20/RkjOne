@@ -23,10 +23,14 @@ CREATE TABLE public.profile_branch_access(profile_id uuid, branch_id uuid, UNIQU
 CREATE TABLE public.audit_logs(organization_id uuid, user_id uuid, action text, entity_type text, entity_id uuid,
  old_values jsonb, new_values jsonb);
 CREATE TABLE public.pos_shifts(id uuid PRIMARY KEY, organization_id uuid, branch_id uuid, shift_number text,
- opened_at timestamptz, closed_at timestamptz, actual_work_ended_at timestamptz);
+ opened_at timestamptz, closed_at timestamptz, actual_work_ended_at timestamptz,
+ expected_cash numeric, closing_cash numeric, cash_variance numeric);
+CREATE TABLE public.pos_shift_staff_members(organization_id uuid, branch_id uuid, shift_id uuid, profile_id uuid,
+ status text, started_at timestamptz, ended_at timestamptz);
 CREATE TABLE public.pos_transactions(id uuid PRIMARY KEY, organization_id uuid, branch_id uuid, shift_id uuid,
  created_by uuid, transaction_number text, status text, created_at timestamptz, payment_method text,
- total numeric, cash_amount numeric, change_amount numeric, qr_amount numeric);
+ total numeric, cash_amount numeric, change_amount numeric, qr_amount numeric,
+ voided_at timestamptz, void_reason text, refunded_at timestamptz, refund_reason text);
 CREATE TABLE public.pos_transaction_items(id uuid PRIMARY KEY, transaction_id uuid,
  product_name text, sku text, quantity integer, unit_price numeric, line_total numeric);
 CREATE TABLE public.pos_payments(transaction_id uuid);
@@ -73,6 +77,14 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 CREATE POLICY profile_scope ON public.profiles FOR SELECT TO authenticated USING (
  id = auth.uid() OR (organization_id = public.organization_id() AND public.has_branch_access(branch_id))
 );
+ALTER TABLE public.pos_shifts ENABLE ROW LEVEL SECURITY;
+CREATE POLICY shift_scope ON public.pos_shifts FOR SELECT TO authenticated USING (
+ organization_id = public.organization_id() AND public.has_branch_access(branch_id)
+);
+ALTER TABLE public.pos_shift_staff_members ENABLE ROW LEVEL SECURITY;
+CREATE POLICY shift_member_scope ON public.pos_shift_staff_members FOR SELECT TO authenticated USING (
+ organization_id = public.organization_id() AND public.has_branch_access(branch_id)
+);
 
 INSERT INTO public.regions VALUES (test_id(51), test_id(1), 'North'), (test_id(52), test_id(1), 'South');
 INSERT INTO public.branches(id, organization_id, region_id, branch_code, branch_name) VALUES
@@ -92,12 +104,25 @@ INSERT INTO public.profile_branch_access VALUES (test_id(21), test_id(11)), (tes
  (test_id(21), test_id(15)), (test_id(21), test_id(14));
 \ir ../migrations/20261127090000_pin_area_manager_branch_assignments.sql
 \ir ../migrations/20261127100000_scoped_operational_reports.sql
+\ir ../migrations/20261127221500_scoped_report_pos_details.sql
 INSERT INTO public.pos_shifts VALUES
- (test_id(31), test_id(1), test_id(11), 'Original overnight', '2026-11-27 20:00+08', '2026-11-28 04:30+08', '2026-11-28 04:00+08'),
- (test_id(32), test_id(1), test_id(12), 'Branch B shift', '2026-11-27 09:00+08', null, null),
- (test_id(33), test_id(1), test_id(13), 'Unassigned shift', '2026-11-27 09:00+08', null, null),
- (test_id(34), test_id(2), test_id(14), 'Other tenant shift', '2026-11-27 09:00+08', null, null);
-INSERT INTO public.pos_transactions VALUES
+ (test_id(31), test_id(1), test_id(11), 'Original overnight', '2026-11-27 20:00+08', '2026-11-28 04:30+08', '2026-11-28 04:00+08', 50, 45, -5),
+ (test_id(32), test_id(1), test_id(12), 'Branch B shift', '2026-11-27 09:00+08', null, null, null, null, null),
+ (test_id(33), test_id(1), test_id(13), 'Unassigned shift', '2026-11-27 09:00+08', '2026-11-28 02:00+08', null, 900, 905, 5),
+ (test_id(34), test_id(2), test_id(14), 'Other tenant shift', '2026-11-27 09:00+08', '2026-11-28 01:00+08', null, 999, 1009, 10),
+ (test_id(35), test_id(1), test_id(12), 'No sales', '2026-11-27 23:00+08', '2026-11-28 00:00+08', null, 100, 100, 0),
+ (test_id(36), test_id(1), test_id(11), 'Trial shift', '2026-11-27 22:00+08', '2026-11-28 01:00+08', null, 50, 0, -50),
+ (test_id(37), test_id(1), test_id(15), 'No count recorded', '2026-11-27 21:00+08', '2026-11-28 00:30+08', null, null, null, null);
+INSERT INTO public.pos_trial_shift_markers VALUES (test_id(36));
+INSERT INTO public.pos_shift_staff_members VALUES
+ (test_id(1), test_id(11), test_id(31), test_id(22), 'ENDED', '2026-11-27 21:00+08', '2026-11-28 02:00+08'),
+ (test_id(1), test_id(11), test_id(31), test_id(22), 'ENDED', '2026-11-28 02:15+08', '2026-11-28 03:30+08'),
+ (test_id(1), test_id(11), test_id(31), test_id(22), 'PENDING_APPROVAL', '2026-11-27 20:00+08', null),
+ (test_id(1), test_id(12), test_id(31), test_id(22), 'ACTIVE', '2026-11-27 19:00+08', null),
+ (test_id(1), test_id(11), test_id(31), test_id(21), 'ENDED', '2026-11-27 20:00+08', '2026-11-28 04:15+08'),
+ (test_id(1), test_id(12), test_id(32), test_id(21), 'ACTIVE', '2026-11-27 09:00+08', null);
+INSERT INTO public.pos_transactions (id, organization_id, branch_id, shift_id, created_by, transaction_number, status,
+ created_at, payment_method, total, cash_amount, change_amount, qr_amount) VALUES
  (test_id(101), test_id(1), test_id(11), test_id(31), test_id(22), 'CASH', 'COMPLETED',
   '2026-11-27 23:59:59.999999+08', 'CASH', 10, 20, 10, 0),
  (test_id(102), test_id(1), test_id(11), test_id(31), test_id(22), 'MIX', 'COMPLETED',
@@ -116,6 +141,10 @@ INSERT INTO public.pos_transactions VALUES
   '2026-11-27 22:00+08', 'CASH', 100, 100, 0, 0),
  (test_id(109), test_id(1), test_id(11), test_id(31), test_id(22), 'REFUND', 'REFUNDED',
   '2026-11-27 22:00+08', 'CASH', 100, 100, 0, 0);
+UPDATE public.pos_transactions SET voided_at = '2026-11-28 00:01+08', void_reason = 'Order cancelled'
+ WHERE id = test_id(108);
+UPDATE public.pos_transactions SET refunded_at = '2026-11-29 09:30+08', refund_reason = 'Returned item'
+ WHERE id = test_id(109);
 INSERT INTO public.pos_trial_sale_markers VALUES (test_id(107));
 INSERT INTO public.pos_online_payments VALUES
  (test_id(201), test_id(1), test_id(11), test_id(31), test_id(22), test_id(102), 'PENDING', 'manual_qr', 4,
@@ -195,6 +224,35 @@ BEGIN
    OR r->0->>'total_sales' <> '29' OR r->0->>'transaction_count' <> '3' THEN
   RAISE EXCEPTION 'Wrong historic attribution: %', r;
  END IF;
+ IF ((r->0->>'opened_at')::timestamptz, (r->0->>'shift_closed_at')::timestamptz,
+     (r->0->>'cashier_started_at')::timestamptz, (r->0->>'cashier_ended_at')::timestamptz)
+    IS DISTINCT FROM ('2026-11-27 20:00+08'::timestamptz, '2026-11-28 04:30+08'::timestamptz,
+                      '2026-11-27 21:00+08'::timestamptz, '2026-11-28 03:30+08'::timestamptz) THEN
+  RAISE EXCEPTION 'Cashier attendance used the wrong person/branch or confused work end with POS close: %', r;
+ END IF;
+ r := read_scoped_report('staff','2026-11-27','2026-11-28',test_id(12))->'staff';
+ IF (r->0->>'cashier_started_at')::timestamptz IS DISTINCT FROM '2026-11-27 09:00+08'::timestamptz
+   OR r->0->'cashier_ended_at' IS DISTINCT FROM 'null'::jsonb OR r->0->'shift_closed_at' IS DISTINCT FROM 'null'::jsonb THEN
+  RAISE EXCEPTION 'Open cashier/shift acquired a fabricated end: %', r;
+ END IF;
+ IF read_scoped_report('shift-closures','2026-11-27','2026-11-27')->'closures' IS DISTINCT FROM '[]'::jsonb THEN
+  RAISE EXCEPTION 'Closures used the shift opening day rather than the MYT POS closing day';
+ END IF;
+ r := read_scoped_report('shift-closures','2026-11-28','2026-11-28',null,5001)->'closures';
+ IF jsonb_array_length(r) <> 3 OR r->0->>'shift_id' <> test_id(31)::text
+   OR (r->0->>'expected_cash', r->0->>'closing_cash', r->0->>'cash_variance') IS DISTINCT FROM ('50','45','-5')
+   OR (r->0->>'actual_work_ended_at')::timestamptz IS DISTINCT FROM '2026-11-28 04:00+08'::timestamptz
+   OR r->1->'cash_variance' IS DISTINCT FROM 'null'::jsonb
+   OR (r->2->>'shift_id', r->2->>'cash_variance') IS DISTINCT FROM (test_id(35)::text,'0') THEN
+  RAISE EXCEPTION 'Wrong or leaked shift differences, including zero and missing count: %', r;
+ END IF;
+ IF read_scoped_report('shift-closures','2026-11-28','2026-11-28',null,1,2)->'closures' IS DISTINCT FROM jsonb_build_array(r->2) THEN
+  RAISE EXCEPTION 'Closure pagination and export disagree';
+ END IF;
+ BEGIN
+  PERFORM read_scoped_report('shift-closures','2026-11-28','2026-11-28',test_id(13));
+  RAISE EXCEPTION 'Closure read accepted a branch outside the assignment';
+ EXCEPTION WHEN insufficient_privilege THEN NULL; END;
  r := read_scoped_report('branches','2026-11-27','2026-11-27')->'branches';
  IF jsonb_array_length(r) <> 2 OR r->0->>'branch_id' <> test_id(11)::text
    OR r->0->>'total_sales' <> '17' OR r->1->>'total_sales' <> '3' THEN
@@ -214,6 +272,19 @@ BEGIN
  r := read_scoped_report('transactions','2026-11-27','2026-11-28',null,5001)->'transactions';
  IF jsonb_array_length(r) <> 6 OR r::text LIKE '%FOREIGN%' OR r::text LIKE '%TRIAL%' OR r::text LIKE '%"OUT"%' THEN
   RAISE EXCEPTION 'Incorrect transaction/export rows: %', r;
+ END IF;
+ IF NOT EXISTS (SELECT 1 FROM jsonb_array_elements(r) t WHERE t->>'id' = test_id(108)::text
+   AND t->>'status' = 'VOIDED' AND t->>'reversal_reason' = 'Order cancelled'
+   AND (t->>'reversed_at')::timestamptz = '2026-11-28 00:01+08'
+   AND t->>'cashier_id' = test_id(22)::text AND t->>'shift_id' = test_id(31)::text) THEN
+  RAISE EXCEPTION 'VOID metadata lost original cashier/shift: %', r;
+ END IF;
+ r := read_scoped_report('receipt','2026-11-27','2026-11-27',null,1,0,null,test_id(109))->'receipt';
+ IF (r->>'status', r->>'reversal_reason', r->>'cashier_id', r->>'shift_id', r->>'total')
+   IS DISTINCT FROM ('REFUNDED', 'Returned item', test_id(22)::text, test_id(31)::text, '100')
+   OR (r->>'reversed_at')::timestamptz IS DISTINCT FROM '2026-11-29 09:30+08'::timestamptz
+   OR read_scoped_report('receipt','2026-11-29','2026-11-29',null,1,0,null,test_id(109))->'receipt' IS DISTINCT FROM 'null'::jsonb THEN
+  RAISE EXCEPTION 'Refund did not stay with the original sale date: %', r;
  END IF;
  r := read_scoped_report('payments','2026-11-27','2026-11-28')->'payments';
  IF jsonb_array_length(r) <> 1 OR r->0->>'status' <> 'QUARANTINED' OR r::text LIKE '%sensitive%' THEN
@@ -266,6 +337,9 @@ BEGIN
   PERFORM read_scoped_report('overview','2026-11-27','2026-11-27',test_id(15));
   RAISE EXCEPTION 'Branch grant removal did not take effect';
  EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+ IF jsonb_array_length(read_scoped_report('shift-closures','2026-11-28','2026-11-28')->'closures') <> 2 THEN
+  RAISE EXCEPTION 'Revoked grant still appears in all-branch closures';
+ END IF;
 END $changed$;
 
 DO $roles$
@@ -275,6 +349,9 @@ BEGIN
  r := read_scoped_report('overview','2026-11-27','2026-11-28')->'overview';
  IF r->>'total_sales' <> '0' OR r->>'low_stock_count' <> '0' THEN
   RAISE EXCEPTION 'Empty scope leaked totals: %', r;
+ END IF;
+ IF read_scoped_report('shift-closures','2026-11-28','2026-11-28')->'closures' IS DISTINCT FROM '[]'::jsonb THEN
+  RAISE EXCEPTION 'Empty scope leaked closure data';
  END IF;
  PERFORM set_config('request.jwt.claim.sub', test_id(24)::text, true);
  BEGIN
@@ -297,5 +374,30 @@ BEGIN
   RAISE EXCEPTION 'Branch-filtered admin totals wrong: %', r;
  END IF;
 END $roles$;
+RESET ROLE;
+
+-- A second cashier on the same shift must get separate actual times and a
+-- separate sales tally without duplicating the shift-level cash difference.
+INSERT INTO public.pos_transactions (id, organization_id, branch_id, shift_id, created_by, transaction_number, status,
+ created_at, payment_method, total, cash_amount, change_amount, qr_amount)
+ VALUES (test_id(110), test_id(1), test_id(11), test_id(31), test_id(21), 'SECOND CASHIER', 'COMPLETED',
+  '2026-11-28 01:00+08', 'CASH', 4, 4, 0, 0);
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub', test_id(21)::text, true);
+DO $shared$
+DECLARE r jsonb;
+BEGIN
+ r := read_scoped_report('staff','2026-11-27','2026-11-28',test_id(11))->'staff';
+ IF jsonb_array_length(r) <> 2
+   OR (r->0->>'cashier_id', r->0->>'total_sales', r->0->>'transaction_count') IS DISTINCT FROM (test_id(22)::text,'29','3')
+   OR (r->1->>'cashier_id', r->1->>'total_sales', r->1->>'transaction_count') IS DISTINCT FROM (test_id(21)::text,'4','1')
+   OR (r->1->>'cashier_ended_at')::timestamptz IS DISTINCT FROM '2026-11-28 04:15+08'::timestamptz THEN
+  RAISE EXCEPTION 'Shared shift changed the original cashier totals or attendance: %', r;
+ END IF;
+ r := read_scoped_report('shift-closures','2026-11-28','2026-11-28',test_id(11))->'closures';
+ IF jsonb_array_length(r) <> 1 OR r->0->>'cash_variance' IS DISTINCT FROM '-5' THEN
+  RAISE EXCEPTION 'Shared shift duplicated its cash difference: %', r;
+ END IF;
+END $shared$;
 RESET ROLE;
 ROLLBACK;

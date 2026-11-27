@@ -1,17 +1,15 @@
 # RKJ One Staff - Play Store Submission Pack
 
-Status terakhir disahkan pada 24 November 2026. Google Play Production masih menjalankan `1.8.4` (version code `22`) pada rollout 100%. Calon seterusnya ialah `1.8.7` (version code `25`) dan belum boleh dihantar sehingga migrasi, worker recovery, deployment web production dan UAT fizikal BR001 lulus.
+Disahkan melalui Play Console pada 27 November 2026: Google Play Production menjalankan `1.8.7` (version code `25`) pada rollout 100%. Perubahan matriks AM susulan hanya memerlukan deployment web/SQL; jangan muat naik semula AAB ini.
 
 ## Fail Utama
 
-- Current production release: `RKJ One Staff 1.8.4`
+- Current production release: `RKJ One Staff 1.8.7`
 - Package name: `com.rkjone.staff`
-- Version code: `22`
-- Version name: `1.8.4`
-- Rollout: `100%` (verified 2026-11-24)
-- Next candidate: `1.8.7` (version code `25`)
-- Candidate AAB: `artifacts/android/rkj-one-staff-1.8.7-release.aab`
-- Pilot gate: BR001 sahaja sehingga ujian pesanan A -> B, callback lewat/berulang dan gangguan internet lulus
+- Version code: `25`
+- Version name: `1.8.7`
+- Rollout: `100%` (verified 2026-11-27; not an installed-device count)
+- Published AAB: `artifacts/android/rkj-one-staff-1.8.7-release.aab`
 - Privacy policy: `https://rkj.one/privacy`
 - Support: `https://rkj.one/support`
 - Account deletion: `https://rkj.one/delete-account`
@@ -102,7 +100,7 @@ Rujuk `docs/mobile/DATA_SAFETY.md`.
 ## Checklist Submit
 
 - Guna D-U-N-S `473312040` untuk akaun Organization Google Play Console jika diminta.
-- Upload hanya `artifacts/android/rkj-one-staff-1.8.7-release.aab` selepas hash, sijil signing dan version code disahkan.
+- Untuk keluaran Android baharu sahaja, upload AAB selepas hash, sijil signing dan version code disahkan. AAB 1.8.7 sudah diterbitkan.
 - Upload 5 phone screenshots.
 - Upload feature graphic.
 - Masukkan privacy policy URL.

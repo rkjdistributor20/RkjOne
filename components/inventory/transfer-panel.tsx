@@ -20,12 +20,11 @@ import {
  SelectTrigger,
  SelectValue,
 } from '@/components/ui/select';
-import { formatExpiryDate } from '@/lib/stock/expiry';
-import { formatStockQuantity } from '@/lib/stock/catalog';
 import { labelFor, TRANSFER_STATUS_LABELS } from '@/lib/ui/labels';
 import { boundSelectValue, displayLabel } from '@/lib/ui/select-utils';
 import { StockLineForm } from '@/components/inventory/stock-line-form';
 import { TransferCancelButton } from '@/components/inventory/transfer-cancel-button';
+import { TransferReceiptActions } from '@/components/inventory/transfer-receipt-actions';
 
 interface TransferPanelProps {
  locations: InventoryLocation[];
@@ -270,41 +269,15 @@ export function TransferPanel({
  {labelFor(TRANSFER_STATUS_LABELS, t.status)}
  </Badge>
  </div>
- {t.stock_transfer_items && t.stock_transfer_items.length > 0 && (
- <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground">
- {t.stock_transfer_items.map((i, idx) => (
- <li key={idx}>
- {displayLabel(i.stock_item?.name, i.stock_item?.item_code ?? 'Item')}:{' '}
- {formatStockQuantity(Number(i.quantity), i.unit, {
- item_code: i.stock_item.item_code,
- })}
- </li>))}
- </ul>)}
+ <TransferReceiptActions transfer={t} onChanged={onCancelled} onLegacyComplete={onComplete} />
  <div className="mt-2 flex flex-wrap gap-2">
  {t.can_dispatch && (
  <Button size="sm" variant="outline" onClick={() => onDispatch(t.id)}>
  Hantar
  </Button>)}
- {t.can_complete && (
- <Button
- size="sm"
- className="bg-amber-500 hover:bg-amber-600"
- onClick={() => onComplete(t.id)}
- >
- Terima di Kiosk
- </Button>)}
  {t.can_cancel && <TransferCancelButton id={t.id} onCancelled={onCancelled} />}
  </div>
  {t.cancellation_reason && <p className="text-xs text-muted-foreground">Sebab batal: {t.cancellation_reason}</p>}
- {t.managed_delivery && t.status === 'IN_TRANSIT' && (
- <p className="text-xs text-muted-foreground">Penerimaan melalui aliran penghantaran/POS.</p>)}
- {t.stock_transfer_items?.some((i) => i.production_date) && (
- <ul className="mt-2 space-y-0.5 border-t pt-2 text-xs text-muted-foreground">
- {t.stock_transfer_items.filter((i) => i.production_date).map((i, idx) => (
- <li key={idx}>
- {i.stock_item.name}: prod {formatExpiryDate(i.production_date!)}
- </li>))}
- </ul>)}
  </div>)))}
  </div>
  </div>);

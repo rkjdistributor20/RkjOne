@@ -12,6 +12,7 @@ import type {
  PosShiftStaffMember,
  PosShiftMemberRole,
  PosStockSopResponse,
+ PosStockCountCapture,
  PosShiftStockCheckType,
  PosTransactionRow,
  ProductStockInfo,
@@ -687,10 +688,18 @@ export async function confirmPosStockDelivery(payload: {
  });
 }
 
+export async function capturePosStockCount(branchId: string, itemIds: string[]) {
+ return fetchJson<{ capture: PosStockCountCapture }>('/api/pos/stock-sop', {
+ method: 'POST',
+ body: JSON.stringify({ action: 'capture_stock_count', branch_id: branchId, stock_item_ids: itemIds }),
+ });
+}
+
 export async function submitPosStockCheck(payload: {
  branch_id: string;
  shift_id?: string | null;
  recount_of?: string;
+ capture_id?: string;
  check_type: PosShiftStockCheckType;
  production_date?: string;
  notes?: string;

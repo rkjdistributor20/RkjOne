@@ -1,4 +1,4 @@
--- Run only on a disposable local database after the AM assignment and roster migrations.
+-- Run only on a disposable local database after the AM assignment and both roster migrations.
 BEGIN;
 
 CREATE FUNCTION pg_temp.assert_roster(ok boolean, label text) RETURNS void
@@ -98,6 +98,14 @@ BEGIN
   RAISE EXCEPTION 'Unexpected save on non-Monday';
  EXCEPTION WHEN invalid_parameter_value THEN NULL;
  END;
+ BEGIN
+  PERFORM public.save_weekly_roster('30000000-0000-4000-8000-000000000001','2199-11-11',
+   '[{"staff_id":"50000000-0000-4000-8000-000000000001","day_index":0,"is_off":false,"scheduled_start":"22:00","scheduled_end":"06:00"},
+     {"staff_id":"50000000-0000-4000-8000-000000000001","day_index":1,"is_off":false,"scheduled_start":"05:59","scheduled_end":"11:00"}]');
+  RAISE EXCEPTION 'Unexpected overnight overlap within one new draft';
+ EXCEPTION WHEN unique_violation THEN
+  IF SQLERRM NOT LIKE 'Jadual staf bertindih:%' THEN RAISE; END IF;
+ END;
 END;
 $$;
 SELECT pg_temp.assert_roster(
@@ -151,12 +159,126 @@ SELECT set_config('roster_test.shift', (
  SELECT id::text FROM staff_shifts WHERE notes = 'roster:' || current_setting('roster_test.plan') AND shift_date = '2199-11-17'
 ), true);
 
+-- Copy is checked at its destination, not just where the source was valid.
+SELECT public.save_weekly_roster('30000000-0000-4000-8000-000000000001','2199-12-02',
+ '[{"staff_id":"50000000-0000-4000-8000-000000000001","day_index":0,"is_off":false,"scheduled_start":"05:59","scheduled_end":"11:00"}]');
+DO $$
+BEGIN
+ BEGIN
+  PERFORM public.save_weekly_roster('30000000-0000-4000-8000-000000000001','2199-11-18','[]','2199-12-02');
+  RAISE EXCEPTION 'Copy overlapped the preceding Sunday';
+ EXCEPTION WHEN unique_violation THEN
+  IF SQLERRM NOT LIKE 'Jadual staf bertindih:%' THEN RAISE; END IF;
+ END;
+END;
+$$;
+SELECT pg_temp.assert_roster(
+ NOT EXISTS (SELECT 1 FROM weekly_roster_plans WHERE week_start_date = '2199-11-18'),
+ 'an overlapping copy rolls back its draft');
+
+-- An AM must reject a conflict even when the former branch is not visible.
 RESET ROLE;
+UPDATE staff SET branch_id = '30000000-0000-4000-8000-000000000003' WHERE id = '50000000-0000-4000-8000-000000000001';
+SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub','40000000-0000-4000-8000-000000000003',true);
+SELECT pg_temp.assert_roster(
+ NOT EXISTS (SELECT 1 FROM roster_planned_shifts WHERE branch_id = '30000000-0000-4000-8000-000000000001')
+ AND NOT EXISTS (
+  SELECT 1 FROM pg_proc f JOIN pg_namespace n ON n.oid = f.pronamespace
+  WHERE n.nspname = 'private_rkj' AND f.proname IN ('save_weekly_roster', 'publish_weekly_roster')
+   AND has_function_privilege(f.oid, 'EXECUTE')
+ ),
+ 'other AM cannot read the source plan or bypass the checked RPC');
+DO $$
+DECLARE
+ v_week date;
+ v_entry jsonb;
+BEGIN
+ FOR v_week, v_entry IN SELECT * FROM (VALUES
+  (date '2199-11-11', '[{"staff_id":"50000000-0000-4000-8000-000000000001","day_index":1,"is_off":false,"scheduled_start":"22:00","scheduled_end":"23:00"}]'::jsonb),
+  (date '2199-11-18', '[{"staff_id":"50000000-0000-4000-8000-000000000001","day_index":0,"is_off":false,"scheduled_start":"05:59","scheduled_end":"11:00"}]'::jsonb)
+ ) inputs(week_start, entry) LOOP
+  BEGIN
+   PERFORM public.save_weekly_roster('30000000-0000-4000-8000-000000000003',v_week,v_entry);
+   RAISE EXCEPTION 'Cross-branch overlap was accepted';
+  EXCEPTION WHEN unique_violation THEN
+   IF SQLERRM <> format('Jadual staf bertindih: Shift opener (%s, MYT)',
+    CASE WHEN v_week = '2199-11-11' THEN '2199-11-12' ELSE '2199-11-18' END) THEN RAISE; END IF;
+  END;
+ END LOOP;
+END;
+$$;
+
+RESET ROLE;
+-- Simulate a draft made before overlap validation existed.
+INSERT INTO weekly_roster_plans (id, organization_id, branch_id, week_start_date)
+VALUES ('80000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000001',
+ '30000000-0000-4000-8000-000000000003','2199-11-18');
+INSERT INTO weekly_roster_entries (plan_id, staff_id, day_index, scheduled_start, scheduled_end)
+VALUES ('80000000-0000-4000-8000-000000000001','50000000-0000-4000-8000-000000000001',0,'05:59','11:00');
+SET LOCAL ROLE authenticated;
+DO $$
+BEGIN
+ BEGIN
+  PERFORM public.publish_weekly_roster('80000000-0000-4000-8000-000000000001');
+  RAISE EXCEPTION 'Unexpected publish of overlapping legacy draft';
+ EXCEPTION WHEN unique_violation THEN
+  IF SQLERRM NOT LIKE 'Jadual staf bertindih:%' THEN RAISE; END IF;
+ END;
+END;
+$$;
+SELECT pg_temp.assert_roster((
+ SELECT status = 'DRAFT' FROM weekly_roster_plans WHERE id = '80000000-0000-4000-8000-000000000001'
+) AND NOT EXISTS (
+ SELECT 1 FROM staff_shifts WHERE notes = 'roster:80000000-0000-4000-8000-000000000001'
+), 'rejected publication leaves the plan and projection unchanged');
+SELECT public.save_weekly_roster('30000000-0000-4000-8000-000000000003','2199-11-18',
+ '[{"staff_id":"50000000-0000-4000-8000-000000000001","day_index":0,"is_off":false,"scheduled_start":"06:00","scheduled_end":"11:00"}]');
+SELECT pg_temp.assert_roster(
+ public.publish_weekly_roster('80000000-0000-4000-8000-000000000001')->>'published' = 'true',
+ 'adjacent cross-branch slots can meet at the exact end time');
+
+RESET ROLE;
+UPDATE staff SET branch_id = '30000000-0000-4000-8000-000000000001' WHERE id = '50000000-0000-4000-8000-000000000001';
 UPDATE staff SET branch_id = '30000000-0000-4000-8000-000000000002' WHERE id = '50000000-0000-4000-8000-000000000002';
 UPDATE shift_templates SET start_time = '23:00' WHERE id = '60000000-0000-4000-8000-000000000001';
 INSERT INTO weekly_roster_entries (plan_id, staff_id, day_index, is_off)
 VALUES (current_setting('roster_test.plan')::uuid, '50000000-0000-4000-8000-000000000001', 4, false);
 SET LOCAL ROLE authenticated;
+SELECT set_config('request.jwt.claim.sub','40000000-0000-4000-8000-000000000001',true);
+DO $$
+BEGIN
+ BEGIN
+  PERFORM public.save_weekly_roster('30000000-0000-4000-8000-000000000001','2199-11-11',
+   '[{"staff_id":"50000000-0000-4000-8000-000000000001","day_index":6,"is_off":false,"scheduled_start":"22:00","scheduled_end":"07:00"}]');
+  RAISE EXCEPTION 'Published amendment overlapped the next branch';
+ EXCEPTION WHEN unique_violation THEN
+  IF SQLERRM NOT LIKE 'Jadual staf bertindih:%' THEN RAISE; END IF;
+ END;
+END;
+$$;
+SELECT pg_temp.assert_roster((
+ SELECT scheduled_end = '06:00' FROM weekly_roster_entries
+ WHERE plan_id = current_setting('roster_test.plan')::uuid AND day_index = 6
+) AND (
+ SELECT scheduled_end = '06:00' FROM staff_shifts WHERE id = current_setting('roster_test.shift')::uuid
+), 'rejected amendment rolls back both the published slot and its projection');
+
+-- Validate the final transaction state, not its temporarily overlapping first edit.
+SELECT set_config('roster_test.batch', public.save_weekly_roster('30000000-0000-4000-8000-000000000001','2199-12-09',
+ '[{"staff_id":"50000000-0000-4000-8000-000000000001","day_index":1,"is_off":false,"scheduled_start":"08:00","scheduled_end":"16:00"},
+   {"staff_id":"50000000-0000-4000-8000-000000000001","day_index":2,"is_off":false,"scheduled_start":"05:00","scheduled_end":"12:00"}]')::text,true);
+SELECT pg_temp.assert_roster(
+ public.publish_weekly_roster(current_setting('roster_test.batch')::uuid)->>'shifts_created' = '2',
+ 'batch plan published');
+SELECT public.save_weekly_roster('30000000-0000-4000-8000-000000000001','2199-12-09',
+ '[{"staff_id":"50000000-0000-4000-8000-000000000001","day_index":1,"is_off":false,"scheduled_start":"22:00","scheduled_end":"06:00"},
+   {"staff_id":"50000000-0000-4000-8000-000000000001","day_index":2,"is_off":false,"scheduled_start":"06:00","scheduled_end":"12:00"}]');
+SELECT pg_temp.assert_roster((
+ SELECT count(*) = 2 AND count(*) FILTER (WHERE scheduled_start = '06:00' OR scheduled_start = '22:00') = 2
+ FROM roster_planned_shifts WHERE plan_id = current_setting('roster_test.batch')::uuid
+), 'batched overnight edit validates adjacent final slots and retains both staff assignments');
+
 SELECT set_config('roster_test.copy', public.save_weekly_roster(
  '30000000-0000-4000-8000-000000000001','2199-11-18','[]','2199-11-11')::text,true);
 SELECT pg_temp.assert_roster((
@@ -187,17 +309,37 @@ RESET ROLE;
 INSERT INTO attendance_records (organization_id, staff_id, staff_shift_id, branch_id, attendance_date, clock_in)
 VALUES ('10000000-0000-4000-8000-000000000001','50000000-0000-4000-8000-000000000001',
  current_setting('roster_test.shift')::uuid,'30000000-0000-4000-8000-000000000001','2199-11-17','2199-11-17 23:05+08');
+UPDATE staff_shifts SET actual_start = '2199-11-17 23:05+08'
+ WHERE id = current_setting('roster_test.shift')::uuid;
+SELECT set_config('roster_test.shift_before', (
+ SELECT to_jsonb(sh)::text FROM staff_shifts sh WHERE id = current_setting('roster_test.shift')::uuid
+), true);
+SELECT set_config('roster_test.attendance_before', (
+ SELECT to_jsonb(a)::text FROM attendance_records a WHERE staff_shift_id = current_setting('roster_test.shift')::uuid
+), true);
 SET LOCAL ROLE authenticated;
-DO $$
-BEGIN
- BEGIN
-  PERFORM public.save_weekly_roster('30000000-0000-4000-8000-000000000001','2199-11-11',
-   '[{"staff_id":"50000000-0000-4000-8000-000000000001","day_index":6,"is_off":true}]');
-  RAISE EXCEPTION 'Unexpected overwrite of attendance-bound slot';
- EXCEPTION WHEN unique_violation THEN NULL;
- END;
-END;
-$$;
+SELECT public.save_weekly_roster('30000000-0000-4000-8000-000000000001','2199-11-11',
+ '[{"staff_id":"50000000-0000-4000-8000-000000000001","day_index":6,"is_off":false,"scheduled_start":"21:00","scheduled_end":"04:00","notes":"Updated plan"}]');
+SELECT public.save_weekly_roster('30000000-0000-4000-8000-000000000001','2199-11-11',
+ '[{"staff_id":"50000000-0000-4000-8000-000000000001","day_index":6,"is_off":false,"scheduled_start":"21:00","scheduled_end":"04:00","notes":"Updated plan"}]');
+SELECT pg_temp.assert_roster((
+ SELECT count(*) = 1 AND min(scheduled_start) = '21:00' AND max(scheduled_end) = '04:00'
+ FROM roster_planned_shifts WHERE plan_id = current_setting('roster_test.plan')::uuid AND shift_date = '2199-11-17'
+), 'comparison reads the revised plan, not the attendance projection');
+SELECT public.save_weekly_roster('30000000-0000-4000-8000-000000000001','2199-11-11',
+ '[{"staff_id":"50000000-0000-4000-8000-000000000001","day_index":6,"is_off":true}]');
+SELECT pg_temp.assert_roster(
+ NOT EXISTS (SELECT 1 FROM roster_planned_shifts
+  WHERE branch_id = '30000000-0000-4000-8000-000000000001'
+   AND staff_id = '50000000-0000-4000-8000-000000000001' AND shift_date = '2199-11-17'),
+ 'changing to off does not report the stale projection as a planned shift');
+SELECT pg_temp.assert_roster((
+ SELECT to_jsonb(sh) = current_setting('roster_test.shift_before')::jsonb
+ FROM staff_shifts sh WHERE id = current_setting('roster_test.shift')::uuid
+) AND (
+ SELECT to_jsonb(a) = current_setting('roster_test.attendance_before')::jsonb
+ FROM attendance_records a WHERE staff_shift_id = current_setting('roster_test.shift')::uuid
+), 'planning preserves the entire linked attendance record and its historical projection');
 SELECT pg_temp.assert_roster((
  SELECT opened_at = '2199-11-17 22:00+08' AND closed_at = '2199-11-18 06:00+08' AND status = 'CLOSED'
  FROM pos_shifts WHERE id = '70000000-0000-4000-8000-000000000001'
@@ -205,12 +347,33 @@ SELECT pg_temp.assert_roster((
 
 SELECT set_config('request.jwt.claim.sub','40000000-0000-4000-8000-000000000002',true);
 SELECT pg_temp.assert_roster((
- SELECT count(*) = 3 AND bool_or(scheduled_start = '23:00' AND NOT is_off)
+ SELECT count(*) = 3 AND bool_or(day_index = 6 AND is_off)
  FROM weekly_roster_entries WHERE plan_id = current_setting('roster_test.plan')::uuid
 ) AND NOT EXISTS (SELECT 1 FROM weekly_roster_plans WHERE id = current_setting('roster_test.copy')::uuid),
  'staff sees only their published slots including the planning change');
 
 RESET ROLE;
+SELECT pg_temp.assert_roster((
+ SELECT count(*) = 1 FROM audit_logs
+ WHERE action = 'ROSTER_SLOT_UPDATE' AND user_id = '40000000-0000-4000-8000-000000000001'
+  AND organization_id = '10000000-0000-4000-8000-000000000001' AND created_at IS NOT NULL
+  AND old_values->>'plan_id' = current_setting('roster_test.plan') AND old_values->>'scheduled_start' = '23:00:00'
+  AND new_values->>'scheduled_start' = '21:00:00' AND new_values->>'notes' = 'Updated plan'
+  AND new_values->>'branch_id' = '30000000-0000-4000-8000-000000000001' AND new_values->>'week_start_date' = '2199-11-11'
+) AND NOT EXISTS (
+ SELECT 1 FROM audit_logs WHERE action = 'ROSTER_SLOT_UPDATE'
+  AND old_values->>'plan_id' = current_setting('roster_test.plan')
+  AND ((old_values->>'scheduled_start' = '21:00:00' AND new_values->>'scheduled_start' = '21:00:00')
+   OR new_values->>'scheduled_end' = '07:00:00')
+) AND EXISTS (
+ SELECT 1 FROM audit_logs WHERE action = 'ROSTER_SLOT_UPDATE' AND old_values->>'scheduled_start' = '21:00:00'
+  AND new_values->>'is_off' = 'true' AND old_values->>'plan_id' = current_setting('roster_test.plan')
+) AND (
+ SELECT count(*) = 1 FROM audit_logs WHERE action = 'ROSTER_PUBLISH'
+  AND entity_id = '80000000-0000-4000-8000-000000000001'
+  AND old_values->>'status' = 'DRAFT' AND new_values->>'status' = 'PUBLISHED'
+), 'audit captures actor, scope and before/after changes once; rejected and unchanged operations leave no audit');
+
 DELETE FROM profile_branch_access
 WHERE profile_id = '40000000-0000-4000-8000-000000000001'
  AND branch_id = '30000000-0000-4000-8000-000000000001';
@@ -218,6 +381,7 @@ SET LOCAL ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub','40000000-0000-4000-8000-000000000001',true);
 SELECT pg_temp.assert_roster(
  NOT EXISTS (SELECT 1 FROM weekly_roster_plans WHERE id = current_setting('roster_test.plan')::uuid)
+ AND NOT EXISTS (SELECT 1 FROM roster_planned_shifts WHERE plan_id = current_setting('roster_test.plan')::uuid)
  AND NOT EXISTS (SELECT 1 FROM pos_shifts WHERE id = '70000000-0000-4000-8000-000000000001'),
  'revocation immediately hides both planned and actual rows');
 

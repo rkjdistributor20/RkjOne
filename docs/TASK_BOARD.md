@@ -13,6 +13,10 @@ Status key: `Todo`, `In Progress`, `Review`, `Blocked`, `Done`.
 - Weekly planned vs actual shifts, branch/MYT sales, stock history and CSV.
   Verified staff self-start does not require AM approval. No new payment
   refund, VOID or financial configuration permissions.
+- Follow-up gaps: immutable capture or explicit recount for historical stock
+  counts; partial/discrepant receipts and linked reversals; retry-safe direct
+  AM stock posting; weekly overlap/audit; read-only VOID/refund and shift cash
+  differences. Keep the existing Play bundle when only web/SQL changes.
 
 ## POS closure without blocking on detached QR
 

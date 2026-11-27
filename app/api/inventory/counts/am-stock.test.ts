@@ -27,6 +27,7 @@ import { GET as listCounts, PATCH as review } from './route';
 const AM = { id: '00000000-0000-0000-0000-000000000001', role: 'AREA_MANAGER', organization_id: 'org' };
 const LOC = '00000000-0000-0000-0000-000000000002';
 const COUNT = '00000000-0000-0000-0000-000000000003';
+const REQUEST_ID = '00000000-0000-4000-a000-000000000004';
 const location = { id: LOC, branch_id: 'assigned', location_type: 'BRANCH_KIOSK', organization_id: 'org', is_active: true };
 const items = [{ stock_item_id: 'item', quantity: 1, unit: 'PCS' }];
 
@@ -40,9 +41,9 @@ function query(data: unknown) {
  };
 }
 
-function request(method: string, body?: object, params = '') {
+function request(method: string, body?: object, params = '', id: string | null = REQUEST_ID) {
  return new Request(`http://localhost/api/inventory/test${params}`, {
-  method, ...(body && { body: JSON.stringify(body) }),
+  method, ...(body && { body: JSON.stringify(body) }), ...(id && { headers: { 'Idempotency-Key': id } }),
  });
 }
 
@@ -71,9 +72,16 @@ describe('AM stock scope', () => {
   expect((await receive(request('POST', {
    location_id: LOC, items, source: 'Supplier fixture', document_reference: 'INV-17', branch_id: 'ignored',
   }))).status).toBe(200);
-  expect(mocks.rpc).toHaveBeenCalledWith('post_am_stock_receipt', {
-   p_location_id: LOC, p_source: 'Supplier fixture', p_document_reference: 'INV-17', p_items: items, p_notes: null,
+  expect(mocks.rpc).toHaveBeenCalledWith('post_am_stock_operation', {
+   p_location_id: LOC, p_request_id: REQUEST_ID, p_action: 'RECEIVE',
+   p_payload: { source: 'Supplier fixture', document_reference: 'INV-17', items, notes: null },
   });
+ });
+
+ it('rejects AM direct postings without a replay key before touching the ledger', async () => {
+  expect((await receive(request('POST', { location_id: LOC, items, source: 'Supplier' }, '', null))).status).toBe(400);
+  expect((await adjust(request('POST', { location_id: LOC, items, reason: 'Correction' }, '', null))).status).toBe(400);
+  expect(mocks.rpc).not.toHaveBeenCalled();
  });
 
  it('denies forged location choices on posting and reads', async () => {
@@ -102,8 +110,9 @@ describe('AM stock scope', () => {
   mocks.rpc.mockResolvedValue({ data: null, error: { message: 'Baki telah berubah', code: '40001' } });
   const response = await adjust(request('POST', { location_id: LOC, items: change, reason: 'Fixture reason' }));
   expect(response.status).toBe(409);
-  expect(mocks.rpc).toHaveBeenCalledWith('post_am_stock_adjustment', {
-   p_location_id: LOC, p_reason: 'Fixture reason', p_items: change,
+  expect(mocks.rpc).toHaveBeenCalledWith('post_am_stock_operation', {
+   p_location_id: LOC, p_request_id: REQUEST_ID, p_action: 'ADJUSTMENT',
+   p_payload: { reason: 'Fixture reason', items: change },
   });
  });
 
@@ -124,6 +133,17 @@ describe('AM stock scope', () => {
   mocks.profile.mockResolvedValue({ ...AM, role: 'STAFF' });
   expect((await review(request('PATCH', { count_id: COUNT, action: 'APPROVE' }))).status).toBe(403);
   expect(mocks.client).not.toHaveBeenCalled();
+ });
+
+ it('reports a stale count as a conflict and leaves rejection/recount explicit', async () => {
+  const error = 'Snapshot kiraan lapuk. Tolak dan minta staf kira semula.';
+  mocks.rpc.mockResolvedValue({ data: null, error: { code: '40001', message: error } });
+  const response = await review(request('PATCH', { count_id: COUNT, action: 'APPROVE' }));
+  expect(response.status).toBe(409);
+  await expect(response.json()).resolves.toEqual({ error });
+  expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith('review_stock_count', {
+   p_count_id: COUNT, p_action: 'APPROVE', p_reason: null,
+  });
  });
 
  it('filters movement types and whole MYT days before imposing the row limit', async () => {

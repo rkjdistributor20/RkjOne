@@ -18,11 +18,12 @@ import { defaultReportRange, MOVEMENT_FILTERS, MOVEMENT_TYPES, reportTime, type 
 import type {
  BranchPerformanceRow, FleetReportSummary, InventoryReportRow, MovementReportRow, ProductPerformanceRow,
  ReportOverview, ReportPage, ReportPaymentAttempt, ReportReceipt, ReportScope, ReportTransaction,
- SalesTrendRow, StaffPerformanceRow,
+ SalesTrendRow, ShiftClosureRow, StaffPerformanceRow,
 } from '@/lib/reports/types';
 
 const money = new Intl.NumberFormat('ms-MY', { style: 'currency', currency: 'MYR' });
 const fmt = (value: number) => money.format(value);
+const recordedMoney = (value: number | null) => value == null ? '—' : fmt(value);
 const time = (value: string | null) => value ? reportTime(value) : '—';
 const identity = (name: string | null, id: string | null) => name ?? id ?? '—';
 const selectClass = 'h-9 max-w-full rounded-md border border-input bg-background px-2 text-sm';
@@ -150,12 +151,7 @@ export function ReportsDashboard() {
         </ReportData>
        </TabsContent>
        <TabsContent value="staff">
-        <PagedReport<{ staff: StaffPerformanceRow[] }> url={reportUrl('staff', filters)}>
-         {({ staff }) => <ReportTable headers={['Juruwang asal', 'Cawangan asal', 'Syif asal', 'Syif dibuka (MYT)',
-          'Syif ditutup (MYT)', 'Transaksi', 'Jualan']}
-          rows={staff.map((s) => [identity(s.cashier_name, s.cashier_id), s.branch_name, identity(s.shift_number, s.shift_id),
-           time(s.opened_at), time(s.closed_at), s.transaction_count, fmt(s.total_sales)])} />}
-        </PagedReport>
+        <StaffDetails filters={filters} />
        </TabsContent>
        <TabsContent value="inventory"><StockDetails filters={filters} /></TabsContent>
        {overview.organization_wide && (
@@ -251,7 +247,7 @@ function DownloadCsv({ url }: { url: string }) {
 
 const transactionAmounts = (t: ReportTransaction) =>
  [fmt(t.total), fmt(t.cash), fmt(t.qr_confirmed), fmt(t.qr_pending), fmt(t.qr_unverified)];
-const amountHeaders = ['Jumlah direkodkan', 'Tunai bersih', 'QR disahkan', 'QR menunggu', 'QR tidak disahkan'];
+const amountHeaders = ['Jumlah asal jualan', 'Tunai bersih', 'QR disahkan', 'QR menunggu', 'QR tidak disahkan'];
 const attemptLabels: Record<ReportPaymentAttempt['status'], string> = {
  PENDING: 'Menunggu', REPORTED: 'Dilapor • menunggu pengesahan', QUARANTINED: 'Dalam semakan',
  PAID: 'Disahkan • belum menjadi jualan',
@@ -278,6 +274,9 @@ function SalesDetails({ filters }: { filters: ReportFilters }) {
    <CardContent className="space-y-3">
     {view === 'transactions' ? (
      <>
+      <p className="text-sm text-muted-foreground">
+       Tarikh ditapis mengikut jualan asal (MYT). Amaun jualan batal atau pulangan bukan kutipan bersih atau bukti dana dipulangkan.
+      </p>
       {receiptId && (
        <div className="space-y-2 rounded-lg border p-3">
         <div className="flex items-center justify-between gap-2">
@@ -294,6 +293,9 @@ function SalesDetails({ filters }: { filters: ReportFilters }) {
            <p className="text-sm text-muted-foreground">
             Juruwang: {identity(receipt.cashier_name, receipt.cashier_id)} · Syif: {identity(receipt.shift_number, receipt.shift_id)}
            </p>
+           {receipt.status !== 'COMPLETED' && <p className="text-sm">
+            Masa batal/pulangan (MYT): {time(receipt.reversed_at)} · Sebab: {receipt.reversal_reason ?? '—'}
+           </p>}
            <ReportTable headers={amountHeaders} rows={[transactionAmounts(receipt)]} />
            <ReportTable headers={['Item', 'SKU', 'Kuantiti', 'Harga seunit', 'Jumlah']}
             rows={receipt.items.map((i) => [i.name, i.sku, i.quantity, fmt(i.unit_price), fmt(i.line_total)])} />
@@ -304,11 +306,11 @@ function SalesDetails({ filters }: { filters: ReportFilters }) {
       )}
       <PagedReport<{ transactions: ReportTransaction[] }> url={reportUrl('transactions', filters)}>
        {({ transactions }) => <ReportTable headers={['Transaksi', 'Resit', 'Masa jualan (MYT)', 'Cawangan asal',
-        'Juruwang asal', 'Syif asal', 'Status', ...amountHeaders]}
+        'Juruwang asal', 'Syif asal', 'Status', 'Masa batal/pulangan (MYT)', 'Sebab batal/pulangan', ...amountHeaders]}
         rows={transactions.map((t) => [
          <Button key={t.id} variant="link" size="sm" onClick={() => setReceiptId(t.id)}>{t.transaction_number}</Button>,
          t.receipt_number, time(t.sold_at), t.branch_name, identity(t.cashier_name, t.cashier_id),
-         identity(t.shift_number, t.shift_id), t.status, ...transactionAmounts(t),
+         identity(t.shift_number, t.shift_id), t.status, time(t.reversed_at), t.reversal_reason, ...transactionAmounts(t),
         ])} />}
       </PagedReport>
      </>
@@ -324,6 +326,58 @@ function SalesDetails({ filters }: { filters: ReportFilters }) {
     )}
    </CardContent>
   </Card>
+ );
+}
+
+function ShiftIdentity({ shift }: { shift: { shift_number: string | null; shift_id: string } }) {
+ return <span className="whitespace-nowrap">
+  {shift.shift_number && <span className="block">{shift.shift_number}</span>}
+  <span className="text-xs text-muted-foreground">{shift.shift_id}</span>
+ </span>;
+}
+
+function StaffDetails({ filters }: { filters: ReportFilters }) {
+ const staffUrl = reportUrl('staff', filters);
+ const closuresUrl = reportUrl('shift-closures', filters);
+ return (
+  <div className="space-y-4">
+   <Card>
+    <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
+     <CardTitle className="text-base">Jualan mengikut juruwang dan syif asal</CardTitle>
+     <DownloadCsv url={staffUrl + '&format=csv'} />
+    </CardHeader>
+    <CardContent className="space-y-3">
+     <p className="text-sm text-muted-foreground">
+      Masa mula/tamat ialah rekod kehadiran juruwang, bukan jadual atau tempoh bekerja. Jualan ditapis mengikut masa jualan asal.
+     </p>
+     <PagedReport<{ staff: StaffPerformanceRow[] }> key={staffUrl} url={staffUrl}>
+      {({ staff }) => <ReportTable headers={['Juruwang asal', 'Cawangan asal', 'Syif asal', 'Syif dibuka (MYT)',
+       'Syif ditutup (MYT)', 'Juruwang mula (MYT)', 'Juruwang tamat (MYT)', 'Transaksi selesai', 'Jualan']}
+       rows={staff.map((s) => [identity(s.cashier_name, s.cashier_id), s.branch_name, <ShiftIdentity key={s.shift_id} shift={s} />,
+        time(s.opened_at), time(s.shift_closed_at), time(s.cashier_started_at), time(s.cashier_ended_at), s.transaction_count,
+        fmt(s.total_sales)])} />}
+     </PagedReport>
+    </CardContent>
+   </Card>
+   <Card>
+    <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
+     <CardTitle className="text-base">Perbezaan tunai ketika syif ditutup</CardTitle>
+     <DownloadCsv url={closuresUrl + '&format=csv'} />
+    </CardHeader>
+    <CardContent className="space-y-3">
+     <p className="text-sm text-muted-foreground">
+      Ditapis mengikut masa tutup POS (MYT). Perbezaan direkod untuk seluruh syif, bukan juruwang: tunai dikira tolak tunai dijangka.
+     </p>
+     <PagedReport<{ closures: ShiftClosureRow[] }> key={closuresUrl} url={closuresUrl}>
+      {({ closures }) => <ReportTable headers={['Cawangan', 'Syif', 'Syif dibuka (MYT)', 'Syif ditutup (MYT)',
+       'Kerja syif tamat (MYT)', 'Tunai dijangka', 'Tunai dikira', 'Perbezaan tunai']}
+       rows={closures.map((s) => [`${s.branch_code} · ${s.branch_name}`, <ShiftIdentity key={s.shift_id} shift={s} />,
+        time(s.opened_at), time(s.closed_at), time(s.actual_work_ended_at), recordedMoney(s.expected_cash),
+        recordedMoney(s.closing_cash), recordedMoney(s.cash_variance)])} />}
+     </PagedReport>
+    </CardContent>
+   </Card>
+  </div>
  );
 }
 

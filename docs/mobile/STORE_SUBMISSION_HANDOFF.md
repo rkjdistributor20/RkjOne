@@ -4,7 +4,7 @@ Dokumen ini ialah rujukan terakhir untuk submit RKJ One Staff ke Google Play Con
 
 ## Status Teknikal
 
-- Mobile readiness audit: mesti dijalankan semula terhadap AAB `1.8.7` selepas build akhir
+- Mobile readiness audit: jalankan semula apabila terdapat perubahan native yang memerlukan AAB baharu
 - Production URL: `https://rkj.one`
 - Privacy policy: `https://rkj.one/privacy`
 - Support: `https://rkj.one/support`
@@ -12,10 +12,10 @@ Dokumen ini ialah rujukan terakhir untuk submit RKJ One Staff ke Google Play Con
 - Terms of use: `https://rkj.one/terms`
 - App name: `RKJ One Staff`
 - Package / bundle identifier: `com.rkjone.staff`
-- Current Play version: `1.8.4` (`22`), rollout `100%`
-- Candidate version: `1.8.7` (`25`), menunggu gate production dan BR001
+- Current Play version: `1.8.7` (`25`), rollout `100%`
+- Matriks AM susulan: kemas kini web/SQL sahaja, tiada AAB baharu
 - App access: restricted internal staff login
-- Google Play Production: available, rollout `100%` (verified 2026-11-24)
+- Google Play Production: available, rollout `100%` (verified 2026-11-27)
 
 ## Legal Entity
 
@@ -37,10 +37,10 @@ Account owner email: rkjdistributor20@gmail.com
 Artefak production semasa yang telah diterbitkan:
 
 ```text
-RKJ One Staff 1.8.4 (version code 22)
+RKJ One Staff 1.8.7 (version code 25)
 ```
 
-Calon `1.8.7` menggunakan version code `25` dan laluan `artifacts/android/rkj-one-staff-1.8.7-release.aab`. Jangan submit calon lama `1.8.6`; perubahan native 1.8.7 diperlukan untuk version gate, pemulihan callback dan telemetri armada.
+Artefak 1.8.7 ialah `artifacts/android/rkj-one-staff-1.8.7-release.aab`. Jangan submit semula artefak yang sudah diterbitkan untuk perubahan web/SQL.
 
 Store listing:
 

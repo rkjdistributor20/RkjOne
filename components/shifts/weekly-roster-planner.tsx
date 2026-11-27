@@ -161,7 +161,7 @@ function BranchPlanner({ branch, week, onSaved }: { branch: RosterBranchStatus; 
    </div>
    <p className="text-muted-foreground">
     Pilih slot untuk menetapkan cuti, template atau masa fleksibel. Masa tamat lebih awal bermaksud hari berikutnya.
-    {published && ' Slot yang sudah digunakan untuk kehadiran tidak boleh dijadualkan semula di sini.'}
+    {published && ' Perubahan jadual direkodkan dan tidak mengubah rekod kehadiran sebenar.'}
    </p>
 
    <div className="overflow-x-auto rounded-xl border">

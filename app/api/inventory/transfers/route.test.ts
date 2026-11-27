@@ -10,6 +10,7 @@ import { GET, POST } from './route';
 import { POST as dispatch } from './[id]/dispatch/route';
 import { POST as complete } from './[id]/complete/route';
 import { POST as cancel } from './[id]/cancel/route';
+import { POST as reverse } from './[id]/reverse/route';
 
 const from = '10000000-0000-4000-8000-000000000001';
 const to = '10000000-0000-4000-8000-000000000002';
@@ -72,10 +73,35 @@ describe('transfer handlers', () => {
   expect((await dispatch(post(null), context)).status).toBe(200);
   expect(mocks.rpc).toHaveBeenLastCalledWith({}, 'dispatch_stock_transfer', { p_transfer_id: from });
   mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: '42501', message: 'denied' } });
-  expect((await complete(post(null), context)).status).toBe(403);
+  expect((await complete(new Request(url, { method: 'POST' }), context)).status).toBe(403);
   expect(mocks.rpc).toHaveBeenLastCalledWith({}, 'complete_stock_transfer', { p_transfer_id: from });
   expect((await cancel(post({ reason: '  ' }), context)).status).toBe(400);
   expect((await cancel(post({ reason: '  Salah item ' }), context)).status).toBe(200);
   expect(mocks.rpc).toHaveBeenLastCalledWith({}, 'cancel_stock_transfer', { p_transfer_id: from, p_reason: 'Salah item' });
+ });
+
+ it('forwards explicit receipt quantities, version, key and close intent without defaulting missing data to full receipt', async () => {
+  const receipt = { receipt_version: 2, items: [{ item_id: item.stock_item_id, quantity: 1.25 }], finalize: false, reason: '  Baki esok ' };
+  expect((await complete(post(receipt, requestId), context)).status).toBe(200);
+  expect(mocks.rpc).toHaveBeenLastCalledWith({}, 'receive_stock_transfer', {
+   p_transfer_id: from, p_request_id: requestId, p_receipt_version: 2,
+   p_items: receipt.items, p_finalize: false, p_reason: 'Baki esok',
+  });
+  expect((await complete(post(receipt), context)).status).toBe(400);
+  expect((await complete(post(null, requestId), context)).status).toBe(400);
+  expect((await complete(post({ ...receipt, receipt_version: -1 }, requestId), context)).status).toBe(400);
+  expect((await complete(post({ ...receipt, items: [...receipt.items, ...receipt.items] }, requestId), context)).status).toBe(400);
+  expect((await complete(post({ ...receipt, items: [{ ...receipt.items[0], quantity: 1.23456 }] }, requestId), context)).status).toBe(400);
+  expect(mocks.rpc).toHaveBeenCalledTimes(1);
+  mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: 'PT409', message: 'Muat semula' } });
+  expect((await complete(post(receipt, requestId), context)).status).toBe(409);
+ });
+
+ it('requires a reversal reason, then delegates all reversal authorization to the DB', async () => {
+  expect((await reverse(post({ reason: ' ' }), context)).status).toBe(400);
+  expect(mocks.rpc).not.toHaveBeenCalled();
+  mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: '42501', message: 'denied' } });
+  expect((await reverse(post({ reason: '  Pulang stok ' }), context)).status).toBe(403);
+  expect(mocks.rpc).toHaveBeenLastCalledWith({}, 'reverse_stock_transfer', { p_transfer_id: from, p_reason: 'Pulang stok' });
  });
 });

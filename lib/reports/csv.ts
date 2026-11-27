@@ -1,7 +1,8 @@
 import { MOVEMENT_TYPES, reportTime } from './filters';
-import type { InventoryReportRow, MovementReportRow, ReportTransaction } from './types';
+import type { InventoryReportRow, MovementReportRow, ReportTransaction, ShiftClosureRow, StaffPerformanceRow } from './types';
 
 type Cell = string | number | null;
+const timestamp = (value: string | null) => value ? reportTime(value) : null;
 
 function csvCell(value: Cell) {
  if (value === null) return '';
@@ -18,13 +19,33 @@ export function encodeCsv(rows: Cell[][]) {
 export function transactionCsv(rows: ReportTransaction[]) {
  return encodeCsv([
   ['Transaksi', 'Resit', 'Masa jualan (MYT)', 'Kod cawangan', 'Cawangan', 'Juruwang', 'ID juruwang',
-   'Syif', 'ID syif', 'Status transaksi', 'Kaedah', 'Jumlah (RM)', 'Tunai bersih (RM)',
-   'QR disahkan (RM)', 'QR menunggu (RM)', 'QR tidak disahkan (RM)'],
+   'Syif', 'ID syif', 'Status transaksi', 'Masa batal/pulangan (MYT)', 'Sebab batal/pulangan',
+   'Kaedah', 'Jumlah asal (RM)', 'Tunai bersih (RM)', 'QR disahkan (RM)', 'QR menunggu (RM)', 'QR tidak disahkan (RM)'],
   ...rows.map((row) => [
    row.transaction_number, row.receipt_number, reportTime(row.sold_at), row.branch_code, row.branch_name,
-   row.cashier_name, row.cashier_id, row.shift_number, row.shift_id, row.status, row.payment_method,
+   row.cashier_name, row.cashier_id, row.shift_number, row.shift_id, row.status,
+   timestamp(row.reversed_at), row.reversal_reason ?? null, row.payment_method,
    row.total, row.cash, row.qr_confirmed, row.qr_pending, row.qr_unverified,
   ]),
+ ]);
+}
+
+export function staffCsv(rows: StaffPerformanceRow[]) {
+ return encodeCsv([
+  ['Cawangan asal', 'Juruwang asal', 'ID juruwang', 'Syif asal', 'ID syif', 'Syif dibuka (MYT)', 'Syif ditutup (MYT)',
+   'Juruwang mula (MYT)', 'Juruwang tamat (MYT)', 'Transaksi selesai', 'Jualan (RM)'],
+  ...rows.map((row) => [row.branch_name, row.cashier_name, row.cashier_id, row.shift_number, row.shift_id,
+   timestamp(row.opened_at), timestamp(row.shift_closed_at), timestamp(row.cashier_started_at), timestamp(row.cashier_ended_at),
+   row.transaction_count, row.total_sales]),
+ ]);
+}
+
+export function shiftClosureCsv(rows: ShiftClosureRow[]) {
+ return encodeCsv([
+  ['Kod cawangan', 'Cawangan', 'Syif', 'ID syif', 'Syif dibuka (MYT)', 'Syif ditutup (MYT)', 'Kerja syif tamat (MYT)',
+   'Tunai dijangka (RM)', 'Tunai dikira (RM)', 'Perbezaan tunai (RM)'],
+  ...rows.map((row) => [row.branch_code, row.branch_name, row.shift_number, row.shift_id, timestamp(row.opened_at),
+   timestamp(row.closed_at), timestamp(row.actual_work_ended_at), row.expected_cash, row.closing_cash, row.cash_variance]),
  ]);
 }
 

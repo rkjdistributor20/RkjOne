@@ -28,7 +28,17 @@ DECLARE
  cancelled uuid;
  same_am_transfer uuid;
  hq_transfer uuid;
+ hq_return uuid;
+ partial_transfer uuid;
+ partial_roti uuid;
+ partial_supplies uuid;
+ reverse_id uuid;
+ return_line uuid;
+ receipt_key uuid := gen_random_uuid();
+ receipt_lines jsonb;
  delivery uuid := gen_random_uuid();
+ fleet_transfer uuid := gen_random_uuid();
+ fleet_order uuid := gen_random_uuid();
  stock_today date := (now() AT TIME ZONE 'Asia/Kuala_Lumpur')::date;
  source_before numeric := 20;
 BEGIN
@@ -151,10 +161,194 @@ BEGIN
   RAISE EXCEPTION 'Same-AM or HQ-to-kiosk receipt failed';
  END IF;
 
+ DELETE FROM profile_branch_access WHERE profile_id = am_source AND branch_id = branch_b;
+ INSERT INTO stock_movements(organization_id, movement_type, location_id, stock_item_id, quantity, unit)
+ VALUES (org, 'RECEIVE', source, supplies, 2, 'PCS');
+ SET LOCAL ROLE authenticated;
+ PERFORM set_config('request.jwt.claim.sub', am_source::text, true);
+ partial_transfer := (create_stock_transfer(source, destination, lines ||
+  jsonb_build_array(jsonb_build_object('stock_item_id', supplies, 'quantity', 2)), gen_random_uuid())->>'transfer_id')::uuid;
+ PERFORM dispatch_stock_transfer(partial_transfer);
+ SELECT id INTO STRICT partial_roti FROM stock_transfer_items WHERE transfer_id = partial_transfer AND stock_item_id = item;
+ SELECT id INTO STRICT partial_supplies FROM stock_transfer_items WHERE transfer_id = partial_transfer AND stock_item_id = supplies;
+ receipt_lines := jsonb_build_array(jsonb_build_object('item_id', partial_roti, 'quantity', 1));
+ BEGIN
+  PERFORM receive_stock_transfer(partial_transfer, receipt_key, 0, receipt_lines, false, 'Wrong side');
+  RAISE EXCEPTION 'Source AM posted a partial receipt at the other branch';
+ EXCEPTION WHEN insufficient_privilege THEN NULL;
+ END;
+ PERFORM set_config('request.jwt.claim.sub', am_destination::text, true);
+ BEGIN
+  PERFORM receive_stock_transfer(partial_transfer, receipt_key, 0, receipt_lines, false, E' \n\t ');
+  RAISE EXCEPTION 'Partial receipt accepted a blank reason';
+ EXCEPTION WHEN invalid_parameter_value THEN NULL;
+ END;
+ BEGIN
+  PERFORM receive_stock_transfer(partial_transfer, receipt_key, 0, receipt_lines || receipt_lines, false, 'Duplicate rows');
+  RAISE EXCEPTION 'Duplicate receipt lines were accepted';
+ EXCEPTION WHEN invalid_parameter_value THEN NULL;
+ END;
+ BEGIN
+  PERFORM receive_stock_transfer(partial_transfer, receipt_key, 0,
+   jsonb_build_array(jsonb_build_object('item_id', gen_random_uuid(), 'quantity', 1)), false, 'Foreign line');
+  RAISE EXCEPTION 'Foreign receipt line was accepted';
+ EXCEPTION WHEN invalid_parameter_value THEN NULL;
+ END;
+ result := receive_stock_transfer(partial_transfer, receipt_key, 0, receipt_lines, false, 'Baki dalam perjalanan');
+ IF result->>'status' IS DISTINCT FROM 'IN_TRANSIT' OR
+  receive_stock_transfer(partial_transfer, receipt_key, 0, receipt_lines, false, 'Baki dalam perjalanan') IS DISTINCT FROM result THEN
+  RAISE EXCEPTION 'Partial posting did not stay open or retry was not idempotent';
+ END IF;
+ BEGIN
+  PERFORM receive_stock_transfer(partial_transfer, receipt_key, 0, receipt_lines, true, 'Changed intent');
+  RAISE EXCEPTION 'Changed receipt reused an idempotency key';
+ EXCEPTION WHEN SQLSTATE 'PT409' THEN NULL;
+ END;
+ BEGIN
+  PERFORM receive_stock_transfer(partial_transfer, gen_random_uuid(), 0, receipt_lines, false, 'Stale quantity');
+  RAISE EXCEPTION 'Stale submission with another key duplicated a receipt';
+ EXCEPTION WHEN SQLSTATE 'PT409' THEN NULL;
+ END;
+ BEGIN
+  PERFORM complete_stock_transfer(partial_transfer);
+  RAISE EXCEPTION 'Legacy full receipt bypassed partial reconciliation';
+ EXCEPTION WHEN SQLSTATE 'PT409' THEN NULL;
+ END;
+ BEGIN
+  PERFORM reverse_stock_transfer(partial_transfer, 'Still in transit');
+  RAISE EXCEPTION 'In-transit document could be reversed';
+ EXCEPTION WHEN SQLSTATE 'PT409' THEN NULL;
+ END;
+ PERFORM receive_stock_transfer(partial_transfer, gen_random_uuid(), 1, receipt_lines, false, 'Kotak kedua');
+ PERFORM receive_stock_transfer(partial_transfer, gen_random_uuid(), 2, '[]', true, 'Tutup baki tidak sampai');
+ IF receive_stock_transfer(partial_transfer, receipt_key, 0, receipt_lines, false, 'Baki dalam perjalanan') IS DISTINCT FROM result THEN
+  RAISE EXCEPTION 'A retry after a later receipt did not replay the stored result';
+ END IF;
+ SELECT doc INTO STRICT result FROM jsonb_array_elements(list_stock_transfers(destination)) doc WHERE doc->>'id' = partial_transfer::text;
+ IF result->>'status' IS DISTINCT FROM 'DELIVERED' OR jsonb_array_length(result->'receipts') <> 3
+  OR (result->>'can_reverse')::boolean IS DISTINCT FROM true
+  OR (SELECT received_quantity FROM stock_transfer_items WHERE id = partial_roti) IS DISTINCT FROM 2::numeric
+  OR (SELECT received_quantity FROM stock_transfer_items WHERE id = partial_supplies) IS DISTINCT FROM 0::numeric THEN
+  RAISE EXCEPTION 'Cumulative receipt, closed shortage or audit listing failed';
+ END IF;
+
+ PERFORM set_config('request.jwt.claim.sub', am_unrelated::text, true);
+ IF EXISTS (SELECT 1 FROM stock_transfer_receipts WHERE transfer_id = partial_transfer) THEN
+  RAISE EXCEPTION 'Unrelated AM can see receipt events';
+ END IF;
+ PERFORM set_config('request.jwt.claim.sub', am_source::text, true);
+ IF NOT EXISTS (SELECT 1 FROM stock_transfer_receipts WHERE transfer_id = partial_transfer) THEN
+  RAISE EXCEPTION 'Sender cannot review the scoped receipt audit';
+ END IF;
+ BEGIN
+  UPDATE stock_transfer_receipts SET reason = 'Overwritten' WHERE transfer_id = partial_transfer;
+  RAISE EXCEPTION 'An AM can overwrite receipt audit records';
+ EXCEPTION WHEN insufficient_privilege THEN NULL;
+ END;
+ BEGIN
+  PERFORM reverse_stock_transfer(partial_transfer, 'Unilateral return');
+  RAISE EXCEPTION 'Original sender could deduct stock at the receiving branch';
+ EXCEPTION WHEN insufficient_privilege THEN NULL;
+ END;
+ PERFORM set_config('request.jwt.claim.sub', am_destination::text, true);
+ result := reverse_stock_transfer(partial_transfer, 'Pulang dua unit diterima');
+ reverse_id := (result->>'transfer_id')::uuid;
+ IF reverse_stock_transfer(partial_transfer, 'Pulang dua unit diterima') IS DISTINCT FROM result THEN
+  RAISE EXCEPTION 'Repeated reversal created another document';
+ END IF;
+ BEGIN
+  PERFORM reverse_stock_transfer(partial_transfer, 'Changed reason');
+  RAISE EXCEPTION 'Duplicate reversal did not conflict';
+ EXCEPTION WHEN SQLSTATE 'PT409' THEN NULL;
+ END;
+ SELECT id INTO STRICT return_line FROM stock_transfer_items WHERE transfer_id = reverse_id;
+ BEGIN
+  PERFORM receive_stock_transfer(reverse_id, gen_random_uuid(), 0,
+   jsonb_build_array(jsonb_build_object('item_id', return_line, 'quantity', 2)), false);
+  RAISE EXCEPTION 'Return sender credited the remote branch without confirmation';
+ EXCEPTION WHEN insufficient_privilege THEN NULL;
+ END;
+ RESET ROLE;
+ IF (SELECT quantity FROM inventory_balances WHERE location_id = source AND stock_item_id = item) IS DISTINCT FROM 11::numeric
+  OR (SELECT quantity FROM inventory_balances WHERE location_id = destination AND stock_item_id = item) IS DISTINCT FROM 6::numeric
+  OR (SELECT count(*) FROM stock_movements WHERE reference_id = partial_transfer AND movement_type = 'TRANSFER_IN') <> 2
+  OR EXISTS (SELECT 1 FROM stock_movements WHERE reference_id = reverse_id AND movement_type = 'TRANSFER_IN')
+  OR NOT EXISTS (SELECT 1 FROM stock_transfers WHERE id = reverse_id AND reversal_of_id = partial_transfer
+   AND created_by = am_destination AND reversal_reason = 'Pulang dua unit diterima')
+  OR NOT EXISTS (SELECT 1 FROM stock_transfer_receipts WHERE transfer_id = partial_transfer AND version = 3
+   AND reason = 'Tutup baki tidak sampai' AND closed AND received_by = am_destination) THEN
+  RAISE EXCEPTION 'Receipt or reversal audit/balances did not match physical stock';
+ END IF;
+ SET LOCAL ROLE authenticated;
+ PERFORM set_config('request.jwt.claim.sub', am_source::text, true);
+ BEGIN
+  PERFORM complete_stock_transfer(reverse_id);
+  RAISE EXCEPTION 'Reverse document allowed legacy receipt without explicit quantities';
+ EXCEPTION WHEN SQLSTATE 'PT409' THEN NULL;
+ END;
+ receipt_lines := jsonb_build_array(jsonb_build_object('item_id', return_line, 'quantity', 2));
+ IF receive_stock_transfer(reverse_id, gen_random_uuid(), 0, receipt_lines, false)->>'status' IS DISTINCT FROM 'DELIVERED' THEN
+  RAISE EXCEPTION 'Original source could not confirm the return';
+ END IF;
+ BEGIN
+  PERFORM reverse_stock_transfer(reverse_id, 'Nested return');
+  RAISE EXCEPTION 'Recursive reversal was allowed';
+ EXCEPTION WHEN SQLSTATE 'PT409' THEN NULL;
+ END;
+ RESET ROLE;
+ IF (SELECT quantity FROM inventory_balances WHERE location_id = source AND stock_item_id = item) IS DISTINCT FROM 13::numeric
+  OR NOT EXISTS (SELECT 1 FROM stock_movements WHERE reference_id = reverse_id AND movement_type = 'TRANSFER_IN'
+   AND production_date = stock_today AND quantity = 2 AND created_by = am_source)
+  OR NOT EXISTS (SELECT 1 FROM stock_transfers WHERE id = partial_transfer AND status = 'DELIVERED') THEN
+  RAISE EXCEPTION 'Return did not preserve source balance, batch, receiver or original document';
+ END IF;
+
+ -- A failed return leaves no document or stock changes; an HQ return still
+ -- requires its HQ receiver. Physical excess is audited without over-crediting.
+ INSERT INTO stock_movements(organization_id, movement_type, location_id, stock_item_id, quantity, unit)
+ VALUES (org, 'WRITE_OFF', destination, supplies, -1, 'PCS');
+ SET LOCAL ROLE authenticated;
+ PERFORM set_config('request.jwt.claim.sub', am_destination::text, true);
+ BEGIN
+  PERFORM reverse_stock_transfer(hq_transfer, 'Return to HQ');
+  RAISE EXCEPTION 'Return dispatched stock that was no longer available';
+ EXCEPTION WHEN SQLSTATE 'PT409' THEN NULL;
+ END;
+ IF EXISTS (SELECT 1 FROM stock_transfers WHERE reversal_of_id = hq_transfer) THEN
+  RAISE EXCEPTION 'Failed reversal left a document';
+ END IF;
+ RESET ROLE;
+ INSERT INTO stock_movements(organization_id, movement_type, location_id, stock_item_id, quantity, unit)
+ VALUES (org, 'RECEIVE', destination, supplies, 1, 'PCS');
+ SET LOCAL ROLE authenticated;
+ PERFORM set_config('request.jwt.claim.sub', am_destination::text, true);
+ hq_return := (reverse_stock_transfer(hq_transfer, 'Return to HQ')->>'transfer_id')::uuid;
+ SELECT id INTO STRICT return_line FROM stock_transfer_items WHERE transfer_id = hq_return;
+ receipt_lines := jsonb_build_array(jsonb_build_object('item_id', return_line, 'quantity', 6));
+ PERFORM set_config('request.jwt.claim.sub', hq_admin::text, true);
+ BEGIN
+  PERFORM receive_stock_transfer(hq_return, gen_random_uuid(), 0, receipt_lines, false);
+  RAISE EXCEPTION 'Overage was accepted without a reason';
+ EXCEPTION WHEN invalid_parameter_value THEN NULL;
+ END;
+ PERFORM receive_stock_transfer(hq_return, gen_random_uuid(), 0, receipt_lines, false, 'Lebihan perlu semakan');
+ RESET ROLE;
+ IF (SELECT quantity FROM inventory_balances WHERE location_id = hq AND stock_item_id = supplies) IS DISTINCT FROM 10::numeric
+  OR NOT EXISTS (SELECT 1 FROM stock_transfer_receipts WHERE transfer_id = hq_return
+   AND items = receipt_lines AND (excess_items->0->>'quantity')::numeric = 1 AND received_by = hq_admin) THEN
+  RAISE EXCEPTION 'Overage was over-credited or not audited';
+ END IF;
+
  INSERT INTO stock_transfers (id, organization_id, transfer_number, from_location_id, to_location_id, status)
- VALUES (delivery, org, 'TEST-' || delivery, source, destination, 'IN_TRANSIT');
+ VALUES (delivery, org, 'TEST-' || delivery, source, destination, 'IN_TRANSIT'),
+  (fleet_transfer, org, 'TEST-' || fleet_transfer, source, destination, 'IN_TRANSIT');
+ UPDATE stock_transfers SET dispatched_at = now() WHERE id IN (delivery, fleet_transfer);
  INSERT INTO pos_stock_receipts (organization_id, branch_id, location_id, stock_transfer_id)
  VALUES (org, branch_b, destination, delivery);
+ INSERT INTO delivery_orders (id, organization_id, order_number, origin_location_id, final_destination_id)
+ VALUES (fleet_order, org, 'TEST-' || fleet_order, source, destination);
+ INSERT INTO delivery_legs (delivery_order_id, leg_sequence, leg_type, from_location_id, to_location_id, stock_transfer_id)
+ VALUES (fleet_order, 1, 'VEHICLE_TO_BRANCH', source, destination, fleet_transfer);
  SET LOCAL ROLE authenticated;
  PERFORM set_config('request.jwt.claim.sub', am_destination::text, true);
  BEGIN
@@ -162,7 +356,25 @@ BEGIN
   RAISE EXCEPTION 'Transfer receipt bypassed its POS workflow';
  EXCEPTION WHEN SQLSTATE 'PT409' THEN NULL;
  END;
+ BEGIN
+  PERFORM receive_stock_transfer(fleet_transfer, gen_random_uuid(), 0, '[]', true, 'Managed delivery');
+  RAISE EXCEPTION 'Explicit transfer receipt bypassed its fleet workflow';
+ EXCEPTION WHEN SQLSTATE 'PT409' THEN NULL;
+ END;
+ BEGIN
+  PERFORM reverse_stock_transfer(delivery, 'Managed delivery');
+  RAISE EXCEPTION 'Reversal bypassed its POS workflow';
+ EXCEPTION WHEN SQLSTATE 'PT409' THEN NULL;
+ END;
+ IF (SELECT count(*) FROM jsonb_array_elements(list_stock_transfers(destination)) doc
+  WHERE doc->>'id' IN (delivery::text, fleet_transfer::text)
+   AND (doc->>'managed_delivery')::boolean AND NOT (doc->>'can_complete')::boolean) <> 2 THEN
+  RAISE EXCEPTION 'A linked POS or fleet document was shown as receivable';
+ END IF;
  RESET ROLE;
+ IF to_regprocedure('public.complete_stock_transfer(uuid,date)') IS NOT NULL THEN
+  RAISE EXCEPTION 'Legacy date override is still a public RPC';
+ END IF;
 END;
 $$;
 

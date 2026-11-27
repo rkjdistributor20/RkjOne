@@ -62,17 +62,21 @@ export function AmCountReviewPanel({ locationId, onReviewed }: { locationId: str
    <CardHeader className="pb-2">
     <CardTitle className="text-base">{count.count_number}</CardTitle>
     <p className="text-sm text-muted-foreground">
-     {count.counter?.full_name ?? 'Penghantar kiraan'} · {new Date(count.created_at).toLocaleString('ms-MY', { timeZone: 'Asia/Kuala_Lumpur' })}
+     {count.counter?.full_name ?? 'Penghantar kiraan'} · Dihantar {new Date(count.created_at).toLocaleString('ms-MY', { timeZone: 'Asia/Kuala_Lumpur' })}
     </p>
+    {count.captured_at && <p className="text-sm text-muted-foreground">
+     Snapshot {new Date(count.captured_at).toLocaleString('ms-MY', { timeZone: 'Asia/Kuala_Lumpur' })}
+    </p>}
    </CardHeader>
    <CardContent className="space-y-3 text-sm">
     {count.notes && <p>{count.notes}</p>}
     <div className="space-y-1 text-xs text-muted-foreground">
      {[...new Set(count.items.map((item) => item.stock_item_id))].map((itemId) => {
       const lines = count.items.filter((item) => item.stock_item_id === itemId);
-      const baseline = lines.reduce((total, item) => total + Number(item.system_quantity), 0);
+      const baseline = lines.some((item) => item.system_quantity === null) ? null
+       : lines.reduce((total, item) => total + Number(item.system_quantity), 0);
       const counted = lines.reduce((total, item) => total + Number(item.counted_quantity), 0);
-      return <p key={itemId}>{lines[0].stock_item?.name ?? itemId}: sistem ketika hantar {baseline}, jumlah dikira {counted} {lines[0].unit}</p>;
+      return <p key={itemId}>{lines[0].stock_item?.name ?? itemId}: {count.captured_at ? 'baki snapshot' : 'baki rujukan'} {baseline ?? 'tidak tersedia'}, jumlah dikira {counted} {lines[0].unit}</p>;
      })}
     </div>
     {count.items.map((item, index) => <p key={`${item.stock_item_id}-${index}`}>
