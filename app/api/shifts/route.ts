@@ -42,6 +42,9 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
  const profile = await getCurrentProfile();
  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+ if (profile.role === 'AREA_MANAGER') {
+ return NextResponse.json({ error: 'Gunakan Jadual Mingguan untuk menjadualkan staf.' }, { status: 403 });
+ }
 
  const body = await request.json();
  const supabase = await createClient();

@@ -35,6 +35,7 @@ try {
   migration('00008_notifications_approvals'),
   section('20260826234500_harden_active_tenant_pos_boundaries', 'CREATE OR REPLACE FUNCTION public.organization_id', 'DROP POLICY IF EXISTS pos_transactions_branch'),
   section('00009_rls_policies', 'CREATE POLICY pos_shifts_branch', 'CREATE POLICY pos_transactions_branch'),
+  section('00014_shift_rpc', 'CREATE OR REPLACE FUNCTION create_staff_shift', 'CREATE OR REPLACE FUNCTION clock_in_staff'),
   section('00014_shift_rpc', '-- Shift RLS'),
   section('20260722195500_supabase_security_advisor_hardening', 'CREATE POLICY audit_logs_admin_select', '-- Financial routing'),
   migration('00062_weekly_staff_roster'),

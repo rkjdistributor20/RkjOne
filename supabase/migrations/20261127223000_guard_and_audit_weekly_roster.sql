@@ -218,3 +218,105 @@ REVOKE ALL ON FUNCTION public.save_weekly_roster(uuid, date, jsonb, date), publi
  FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.save_weekly_roster(uuid, date, jsonb, date), public.publish_weekly_roster(uuid)
  TO authenticated;
+
+-- AM planning has one write path. Keep legacy requests available to existing
+-- non-AM workflows, and recheck existing requests against the roster on approval.
+ALTER FUNCTION public.create_staff_shift(uuid, uuid, date, uuid, time, time, text) SET SCHEMA private_rkj;
+REVOKE ALL ON FUNCTION private_rkj.create_staff_shift(uuid, uuid, date, uuid, time, time, text)
+ FROM PUBLIC, anon, authenticated, service_role;
+
+CREATE FUNCTION public.create_staff_shift(
+ p_staff_id uuid, p_branch_id uuid, p_shift_date date, p_template_id uuid DEFAULT NULL,
+ p_scheduled_start time DEFAULT NULL, p_scheduled_end time DEFAULT NULL, p_notes text DEFAULT NULL
+)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+ IF public.user_role() IS NULL OR public.user_role() = 'AREA_MANAGER' THEN
+  RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'Gunakan Jadual Mingguan untuk menjadualkan staf.';
+ END IF;
+ RETURN private_rkj.create_staff_shift(p_staff_id, p_branch_id, p_shift_date, p_template_id,
+  p_scheduled_start, p_scheduled_end, p_notes);
+END;
+$$;
+REVOKE ALL ON FUNCTION public.create_staff_shift(uuid, uuid, date, uuid, time, time, text)
+ FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.create_staff_shift(uuid, uuid, date, uuid, time, time, text) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.approve_staff_shift(p_shift_id uuid)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+DECLARE
+ v_user uuid := auth.uid();
+ v_role text := public.user_role()::text;
+ v_org uuid := public.organization_id();
+ v_shift public.staff_shifts%ROWTYPE;
+ v_span tsrange;
+BEGIN
+ IF v_user IS NULL OR v_role IS NULL OR v_role NOT IN ('SUPER_ADMIN','ADMIN','OPERATION_MANAGER','AREA_MANAGER') THEN
+  RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'Tiada kebenaran meluluskan syif.';
+ END IF;
+ IF v_role = 'AREA_MANAGER' THEN
+  PERFORM private_rkj.lock_weekly_roster(v_org);
+  SELECT sh.* INTO v_shift FROM public.staff_shifts sh
+  JOIN public.staff st ON st.id = sh.staff_id AND st.organization_id = sh.organization_id
+   AND st.branch_id = sh.branch_id AND st.status = 'ACTIVE'
+  WHERE sh.id = p_shift_id AND sh.organization_id = v_org AND sh.status = 'PENDING'
+   AND public.can_manage_roster_branch(sh.branch_id)
+  FOR UPDATE OF sh;
+  IF NOT FOUND THEN
+   RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'Permohonan syif tidak boleh diluluskan dalam skop anda.';
+  END IF;
+  v_span := private_rkj.roster_slot_span(v_shift.shift_date, v_shift.scheduled_start, v_shift.scheduled_end);
+  IF v_span IS NULL THEN
+   RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'Masa syif tidak lengkap. Gunakan Jadual Mingguan.';
+  END IF;
+  IF EXISTS (
+   SELECT 1 FROM public.roster_planned_shifts other
+   WHERE other.organization_id = v_org AND other.staff_id = v_shift.staff_id
+    AND (other.status = 'PUBLISHED' OR other.branch_id = v_shift.branch_id)
+    AND other.shift_date BETWEEN v_shift.shift_date - 1 AND v_shift.shift_date + 1
+    AND private_rkj.roster_slot_span(other.shift_date, other.scheduled_start, other.scheduled_end) && v_span
+  ) THEN
+   RAISE EXCEPTION USING ERRCODE = '23505', MESSAGE = 'Jadual staf bertindih. Semak Jadual Mingguan.';
+  END IF;
+ END IF;
+ UPDATE public.staff_shifts SET status = 'APPROVED', approved_by = v_user, approved_at = now(), updated_at = now()
+ WHERE id = p_shift_id;
+ UPDATE public.approval_requests SET status = 'APPROVED', approved_by = v_user, resolved_at = now()
+ WHERE entity_type = 'SHIFT' AND entity_id = p_shift_id
+  AND (v_role <> 'AREA_MANAGER' OR (organization_id = v_org AND branch_id = v_shift.branch_id AND status = 'PENDING'));
+ RETURN jsonb_build_object('shift_id', p_shift_id, 'status', 'APPROVED');
+END;
+$$;
+
+-- An old generic approval RPC can reject by entity ID; check the actual shift
+-- row there too, and audit AM decisions independently of the request projection.
+CREATE FUNCTION private_rkj.guard_am_legacy_shift_decision()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public, pg_temp AS $$
+BEGIN
+ IF public.user_role() = 'AREA_MANAGER' THEN
+  IF OLD.status <> 'PENDING' OR OLD.organization_id IS DISTINCT FROM public.organization_id()
+     OR NOT public.can_manage_roster_branch(OLD.branch_id) THEN
+   RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'Perubahan permohonan syif di luar skop anda.';
+  END IF;
+  INSERT INTO public.audit_logs (organization_id, user_id, action, entity_type, entity_id, old_values, new_values)
+  VALUES (OLD.organization_id, auth.uid(), 'ROSTER_LEGACY_' || NEW.status::text,
+   'staff_shift', OLD.id, to_jsonb(OLD), to_jsonb(NEW));
+ END IF;
+ RETURN NEW;
+END;
+$$;
+REVOKE ALL ON FUNCTION private_rkj.guard_am_legacy_shift_decision() FROM PUBLIC, anon, authenticated, service_role;
+CREATE TRIGGER guard_am_legacy_shift_decision BEFORE UPDATE OF status ON public.staff_shifts
+ FOR EACH ROW WHEN (OLD.status IS DISTINCT FROM NEW.status AND NEW.status IN ('APPROVED','REJECTED'))
+ EXECUTE FUNCTION private_rkj.guard_am_legacy_shift_decision();
+
+CREATE POLICY am_staff_shifts_no_direct_insert ON public.staff_shifts AS RESTRICTIVE FOR INSERT TO authenticated
+ WITH CHECK (public.user_role() IS DISTINCT FROM 'AREA_MANAGER');
+CREATE POLICY am_staff_shifts_no_direct_update ON public.staff_shifts AS RESTRICTIVE FOR UPDATE TO authenticated
+ USING (public.user_role() IS DISTINCT FROM 'AREA_MANAGER')
+ WITH CHECK (public.user_role() IS DISTINCT FROM 'AREA_MANAGER');
+CREATE POLICY am_staff_shifts_no_direct_delete ON public.staff_shifts AS RESTRICTIVE FOR DELETE TO authenticated
+ USING (public.user_role() IS DISTINCT FROM 'AREA_MANAGER');
+CREATE POLICY am_legacy_shift_approval_no_direct_update ON public.approval_requests AS RESTRICTIVE FOR UPDATE TO authenticated
+ USING (entity_type <> 'SHIFT' OR public.user_role() IS DISTINCT FROM 'AREA_MANAGER')
+ WITH CHECK (entity_type <> 'SHIFT' OR public.user_role() IS DISTINCT FROM 'AREA_MANAGER');

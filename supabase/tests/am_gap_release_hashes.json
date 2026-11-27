@@ -2,6 +2,6 @@
   "20261127221057_transfer_receipts_and_linked_reversals.sql": "f5906a68c4bbcd1e46caabae732bc5c031954548fbe23465dc27b4a8946c5be3",
   "20261127221500_scoped_report_pos_details.sql": "098e410ee2e226ba9bf9c6bf8741a85ea5fbd9a42728ae53fd16afbf6bcaf342",
   "20261127222531_staff_stock_count_capture.sql": "27d8b604953dc178f92e26847a3b030e9234e62d7b712cdf8800c29b593e1bd4",
-  "20261127223000_guard_and_audit_weekly_roster.sql": "9eeb91749b00e9ddab713e1ffb8bcd7bdf0b73239e1552680445f2304dbe0d23",
+ "20261127223000_guard_and_audit_weekly_roster.sql": "60086b2cbe198d8326efdb1f5f141b43d53b5b6689ff6e3806da647a0e0793ec",
   "20261127223500_make_am_direct_stock_posts_retry_safe.sql": "a3bcb85379aa9ae6c5993971d81de22ae9bc5674cf2273d342d17a12b1f636e4"
 }

@@ -205,10 +205,12 @@ export function ShiftManagement() {
  <TabsContent value="schedule" className="mt-4 space-y-6">
  <Card>
  <CardHeader>
- <CardTitle className="text-base">Mohon Shift</CardTitle>
+ <CardTitle className="text-base">{profile?.role === 'AREA_MANAGER' ? 'Jadualkan Staf' : 'Mohon Shift'}</CardTitle>
  </CardHeader>
  <CardContent>
- <form onSubmit={handleCreateShift} className="flex flex-wrap gap-3">
+ {profile?.role === 'AREA_MANAGER' ? (
+ <Button type="button" variant="outline" onClick={() => setActiveTab('roster')}>Buka Jadual Mingguan</Button>
+ ) : <form onSubmit={handleCreateShift} className="flex flex-wrap gap-3">
  <div className="space-y-1">
  <Label>Staf</Label>
  <Select
@@ -263,7 +265,7 @@ export function ShiftManagement() {
  Cipta Shift
  </Button>
  </div>
- </form>
+ </form>}
  </CardContent>
  </Card>
 
@@ -293,9 +295,13 @@ export function ShiftManagement() {
  size="sm"
  variant="outline"
  onClick={async () => {
+ try {
  await approveShift(shift.id);
  toast.success('Shift diluluskan');
  loadData();
+ } catch (err) {
+ toast.error(err instanceof Error ? err.message : 'Gagal luluskan syif');
+ }
  }}
  >
  <CheckCircle className="mr-1 h-3 w-3" />

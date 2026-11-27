@@ -151,6 +151,53 @@ SELECT set_config('request.jwt.claim.sub','40000000-0000-4000-8000-000000000001'
 SELECT pg_temp.assert_roster(
  public.publish_weekly_roster(current_setting('roster_test.plan')::uuid) ->> 'shifts_created' = '2',
  'publish materializes both working slots');
+
+RESET ROLE;
+INSERT INTO public.staff_shifts (id, organization_id, staff_id, branch_id, shift_date, scheduled_start,
+ scheduled_end, created_by, status) VALUES
+ ('90000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000001',
+  '50000000-0000-4000-8000-000000000001','30000000-0000-4000-8000-000000000001',
+  '2199-11-18','05:30','09:00','40000000-0000-4000-8000-000000000002','PENDING'),
+ ('90000000-0000-4000-8000-000000000002','10000000-0000-4000-8000-000000000001',
+  '50000000-0000-4000-8000-000000000001','30000000-0000-4000-8000-000000000001',
+  '2199-11-18','06:00','09:00','40000000-0000-4000-8000-000000000002','PENDING'),
+ ('90000000-0000-4000-8000-000000000003','10000000-0000-4000-8000-000000000001',
+  '50000000-0000-4000-8000-000000000001','30000000-0000-4000-8000-000000000003',
+  '2199-11-18','10:00','11:00','40000000-0000-4000-8000-000000000002','PENDING');
+SET LOCAL ROLE authenticated;
+DO $$
+BEGIN
+ BEGIN
+  PERFORM public.create_staff_shift('50000000-0000-4000-8000-000000000003',
+   '30000000-0000-4000-8000-000000000001','2199-11-18');
+  RAISE EXCEPTION 'Unexpected legacy AM request for the wrong staff member';
+ EXCEPTION WHEN insufficient_privilege THEN NULL;
+ END;
+ BEGIN
+  PERFORM public.approve_staff_shift('90000000-0000-4000-8000-000000000003');
+  RAISE EXCEPTION 'Unexpected legacy AM approval outside scope';
+ EXCEPTION WHEN insufficient_privilege THEN NULL;
+ END;
+ BEGIN
+  PERFORM public.approve_staff_shift('90000000-0000-4000-8000-000000000001');
+  RAISE EXCEPTION 'Unexpected legacy AM approval overlapping a published overnight slot';
+ EXCEPTION WHEN unique_violation THEN NULL;
+ END;
+ UPDATE public.staff_shifts SET status='APPROVED' WHERE id='90000000-0000-4000-8000-000000000001';
+ IF FOUND THEN RAISE EXCEPTION 'Unexpected direct AM status change'; END IF;
+END;
+$$;
+SELECT pg_temp.assert_roster(
+ public.approve_staff_shift('90000000-0000-4000-8000-000000000002') ->> 'status' = 'APPROVED',
+ 'AM can approve in-scope legacy request starting when the overnight slot ends');
+RESET ROLE;
+SELECT pg_temp.assert_roster(EXISTS (
+ SELECT 1 FROM public.audit_logs WHERE entity_id='90000000-0000-4000-8000-000000000002'
+  AND action='ROSTER_LEGACY_APPROVED' AND old_values->>'status'='PENDING' AND new_values->>'status'='APPROVED'
+), 'legacy AM decision creates one before/after audit entry');
+DELETE FROM public.staff_shifts WHERE id IN ('90000000-0000-4000-8000-000000000001',
+ '90000000-0000-4000-8000-000000000002','90000000-0000-4000-8000-000000000003');
+SET LOCAL ROLE authenticated;
 SELECT pg_temp.assert_roster((
  SELECT count(*) = 2 AND sum(scheduled_hours) = 14.25 FROM staff_shifts
  WHERE notes = 'roster:' || current_setting('roster_test.plan')
