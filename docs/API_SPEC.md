@@ -1,5 +1,33 @@
 # RKJ One API Spec
 
+## Laporan operasi POS
+
+`GET /api/reports/operations` is a read-only workspace for Owner/Admin
+(`SUPER_ADMIN` and `ADMIN`) and Area Manager. `view` selects `summary`,
+`daily`, `shifts`, `actions`, `transactions`, or `receipt`. The same
+user-session RPC applies `from`/`to` (calendar dates in Asia/Kuala_Lumpur),
+`am_id`, `branch_id`, `staff_id` (cashier profile), and `shift_id` to the
+views. `transaction_id` identifies an original POS sale for receipt drill-down.
+AM can read only currently assigned branches; the Owner/Admin AM filter
+restricts scope through existing assignments, not the cashier's current branch.
+
+The response includes the unpaginated filtered totals, a server-generated
+timestamp, and a page of scoped rows. `format=csv` in supported views uses
+the same filters and calculation; it includes the full totals, report period,
+MYT, and time generated. Broad exports are rejected instead of silently
+truncated. Use `data=trial` only for explicitly marked trial data; it does
+not add those records to operational totals.
+
+**Jualan bersih direkodkan** is the completed POS total after discounts.
+**Jualan bersih disahkan** is the portion of that total from fully paid sales.
+A voided or refunded original sale contributes nothing to either measure;
+its history remains visible. **Kutipan disahkan** separates POS cash after change
+and matched confirmed QR, including the received part of a mixed sale.
+Pending QR, attempts, and bank-in records are not added to collections. Shift
+totals in the selected period use the original
+sale time; full-shift totals are labelled separately and are not summed
+across days. No report endpoint performs a payment or finance mutation.
+
 ## Area Manager branch grants and POS staffing
 
 - `GET/PATCH /api/settings/users/:id/area-branches`: tenant Super Admin only.

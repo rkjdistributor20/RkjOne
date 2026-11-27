@@ -54,22 +54,29 @@ function ReportData<T>({ url, children }: { url: string; children: (data: T) => 
  return children(result.data);
 }
 
-export function ReportsDashboard() {
- const [filters, setFilters] = useState<ReportFilters>(() => ({ ...defaultReportRange(), branchId: '' }));
+export function ReportsDashboard({
+ supplemental = false, initialFilters,
+}: {
+ supplemental?: boolean; initialFilters?: ReportFilters;
+} = {}) {
+ const [filters, setFilters] = useState<ReportFilters>(() => initialFilters ?? { ...defaultReportRange(), branchId: '' });
  const [revision, setRevision] = useState(0);
- const [tab, setTab] = useState('sales');
+ const firstTab = supplemental ? 'inventory' : 'sales';
+ const [tab, setTab] = useState(firstTab);
  const refresh = () => setRevision((value) => value + 1);
- const selectedTab = tab === 'fleet' && filters.branchId ? 'sales' : tab;
+ const selectedTab = tab === 'fleet' && filters.branchId ? firstTab : tab;
  const updateFilter = (key: keyof ReportFilters, value: string) => {
   setFilters((current) => ({ ...current, [key]: value }));
-  if (key === 'branchId' && tab === 'fleet') setTab('sales');
+  if (key === 'branchId' && tab === 'fleet') setTab(firstTab);
  };
 
  return (
   <ModuleLayout>
    <ModuleHeader
-    title="Laporan"
-    description="Jualan, syif dan stok mengikut cawangan. Tarikh dan masa menggunakan MYT."
+    title={supplemental ? 'Inventori & laporan lain' : 'Laporan'}
+    description={supplemental
+     ? 'Stok, prestasi item dan logistik. Laporan ini menggunakan tarikh dan cawangan sahaja; jualan dan syif berada dalam Laporan Operasi.'
+     : 'Jualan, syif dan stok mengikut cawangan. Tarikh dan masa menggunakan MYT.'}
     icon={BarChart3}
     actions={
      <div className="flex flex-wrap items-end gap-2">
@@ -105,24 +112,25 @@ export function ReportsDashboard() {
     url={reportUrl('overview', filters)}>
     {({ overview }) => (
      <>
-      <KpiGrid>
+      {!supplemental && <KpiGrid>
        <KpiCard title="Jualan direkodkan" value={fmt(overview.total_sales)} icon={TrendingUp} />
        <KpiCard title="Transaksi selesai" value={overview.transaction_count} icon={BarChart3} />
        <KpiCard title="Tunai bersih / QR disahkan"
         value={fmt(overview.total_cash) + ' / ' + fmt(overview.total_qr)} icon={Banknote} />
        <KpiCard title="QR menunggu pengesahan" value={fmt(overview.pending_qr)} icon={Wallet} />
-      </KpiGrid>
-      <Tabs value={selectedTab === 'fleet' && !overview.organization_wide ? 'sales' : selectedTab}
+      </KpiGrid>}
+      <Tabs value={selectedTab === 'fleet' && !overview.organization_wide ? firstTab : selectedTab}
        onValueChange={setTab} className="space-y-4">
        <TabsList className={moduleTabsListClass}>
-        {tabs.filter(([id]) => id !== 'fleet' || overview.organization_wide).map(([id, label, Icon]) => (
+        {tabs.filter(([id]) => (!supplemental || (id !== 'sales' && id !== 'branches' && id !== 'staff'))
+         && (id !== 'fleet' || overview.organization_wide)).map(([id, label, Icon]) => (
          <TabsTrigger key={id} value={id} className={moduleTabsTriggerClass}>
           <Icon className="h-4 w-4" /> {label}
          </TabsTrigger>
         ))}
        </TabsList>
 
-       <TabsContent value="sales" className="space-y-4">
+       {!supplemental && <><TabsContent value="sales" className="space-y-4">
         <SalesTrend filters={filters} />
         <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
          <span>Batal: <strong>{overview.void_count}</strong></span>
@@ -143,16 +151,16 @@ export function ReportsDashboard() {
           rows={branches.map((b) => [b.branch_name, b.region_name, fmt(b.total_sales), b.transaction_count,
            fmt(b.total_cash), fmt(b.total_qr), fmt(b.pending_qr)])} />}
         </ReportData>
-       </TabsContent>
+       </TabsContent></>}
        <TabsContent value="products">
         <ReportData<{ products: ProductPerformanceRow[] }> url={reportUrl('products', filters)}>
          {({ products }) => <ReportTable headers={['Produk', 'SKU', 'Kuantiti', 'Jualan baris item']}
           rows={products.map((p) => [p.product_name, p.sku, p.quantity_sold, fmt(p.revenue)])} />}
         </ReportData>
        </TabsContent>
-       <TabsContent value="staff">
+       {!supplemental && <TabsContent value="staff">
         <StaffDetails filters={filters} />
-       </TabsContent>
+       </TabsContent>}
        <TabsContent value="inventory"><StockDetails filters={filters} /></TabsContent>
        {overview.organization_wide && (
         <TabsContent value="fleet">

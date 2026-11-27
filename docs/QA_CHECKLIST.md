@@ -4,6 +4,19 @@ Last updated: 2026-11-04
 
 Use this checklist for QA AI, Code Reviewer AI, and human review before merge/deploy.
 
+## Laporan operasi POS
+
+- Compare Owner/Admin totals against the sum of the authorized branch,
+  MYT day, cashier-in-shift and transaction views. Advance a page and ensure
+  global totals do not change. Test CSV with exactly the same filters.
+- Check withdrawn/unassigned branches, a branch with no AM, a shared branch
+  counted once, an overnight shift, a shared cashier station, repeated QR
+  attempts, a late acknowledgement, a refund/VOID and a marked trial.
+- Check that recorded cash, opening float, expected/count/variance and
+  bank-in or settlement status are shown separately. A blank counted cash
+  must not be replaced by expected cash. No transaction or settlement edits
+  are needed for production read-only smoke checks.
+
 ## AM operations matrix
 
 - Use disposable SQL fixtures for AM stock, transfers, roster and operational

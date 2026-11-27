@@ -4,6 +4,15 @@ Last updated: 2026-11-04
 
 Status key: `Todo`, `In Progress`, `Review`, `Blocked`, `Done`.
 
+## Laporan operasi POS
+
+- Ringkasan, Harian, Syif & Staf, Perlu Tindakan and receipt drill-down
+  share one scoped report calculation with CSV. Existing operational tools,
+  payment approvals and AM branch grants remain unchanged.
+- Production verification: compare actual ledger rows without creating test
+  sales or payments. Tablet version telemetry is not a data-completeness
+  signal. Native Android release only if the native shell changes.
+
 ## AM operations matrix
 
 - Admin sets exact branch grants; pinned existing Admin-selected territories are
