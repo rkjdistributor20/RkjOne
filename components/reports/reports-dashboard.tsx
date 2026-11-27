@@ -1,382 +1,390 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { BarChart3, Banknote, Building2, Download, Package, TrendingUp, Truck, Users, Wallet, Warehouse } from 'lucide-react';
 import { toast } from 'sonner';
-import {
- BarChart3,
- Building2,
- Package,
- TrendingUp,
- Users,
- Truck,
- Warehouse,
- Wallet,
- Banknote,
-} from 'lucide-react';
-import {
- fetchReportOverview,
- fetchSalesTrend,
- fetchBranchPerformance,
- fetchProductPerformance,
- fetchStaffPerformance,
- fetchInventoryReport,
- fetchFleetReport,
-} from '@/lib/reports/api';
-import type {
- BranchPerformanceRow,
- InventoryReportRow,
- ProductPerformanceRow,
- ReportOverview,
- SalesTrendRow,
- StaffPerformanceRow,
-} from '@/lib/reports/types';
-import { LOGISTIK_LABEL } from '@/lib/fleet/logistics-label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
- ModuleLayout,
- ModuleHeader,
- ModuleLoading,
- KpiGrid,
- KpiCard,
- PrimaryActionButton,
- moduleTabsListClass,
- moduleTabsTriggerClass,
+ KpiCard, KpiGrid, ModuleHeader, ModuleLayout, ModuleLoading, PrimaryActionButton,
+ moduleTabsListClass, moduleTabsTriggerClass,
 } from '@/components/shared/module-ui';
+import { LOGISTIK_LABEL } from '@/lib/fleet/logistics-label';
+import { fetchReport, reportUrl } from '@/lib/reports/api';
+import { defaultReportRange, MOVEMENT_FILTERS, MOVEMENT_TYPES, reportTime, type ReportFilters } from '@/lib/reports/filters';
+import type {
+ BranchPerformanceRow, FleetReportSummary, InventoryReportRow, MovementReportRow, ProductPerformanceRow,
+ ReportOverview, ReportPage, ReportPaymentAttempt, ReportReceipt, ReportScope, ReportTransaction,
+ SalesTrendRow, StaffPerformanceRow,
+} from '@/lib/reports/types';
 
-function fmt(n: number) {
- return `RM ${Number(n).toLocaleString('ms-MY', { minimumFractionDigits: 2 })}`;
+const money = new Intl.NumberFormat('ms-MY', { style: 'currency', currency: 'MYR' });
+const fmt = (value: number) => money.format(value);
+const time = (value: string | null) => value ? reportTime(value) : '—';
+const identity = (name: string | null, id: string | null) => name ?? id ?? '—';
+const selectClass = 'h-9 max-w-full rounded-md border border-input bg-background px-2 text-sm';
+
+const tabs = [
+ ['sales', 'Jualan', TrendingUp],
+ ['branches', 'Cawangan', Building2],
+ ['products', 'Produk', Package],
+ ['staff', 'Staf & Syif', Users],
+ ['inventory', 'Stok', Warehouse],
+ ['fleet', LOGISTIK_LABEL, Truck],
+] as const;
+
+function ReportData<T>({ url, children }: { url: string; children: (data: T) => ReactNode }) {
+ const [result, setResult] = useState<{ url: string; data: T } | { url: string; error: string }>();
+ useEffect(() => {
+  const controller = new AbortController();
+  void fetchReport<T>(url, controller.signal).then((data) => {
+   if (!controller.signal.aborted) setResult({ url, data });
+  }, (err: unknown) => {
+   if (!controller.signal.aborted) setResult({ url, error: err instanceof Error ? err.message : 'Laporan tidak dapat dimuatkan' });
+  });
+  return () => controller.abort();
+ }, [url]);
+
+ if (result?.url !== url) return <ModuleLoading />;
+ if ('error' in result) return <p role="alert" className="rounded-lg border border-amber-300 p-3 text-sm">{result.error}</p>;
+ return children(result.data);
 }
-
-function defaultRange() {
- const to = new Date();
- const from = new Date();
- from.setDate(1);
- return {
- from: from.toISOString().slice(0, 10),
- to: to.toISOString().slice(0, 10),
- };
-}
-
-type ReportsTab = 'sales' | 'branches' | 'products' | 'staff' | 'inventory' | 'fleet';
 
 export function ReportsDashboard() {
- const [range, setRange] = useState(defaultRange);
- const [activeTab, setActiveTab] = useState<ReportsTab>('sales');
- const [overview, setOverview] = useState<ReportOverview | null>(null);
- const [trend, setTrend] = useState<SalesTrendRow[]>([]);
- const [branches, setBranches] = useState<BranchPerformanceRow[]>([]);
- const [products, setProducts] = useState<ProductPerformanceRow[]>([]);
- const [staff, setStaff] = useState<StaffPerformanceRow[]>([]);
- const [inventory, setInventory] = useState<InventoryReportRow[]>([]);
- const [fleet, setFleet] = useState({ pending: 0, in_transit: 0, delivered: 0, total_orders: 0 });
- const [loading, setLoading] = useState(true);
- const [loadError, setLoadError] = useState<string | null>(null);
- const [tabLoading, setTabLoading] = useState(false);
- const [loadedTabs, setLoadedTabs] = useState<Partial<Record<ReportsTab, string>>>({});
- const rangeKey = `${range.from}:${range.to}`;
-
- const loadOverview = useCallback(async () => {
- setLoading(true);
- setLoadError(null);
- const [overviewResult, trendResult] = await Promise.allSettled([
- fetchReportOverview(range.from, range.to),
- fetchSalesTrend(range.from, range.to),
- ]);
- if (overviewResult.status === 'fulfilled') {
- setOverview(overviewResult.value.overview);
- } else {
- setOverview(null);
- setLoadError(
- overviewResult.reason instanceof Error
- ? overviewResult.reason.message
- : 'Ringkasan laporan tidak dapat dimuatkan');
- }
- if (trendResult.status === 'fulfilled') {
- setTrend(trendResult.value.trend);
- } else {
- setTrend([]);
- toast.error(
- trendResult.reason instanceof Error
- ? trendResult.reason.message
- : 'Trend jualan tidak dapat dimuatkan');
- }
- setLoading(false);
- }, [range.from, range.to]);
-
- const loadTabData = useCallback(async (tab: ReportsTab = activeTab, force = false) => {
- if (tab === 'sales') return;
- if (!force && loadedTabs[tab] === rangeKey) return;
-
- setTabLoading(true);
- try {
- if (tab === 'branches') {
- const br = await fetchBranchPerformance(range.from, range.to);
- setBranches(br.branches);
- } else if (tab === 'products') {
- const pr = await fetchProductPerformance(range.from, range.to);
- setProducts(pr.products);
- } else if (tab === 'staff') {
- const st = await fetchStaffPerformance(range.from, range.to);
- setStaff(st.staff);
- } else if (tab === 'inventory') {
- const inv = await fetchInventoryReport();
- setInventory(inv.items);
- } else if (tab === 'fleet') {
- const fl = await fetchFleetReport(range.from, range.to);
- setFleet(fl.fleet);
- }
- setLoadedTabs((current) => ({...current, [tab]: rangeKey }));
- } catch (err) {
- toast.error(err instanceof Error ? err.message : 'Gagal memuatkan tab laporan');
- } finally {
- setTabLoading(false);
- }
- }, [activeTab, loadedTabs, range.from, range.to, rangeKey]);
-
- useEffect(() => {
- setLoadedTabs({});
- void loadOverview();
- }, [loadOverview]);
-
- useEffect(() => {
- void loadTabData(activeTab);
- }, [activeTab, loadTabData]);
-
- const reloadCurrentView = async () => {
- await loadOverview();
- await loadTabData(activeTab, true);
+ const [filters, setFilters] = useState<ReportFilters>(() => ({ ...defaultReportRange(), branchId: '' }));
+ const [revision, setRevision] = useState(0);
+ const [tab, setTab] = useState('sales');
+ const refresh = () => setRevision((value) => value + 1);
+ const selectedTab = tab === 'fleet' && filters.branchId ? 'sales' : tab;
+ const updateFilter = (key: keyof ReportFilters, value: string) => {
+  setFilters((current) => ({ ...current, [key]: value }));
+  if (key === 'branchId' && tab === 'fleet') setTab('sales');
  };
 
- const maxTrend = Math.max(...trend.map((t) => t.total_sales), 1);
-
  return (
- <ModuleLayout>
- <ModuleHeader
- title="Laporan"
- description={`Analisis jualan, prestasi cawangan, produk, staf, inventori, dan ${LOGISTIK_LABEL.toLowerCase()}`}
- icon={BarChart3}
- actions={
- <div className="flex flex-wrap items-end gap-2">
- <div className="space-y-1">
- <Label className="text-xs">Dari</Label>
- <Input
- type="date"
- className="h-9 w-36"
- value={range.from}
- onChange={(e) => setRange({...range, from: e.target.value })}
- />
- </div>
- <div className="space-y-1">
- <Label className="text-xs">Hingga</Label>
- <Input
- type="date"
- className="h-9 w-36"
- value={range.to}
- onChange={(e) => setRange({...range, to: e.target.value })}
- />
- </div>
- <PrimaryActionButton className="h-9" onClick={reloadCurrentView}>
- Muat Semula
- </PrimaryActionButton>
- </div>
- }
- />
+  <ModuleLayout>
+   <ModuleHeader
+    title="Laporan"
+    description="Jualan, syif dan stok mengikut cawangan. Tarikh dan masa menggunakan MYT."
+    icon={BarChart3}
+    actions={
+     <div className="flex flex-wrap items-end gap-2">
+      <div className="space-y-1">
+       <Label className="text-xs" htmlFor="reports-branch">Cawangan</Label>
+       <ReportData<ReportScope> key={revision} url={reportUrl('scope')}>
+        {({ branches }) => (
+         <select id="reports-branch" className={selectClass} value={filters.branchId}
+          onChange={(e) => updateFilter('branchId', e.target.value)}>
+          <option value="">Semua cawangan dalam skop</option>
+          {filters.branchId && !branches.some((branch) => branch.id === filters.branchId) &&
+           <option value={filters.branchId} disabled>Cawangan tidak tersedia</option>}
+          {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.code} · {branch.name}</option>)}
+         </select>
+        )}
+       </ReportData>
+      </div>
+      <div className="space-y-1">
+       <Label className="text-xs" htmlFor="reports-from">Dari (MYT)</Label>
+       <Input id="reports-from" type="date" className="h-9 w-36" value={filters.from}
+        onChange={(e) => updateFilter('from', e.target.value)} />
+      </div>
+      <div className="space-y-1">
+       <Label className="text-xs" htmlFor="reports-to">Hingga (MYT)</Label>
+       <Input id="reports-to" type="date" className="h-9 w-36" value={filters.to}
+        onChange={(e) => updateFilter('to', e.target.value)} />
+      </div>
+      <PrimaryActionButton className="h-9" onClick={refresh}>Muat Semula</PrimaryActionButton>
+     </div>
+    }
+   />
+   <ReportData<{ overview: ReportOverview }> key={reportUrl('overview', filters, { revision: String(revision) })}
+    url={reportUrl('overview', filters)}>
+    {({ overview }) => (
+     <>
+      <KpiGrid>
+       <KpiCard title="Jualan direkodkan" value={fmt(overview.total_sales)} icon={TrendingUp} />
+       <KpiCard title="Transaksi selesai" value={overview.transaction_count} icon={BarChart3} />
+       <KpiCard title="Tunai bersih / QR disahkan"
+        value={fmt(overview.total_cash) + ' / ' + fmt(overview.total_qr)} icon={Banknote} />
+       <KpiCard title="QR menunggu pengesahan" value={fmt(overview.pending_qr)} icon={Wallet} />
+      </KpiGrid>
+      <Tabs value={selectedTab === 'fleet' && !overview.organization_wide ? 'sales' : selectedTab}
+       onValueChange={setTab} className="space-y-4">
+       <TabsList className={moduleTabsListClass}>
+        {tabs.filter(([id]) => id !== 'fleet' || overview.organization_wide).map(([id, label, Icon]) => (
+         <TabsTrigger key={id} value={id} className={moduleTabsTriggerClass}>
+          <Icon className="h-4 w-4" /> {label}
+         </TabsTrigger>
+        ))}
+       </TabsList>
 
- {loading ? (
- <ModuleLoading />) : (
- <>
- {loadError && (
- <Card className="border-amber-300 bg-amber-50">
- <CardContent className="flex flex-wrap items-center justify-between gap-3 pt-5 text-sm text-amber-950">
- <span>Data laporan belum lengkap: {loadError}</span>
- <PrimaryActionButton className="h-8" onClick={reloadCurrentView}>
- Cuba Lagi
- </PrimaryActionButton>
- </CardContent>
- </Card>)}
- <KpiGrid>
- <KpiCard title="Jumlah Jualan" value={fmt(overview?.total_sales ?? 0)} icon={TrendingUp} />
- <KpiCard title="Transaksi" value={overview?.transaction_count ?? 0} icon={BarChart3} />
- <KpiCard
- title="Tunai / QR"
- value={`${fmt(overview?.total_cash ?? 0)} / ${fmt(overview?.total_qr ?? 0)}`}
- icon={Banknote}
- />
- <KpiCard title="Gaji Bersih" value={fmt(overview?.payroll_net ?? 0)} icon={Wallet} />
- </KpiGrid>
-
- <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ReportsTab)} className="space-y-4">
- <TabsList className={moduleTabsListClass}>
- <TabsTrigger value="sales" className={moduleTabsTriggerClass}>
- <TrendingUp className="h-4 w-4" /> Jualan
- </TabsTrigger>
- <TabsTrigger value="branches" className={moduleTabsTriggerClass}>
- <Building2 className="h-4 w-4" /> Cawangan
- </TabsTrigger>
- <TabsTrigger value="products" className={moduleTabsTriggerClass}>
- <Package className="h-4 w-4" /> Produk
- </TabsTrigger>
- <TabsTrigger value="staff" className={moduleTabsTriggerClass}>
- <Users className="h-4 w-4" /> Staf
- </TabsTrigger>
- <TabsTrigger value="inventory" className={moduleTabsTriggerClass}>
- <Warehouse className="h-4 w-4" /> Stok
- </TabsTrigger>
- <TabsTrigger value="fleet" className={moduleTabsTriggerClass}>
- <Truck className="h-4 w-4" /> {LOGISTIK_LABEL}
- </TabsTrigger>
- </TabsList>
-
- <TabsContent value="sales" className="mt-4 space-y-4">
- <Card>
- <CardHeader className="pb-2">
- <CardTitle className="text-base flex items-center gap-2">
- <BarChart3 className="h-4 w-4" /> Daily Sales Trend
- </CardTitle>
- </CardHeader>
- <CardContent>
- {trend.length === 0 ? (
- <p className="text-sm text-muted-foreground">No sales data in range</p>) : (
- <div className="space-y-2">
- {trend.map((row) => (
- <div key={row.period} className="flex items-center gap-3 text-sm">
- <span className="w-24 shrink-0 text-muted-foreground">{row.period}</span>
- <div className="flex-1 rounded-full bg-muted h-2 overflow-hidden">
- <div
- className="h-full bg-amber-500 rounded-full"
- style={{ width: `${(row.total_sales / maxTrend) * 100}%` }}
- />
- </div>
- <span className="w-28 text-right font-medium">{fmt(row.total_sales)}</span>
- </div>))}
- </div>)}
- </CardContent>
- </Card>
- <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 text-sm">
- <div>Voids: <strong>{overview?.void_count ?? 0}</strong></div>
- <div>Refunds: <strong>{overview?.refund_count ?? 0}</strong></div>
- <div>Outstanding: <strong>{fmt(overview?.outstanding_cash ?? 0)}</strong></div>
- <div>Low stock: <strong>{overview?.low_stock_count ?? 0}</strong></div>
- </div>
- </TabsContent>
-
- <TabsContent value="branches" className="mt-4">
- {tabLoading && activeTab === 'branches' ? (
- <ModuleLoading />) : (
- <ReportTable
- headers={['Branch', 'Region', 'Sales', 'Txns', 'Cash', 'QR']}
- rows={branches.map((b) => [
- b.branch_name,
- b.region_name ?? ' - ',
- fmt(b.total_sales),
- String(b.transaction_count),
- fmt(b.total_cash),
- fmt(b.total_qr),
- ])}
- empty="No branch data"
- />)}
- </TabsContent>
-
- <TabsContent value="products" className="mt-4">
- {tabLoading && activeTab === 'products' ? (
- <ModuleLoading />) : (
- <ReportTable
- headers={['Product', 'SKU', 'Qty Sold', 'Revenue']}
- rows={products.map((p) => [
- p.product_name,
- p.sku,
- String(p.quantity_sold),
- fmt(p.revenue),
- ])}
- empty="No product sales in range"
- />)}
- </TabsContent>
-
- <TabsContent value="staff" className="mt-4">
- {tabLoading && activeTab === 'staff' ? (
- <ModuleLoading />) : (
- <ReportTable
- headers={['Staff', 'Branch', 'Shifts', 'Sales']}
- rows={staff.map((s) => [
- s.full_name,
- s.branch_name ?? ' - ',
- String(s.shift_count),
- fmt(s.total_sales),
- ])}
- empty="No staff shift data in range"
- />)}
- </TabsContent>
-
- <TabsContent value="inventory" className="mt-4 space-y-2">
- {tabLoading && activeTab === 'inventory' ? (
- <ModuleLoading />) : inventory.length === 0 ? (
- <p className="text-sm text-muted-foreground">All stock levels OK</p>) : (
- inventory.map((item, i) => (
- <div key={i} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
- <div>
- <p className="font-medium">{item.name}</p>
- <p className="text-xs text-muted-foreground">
- {item.location_name} - {Number(item.quantity).toLocaleString()} {item.unit}
- </p>
- </div>
- <Badge variant={item.status === 'CRITICAL' ? 'destructive' : 'secondary'}>
- {item.status}
- </Badge>
- </div>)))}
- </TabsContent>
-
- <TabsContent value="fleet" className="mt-4">
- {tabLoading && activeTab === 'fleet' ? (
- <ModuleLoading />) : (
- <>
- <div className="grid gap-3 sm:grid-cols-4">
- <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Total Orders</p><p className="text-2xl font-bold">{fleet.total_orders}</p></CardContent></Card>
- <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Pending</p><p className="text-2xl font-bold">{fleet.pending}</p></CardContent></Card>
- <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">In Transit</p><p className="text-2xl font-bold">{fleet.in_transit}</p></CardContent></Card>
- <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Delivered</p><p className="text-2xl font-bold text-green-700">{fleet.delivered}</p></CardContent></Card>
- </div>
- <p className="mt-3 text-sm text-muted-foreground">
- Active deliveries: {overview?.deliveries_pending ?? 0} pending in system
- </p>
- </>)}
- </TabsContent>
- </Tabs>
- </>)}
- </ModuleLayout>);
+       <TabsContent value="sales" className="space-y-4">
+        <SalesTrend filters={filters} />
+        <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
+         <span>Batal: <strong>{overview.void_count}</strong></span>
+         <span>Pulangan: <strong>{overview.refund_count}</strong></span>
+         <span>Stok rendah/kritikal: <strong>{overview.low_stock_count}</strong></span>
+         {overview.payroll_net !== undefined && <span>Gaji bersih: <strong>{fmt(overview.payroll_net)}</strong></span>}
+         {overview.outstanding_cash !== undefined && <span>Tunai belum dibankkan: <strong>{fmt(overview.outstanding_cash)}</strong></span>}
+        </div>
+        <p className="text-sm text-muted-foreground">
+         Jualan direkodkan boleh merangkumi QR belum disahkan. QR tanpa bukti pengesahan atau dengan status gagal/batal:
+         {' '}{fmt(overview.unverified_qr)}. Percubaan yang belum menjadi jualan tidak termasuk dalam jumlah ini.
+        </p>
+        <SalesDetails filters={filters} />
+       </TabsContent>
+       <TabsContent value="branches">
+        <ReportData<{ branches: BranchPerformanceRow[] }> url={reportUrl('branches', filters, { limit: '200' })}>
+         {({ branches }) => <ReportTable headers={['Cawangan', 'Wilayah', 'Jualan', 'Transaksi', 'Tunai bersih', 'QR disahkan', 'QR menunggu']}
+          rows={branches.map((b) => [b.branch_name, b.region_name, fmt(b.total_sales), b.transaction_count,
+           fmt(b.total_cash), fmt(b.total_qr), fmt(b.pending_qr)])} />}
+        </ReportData>
+       </TabsContent>
+       <TabsContent value="products">
+        <ReportData<{ products: ProductPerformanceRow[] }> url={reportUrl('products', filters)}>
+         {({ products }) => <ReportTable headers={['Produk', 'SKU', 'Kuantiti', 'Jualan baris item']}
+          rows={products.map((p) => [p.product_name, p.sku, p.quantity_sold, fmt(p.revenue)])} />}
+        </ReportData>
+       </TabsContent>
+       <TabsContent value="staff">
+        <PagedReport<{ staff: StaffPerformanceRow[] }> url={reportUrl('staff', filters)}>
+         {({ staff }) => <ReportTable headers={['Juruwang asal', 'Cawangan asal', 'Syif asal', 'Syif dibuka (MYT)',
+          'Syif ditutup (MYT)', 'Transaksi', 'Jualan']}
+          rows={staff.map((s) => [identity(s.cashier_name, s.cashier_id), s.branch_name, identity(s.shift_number, s.shift_id),
+           time(s.opened_at), time(s.closed_at), s.transaction_count, fmt(s.total_sales)])} />}
+        </PagedReport>
+       </TabsContent>
+       <TabsContent value="inventory"><StockDetails filters={filters} /></TabsContent>
+       {overview.organization_wide && (
+        <TabsContent value="fleet">
+         <ReportData<{ fleet: FleetReportSummary }> url={reportUrl('fleet', filters)}>
+          {({ fleet }) => <ReportTable headers={['Jumlah pesanan', 'Menunggu', 'Dalam perjalanan', 'Dihantar']}
+           rows={[[fleet.total_orders, fleet.pending, fleet.in_transit, fleet.delivered]]} />}
+         </ReportData>
+        </TabsContent>
+       )}
+      </Tabs>
+     </>
+    )}
+   </ReportData>
+  </ModuleLayout>
+ );
 }
 
-function ReportTable({
- headers,
- rows,
- empty,
-}: {
- headers: string[];
- rows: string[][];
- empty: string;
-}) {
- if (rows.length === 0) {
- return <p className="text-sm text-muted-foreground">{empty}</p>;
- }
+function SalesTrend({ filters }: { filters: ReportFilters }) {
  return (
- <div className="overflow-x-auto rounded-lg border">
- <table className="w-full text-sm">
- <thead>
- <tr className="border-b bg-muted/50 text-left">
- {headers.map((h) => (
- <th key={h} className="p-3 font-medium">{h}</th>))}
- </tr>
- </thead>
- <tbody>
- {rows.map((row, i) => (
- <tr key={i} className="border-b">
- {row.map((cell, j) => (
- <td key={j} className={`p-3 ${j === row.length - 1 ? 'font-medium' : ''}`}>{cell}</td>))}
- </tr>))}
- </tbody>
- </table>
- </div>);
+  <Card>
+   <CardHeader className="pb-2"><CardTitle className="text-base">Jualan Harian (MYT)</CardTitle></CardHeader>
+   <CardContent>
+    <ReportData<{ trend: SalesTrendRow[] }> url={reportUrl('sales', filters)}>
+     {({ trend }) => <ReportTable headers={['Tarikh', 'Jualan direkodkan', 'Transaksi', 'Tunai bersih',
+      'QR disahkan', 'QR menunggu', 'QR tidak disahkan']}
+      rows={trend.map((r) => [r.period, fmt(r.total_sales), r.transaction_count, fmt(r.total_cash),
+       fmt(r.total_qr), fmt(r.pending_qr), fmt(r.unverified_qr)])} />}
+    </ReportData>
+   </CardContent>
+  </Card>
+ );
+}
+
+function PagedReport<T extends object>({ url, children }: {
+ url: string; children: (data: T) => ReactNode;
+}) {
+ const [page, setPage] = useState(1);
+ return (
+  <ReportData<T & ReportPage> key={page} url={url + '&page=' + page}>
+   {(data) => (
+    <div className="space-y-3">
+     {children(data)}
+     {(page > 1 || data.has_more) && (
+      <div className="flex items-center gap-3 text-sm">
+       <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(page - 1)}>Sebelum</Button>
+       <span>Halaman {page}</span>
+       <Button variant="outline" size="sm" disabled={!data.has_more || page >= 5000}
+        onClick={() => setPage(page + 1)}>Seterusnya</Button>
+      </div>
+     )}
+    </div>
+   )}
+  </ReportData>
+ );
+}
+
+function DownloadCsv({ url }: { url: string }) {
+ const [busy, setBusy] = useState(false);
+ const inflight = useRef<AbortController | null>(null);
+ useEffect(() => () => inflight.current?.abort(), []);
+
+ async function download() {
+  if (inflight.current) return;
+  const controller = new AbortController();
+  inflight.current = controller;
+  setBusy(true);
+  try {
+   const response = await fetch(url, { cache: 'no-store', signal: controller.signal });
+   if (!response.ok || !response.headers.get('content-type')?.startsWith('text/csv')) {
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.error ?? 'Eksport gagal. Sila cuba semula.');
+   }
+   const blobUrl = URL.createObjectURL(await response.blob());
+   const link = document.createElement('a');
+   link.href = blobUrl;
+   link.download = response.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1] ?? 'laporan.csv';
+   document.body.appendChild(link);
+   link.click();
+   link.remove();
+   window.setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+  } catch (err) {
+   if (!controller.signal.aborted) toast.error(err instanceof Error ? err.message : 'Eksport gagal');
+  } finally {
+   inflight.current = null;
+   if (!controller.signal.aborted) setBusy(false);
+  }
+ }
+ return <Button variant="outline" size="sm" onClick={download} disabled={busy}>
+  <Download className="h-4 w-4" /> {busy ? 'Menyediakan CSV…' : 'Eksport CSV'}
+ </Button>;
+}
+
+const transactionAmounts = (t: ReportTransaction) =>
+ [fmt(t.total), fmt(t.cash), fmt(t.qr_confirmed), fmt(t.qr_pending), fmt(t.qr_unverified)];
+const amountHeaders = ['Jumlah direkodkan', 'Tunai bersih', 'QR disahkan', 'QR menunggu', 'QR tidak disahkan'];
+const attemptLabels: Record<ReportPaymentAttempt['status'], string> = {
+ PENDING: 'Menunggu', REPORTED: 'Dilapor • menunggu pengesahan', QUARANTINED: 'Dalam semakan',
+ PAID: 'Disahkan • belum menjadi jualan',
+};
+
+function SalesDetails({ filters }: { filters: ReportFilters }) {
+ const [view, setView] = useState('transactions');
+ const [receiptId, setReceiptId] = useState<string>();
+ return (
+  <Card>
+   <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
+    <CardTitle className="text-base">Butiran Jualan</CardTitle>
+    <div className="flex flex-wrap items-center gap-2">
+     <select aria-label="Jenis butiran jualan" className={selectClass} value={view} onChange={(e) => {
+      setReceiptId(undefined);
+      setView(e.target.value);
+     }}>
+      <option value="transactions">Transaksi & resit</option>
+      <option value="payments">Percubaan bayaran belum dipos</option>
+     </select>
+     {view === 'transactions' && <DownloadCsv url={reportUrl('transactions', filters, { format: 'csv' })} />}
+    </div>
+   </CardHeader>
+   <CardContent className="space-y-3">
+    {view === 'transactions' ? (
+     <>
+      {receiptId && (
+       <div className="space-y-2 rounded-lg border p-3">
+        <div className="flex items-center justify-between gap-2">
+         <h3 className="font-medium">Butiran resit</h3>
+         <Button variant="ghost" size="sm" onClick={() => setReceiptId(undefined)}>Tutup</Button>
+        </div>
+        <ReportData<{ receipt: ReportReceipt }> key={receiptId} url={reportUrl('receipt', filters, { transaction_id: receiptId })}>
+         {({ receipt }) => (
+          <>
+           <p className="text-sm">
+            {receipt.receipt_number ?? receipt.transaction_number} · {receipt.branch_name} · {time(receipt.sold_at)} MYT
+            {' · '}{receipt.payment_method} · {receipt.status}
+           </p>
+           <p className="text-sm text-muted-foreground">
+            Juruwang: {identity(receipt.cashier_name, receipt.cashier_id)} · Syif: {identity(receipt.shift_number, receipt.shift_id)}
+           </p>
+           <ReportTable headers={amountHeaders} rows={[transactionAmounts(receipt)]} />
+           <ReportTable headers={['Item', 'SKU', 'Kuantiti', 'Harga seunit', 'Jumlah']}
+            rows={receipt.items.map((i) => [i.name, i.sku, i.quantity, fmt(i.unit_price), fmt(i.line_total)])} />
+          </>
+         )}
+        </ReportData>
+       </div>
+      )}
+      <PagedReport<{ transactions: ReportTransaction[] }> url={reportUrl('transactions', filters)}>
+       {({ transactions }) => <ReportTable headers={['Transaksi', 'Resit', 'Masa jualan (MYT)', 'Cawangan asal',
+        'Juruwang asal', 'Syif asal', 'Status', ...amountHeaders]}
+        rows={transactions.map((t) => [
+         <Button key={t.id} variant="link" size="sm" onClick={() => setReceiptId(t.id)}>{t.transaction_number}</Button>,
+         t.receipt_number, time(t.sold_at), t.branch_name, identity(t.cashier_name, t.cashier_id),
+         identity(t.shift_number, t.shift_id), t.status, ...transactionAmounts(t),
+        ])} />}
+      </PagedReport>
+     </>
+    ) : (
+     <>
+      <p className="text-sm text-muted-foreground">Setiap baris ialah satu percubaan bayaran, bukan jualan. Jangan jumlahkan percubaan ini.</p>
+      <PagedReport<{ payments: ReportPaymentAttempt[] }> url={reportUrl('payments', filters)}>
+       {({ payments }) => <ReportTable headers={['Masa (MYT)', 'Cawangan', 'Juruwang', 'Syif', 'Amaun percubaan', 'Status']}
+        rows={payments.map((p) => [time(p.created_at), p.branch_name, identity(p.cashier_name, p.cashier_id),
+         identity(p.shift_number, p.shift_id), fmt(p.amount_rm), attemptLabels[p.status]])} />}
+      </PagedReport>
+     </>
+    )}
+   </CardContent>
+  </Card>
+ );
+}
+
+function StockDetails({ filters }: { filters: ReportFilters }) {
+ const [view, setView] = useState('inventory');
+ const [movement, setMovement] = useState('');
+ const extra = movement && view === 'movements' ? { movement_type: movement } : undefined;
+ const url = reportUrl(view, filters, extra);
+ return (
+  <div className="space-y-3">
+   <div className="flex flex-wrap items-center gap-2">
+    <select aria-label="Jenis laporan stok" className={selectClass} value={view} onChange={(e) => setView(e.target.value)}>
+     <option value="inventory">Baki semasa</option>
+     <option value="movements">Sejarah pergerakan</option>
+    </select>
+    {view === 'movements' && (
+     <select aria-label="Jenis pergerakan stok" className={selectClass} value={movement}
+      onChange={(e) => setMovement(e.target.value)}>
+      <option value="">Semua pergerakan</option>
+      {Object.entries(MOVEMENT_FILTERS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+     </select>
+    )}
+    <DownloadCsv key={url} url={url + '&format=csv'} />
+   </div>
+   {view === 'inventory' ? (
+    <>
+     <p className="text-sm text-muted-foreground">Baki semasa tidak ditapis mengikut tarikh.</p>
+     <PagedReport<{ items: InventoryReportRow[] }> key={url} url={url}>
+      {({ items }) => <ReportTable headers={['Cawangan', 'Lokasi', 'Kod item', 'Item', 'Kuantiti', 'Unit', 'Status']}
+       rows={items.map((i) => [i.branch_name, i.location_name, i.item_code, i.name, i.quantity, i.unit, i.status])} />}
+     </PagedReport>
+    </>
+   ) : (
+    <PagedReport<{ movements: MovementReportRow[] }> key={url} url={url}>
+     {({ movements }) => <ReportTable headers={['Masa (MYT)', 'Cawangan', 'Lokasi', 'Item', 'Jenis', 'Kuantiti',
+      'Unit', 'Sebelum', 'Selepas', 'Rujukan', 'Pelaku']}
+      rows={movements.map((m) => [time(m.created_at), m.branch_name, m.location_name, m.item_code + ' · ' + m.name,
+       MOVEMENT_TYPES[m.movement_type], m.quantity, m.unit, m.balance_before, m.balance_after,
+       [m.reference_type, m.reference_id].filter(Boolean).join(' · ') || null, identity(m.actor_name, m.created_by)])} />}
+    </PagedReport>
+   )}
+  </div>
+ );
+}
+
+function ReportTable({ headers, rows }: { headers: string[]; rows: ReactNode[][] }) {
+ if (!rows.length) return <p className="text-sm text-muted-foreground">Tiada rekod dalam skop ini.</p>;
+ return (
+  <div className="overflow-x-auto rounded-lg border">
+   <table className="w-full text-sm">
+    <thead className="border-b bg-muted/50 text-left">
+     <tr>{headers.map((h) => <th key={h} scope="col" className="whitespace-nowrap p-3 font-medium">{h}</th>)}</tr>
+    </thead>
+    <tbody>
+     {rows.map((row, i) => (
+      <tr key={i} className="border-b last:border-0">
+       {row.map((cell, j) => <td key={j} className="p-3">{cell ?? '—'}</td>)}
+      </tr>
+     ))}
+    </tbody>
+   </table>
+  </div>
+ );
 }

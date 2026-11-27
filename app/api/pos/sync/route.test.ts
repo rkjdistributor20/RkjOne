@@ -23,6 +23,7 @@ vi.mock('@/lib/pos/device-auth', () => ({
 }));
 vi.mock('@/lib/supabase/rpc', () => ({ callRpc: mocks.callRpc }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: mocks.createClient }));
+vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: () => ({ trusted: true }) }));
 
 import { POST } from './route';
 
@@ -152,15 +153,17 @@ describe('POST /api/pos/sync offline sale boundary', () => {
    'shift-1',
    'branch-1',
   );
-  expect(mocks.callRpc).toHaveBeenCalledWith({}, 'process_pos_sale', {
+  expect(mocks.callRpc).toHaveBeenCalledWith({ trusted: true }, 'process_registered_pos_cash_sale', {
+   p_actor_id: PROFILE.id,
+   p_device_id: 'device-1',
+   p_enrollment_generation: 7,
    p_shift_id: 'shift-1',
    p_branch_id: 'branch-1',
-   p_items: [{ product_id: 'product-1', quantity: 1 }],
-   p_payment_method: 'CASH',
-   p_cash_amount: 10,
-   p_qr_amount: 0,
-   p_discount: 0,
-   p_offline_id: 'offline-20261123-0001',
+   p_sale: {
+    items: [{ product_id: 'product-1', quantity: 1 }],
+    payment_method: 'CASH', cash_amount: 10, qr_amount: 0, discount: 0,
+    offline_id: 'offline-20261123-0001',
+   },
   });
  });
 

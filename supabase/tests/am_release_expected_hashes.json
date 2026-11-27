@@ -1,0 +1,10 @@
+{
+  "20261127090000_pin_area_manager_branch_assignments.sql": "608e62786bff21ccf63c79f86cd5cb5104c56d09aace85840a7aa82d5944055a",
+  "20261127090500_verified_staff_pos_self_start.sql": "6b8890d305737f6eaea33b4bb1d2952e0aec9241236085c8f54f5fe81dd18326",
+  "20261127090700_distinguish_atomic_manual_qr_from_offline_cash.sql": "676bb2dac88785a467ab43ec8d469941d3436d0ef5208b54dbd98c406aa185ff",
+  "20261127091200_limit_pos_open_and_cash_to_registered_devices.sql": "b42e0920d5e7e2c1ce0db3cf57d2f3a988993402f70acfb9526cf059a8c1f550",
+  "20261127100000_scoped_operational_reports.sql": "17fedd0a15528225d557d88644fb0e02e9719059c54ab037fba8727ca2a7e1a1",
+  "20261127111541_am_weekly_roster_planning.sql": "027578ac1a417cb92b018ef3effa86b4885efad9593d6a20e6ef47c05dd6c2db",
+  "20261127120000_scope_and_serialize_stock_transfers.sql": "c48e504532d768516503cb00931346e095ce055fa4bbee68eb4fcadb4720cca2",
+  "20261127220000_am_scoped_stock_posting_and_count_review.sql": "ecbe0c03504ae4967f68552c4f742e905b07ff816befb29aad97fa56525070ff"
+}

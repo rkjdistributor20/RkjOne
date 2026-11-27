@@ -8,6 +8,7 @@ export async function GET() {
  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
  const supabase = await createClient();
+ const branchHeaders = { 'Cache-Control': profile.role === 'AREA_MANAGER' ? 'private, no-store' : 'private, max-age=120, stale-while-revalidate=300' };
  let scope;
  try {
  scope = await resolveScopedBranches(supabase, profile);
@@ -22,7 +23,7 @@ export async function GET() {
  if (scope.branchIds !== null) {
  if (scope.branchIds.length === 0) {
  return NextResponse.json({ branches: [] }, {
- headers: { 'Cache-Control': 'private, max-age=120, stale-while-revalidate=300' },
+ headers: branchHeaders,
  });
  }
  query = query.in('id', scope.branchIds);
@@ -52,6 +53,6 @@ export async function GET() {
  }));
 
  return NextResponse.json({ branches }, {
- headers: { 'Cache-Control': 'private, max-age=120, stale-while-revalidate=300' },
+ headers: branchHeaders,
  });
 }

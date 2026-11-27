@@ -108,22 +108,45 @@ export async function POST(request: Request) {
  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
  }
 
- const body = await request.json();
+ const body = await request.json().catch(() => null);
+ if (!body || typeof body !== 'object') {
+ return NextResponse.json({ error: 'Butiran buka syif tidak sah' }, { status: 400 });
+ }
  const branchId = body.branch_id ?? profile.branch_id;
  const openingCash = Number(body.opening_cash ?? 0);
 
- if (!branchId) {
+ if (typeof branchId !== 'string' || !branchId) {
  return NextResponse.json({ error: 'Branch required' }, { status: 400 });
  }
 
  const supabase = await createClient();
+ let device: Awaited<ReturnType<typeof assertOfficialPosDevice>>;
  try {
  await assertCanAccessPosBranch(supabase, profile, branchId);
- await assertOfficialPosDevice(profile, branchId);
+ device = await assertOfficialPosDevice(profile, branchId);
  } catch (err) {
  return NextResponse.json(
  { error: err instanceof Error ? err.message : 'Akses cawangan ditolak' },
  { status: posAccessErrorStatus(err) });
+ }
+
+ if (profile.role === 'STAFF') {
+  if (body.staff_id != null || !Number.isFinite(openingCash) || openingCash < 0 || openingCash > 1_000_000) {
+   return NextResponse.json({ error: 'Gunakan akaun sendiri dan amaun tunai pembukaan yang sah.' }, { status: 400 });
+  }
+  const { data, error } = await callRpc(createAdminClient(), 'start_verified_pos_staff_shift', {
+   p_actor_id: profile.id,
+   p_branch_id: branchId,
+   p_device_id: device.id,
+   p_enrollment_generation: device.enrollmentGeneration,
+   p_opening_cash: openingCash,
+  });
+  if (error) {
+   const status = error.code === '42501' ? 403 : ['23505', '40001'].includes(error.code) ? 409 : 400;
+   return NextResponse.json({ error: error.code === 'P0002'
+    ? 'Rekod staf aktif untuk akaun dan cawangan ini belum dipautkan.' : error.message }, { status });
+  }
+  return NextResponse.json(data);
  }
 
  const db = supabase as any;
@@ -138,10 +161,13 @@ export async function POST(request: Request) {
 
  const openingStaffId = body.staff_id ?? amSchedule?.staffId ?? null;
 
- const { data, error } = await callRpc(supabase, 'open_pos_shift', {
+ const { data, error } = await callRpc(createAdminClient(), 'open_registered_pos_manager_shift', {
+ p_actor_id: profile.id,
+ p_device_id: device.id,
+ p_enrollment_generation: device.enrollmentGeneration,
  p_branch_id: branchId,
  p_opening_cash: openingCash,
- p_staff_id: openingStaffId,
+ ...(openingStaffId ? { p_staff_id: openingStaffId } : {}),
  });
 
  if (error || !data) {

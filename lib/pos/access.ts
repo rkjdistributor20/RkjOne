@@ -1,6 +1,7 @@
 import type { UserRole } from '@/types/enums';
 import type { Profile } from '@/types/database';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { resolveScopedBranches } from '@/lib/auth/branch-scope';
 
 const FULL_POS_HISTORY_ROLES: UserRole[] = [
  'SUPER_ADMIN',
@@ -112,20 +113,28 @@ export async function assertAreaManagerScheduledForPos(
  403);
  }
 
- const { data: scheduledShift, error: scheduleError } = await supabase
+ const previousDate = new Date(`${shiftDate}T00:00:00Z`);
+ previousDate.setUTCDate(previousDate.getUTCDate() - 1);
+ const previousDay = previousDate.toISOString().slice(0, 10);
+ const currentTime = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Asia/Kuala_Lumpur', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+ }).format(new Date());
+ const { data: scheduledShifts, error: scheduleError } = await supabase
  .from('staff_shifts')
- .select('id, staff_id')
+ .select('id, staff_id, shift_date, scheduled_start, scheduled_end')
  .eq('organization_id', profile.organization_id)
  .eq('branch_id', branchId)
- .eq('shift_date', shiftDate)
+ .in('shift_date', [shiftDate, previousDay])
  .eq('status', 'APPROVED')
- .in('staff_id', staffIds)
- .limit(1)
- .maybeSingle();
+ .in('staff_id', staffIds);
 
  if (scheduleError) {
  throw new Error(scheduleError.message);
  }
+ const scheduledShift = scheduledShifts?.find((row) => row.shift_date === shiftDate)
+  ?? scheduledShifts?.find((row) => row.shift_date === previousDay
+   && typeof row.scheduled_start === 'string' && typeof row.scheduled_end === 'string'
+   && row.scheduled_end < row.scheduled_start && currentTime < row.scheduled_end);
 
  if (!scheduledShift) {
  throw new PosAccessError(
@@ -159,7 +168,7 @@ export async function assertActivePosShiftMember(
  if (error) throw new Error(error.message);
  if (!member) {
  throw new PosAccessError(
- 'Anda belum aktif dalam syif POS ini. Minta AM atau pengurus meluluskan keahlian syif sebelum merekod jualan sebenar.',
+ 'Anda belum aktif dalam syif POS ini. Rekod diri mula bertugas pada tablet rasmi cawangan.',
  403);
  }
 
@@ -198,7 +207,7 @@ export async function assertActivePosBranchShiftMember(
 
 export async function assertCanAccessPosBranch(
  supabase: SupabaseClient,
- profile: Pick<Profile, 'organization_id' | 'role' | 'region_id' | 'branch_id'>,
+ profile: Pick<Profile, 'id' | 'organization_id' | 'role' | 'region_id' | 'branch_id'>,
  branchId: string) {
  const { data: branch, error } = await supabase
  .from('branches')
@@ -222,10 +231,12 @@ export async function assertCanAccessPosBranch(
  }
 
  if (role === 'AREA_MANAGER') {
- if (profile.region_id && branch.region_id === profile.region_id) {
+ try {
+ await resolveScopedBranches(supabase, profile, branchId);
  return branch;
+ } catch {
+ throw new PosAccessError('Cawangan tidak termasuk dalam senarai yang ditetapkan untuk AM ini.', 403);
  }
- throw new PosAccessError('Cawangan di luar kawasan Area Manager anda.', 403);
  }
 
  if (role === 'STAFF' && profile.branch_id === branchId) {

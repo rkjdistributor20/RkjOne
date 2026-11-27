@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import type {
+ AdjustmentItemInput,
  InventoryBalanceRow,
  LineItemInput,
  StockItemOption,
@@ -54,10 +55,12 @@ interface StockLineFormProps {
  defaultProductionDate?: string;
  /** Wajib tarikh production untuk item yang perlu batch tracking (reject/count by batch) */
  requireProductionDateForTrackedItems?: boolean;
- onSubmit?: (items: LineItemInput[], meta?: { notes?: string }) => Promise<void>;
+ manualReceipt?: boolean;
+ directAdjustment?: boolean;
+ onSubmit?: (items: LineItemInput[], meta?: { notes?: string; source?: string; documentReference?: string }) => Promise<void>;
  onSubmitAdjust?: (
  reason: string,
- items: Array<{ stock_item_id: string; quantity_after: number }>) => Promise<void>;
+ items: AdjustmentItemInput[]) => Promise<void>;
  onSubmitCount?: (
  items: Array<{ stock_item_id: string; counted_quantity: number }>,
  notes?: string) => Promise<void>;
@@ -84,6 +87,8 @@ export function StockLineForm({
  productionDateOptions,
  defaultProductionDate,
  requireProductionDateForTrackedItems = false,
+ manualReceipt = false,
+ directAdjustment = false,
  onSubmit,
  onSubmitAdjust,
  onSubmitCount,
@@ -94,6 +99,10 @@ export function StockLineForm({
  ]);
  const [reason, setReason] = useState(defaultReason);
  const [notes, setNotes] = useState('');
+ const [source, setSource] = useState('');
+ const [documentReference, setDocumentReference] = useState('');
+ const [submitError, setSubmitError] = useState<string | null>(null);
+ const [mytToday] = useState(() => new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10));
  const [loading, setLoading] = useState(false);
  const [useBaseUnit, setUseBaseUnit] = useState(false);
 
@@ -166,6 +175,7 @@ export function StockLineForm({
  }
 
  function defaultProductionDateValue(): string {
+ if (manualReceipt || directAdjustment) return mytToday;
  return defaultProductionDate ?? new Date().toISOString().slice(0, 10);
  }
 
@@ -218,6 +228,7 @@ export function StockLineForm({
  async function handleSubmit(e: React.FormEvent) {
  e.preventDefault();
  setLoading(true);
+ setSubmitError(null);
  try {
  if (mode === 'receive' && onSubmit) {
  const filtered = lines.filter((l) => l.stock_item_id && l.quantity);
@@ -237,14 +248,22 @@ export function StockLineForm({
  : l.production_date;
  return resolveLineItem(l.stock_item_id, Number(l.quantity), prod);
  }),
- { notes: notes || undefined });
+ { notes: notes || undefined, source: source.trim(), documentReference: documentReference.trim() || undefined });
  } else if (mode === 'adjust' && onSubmitAdjust) {
  await onSubmitAdjust(
  reason,
- lines.filter((l) => l.stock_item_id && l.quantity).map((l) => ({
+ lines.filter((l) => l.stock_item_id && l.quantity).map((l) => {
+ const expectedQuantity = Number(balances.find((b) => b.stock_item_id === l.stock_item_id)?.quantity ?? 0);
+ const quantityAfter = Number(l.quantity);
+ return {
  stock_item_id: l.stock_item_id,
- quantity_after: Number(l.quantity),
- })));
+ quantity_after: quantityAfter,
+ ...(directAdjustment && {
+ expected_quantity: expectedQuantity,
+ production_date: quantityAfter > expectedQuantity ? l.production_date || undefined : undefined,
+ }),
+ };
+ }));
  } else if (mode === 'count' && onSubmitCount) {
  await onSubmitCount(
  lines.filter((l) => l.stock_item_id && l.quantity).map((l) => ({
@@ -277,13 +296,17 @@ export function StockLineForm({
  setLines([{ stock_item_id: stockItems[0]?.id ?? '', quantity: '' }]);
  if (!defaultReason) setReason('');
  setNotes('');
+ setSource('');
+ setDocumentReference('');
+ } catch (err) {
+ setSubmitError(err instanceof Error ? err.message : 'Gagal menyimpan stok');
  } finally {
  setLoading(false);
  }
  }
 
  function qtyLabelForItem(item?: StockItemOption): string {
- if (mode === 'adjust') return 'Kuantiti Baharu';
+ if (mode === 'adjust') return directAdjustment && item ? `Baki baharu (${item.base_unit})` : 'Kuantiti Baharu';
  if (mode === 'count') return 'Kiraan';
  if (rejectMode && item) {
  if (useBaseUnit) {
@@ -295,7 +318,7 @@ export function StockLineForm({
  return getRejectOrderUnit(item.item_code).orderLabel;
  }
  if (orderInPacks) return 'Kuantiti (bag/tong)';
- return 'Kuantiti';
+ return manualReceipt && item ? `Kuantiti (${item.base_unit})` : 'Kuantiti';
  }
 
  function stockItemLabel(si: StockItemOption): string {
@@ -305,7 +328,21 @@ export function StockLineForm({
 
  return (
  <form onSubmit={handleSubmit} className="max-w-lg space-y-4">
- {requireRotiProductionDate && mode === 'receive' && (
+ {manualReceipt && (
+ <div className="space-y-2">
+ <p className="text-sm text-muted-foreground">
+ Untuk stok daripada sumber luar sahaja. Untuk pindahan atau penghantaran HQ, gunakan rekod penerimaan berpaut.
+ </p>
+ <label className="block space-y-1 text-sm">
+ <span>Sumber luar (cth. pembekal)</span>
+ <Input required maxLength={200} value={source} onChange={(e) => setSource(e.target.value)} />
+ </label>
+ <label className="block space-y-1 text-sm">
+ <span>Dokumen rujukan (jika ada)</span>
+ <Input maxLength={200} value={documentReference} onChange={(e) => setDocumentReference(e.target.value)} />
+ </label>
+ </div>)}
+ {requireRotiProductionDate && mode === 'receive' && !manualReceipt && (
  <p className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-950">
  {productionDateOptions?.length ? (
  <>
@@ -350,8 +387,9 @@ export function StockLineForm({
 
  const showProdDate =
  (requireRotiProductionDate && mode === 'receive' && isRotiLine(line.stock_item_id)) ||
+ (directAdjustment && isRotiLine(line.stock_item_id) && rawQty > Number(balance?.quantity ?? 0)) ||
  (requireProductionDateForTrackedItems && tracksProductionDateLine(line.stock_item_id));
- const prodDateValue = line.production_date ?? defaultProductionDateValue();
+ const prodDateValue = line.production_date ?? (manualReceipt || directAdjustment ? '' : defaultProductionDateValue());
  const prodAge = showProdDate ? productionAgeDays(prodDateValue) : null;
  const prodAgeIsValid = typeof prodAge === 'number' && Number.isFinite(prodAge);
  const pastShelfLife = prodAgeIsValid && prodAge > ROTI_SHELF_LIFE_DAYS;
@@ -387,16 +425,18 @@ export function StockLineForm({
  <p className="text-xs text-muted-foreground">
  Sistem: {Number(balance.quantity).toLocaleString('ms-MY')} {balance.unit}
  </p>)}
+ {directAdjustment && item && (
+ <p className="text-xs text-muted-foreground">Baki semasa: {Number(balance?.quantity ?? 0).toLocaleString('ms-MY')} {balance?.unit ?? item.base_unit}</p>)}
  </div>
  <div className="w-32 space-y-1">
  <Label>{qtyLabelForItem(item)}</Label>
  <Input
  type="number"
- min="0"
+ min={manualReceipt ? '0.0001' : '0'}
  step={
  rejectMode && item && !useBaseUnit
  ? orderMeta?.step ?? '0.01'
- : '1'
+ : manualReceipt || directAdjustment ? '0.0001' : '1'
  }
  value={line.quantity}
  onChange={(e) => updateLine(idx, 'quantity', e.target.value)}
@@ -414,7 +454,7 @@ export function StockLineForm({
  </div>
  {showProdDate && (
  <div className="w-44 space-y-1">
- <Label>Tarikh production</Label>
+ <Label>{manualReceipt || directAdjustment ? 'Tarikh production sebenar' : 'Tarikh production'}</Label>
  {productionDateOptions && productionDateOptions.length > 0 ? (
  productionDateOptions.length === 1 ? (
  <Input
@@ -485,6 +525,7 @@ export function StockLineForm({
  <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
  </div>)}
 
+ {submitError && <p role="alert" className="text-sm text-destructive">{submitError}</p>}
  <Button type="submit" className="bg-amber-500 hover:bg-amber-600" disabled={loading}>
  {loading
  ? 'Menghantar...'

@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { resolveScopedBranches } from '@/lib/auth/branch-scope';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { callRpc } from '@/lib/supabase/rpc';
 import { getCurrentProfile } from '@/lib/auth/session';
@@ -110,15 +112,20 @@ export async function POST(request: Request) {
  }
  }
 
- const { error } = await callRpc(supabase, 'process_pos_sale', {
+ const { error } = await callRpc(createAdminClient(), 'process_registered_pos_cash_sale', {
+ p_actor_id: profile.id,
+ p_device_id: verifiedDevice.id,
+ p_enrollment_generation: verifiedDevice.enrollmentGeneration,
  p_shift_id: sale.shiftId,
  p_branch_id: sale.branchId,
- p_items: sale.items,
- p_payment_method: sale.payment_method,
- p_cash_amount: sale.cash_amount,
- p_qr_amount: sale.qr_amount,
- p_discount: sale.discount ?? 0,
- p_offline_id: sale.offlineId,
+ p_sale: {
+  items: sale.items,
+  payment_method: sale.payment_method,
+  cash_amount: sale.cash_amount,
+  qr_amount: sale.qr_amount,
+  discount: sale.discount ?? 0,
+  offline_id: sale.offlineId,
+ },
  });
 
  if (error) {
@@ -147,8 +154,13 @@ export async function GET() {
  .order('branch_code');
 
  if (profile.role === 'AREA_MANAGER') {
- if (!profile.region_id) return NextResponse.json({ branches: [] });
- query = query.eq('region_id', profile.region_id);
+ try {
+  const { branchIds } = await resolveScopedBranches(supabase, profile);
+  if (!branchIds?.length) return NextResponse.json({ branches: [] });
+  query = query.in('id', branchIds);
+ } catch {
+  return NextResponse.json({ error: 'Skop cawangan tidak dapat disahkan' }, { status: 403 });
+ }
  } else if (profile.role === 'STAFF') {
  if (!profile.branch_id) return NextResponse.json({ branches: [] });
  query = query.eq('id', profile.branch_id);

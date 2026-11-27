@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { CalendarDays, Clock } from 'lucide-react';
 import type { StaffScheduleWeek } from '@/lib/roster/types';
 import { fetchMySchedule } from '@/lib/roster/api';
-import { getNextWeekStart, getThisWeekStart } from '@/lib/roster/week-utils';
+import { crossesMidnight, getNextWeekStart, getThisWeekStart, malaysiaRosterDate } from '@/lib/roster/week-utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -35,7 +35,10 @@ export function StaffSchedulePanel({ compact = false, className }: StaffSchedule
  setError(res.message ?? null);
  }
  }).catch((err) => {
- if (!cancelled) setError(err instanceof Error ? err.message : 'Gagal muat');
+ if (!cancelled) {
+ setSchedule(null);
+ setError(err instanceof Error ? err.message : 'Gagal muat');
+ }
  }).finally(() => {
  if (!cancelled) setLoading(false);
  });
@@ -44,7 +47,7 @@ export function StaffSchedulePanel({ compact = false, className }: StaffSchedule
  };
  }, [weekStart]);
 
- const todayIso = new Date().toISOString().slice(0, 10);
+ const todayIso = malaysiaRosterDate();
 
  if (loading) {
  return (
@@ -77,15 +80,15 @@ export function StaffSchedulePanel({ compact = false, className }: StaffSchedule
  {schedule.branch_code}
  </Badge>)}
  </div>
- {today ? (
+ {today && today.is_off !== null ? (
  today.is_off ? (
  <p className="mt-2 text-muted-foreground">Cuti / tiada syif hari ini</p>) : (
  <p className="mt-2 flex items-center gap-2 text-sm">
  <Clock className="h-4 w-4 text-muted-foreground" />
  {today.template_name ?? 'Syif'} - {formatTime(today.scheduled_start)} -{' '}
- {formatTime(today.scheduled_end)}
+ {formatTime(today.scheduled_end)}{crossesMidnight(today.scheduled_start, today.scheduled_end) && ' (+1 hari)'}
  </p>)) : (
- <p className="mt-2 text-sm text-muted-foreground">Tiada data hari ini</p>)}
+ <p className="mt-2 text-sm text-muted-foreground">Belum dijadualkan hari ini</p>)}
  </div>);
  }
 
@@ -134,7 +137,8 @@ export function StaffSchedulePanel({ compact = false, className }: StaffSchedule
  month: 'short',
  })}
  </p>
- {d.is_off ? (
+ {d.is_off === null ? (
+ <p className="mt-2 text-xs text-muted-foreground">Belum dijadualkan</p>) : d.is_off ? (
  <Badge variant="secondary" className="mt-2">
  Cuti
  </Badge>) : (
@@ -142,6 +146,7 @@ export function StaffSchedulePanel({ compact = false, className }: StaffSchedule
  <p className="font-medium">{d.template_name ?? 'Syif'}</p>
  <p className="text-xs text-muted-foreground">
  {formatTime(d.scheduled_start)} - {formatTime(d.scheduled_end)}
+ {crossesMidnight(d.scheduled_start, d.scheduled_end) && ' (+1 hari)'}
  </p>
  </div>)}
  </div>);

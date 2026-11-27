@@ -50,6 +50,7 @@ export interface StockMovementRow {
  balance_before: number | null;
  balance_after: number | null;
  reference_type: string | null;
+ reference_id?: string | null;
  notes: string | null;
  created_at: string;
  stock_item: { item_code: string; name: string };
@@ -65,6 +66,12 @@ export interface StockTransferRow {
  created_at: string;
  dispatched_at: string | null;
  delivered_at: string | null;
+ cancelled_at: string | null;
+ cancellation_reason: string | null;
+ managed_delivery: boolean;
+ can_dispatch: boolean;
+ can_complete: boolean;
+ can_cancel: boolean;
  stock_transfer_items?: Array<{
  quantity: number;
  unit: string;
@@ -136,10 +143,39 @@ export interface LineItemInput {
  note?: string;
 }
 
+export type TransferKioskOption = Pick<InventoryLocation, 'id' | 'name' | 'location_type' | 'branch_id' | 'branch'>;
+
+export interface TransferCreateInput {
+ from_location_id: string;
+ to_location_id: string;
+ items: LineItemInput[];
+ driver_id?: string;
+ vehicle_id?: string;
+ notes?: string;
+}
+
 export interface AdjustmentItemInput {
  stock_item_id: string;
  quantity_after: number;
  unit?: string;
+ expected_quantity?: number;
+ production_date?: string;
+}
+
+export interface PendingInventoryCount {
+ id: string;
+ count_number: string;
+ created_at: string;
+ notes: string | null;
+ counter: { full_name: string } | null;
+ items: Array<{
+ stock_item_id: string;
+ system_quantity: number;
+ counted_quantity: number;
+ unit: string;
+ production_date: string | null;
+ stock_item: { name: string } | null;
+ }>;
 }
 
 export interface CountItemInput {

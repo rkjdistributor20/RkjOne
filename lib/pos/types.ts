@@ -436,6 +436,11 @@ export interface PosStockSopResponse {
  receipts: PosStockReceipt[];
  supplyRequests: PosSupplyRequest[];
  stockChecks: PosStockCheck[];
+ recountableStockChecks?: Array<{
+ id: string;
+ count_number: string;
+ rejection_reason: string | null;
+ }>;
  stockEstimate: PosStockEstimate | null;
  pendingDeliveryCount: number;
  sopStatus: PosSopStatus;

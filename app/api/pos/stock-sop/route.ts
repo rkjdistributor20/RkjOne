@@ -8,6 +8,7 @@ import {
  posAccessErrorStatus,
 } from '@/lib/pos/access';
 import { assertOfficialPosDevice } from '@/lib/pos/device-auth';
+import { isStockRecordId } from '@/lib/inventory/stock-guard';
 
 const POS_SHIFT_COUNT_ITEM_CODES = [...RKJ_MANUFACTURING_OWN_PRODUCT_CODES, 'ST-BUTTER'] as const;
 const POS_SHIFT_COUNT_ORDER = new Map<string, number>(
@@ -132,6 +133,7 @@ async function getLastCloseShiftEstimate(
  if (itemRes.error) throw new Error(itemRes.error.message);
  if (profileRes.error) throw new Error(profileRes.error.message);
  if (!countRes.data) return null;
+ if (countRes.data.status !== 'APPROVED') return getCurrentSystemStockEstimate(supabase, location);
 
  const rawItems = (itemRes.data ?? [])
  .map((row: any) => {
@@ -357,7 +359,7 @@ export async function GET(request: Request) {
 
  const location = await getBranchLocation(supabase, branchId);
 
- const [receiptsRes, requestsRes, countsRes, sopStatusRes, stockEstimate] = await Promise.all([
+ const [receiptsRes, requestsRes, countsRes, recountsRes, sopStatusRes, stockEstimate] = await Promise.all([
  db
  .from('pos_stock_receipts')
  .select(`
@@ -403,9 +405,12 @@ export async function GET(request: Request) {
  supabase
  .from('stock_counts')
  .select('id, count_number, status, notes, created_at')
+ .eq('organization_id', profile.organization_id)
  .eq('location_id', location.id)
  .order('created_at', { ascending: false })
  .limit(8),
+ profile.role === 'STAFF' ? inventoryRpc(supabase, 'list_pos_stock_recounts', { p_location_id: location.id })
+ : Promise.resolve({ data: [], error: null }),
  inventoryRpc(supabase, 'pos_sop_status', { p_branch_id: branchId }),
  getLastCloseShiftEstimate(supabase, branchId, location),
  ]);
@@ -413,6 +418,7 @@ export async function GET(request: Request) {
  if (receiptsRes.error) throw new Error(receiptsRes.error.message);
  if (requestsRes.error) throw new Error(requestsRes.error.message);
  if (countsRes.error) throw new Error(countsRes.error.message);
+ if (recountsRes.error) throw new Error(recountsRes.error.message);
  if (sopStatusRes.error) throw new Error(sopStatusRes.error.message);
 
  return NextResponse.json({
@@ -420,6 +426,7 @@ export async function GET(request: Request) {
  receipts: receiptsRes.data ?? [],
  supplyRequests: requestsRes.data ?? [],
  stockChecks: countsRes.data ?? [],
+ recountableStockChecks: recountsRes.data ?? [],
  stockEstimate,
  pendingDeliveryCount: (receiptsRes.data ?? []).filter(
  (r: { status: string }) => r.status === 'DRIVER_DROPPED' || r.status === 'DISCREPANCY_PENDING_APPROVAL').length,
@@ -493,7 +500,14 @@ export async function POST(request: Request) {
  if (!['OPENING', 'MID_SHIFT', 'CLOSE_SHIFT'].includes(checkType)) {
  return NextResponse.json({ error: 'Jenis kiraan stok tidak sah' }, { status: 400 });
  }
- const shiftId = body.shift_id ?? await getOpenShiftId(supabase, branchId);
+ const recountOf = body.recount_of ?? null;
+ if (recountOf !== null && (!isStockRecordId(recountOf) || profile.role !== 'STAFF')) {
+ return NextResponse.json({ error: 'Rujukan kiraan semula tidak sah' }, { status: 400 });
+ }
+ // A recount is a new observation in the current shift, never a rewrite of
+ // the rejected observation or its original shift's check log.
+ const shiftId = recountOf ? await getOpenShiftId(supabase, branchId)
+ : body.shift_id ?? await getOpenShiftId(supabase, branchId);
  if (!shiftId) {
  return NextResponse.json({ error: 'Buka syif POS dahulu sebelum buat kiraan stok' }, { status: 400 });
  }
@@ -517,13 +531,8 @@ export async function POST(request: Request) {
  const stockEstimate = await getLastCloseShiftEstimate(supabase, branchId, location);
  const aiVarianceItems = buildAiVarianceItems(items, stockEstimate);
  const submitAutoApproved = ['SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER'].includes(profile.role);
- const canApproveOfficialStockNow =
- submitAutoApproved || profile.role === 'AREA_MANAGER';
- const requiresManagerApproval = profile.role === 'STAFF' && aiVarianceItems.length > 0;
- const shouldApprovePendingCount =
- !requiresManagerApproval && !submitAutoApproved && canApproveOfficialStockNow;
- const shouldAutoApproveExactStaffCount =
- profile.role === 'STAFF' && aiVarianceItems.length === 0;
+ const shouldApprovePendingCount = profile.role === 'AREA_MANAGER';
+ const requiresManagerApproval = !submitAutoApproved && !shouldApprovePendingCount;
 
  const productionLines = items
  .filter((item: { production_date?: string; item_code?: string; stock_item_id?: string }) => item.production_date)
@@ -533,7 +542,7 @@ export async function POST(request: Request) {
  });
 
  const notes = [
- `POS_${checkType}`,
+ recountOf ? 'POS_RECOUNT' : `POS_${checkType}`,
  body.production_date ? `Production date: ${body.production_date}` : null,
  productionLines.length ? `Batch produk: ${productionLines.join(', ')}` : null,
  stockEstimate?.count_number ? `AI rujukan: ${stockEstimate.count_number}` : null,
@@ -548,58 +557,35 @@ export async function POST(request: Request) {
  p_location_id: location.id,
  p_items: items,
  p_notes: notes || null,
+ ...(recountOf ? { p_recount_of: recountOf } : {}),
  });
- if (error) throw new Error(error.message);
+ if (error) {
+ if (error.code === '23505' && error.message.includes('stock_counts_recount_once')) {
+ return NextResponse.json({ error: 'Kiraan baharu untuk rekod ini sudah dihantar.' }, { status: 409 });
+ }
+ if (error.code === '42501') return NextResponse.json({ error: error.message }, { status: 403 });
+ throw new Error(error.message);
+ }
 
  const countId =
  data && typeof data === 'object' && 'count_id' in data
  ? String((data as { count_id?: string }).count_id ?? '')
  : null;
 
- if (countId && (shouldApprovePendingCount || shouldAutoApproveExactStaffCount)) {
+ if (countId && shouldApprovePendingCount) {
  const { error: approveError } = await inventoryRpc(supabase, 'approve_stock_count', {
  p_count_id: countId,
  });
  if (approveError) throw new Error(approveError.message);
+ }
 
- await db
- .from('approval_requests')
- .update({
- status: 'APPROVED',
- approved_by: profile.id,
- resolved_at: new Date().toISOString(),
- metadata: {
- workflow: 'POS_STOCK_COUNT_AI_MATCH',
- ai_stock_count_id: stockEstimate?.stock_count_id ?? null,
- ai_count_number: stockEstimate?.count_number ?? null,
- },
- })
- .eq('entity_type', 'STOCK_TRANSFER')
- .eq('entity_id', countId)
- .eq('status', 'PENDING');
- } else if (countId && requiresManagerApproval) {
- const varianceSummary = aiVarianceItems
- .map((item) =>
- `${item.item_code || 'Item stok'}: staf ${formatVarianceQuantity(item.counted_quantity)} ${item.unit}, AI ${formatVarianceQuantity(item.ai_quantity)} ${item.unit}`)
- .join('; ');
-
- await db
- .from('approval_requests')
- .update({
- title: 'Kiraan stok POS perlu sah AM/OM',
- description: `Staf hantar kiraan stok yang berbeza daripada anggaran AI. ${varianceSummary}`,
- metadata: {
- workflow: 'POS_STOCK_COUNT_AI_VARIANCE',
- check_type: checkType,
- production_date: body.production_date || todayIso(),
- ai_stock_count_id: stockEstimate?.stock_count_id ?? null,
- ai_count_number: stockEstimate?.count_number ?? null,
+ if (recountOf) {
+ return NextResponse.json({ result: {
+ count_id: countId,
+ requires_manager_approval: true,
+ approval_status: 'PENDING_AM_OM',
  ai_variance_items: aiVarianceItems,
- },
- })
- .eq('entity_type', 'STOCK_TRANSFER')
- .eq('entity_id', countId)
- .eq('status', 'PENDING');
+ } });
  }
 
  const { error: logError } = await db

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
  AlertCircle,
@@ -17,14 +17,15 @@ import {
  dispatchTransfer,
  completeTransfer,
  fetchBalances,
- fetchLocations,
+ fetchTransferKioskOptions,
  fetchRotiBatches,
  fetchStockItems,
  fetchTransfers,
 } from '@/lib/inventory/api';
 import type {
  InventoryBalanceRow,
- InventoryLocation,
+ TransferCreateInput,
+ TransferKioskOption,
  StockItemOption,
  StockTransferRow,
 } from '@/lib/inventory/types';
@@ -39,11 +40,6 @@ import {
  type TransferLeg,
 } from '@/lib/inventory/branch-rebalance';
 import {
- formatBranchDestination,
- formatBranchDestinationDetail,
- sortBranchesByName,
-} from '@/lib/fleet/display-labels';
-import {
  formatStockQuantity,
  getStockByCode,
  HQ_ROTI_ITEM_CODES,
@@ -51,6 +47,7 @@ import {
  isHqStockItemCode,
 } from '@/lib/stock/catalog';
 import { Badge } from '@/components/ui/badge';
+import { TransferCancelButton } from '@/components/inventory/transfer-cancel-button';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -66,6 +63,18 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/auth-store';
 import { isAreaManagerRole, isOperationManagerRole } from '@/lib/auth/stock-access';
+
+function formatBranchDestination(kiosk: TransferKioskOption): string {
+ return kiosk.branch?.branch_name || kiosk.name;
+}
+
+function formatBranchDestinationDetail(kiosk: TransferKioskOption): string {
+ return [kiosk.branch?.branch_code, kiosk.name !== kiosk.branch?.branch_name ? kiosk.name : null].filter(Boolean).join(' - ');
+}
+
+function sortBranchesByName(kiosks: TransferKioskOption[]): TransferKioskOption[] {
+ return [...kiosks].sort((a, b) => formatBranchDestination(a).localeCompare(formatBranchDestination(b), 'ms'));
+}
 import {
  formatExpiryDate,
  ROTI_SHELF_LIFE_DAYS,
@@ -267,7 +276,7 @@ function JourneyPreviewPanel({
  legs,
  totalsBalanced,
 }: {
- kiosks: InventoryLocation[];
+ kiosks: TransferKioskOption[];
  pickupStops: PickupStop[];
  dropStops: DropStop[];
  legs: TransferLeg[];
@@ -366,7 +375,7 @@ function BranchSelect({
  onChange,
  placeholder,
 }: {
- kiosks: InventoryLocation[];
+ kiosks: TransferKioskOption[];
  value: string;
  excludeIds: Set<string>;
  onChange: (id: string) => void;
@@ -606,7 +615,8 @@ export function BranchTransferPanel() {
  const isAreaManager = profile ? isAreaManagerRole(profile.role) : false;
  const isOperationManager = profile ? isOperationManagerRole(profile.role) : false;
 
- const [kiosks, setKiosks] = useState<InventoryLocation[]>([]);
+ const [origins, setOrigins] = useState<TransferKioskOption[]>([]);
+ const [destinations, setDestinations] = useState<TransferKioskOption[]>([]);
  const [stockItems, setStockItems] = useState<StockItemOption[]>([]);
  const [pickupStops, setPickupStops] = useState<PickupStop[]>([]);
  const [dropStops, setDropStops] = useState<DropStop[]>([]);
@@ -615,15 +625,22 @@ export function BranchTransferPanel() {
  const [transfers, setTransfers] = useState<StockTransferRow[]>([]);
  const [loading, setLoading] = useState(true);
  const [submitting, setSubmitting] = useState(false);
+ const [hasPendingPlan, setHasPendingPlan] = useState(false);
+ const busyPlan = useRef(false);
+ const pendingPlan = useRef<{
+  dispatchNow: boolean;
+  legs: { payload: TransferCreateInput; requestId: string }[];
+ } | null>(null);
 
  const loadKiosks = useCallback(async () => {
  setLoading(true);
  try {
- const [{ locations }, { items }] = await Promise.all([
- fetchLocations('BRANCH_KIOSK'),
+ const [options, { items }] = await Promise.all([
+ fetchTransferKioskOptions(),
  fetchStockItems({ hq: true }),
  ]);
- setKiosks(sortBranchesByName(locations));
+ setOrigins(sortBranchesByName(options.origins));
+ setDestinations(sortBranchesByName(options.destinations));
  setStockItems(items.filter((i) => isHqStockItemCode(i.item_code)));
  } catch (err) {
  toast.error(err instanceof Error ? err.message : 'Gagal memuatkan cawangan');
@@ -635,32 +652,21 @@ export function BranchTransferPanel() {
  const loadTransfers = useCallback(async () => {
  try {
  const { transfers: list } = await fetchTransfers();
- const scopedKioskIds = new Set(kiosks.map((k) => k.id));
- const kioskOnly = (list as StockTransferRow[]).filter((t) => {
- if (
- t.from_location?.location_type !== 'BRANCH_KIOSK' ||
- t.to_location?.location_type !== 'BRANCH_KIOSK') {
- return false;
- }
- if (scopedKioskIds.size === 0) return true;
- const fromId = t.from_location.id;
- const toId = t.to_location.id;
- if (!fromId || !toId) return true;
- return scopedKioskIds.has(fromId) && scopedKioskIds.has(toId);
- });
+ const kioskOnly = list.filter((t) => t.from_location.location_type === 'BRANCH_KIOSK' &&
+  t.to_location.location_type === 'BRANCH_KIOSK');
  setTransfers(kioskOnly.slice(0, 20));
  } catch {
  setTransfers([]);
  }
- }, [kiosks]);
+ }, []);
 
  useEffect(() => {
  loadKiosks();
  }, [loadKiosks]);
 
  useEffect(() => {
- if (kiosks.length) loadTransfers();
- }, [kiosks, loadTransfers]);
+ loadTransfers();
+ }, [loadTransfers]);
 
  const usedPickupIds = useMemo(
  () => new Set(pickupStops.map((s) => s.locationId).filter(Boolean)),
@@ -729,7 +735,7 @@ export function BranchTransferPanel() {
  toast.error(`Maksimum ${MAX_REBALANCE_BRANCHES} cawangan`);
  return;
  }
- const available = kiosks.find((k) => !excludeForPickup.has(k.id));
+ const available = origins.find((k) => !excludeForPickup.has(k.id));
  const stopKey = newKey();
  const locationId = available?.id ?? '';
  let lines = emptyStockLines(stockItems);
@@ -749,7 +755,7 @@ export function BranchTransferPanel() {
  toast.error(`Maksimum ${MAX_REBALANCE_BRANCHES} cawangan`);
  return;
  }
- const available = kiosks.find((k) => !excludeForDrop.has(k.id));
+ const available = destinations.find((k) => !excludeForDrop.has(k.id));
  setDropStops((prev) => [...prev,
  {
  key: newKey(),
@@ -790,6 +796,8 @@ export function BranchTransferPanel() {
  }
 
  async function submit(dispatchNow: boolean) {
+ if (busyPlan.current) return;
+ if (!pendingPlan.current) {
  let pickups: PickupAllocation[];
  let drops: DropAllocation[];
  try {
@@ -811,12 +819,12 @@ export function BranchTransferPanel() {
  return;
  }
 
- setSubmitting(true);
- try {
  const noteText = buildNotes();
- let created = 0;
- for (const leg of legs) {
- const { result } = await createTransfer({
+ pendingPlan.current = {
+ dispatchNow,
+ legs: legs.map((leg) => ({
+ requestId: crypto.randomUUID(),
+ payload: {
  from_location_id: leg.from_location_id,
  to_location_id: leg.to_location_id,
  items: leg.items.map((i) => ({
@@ -825,26 +833,37 @@ export function BranchTransferPanel() {
  unit: i.unit,...(i.production_date ? { production_date: i.production_date } : {}),
  })),
  notes: noteText,
- });
- if (dispatchNow) {
- const transferId = (result as { transfer_id?: string }).transfer_id;
- if (transferId) await dispatchTransfer(transferId);
+ },
+ })),
+ };
  }
- created++;
+ const plan = pendingPlan.current;
+ busyPlan.current = true;
+ setSubmitting(true);
+ try {
+ for (const { payload, requestId } of plan.legs) {
+ const { result } = await createTransfer(payload, requestId);
+ if (plan.dispatchNow) {
+ await dispatchTransfer(result.transfer_id);
+ }
  }
 
  toast.success(
- dispatchNow
- ? `${created} pindahan dihantar - destinasi sahkan penerimaan`
- : `${created} draf pindahan dicipta`);
+ plan.dispatchNow
+ ? `${plan.legs.length} pindahan dihantar - destinasi sahkan penerimaan`
+ : `${plan.legs.length} draf pindahan dicipta`);
 
+ pendingPlan.current = null;
+ setHasPendingPlan(false);
  setPickupStops([]);
  setDropStops([]);
- loadTransfers();
  } catch (err) {
+ setHasPendingPlan(true);
  toast.error(err instanceof Error ? err.message : 'Gagal cipta pindahan');
  } finally {
+ busyPlan.current = false;
  setSubmitting(false);
+ loadTransfers();
  }
  }
 
@@ -855,6 +874,16 @@ export function BranchTransferPanel() {
  loadTransfers();
  } catch (err) {
  toast.error(err instanceof Error ? err.message : 'Gagal terima pindahan');
+ }
+ }
+
+ async function handleDispatch(transferId: string) {
+ try {
+ await dispatchTransfer(transferId);
+ toast.success('Pindahan dihantar');
+ loadTransfers();
+ } catch (err) {
+ toast.error(err instanceof Error ? err.message : 'Gagal hantar pindahan');
  }
  }
 
@@ -883,7 +912,7 @@ export function BranchTransferPanel() {
  Roti dipantau ikut <strong>batch tarikh production</strong> - shelf life{' '}
  <strong>{ROTI_SHELF_LIFE_DAYS} hari</strong> sebelum luput. Batch luput tidak boleh
  dipindahkan.
- {isAreaManager && ' Skop: cawangan dalam kawasan anda sahaja.'}
+ {isAreaManager && ' Ambil stok dari cawangan jagaan anda. Cawangan destinasi mengesahkan penerimaan.'}
  {isOperationManager && ' Skop: semua cawangan organisasi.'}
  </p>
  </div>
@@ -893,6 +922,7 @@ export function BranchTransferPanel() {
  </Badge>
  </div>
 
+ <fieldset disabled={submitting || hasPendingPlan} className="min-w-0 space-y-6">
  <div className="grid gap-3 sm:grid-cols-2">
  <div className="space-y-1.5">
  <Label>Sebab pindahan</Label>
@@ -921,7 +951,7 @@ export function BranchTransferPanel() {
  </div>
 
  <JourneyPreviewPanel
- kiosks={kiosks}
+ kiosks={destinations}
  pickupStops={pickupStops}
  dropStops={dropStops}
  legs={previewLegs}
@@ -940,7 +970,7 @@ export function BranchTransferPanel() {
  type="button"
  size="sm"
  variant="outline"
- disabled={branchCount >= MAX_REBALANCE_BRANCHES}
+ disabled={branchCount >= MAX_REBALANCE_BRANCHES || !origins.length}
  onClick={addPickupStop}
  >
  <Plus className="mr-1 h-3.5 w-3.5" /> Tambah cawangan
@@ -952,7 +982,7 @@ export function BranchTransferPanel() {
  Tiada cawangan ambil - klik Tambah cawangan.
  </p>) : (
  pickupStops.map((stop) => {
- const loc = kiosks.find((k) => k.id === stop.locationId);
+ const loc = origins.find((k) => k.id === stop.locationId);
  return (
  <div
  key={stop.key}
@@ -962,7 +992,7 @@ export function BranchTransferPanel() {
  <div className="min-w-0 flex-1">
  <Label className="text-xs text-emerald-800">Cawangan ambil</Label>
  <BranchSelect
- kiosks={kiosks}
+ kiosks={origins}
  value={stop.locationId}
  excludeIds={excludeForPickup}
  placeholder="Pilih cawangan ambil"
@@ -1009,7 +1039,7 @@ export function BranchTransferPanel() {
  type="button"
  size="sm"
  variant="outline"
- disabled={branchCount >= MAX_REBALANCE_BRANCHES}
+ disabled={branchCount >= MAX_REBALANCE_BRANCHES || !destinations.length}
  onClick={addDropStop}
  >
  <Plus className="mr-1 h-3.5 w-3.5" /> Tambah cawangan
@@ -1021,7 +1051,7 @@ export function BranchTransferPanel() {
  Tiada cawangan hantar - klik Tambah cawangan.
  </p>) : (
  dropStops.map((stop) => {
- const loc = kiosks.find((k) => k.id === stop.locationId);
+ const loc = destinations.find((k) => k.id === stop.locationId);
  return (
  <div
  key={stop.key}
@@ -1031,7 +1061,7 @@ export function BranchTransferPanel() {
  <div className="min-w-0 flex-1">
  <Label className="text-xs text-amber-800">Cawangan hantar</Label>
  <BranchSelect
- kiosks={kiosks}
+ kiosks={destinations}
  value={stop.locationId}
  excludeIds={excludeForDrop}
  placeholder="Pilih cawangan hantar"
@@ -1116,6 +1146,21 @@ export function BranchTransferPanel() {
  </p>)}
  </div>)}
 
+ </fieldset>
+ {hasPendingPlan ? (
+ <div className="space-y-2">
+ <p className="text-xs text-muted-foreground">Sebahagian pindahan mungkin sudah disimpan atau dihantar. Semak senarai di bawah sebelum memulakan pelan baharu.</p>
+ <div className="flex flex-wrap gap-2">
+ <Button disabled={submitting} onClick={() => submit(false)}>Sambung pelan yang sama</Button>
+ <Button variant="ghost" disabled={submitting} onClick={() => {
+  pendingPlan.current = null;
+  setHasPendingPlan(false);
+  setPickupStops([]);
+  setDropStops([]);
+ }}>Tutup pelan belum selesai</Button>
+ </div>
+ </div>
+ ) : (
  <div className="flex flex-wrap gap-2">
  <Button
  className="bg-emerald-600 hover:bg-emerald-700"
@@ -1131,7 +1176,7 @@ export function BranchTransferPanel() {
  >
  Simpan Draf
  </Button>
- </div>
+ </div>)}
  <p className="text-[11px] text-muted-foreground">
  Sistem pecahkan pelan kepada pindahan kiosk ke kiosk. Hantar Pelan: tolak stok dari cawangan
  ambil serta-merta. Maksimum {MAX_REBALANCE_BRANCHES} cawangan (ambil + hantar).
@@ -1159,7 +1204,9 @@ export function BranchTransferPanel() {
  {t.status}
  </Badge>
  </div>
- {t.status === 'IN_TRANSIT' && (
+ <div className="mt-2 flex flex-wrap gap-2">
+ {t.can_dispatch && <Button size="sm" variant="outline" onClick={() => handleDispatch(t.id)}>Hantar</Button>}
+ {t.can_complete && (
  <Button
  size="sm"
  className="mt-2 bg-amber-500 hover:bg-amber-600"
@@ -1167,6 +1214,9 @@ export function BranchTransferPanel() {
  >
  Terima di Destinasi
  </Button>)}
+ {t.can_cancel && <TransferCancelButton id={t.id} onCancelled={loadTransfers} />}
+ </div>
+ {t.cancellation_reason && <p className="text-xs text-muted-foreground">Sebab batal: {t.cancellation_reason}</p>}
  </div>)))}
  </div>
  </div>);

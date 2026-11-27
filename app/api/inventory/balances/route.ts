@@ -3,17 +3,26 @@ import { createClient } from '@/lib/supabase/server';
 import { getCurrentProfile } from '@/lib/auth/session';
 import { padHqStockBalances } from '@/lib/inventory/balance-utils';
 import { isHqStockItemCode } from '@/lib/stock/catalog';
+import { assertAmStockKiosk, isStockRecordId, stockGuardErrorMessage } from '@/lib/inventory/stock-guard';
 
 export async function GET(request: Request) {
  const profile = await getCurrentProfile();
  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
  const locationId = new URL(request.url).searchParams.get('location_id');
- if (!locationId) {
+ if (!isStockRecordId(locationId)) {
  return NextResponse.json({ error: 'location_id required' }, { status: 400 });
  }
 
  const supabase = await createClient();
+
+ if (profile.role === 'AREA_MANAGER') {
+ try {
+ await assertAmStockKiosk(supabase, profile, locationId);
+ } catch (err) {
+ return NextResponse.json({ error: stockGuardErrorMessage(err) }, { status: 403 });
+ }
+ }
 
  const { data: locationRow } = await supabase.from('inventory_locations').select('location_type').eq('id', locationId).maybeSingle();
 
@@ -30,7 +39,7 @@ export async function GET(request: Request) {
  id, item_code, name, category, base_unit,
  min_threshold, critical_threshold,
  pack_quantity, pack_unit, conversion_text)
- `).eq('location_id', locationId).order('updated_at', { ascending: false });
+ `).eq('organization_id', profile.organization_id).eq('location_id', locationId).order('updated_at', { ascending: false });
 
  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

@@ -53,6 +53,10 @@ export function ShiftManagement() {
  const canManageRoster =
  profile &&
  ['SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER', 'AREA_MANAGER'].includes(profile.role);
+ const [activeTab, setActiveTab] = useState<string | null>(null);
+ const initialTab = defaultTab === 'roster' && !canManageRoster
+  ? 'schedule' : defaultTab ?? (canManageRoster ? 'roster' : 'schedule');
+ const tab = activeTab ?? initialTab;
  const showBranchPicker = profile ? needsBranchPicker(profile) : false;
  const [selectedBranchId, setSelectedBranchId] = useState(
  urlBranch || (profile?.branch_id ?? ''));
@@ -105,8 +109,8 @@ export function ShiftManagement() {
  }, [branchId, showBranchPicker]);
 
  useEffect(() => {
- loadData();
- }, [loadData]);
+ if (!isStaff && tab !== 'roster') loadData();
+ }, [isStaff, loadData, tab]);
 
  async function handleCreateShift(e: React.FormEvent) {
  e.preventDefault();
@@ -140,10 +144,6 @@ export function ShiftManagement() {
  const selectedStaffMember = staff.find((s) => s.id === newShift.staff_id);
  const selectedTemplate = templates.find((t) => t.id === newShift.template_id);
 
- const initialTab =
- defaultTab ??
- (isStaff ? 'my-schedule' : canManageRoster ? 'roster' : 'schedule');
-
  if (isStaff) {
  return (
  <ModuleLayout>
@@ -164,17 +164,14 @@ export function ShiftManagement() {
  icon={Clock}
  />
 
- {showBranchPicker && (
+ {tab !== 'roster' && showBranchPicker && (
  <BranchScopeSelect
  value={selectedBranchId}
  onChange={setSelectedBranchId}
  label="Pilih cawangan / kiosk"
  />)}
 
- {showBranchPicker && !branchId ? (
- <BranchRequiredPrompt message="Sila pilih cawangan untuk melihat jadual shift dan kehadiran." />) : loading ? (
- <ModuleLoading />) : (
- <Tabs defaultValue={initialTab} className="space-y-4">
+ <Tabs value={tab} onValueChange={setActiveTab} className="space-y-4">
  <TabsList className={moduleTabsListClass}>
  {canManageRoster && (
  <TabsTrigger value="roster" className="gap-1">
@@ -196,14 +193,15 @@ export function ShiftManagement() {
 
  {canManageRoster && (
  <TabsContent value="roster" className="mt-4 space-y-4">
- {showBranchPicker && !branchId ? (
- <BranchRequiredPrompt message="Pilih cawangan untuk sediakan jadual staf mingguan." />) : branchId ? (
  <WeeklyRosterPlanner
- branchId={branchId}
+ initialBranch={urlBranch || undefined}
  initialWeek={searchParams.get('week') ?? undefined}
- />) : null}
+ />
  </TabsContent>)}
 
+ {tab !== 'roster' && (showBranchPicker && !branchId ? (
+ <BranchRequiredPrompt message="Sila pilih cawangan untuk melihat jadual shift dan kehadiran." />) : loading ? (
+ <ModuleLoading />) : (<>
  <TabsContent value="schedule" className="mt-4 space-y-6">
  <Card>
  <CardHeader>
@@ -384,6 +382,7 @@ export function ShiftManagement() {
  </Card>))}
  </div>
  </TabsContent>
- </Tabs>)}
+ </>))}
+ </Tabs>
  </ModuleLayout>);
 }

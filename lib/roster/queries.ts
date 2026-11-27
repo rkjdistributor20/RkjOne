@@ -3,99 +3,73 @@ import {
  daysUntilDeadline,
  getNextWeekStart,
  getThisWeekStart,
+ malaysiaRosterDate,
  formatWeekRange,
  isRosterOverdue,
  shiftDateForWeek,
  DAY_LABELS_FULL,
  shouldRemindRoster,
 } from '@/lib/roster/week-utils';
-import type { RosterBranchStatus, RosterEntryInput, StaffScheduleWeek } from '@/lib/roster/types';
+import type { RosterBranchStatus, RosterPlannerData, RosterPlanRow, StaffScheduleWeek } from '@/lib/roster/types';
 
 const WORK_DAYS = 7;
 
-export async function getOrCreateRosterPlan(
+export async function loadRosterPlanner(
  supabase: SupabaseClient,
  orgId: string,
  branchId: string,
  weekStart: string,
- createdBy: string) {
- const { data: existing } = await supabase.from('weekly_roster_plans').select('*, branch:branches(branch_code, branch_name)').eq('organization_id', orgId).eq('branch_id', branchId).eq('week_start_date', weekStart).maybeSingle();
-
- if (existing) return existing;
-
- const { data: created, error } = await supabase.from('weekly_roster_plans').insert({
- organization_id: orgId,
- branch_id: branchId,
- week_start_date: weekStart,
- created_by: createdBy,
- }).select('*, branch:branches(branch_code, branch_name)').single();
-
- if (error) throw new Error(error.message);
- return created;
-}
-
-export async function loadRosterPlanWithEntries(
- supabase: SupabaseClient,
- planId: string) {
- const { data: plan, error } = await supabase.from('weekly_roster_plans').select('*, branch:branches(branch_code, branch_name)').eq('id', planId).single();
-
- if (error) throw new Error(error.message);
-
- const { data: entries } = await supabase.from('weekly_roster_entries').select('*').eq('plan_id', planId).order('day_index');
-
- return { ...plan, entries: entries ?? [] };
-}
-
-export async function saveRosterEntries(
- supabase: SupabaseClient,
- planId: string,
- entries: RosterEntryInput[]) {
- const { data: plan } = await supabase.from('weekly_roster_plans').select('status').eq('id', planId).single();
-
- if (plan?.status === 'PUBLISHED') {
- throw new Error('Jadual sudah diterbitkan - tidak boleh edit');
+): Promise<RosterPlannerData> {
+ const [planRes, staffRes, templatesRes] = await Promise.all([
+  supabase.from('weekly_roster_plans').select('id, branch_id, week_start_date, status, published_at')
+   .eq('organization_id', orgId).eq('branch_id', branchId).eq('week_start_date', weekStart).maybeSingle(),
+  supabase.from('staff').select('id, staff_code, full_name')
+   .eq('organization_id', orgId).eq('branch_id', branchId).eq('status', 'ACTIVE').order('full_name'),
+  supabase.from('shift_templates').select('id, name, start_time, end_time')
+   .eq('organization_id', orgId).eq('status', 'ACTIVE').order('name'),
+ ]);
+ if (planRes.error || staffRes.error || templatesRes.error) throw planRes.error ?? staffRes.error ?? templatesRes.error;
+ const plan = planRes.data as Omit<RosterPlanRow, 'entries'> | null;
+ let entries: RosterPlanRow['entries'] = [];
+ if (plan) {
+  const res = await supabase.from('weekly_roster_entries')
+   .select('id, plan_id, staff_id, day_index, is_off, template_id, scheduled_start, scheduled_end, notes')
+   .eq('plan_id', plan.id).order('day_index');
+  if (res.error) throw res.error;
+  entries = res.data;
  }
-
- if (entries.length === 0) return;
-
- const rows = entries.map((e) => ({
- plan_id: planId,
- staff_id: e.staff_id,
- day_index: e.day_index,
- is_off: e.is_off,
- template_id: e.template_id || null,
- scheduled_start: e.scheduled_start || null,
- scheduled_end: e.scheduled_end || null,
- notes: e.notes || null,
- }));
-
- const { error } = await supabase.from('weekly_roster_entries').upsert(rows, {
- onConflict: 'plan_id,staff_id,day_index',
- });
-
- if (error) throw new Error(error.message);
+ return { plan: plan ? { ...plan, entries } : null, staff: staffRes.data, templates: templatesRes.data };
 }
 
 export async function getRosterStatusForBranches(
  supabase: SupabaseClient,
  orgId: string,
- branchIds: string[],
+ branchIds: string[] | null,
  weekStart?: string): Promise<RosterBranchStatus[]> {
- if (!branchIds.length) return [];
+ if (branchIds?.length === 0) return [];
 
  const targetWeek = weekStart ?? getNextWeekStart();
 
- const { data: plansData } = await supabase.from('weekly_roster_plans').select('id, branch_id, status').eq('organization_id', orgId).eq('week_start_date', targetWeek).in('branch_id', branchIds);
+ const plansQuery = supabase.from('weekly_roster_plans').select('id, branch_id, status')
+  .eq('organization_id', orgId).eq('week_start_date', targetWeek);
+ const { data: plansData, error: plansError } = await (branchIds ? plansQuery.in('branch_id', branchIds) : plansQuery);
+ if (plansError) throw plansError;
 
  const planIds = (plansData ?? []).map((p) => p.id);
 
+ const branchesQuery = supabase.from('branches').select('id, branch_code, branch_name')
+  .eq('organization_id', orgId).eq('status', 'ACTIVE').order('branch_code');
+ const staffQuery = supabase.from('staff').select('branch_id').eq('organization_id', orgId).eq('status', 'ACTIVE');
  const [branchesRes, staffRes, entriesRes] = await Promise.all([
- supabase.from('branches').select('id, branch_code, branch_name').eq('organization_id', orgId).in('id', branchIds).eq('status', 'ACTIVE').order('branch_code'),
- supabase.from('staff').select('branch_id').eq('organization_id', orgId).eq('status', 'ACTIVE').in('branch_id', branchIds),
+ branchIds ? branchesQuery.in('id', branchIds) : branchesQuery,
+ branchIds ? staffQuery.in('branch_id', branchIds) : staffQuery,
  planIds.length
  ? supabase.from('weekly_roster_entries').select('plan_id').in('plan_id', planIds)
- : Promise.resolve({ data: [] as { plan_id: string }[] }),
+ : Promise.resolve({ data: [] as { plan_id: string }[], error: null }),
  ]);
+ if (branchesRes.error || staffRes.error || entriesRes.error) {
+  throw branchesRes.error ?? staffRes.error ?? entriesRes.error;
+ }
 
  const planMap = new Map((plansData ?? []).map((p) => [p.branch_id, p]));
  const staffCount = new Map<string, number>();
@@ -135,8 +109,12 @@ export async function getRosterStatusForBranches(
 export async function getStaffScheduleForProfile(
  supabase: SupabaseClient,
  profileId: string,
+ orgId: string,
  weekStart?: string): Promise<StaffScheduleWeek | null> {
- const { data: staffRow } = await supabase.from('staff').select('id, branch_id, branch:branches(branch_code, branch_name)').eq('profile_id', profileId).eq('status', 'ACTIVE').maybeSingle();
+ const { data: staffRow, error: staffError } = await supabase.from('staff')
+  .select('id, branch_id, branch:branches(branch_code, branch_name)')
+  .eq('profile_id', profileId).eq('organization_id', orgId).eq('status', 'ACTIVE').maybeSingle();
+ if (staffError) throw staffError;
 
  if (!staffRow) return null;
 
@@ -147,36 +125,43 @@ export async function getStaffScheduleForProfile(
  branch_name: string;
  } | null;
 
- const { data: plan } = await supabase.from('weekly_roster_plans').select('id, status, week_start_date').eq('branch_id', staffRow.branch_id).eq('week_start_date', week).eq('status', 'PUBLISHED').maybeSingle();
+ const { data: plan, error: planError } = staffRow.branch_id
+  ? await supabase.from('weekly_roster_plans').select('id, status, week_start_date')
+   .eq('organization_id', orgId).eq('branch_id', staffRow.branch_id).eq('week_start_date', week).eq('status', 'PUBLISHED').maybeSingle()
+  : { data: null, error: null };
+ if (planError) throw planError;
 
- const days = Array.from({ length: WORK_DAYS }, (_, i) => ({
+ const days: StaffScheduleWeek['days'] = Array.from({ length: WORK_DAYS }, (_, i) => ({
  day_index: i,
  day_label: DAY_LABELS_FULL[i],
  shift_date: shiftDateForWeek(week, i),
- is_off: true,
- template_name: null as string | null,
- scheduled_start: null as string | null,
- scheduled_end: null as string | null,
- notes: null as string | null,
+ is_off: null,
+ template_name: null,
+ scheduled_start: null,
+ scheduled_end: null,
+ notes: null,
  }));
 
  if (plan) {
- const { data: entries } = await supabase.from('weekly_roster_entries').select(
+ const { data: entries, error } = await supabase.from('weekly_roster_entries').select(
  `
  day_index, is_off, scheduled_start, scheduled_end, notes,
- template:shift_templates(name)
+ template:shift_templates(name, start_time, end_time)
  `).eq('plan_id', plan.id).eq('staff_id', staffRow.id);
+ if (error) throw error;
 
  for (const e of entries ?? []) {
  const slot = days[e.day_index];
  if (!slot) continue;
  slot.is_off = e.is_off;
- slot.scheduled_start = e.scheduled_start;
- slot.scheduled_end = e.scheduled_end;
  slot.notes = e.notes;
  const tplRaw = e.template;
- const tpl = (Array.isArray(tplRaw) ? tplRaw[0] : tplRaw) as { name: string } | null;
- slot.template_name = tpl?.name ?? null;
+ const tpl = (Array.isArray(tplRaw) ? tplRaw[0] : tplRaw) as {
+  name: string; start_time: string | null; end_time: string | null;
+ } | null;
+ slot.scheduled_start = e.is_off ? null : e.scheduled_start ?? tpl?.start_time ?? null;
+ slot.scheduled_end = e.is_off ? null : e.scheduled_end ?? tpl?.end_time ?? null;
+ slot.template_name = e.is_off ? null : tpl?.name ?? null;
  }
  }
 
@@ -195,7 +180,7 @@ export async function syncRosterReminders(
  orgId: string,
  managerProfileId: string,
  branchStatuses: RosterBranchStatus[]) {
- const today = new Date().toISOString().slice(0, 10);
+ const today = malaysiaRosterDate();
  const targetWeek = branchStatuses[0]?.week_start_date ?? getNextWeekStart();
 
  if (!shouldRemindRoster(targetWeek)) return { sent: 0 };

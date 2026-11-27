@@ -690,6 +690,7 @@ export async function confirmPosStockDelivery(payload: {
 export async function submitPosStockCheck(payload: {
  branch_id: string;
  shift_id?: string | null;
+ recount_of?: string;
  check_type: PosShiftStockCheckType;
  production_date?: string;
  notes?: string;

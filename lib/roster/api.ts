@@ -1,44 +1,47 @@
-import type { RosterEntryInput } from '@/lib/roster/types';
+import { fetchJson } from '@/lib/client/fetch-json';
+import type { RosterBranchStatus, RosterEntryInput, RosterPlannerData, ScheduleComparison, StaffScheduleWeek } from './types';
 
-export async function fetchRosterPlan(branchId: string, weekStart: string) {
+export function fetchRosterPlan(branchId: string, weekStart: string) {
  const params = new URLSearchParams({ branch_id: branchId, week_start: weekStart });
- const res = await fetch(`/api/roster/plans?${params}`);
- if (!res.ok) throw new Error((await res.json()).error ?? 'Gagal muat jadual');
- return res.json();
+ return fetchJson<RosterPlannerData>(`/api/roster/plans?${params}`);
 }
 
-export async function fetchRosterStatus(weekStart?: string) {
- const params = weekStart ? `?week_start=${weekStart}` : '';
- const res = await fetch(`/api/roster/status${params}`);
- if (!res.ok) throw new Error((await res.json()).error ?? 'Gagal muat status');
- return res.json();
+export function fetchRosterStatus(weekStart: string) {
+ const params = new URLSearchParams({ week_start: weekStart });
+ return fetchJson<{ branches: RosterBranchStatus[] }>(`/api/roster/status?${params}`);
 }
 
-export async function saveRosterPlan(payload: {
+export function saveRosterPlan(payload: {
  branch_id: string;
  week_start: string;
- entries: RosterEntryInput[];
+ entries?: RosterEntryInput[];
+ copy_from_week?: string;
 }) {
- const res = await fetch('/api/roster/plans', {
- method: 'POST',
- headers: { 'Content-Type': 'application/json' },
- body: JSON.stringify(payload),
+ return fetchJson<{ plan_id: string }>('/api/roster/plans', {
+  method: 'POST', body: JSON.stringify(payload),
  });
- if (!res.ok) throw new Error((await res.json()).error ?? 'Gagal simpan jadual');
- return res.json();
 }
 
-export async function publishRosterPlan(planId: string) {
- const res = await fetch(`/api/roster/plans/${planId}/publish`, { method: 'POST' });
- if (!res.ok) throw new Error((await res.json()).error ?? 'Gagal terbitkan jadual');
- return res.json();
+export function publishRosterPlan(planId: string) {
+ return fetchJson(`/api/roster/plans/${planId}/publish`, { method: 'POST' });
 }
 
-export async function fetchMySchedule(weekStart?: string) {
- const params = weekStart ? `?week_start=${weekStart}` : '';
- const res = await fetch(`/api/roster/my-schedule${params}`);
- if (!res.ok) throw new Error((await res.json()).error ?? 'Gagal muat jadual anda');
- return res.json();
+export function fetchRosterActuals(weekStart: string, branchId?: string) {
+ const params = new URLSearchParams({ week_start: weekStart });
+ if (branchId) params.set('branch_id', branchId);
+ return fetchJson<{ actuals: ScheduleComparison[] }>(`/api/area-manager/schedule-actuals?${params}`);
+}
+
+export function fetchMySchedule(weekStart?: string) {
+ // Also used in a compact login view, where an unauthenticated request should
+ // be displayed inline rather than redirecting back to login.
+ const params = weekStart ? `?${new URLSearchParams({ week_start: weekStart })}` : '';
+ return fetch(`/api/roster/my-schedule${params}`).then(async (res): Promise<{
+  schedule: StaffScheduleWeek | null; message?: string;
+ }> => {
+  if (!res.ok) throw new Error((await res.json()).error ?? 'Gagal muat jadual anda');
+  return res.json();
+ });
 }
 
 export async function syncRosterRemindersClient() {

@@ -133,23 +133,19 @@ export async function POST(request: Request) {
    p_actor_id: profile.id, p_device_id: saleDevice.id,
    p_enrollment_generation: saleDevice.enrollmentGeneration,
    p_shift_id: body.shiftId, p_branch_id: body.branchId,
-   p_sale: { ...body, offline_id: manualCart ?? body.offline_id },
+   p_sale: { ...body, offline_id: manualCart },
   });
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json(data);
  }
 
- const { data, error } = await callRpc(supabase, 'process_pos_sale', {
+ const { data, error } = await callRpc(createAdminClient(), 'process_registered_pos_cash_sale', {
+ p_actor_id: profile.id,
+ p_device_id: saleDevice.id,
+ p_enrollment_generation: saleDevice.enrollmentGeneration,
  p_shift_id: body.shiftId,
  p_branch_id: body.branchId,
- p_items: body.items,
- p_payment_method: body.payment_method,
- p_cash_amount: body.cash_amount,
- p_qr_amount: body.qr_amount,
- p_discount: body.discount ?? 0,
- ...(body.offline_id === undefined ? {} : { p_offline_id: body.offline_id }),
- ...(body.receipt_email === undefined ? {} : { p_receipt_email: body.receipt_email }),
- ...(body.receipt_phone === undefined ? {} : { p_receipt_phone: body.receipt_phone }),
+ p_sale: { ...body },
  });
 
  if (error) {

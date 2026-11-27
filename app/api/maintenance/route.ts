@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/server';
 import { getCurrentProfile } from '@/lib/auth/session';
+import { resolveScopedBranches } from '@/lib/auth/branch-scope';
 
 const MANAGER_ROLES = ['SUPER_ADMIN', 'ADMIN', 'OPERATION_MANAGER', 'MAINTENANCE_MANAGER'];
 const SUBMITTER_ROLES = [...MANAGER_ROLES, 'AREA_MANAGER', 'STAFF'];
@@ -25,11 +26,14 @@ export async function GET() {
  `).eq('organization_id', profile.organization_id).order('created_at', { ascending: false });
 
  if (!isManager(profile.role)) {
- if (profile.role === 'AREA_MANAGER' && profile.region_id) {
- const { data: branches } = await (supabase as SupabaseClient).from('branches').select('id').eq('organization_id', profile.organization_id).eq('region_id', profile.region_id);
- const ids = (branches ?? []).map((b) => b.id);
- if (ids.length === 0) return NextResponse.json({ reports: [] });
- query = query.in('branch_id', ids);
+ if (profile.role === 'AREA_MANAGER') {
+ try {
+  const { branchIds } = await resolveScopedBranches(supabase, profile);
+  if (!branchIds?.length) return NextResponse.json({ reports: [] });
+  query = query.in('branch_id', branchIds);
+ } catch {
+  return NextResponse.json({ error: 'Skop cawangan tidak dapat disahkan' }, { status: 403 });
+ }
  } else if (profile.branch_id) {
  query = query.eq('branch_id', profile.branch_id);
  } else {
@@ -64,10 +68,11 @@ export async function POST(request: Request) {
  return NextResponse.json({ error: 'Staf hanya boleh report cawangan sendiri' }, { status: 403 });
  }
 
- if (profile.role === 'AREA_MANAGER' && profile.region_id) {
- const { data: branch } = await (supabase as SupabaseClient).from('branches').select('id').eq('id', branchId).eq('organization_id', profile.organization_id).eq('region_id', profile.region_id).maybeSingle();
- if (!branch) {
- return NextResponse.json({ error: 'Cawangan di luar kawasan anda' }, { status: 403 });
+ if (profile.role === 'AREA_MANAGER') {
+ try {
+  await resolveScopedBranches(supabase, profile, branchId);
+ } catch {
+  return NextResponse.json({ error: 'Cawangan di luar kawasan anda' }, { status: 403 });
  }
  }
 

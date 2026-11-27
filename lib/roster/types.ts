@@ -21,15 +21,44 @@ export type RosterPlanRow = {
  week_start_date: string;
  status: WeeklyRosterStatus;
  published_at: string | null;
- branch?: { branch_code: string; branch_name: string };
- entries?: RosterEntryRow[];
+ entries: RosterEntryRow[];
+};
+
+export type RosterStaff = { id: string; staff_code: string; full_name: string };
+export type RosterTemplate = { id: string; name: string; start_time: string | null; end_time: string | null };
+export type RosterPlannerData = { plan: RosterPlanRow | null; staff: RosterStaff[]; templates: RosterTemplate[] };
+
+export type ScheduleActual = {
+ id: string;
+ branch_id: string;
+ staff_id: string | null;
+ shift_number: string;
+ opened_at: string;
+ closed_at: string | null;
+};
+
+export type PlannedShift = {
+ id: string;
+ branch_id: string;
+ staff_id: string;
+ shift_date: string;
+ scheduled_start: string | null;
+ scheduled_end: string | null;
+};
+
+export type ScheduleComparison = ScheduleActual & {
+ branch_label: string;
+ staff_name: string | null;
+ planned: { starts_at: string; ends_at: string } | null;
+ comparison: 'MATCH' | 'DIFFERENT' | 'UNSCHEDULED' | 'UNATTRIBUTED';
 };
 
 export type StaffScheduleDay = {
  day_index: number;
  day_label: string;
  shift_date: string;
- is_off: boolean;
+ /** null means no slot was set; it is not an explicit day off. */
+ is_off: boolean | null;
  template_name: string | null;
  scheduled_start: string | null;
  scheduled_end: string | null;

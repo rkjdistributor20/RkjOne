@@ -21,17 +21,44 @@ type LocationRow = {
  branch_id: string | null;
  organization_id: string;
  name: string;
+ is_active: boolean;
 };
 
 async function loadLocation(
  supabase: SupabaseClient,
  locationId: string): Promise<LocationRow | null> {
- const { data } = await supabase.from('inventory_locations').select('id, location_type, branch_id, organization_id, name').eq('id', locationId).maybeSingle();
+ const { data } = await supabase.from('inventory_locations').select('id, location_type, branch_id, organization_id, name, is_active').eq('id', locationId).maybeSingle();
  return data as LocationRow | null;
 }
 
 function deny(message: string): never {
  throw new Error(message);
+}
+
+export function isStockRecordId(value: unknown): value is string {
+ return typeof value === 'string' && /^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i.test(value);
+}
+
+export async function assertAmStockKiosk(
+ supabase: SupabaseClient,
+ profile: Profile,
+ locationId: string,
+): Promise<LocationRow> {
+ const location = profile.role === 'AREA_MANAGER' ? await loadLocation(supabase, locationId) : null;
+ if (!location?.is_active || location.organization_id !== profile.organization_id) {
+ deny('Lokasi inventori di luar skop anda');
+ }
+ const scope = await resolveScopedBranches(supabase, profile);
+ if (!areaManagerMayManageLocation(location.location_type, location.branch_id, scope.branchIds)) {
+ deny('Lokasi inventori di luar skop anda');
+ }
+ return location;
+}
+
+export function stockPostingErrorStatus(code: string) {
+ if (code === '42501') return 403;
+ if (code === '40001' || code === '23505' || code === '40P01') return 409;
+ return 400;
 }
 
 async function assertLocationAccess(

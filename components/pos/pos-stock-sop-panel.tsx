@@ -467,6 +467,8 @@ export function PosStockSopPanel({
  const [checkType, setCheckType] = useState<(typeof CHECK_TYPES)[number]['value']>('MID_SHIFT');
  const [productionDate, setProductionDate] = useState(todayIso());
  const [checkNotes, setCheckNotes] = useState('');
+ const [recount, setRecount] = useState<{ countId: string; branchId: string } | null>(null);
+ const recountOf = recount?.branchId === branchId ? recount.countId : null;
  const [checkLines, setCheckLines] = useState<Line[]>([emptyLine()]);
  const [presenceReason, setPresenceReason] = useState<PosPresenceReason>('REST');
  const [presenceNotes, setPresenceNotes] = useState('');
@@ -859,6 +861,7 @@ export function PosStockSopPanel({
  branch_id: branchId,
  shift_id: data?.sopStatus?.shift_id ?? undefined,
  check_type: checkType,
+ recount_of: recountOf ?? undefined,
  production_date: productionDate || undefined,
  notes: checkNotes || undefined,
  items,
@@ -866,14 +869,15 @@ export function PosStockSopPanel({
  const requiresManagerApproval = Boolean(
  (result as { requires_manager_approval?: boolean })?.requires_manager_approval);
  if (requiresManagerApproval) {
- toast.warning('Kiraan stok diterima. Ada beza daripada anggaran AI, jadi AM/OM perlu sahkan sebelum stok menjadi rasmi.');
+ toast.info('Kiraan stok dihantar. AM/OM akan menyemak sebelum baki rasmi dikemas kini.');
  } else {
  toast.success('Kiraan stok disahkan. POS kembali ke Jualan.');
  }
  setCheckNotes('');
+ setRecount(null);
  setCheckLines([emptyLine(firstVisibleStock?.id, firstVisibleStock?.base_unit, productionDate)]);
  await loadData();
- onSuccess?.({ action: 'stock_check', requiresManagerApproval });
+ if (!recountOf) onSuccess?.({ action: 'stock_check', requiresManagerApproval });
  } catch (err) {
  toast.error(err instanceof Error ? err.message : 'Gagal hantar kiraan stok');
  } finally {
@@ -930,6 +934,7 @@ export function PosStockSopPanel({
  const activeReceipts = receipts.filter((r) => r.status === 'DRIVER_DROPPED' || r.status === 'DISCREPANCY_PENDING_APPROVAL');
  const selectedPresenceReason = PRESENCE_REASONS.find((reason) => reason.value === presenceReason);
  const shiftIsOpen = Boolean(sopStatus?.shift_id);
+ const rejectedChecks = data.recountableStockChecks ?? [];
  const deliveryIsRequired = activeReceipts.length > 0;
  const stockCheckIsRequired = Boolean(requiredStockCheck);
  const openingStockLockedByDelivery =
@@ -937,7 +942,7 @@ export function PosStockSopPanel({
  const normalMode = shiftIsOpen && !activeLeave && !deliveryIsRequired && !stockCheckIsRequired;
  const showPresencePanel = shiftIsOpen && (Boolean(activeLeave) || showSecondaryTools);
  const showDeliveryPanel = deliveryIsRequired || showSecondaryTools;
- const showStockCheckPanel = !openingStockLockedByDelivery && (stockCheckIsRequired || showSecondaryTools);
+ const showStockCheckPanel = !openingStockLockedByDelivery && (stockCheckIsRequired || showSecondaryTools || Boolean(recountOf));
  const showRequestPanel = showSecondaryTools;
  const showRecordPanel = showSecondaryTools;
  const focusTone = !shiftIsOpen || activeLeave || deliveryIsRequired || stockCheckIsRequired
@@ -1005,6 +1010,23 @@ export function PosStockSopPanel({
  </div>
  </div>
  </div>
+
+ {rejectedChecks.length > 0 && <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+ <p className="font-semibold">Kiraan stok ditolak</p>
+ {rejectedChecks.map((check) => <div key={check.id} className="flex flex-wrap items-center justify-between gap-2">
+ <p>{check.count_number}{check.rejection_reason ? ` — ${check.rejection_reason}` : ''}</p>
+ <Button type="button" size="sm" variant="outline" disabled={!shiftIsOpen || openingStockLockedByDelivery || Boolean(savingId)}
+ onClick={() => {
+ setRecount({ countId: check.id, branchId });
+ setCheckType(requiredStockCheck ?? 'MID_SHIFT');
+ setCheckNotes('');
+ setCheckLines(visibleStockItems.map((item) => emptyLine(item.id, item.base_unit, productionDate)));
+ }}>
+ Kira semula / Hantar semula
+ </Button>
+ </div>)}
+ {!shiftIsOpen && <p>Buka syif untuk membuat kiraan baharu.</p>}
+ </div>}
 
  {(showSecondaryTools || showPresencePanel) && (
  <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
@@ -1356,6 +1378,16 @@ export function PosStockSopPanel({
  </div>
  </CardHeader>
  <CardContent className="space-y-4">
+ {recountOf && <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm">
+ <p>Kiraan baharu untuk {rejectedChecks.find((check) => check.id === recountOf)?.count_number ?? 'rekod yang ditolak'}. Masukkan baki fizikal semasa.</p>
+ <Button type="button" size="sm" variant="outline" disabled={Boolean(savingId)} onClick={() => {
+ setRecount(null);
+ setCheckType(requiredStockCheck ?? 'MID_SHIFT');
+ setCheckLines(visibleStockItems.map((item) => emptyLine(item.id, item.base_unit, productionDate)));
+ }}>
+ Batal kira semula
+ </Button>
+ </div>}
  {showSecondaryTools && (
  <div className="grid gap-2 sm:grid-cols-3">
  {stockCountGroups.map((group) => {
@@ -1470,7 +1502,7 @@ export function PosStockSopPanel({
  </div>)}
 
  <p className="mt-3 rounded-xl border border-violet-200 bg-white/70 px-3 py-2 text-xs font-medium leading-relaxed">
- AI hanya isi draf. Staf wajib kira stok fizikal sebenar sebelum hantar; beza daripada AI akan dihantar kepada AM/OM untuk pengesahan.
+ AI hanya isi draf. Staf wajib kira stok fizikal sebenar sebelum hantar kepada AM/OM untuk semakan, walaupun jumlahnya sepadan dengan AI.
  </p>
  </div>
 

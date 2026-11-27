@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
+import { callRpc } from '@/lib/supabase/rpc';
 import { getCurrentProfile } from '@/lib/auth/session';
 import {
   assertCanAccessPosBranch,
@@ -223,8 +225,9 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
   const branchId = body.branch_id ? String(body.branch_id) : profile.branch_id;
   if (!branchId) return NextResponse.json({ error: 'Branch required' }, { status: 400 });
+  let device: Awaited<ReturnType<typeof assertOfficialPosDevice>>;
   try {
-    await assertOfficialPosDevice(profile, branchId);
+    device = await assertOfficialPosDevice(profile, branchId);
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Tablet POS rasmi diperlukan' },
@@ -243,6 +246,20 @@ export async function POST(request: Request) {
     if (!shift) return NextResponse.json({ error: 'Syif POS terbuka tidak dijumpai' }, { status: 400 });
 
     const identity = await resolveMemberIdentity(db, profile, body, branchId);
+    if (profile.role === 'STAFF' && identity.profile_id === profile.id) {
+      const { data, error } = await callRpc(createAdminClient(), 'start_verified_pos_staff_shift', {
+        p_actor_id: profile.id,
+        p_branch_id: branchId,
+        p_device_id: device.id,
+        p_enrollment_generation: device.enrollmentGeneration,
+        p_shift_id: shift.id,
+      });
+      if (error) return NextResponse.json({ error: error.message }, {
+        status: error.code === '42501' ? 403 : ['23505', '40001'].includes(error.code) ? 409 : 400,
+      });
+      const result = data as { member: unknown; reused: boolean };
+      return NextResponse.json({ member: result.member, alreadyActive: result.reused, requiresApproval: false });
+    }
     const startedAt = validIsoOrNow(body.started_at);
     const roleInShift = cleanRole(body.role_in_shift);
     const isApprovedNow = canApprovePosShiftStaff(profile.role);
@@ -375,10 +392,12 @@ export async function PATCH(request: Request) {
           approval_notes: body.notes ? String(body.notes) : 'Diluluskan oleh AM/ke atas.',
         })
         .eq('id', memberId)
+        .eq('status', 'PENDING_APPROVAL')
         .select('*')
-        .single();
+        .maybeSingle();
 
       if (error) throw new Error(error.message);
+      if (!data) return NextResponse.json({ error: 'Keahlian syif telah berubah. Muat semula.' }, { status: 409 });
 
       await db
         .from('approval_requests')
@@ -406,6 +425,9 @@ export async function PATCH(request: Request) {
           { status: 403 }
         );
       }
+      if (member.status !== 'PENDING_APPROVAL') {
+        return NextResponse.json({ error: 'Hanya permohonan yang masih menunggu boleh ditolak.' }, { status: 409 });
+      }
 
       const { data, error } = await db
         .from('pos_shift_staff_members')
@@ -416,10 +438,12 @@ export async function PATCH(request: Request) {
           approval_notes: body.notes ? String(body.notes) : 'Ditolak oleh AM/ke atas.',
         })
         .eq('id', memberId)
+        .eq('status', 'PENDING_APPROVAL')
         .select('*')
-        .single();
+        .maybeSingle();
 
       if (error) throw new Error(error.message);
+      if (!data) return NextResponse.json({ error: 'Keahlian syif telah berubah. Muat semula.' }, { status: 409 });
 
       await db
         .from('approval_requests')

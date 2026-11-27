@@ -938,7 +938,7 @@ export function PosTerminal({ webCommit, draftRecoveryBranches }: {
  ? t('module.pos.openShiftFirst')
  : shiftMembershipBlocked
  ? currentShiftMemberStatus === 'PENDING_APPROVAL'
- ? 'Keahlian syif menunggu kelulusan'
+ ? 'Sahkan diri mula bertugas'
  : currentShiftMemberStatus === 'UNAVAILABLE'
  ? 'Status staf syif belum dapat disahkan'
  : 'Rekod diri masuk syif dahulu'
@@ -957,10 +957,10 @@ export function PosTerminal({ webCommit, draftRecoveryBranches }: {
  ? t('module.pos.openShiftHelp')
  : shiftMembershipBlocked
  ? currentShiftMemberStatus === 'PENDING_APPROVAL'
- ? 'Permohonan anda sudah direkod tetapi belum ACTIVE. Minta AM, OM atau Admin mengesahkannya dalam Ringkasan > Staf Dalam Syif.'
+ ? 'Pergi ke Ringkasan > Staf Dalam Syif dan tekan “Rekod saya mula bertugas” pada tablet rasmi.'
  : currentShiftMemberStatus === 'UNAVAILABLE'
  ? 'Sistem tidak dapat menyemak keahlian syif. Cuba muat semula; jika sesi tamat, log masuk semula.'
- : 'Pergi ke Ringkasan > Staf Dalam Syif dan tekan “Rekod saya mula bertugas”. Staf biasa perlu diluluskan oleh AM, OM atau Admin sebelum merekod jualan.'
+ : 'Pergi ke Ringkasan > Staf Dalam Syif dan tekan “Rekod saya mula bertugas”. Staf berdaftar boleh terus bertugas tanpa kelulusan AM.'
  : activePresenceLeave
  ? t('module.pos.staffAwayHelp')
  : pendingDeliveryCount > 0

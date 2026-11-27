@@ -568,13 +568,16 @@ export function InventoryDashboard() {
  selectedLocation?.location_type === 'HQ_WAREHOUSE' ||
  selectedLocation?.location_type === 'FACTORY'
  }
- onCreate={async (payload) => {
+ onCancelled={loadData}
+ onCreate={async (payload, requestId) => {
  try {
- await createTransfer(payload);
+ await createTransfer(payload, requestId);
  toast.success('Pindahan dicipta');
  loadData();
+ return true;
  } catch (err) {
  toast.error(err instanceof Error ? err.message : 'Gagal cipta pindahan');
+ return false;
  }
  }}
  onDispatch={async (id) => {

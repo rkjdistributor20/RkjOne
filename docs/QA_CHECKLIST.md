@@ -4,6 +4,16 @@ Last updated: 2026-11-04
 
 Use this checklist for QA AI, Code Reviewer AI, and human review before merge/deploy.
 
+## AM operations matrix
+
+- Use disposable SQL fixtures for AM stock, transfers, roster and operational
+  reports. Validate withdrawn and cross-tenant grants, overnight MYT cutoffs,
+  intervening stock movement, transfer replay, and receipt/QR separation.
+- Validate staff self-start on a registered device using the actual staff
+  identity, denial for a mismatched device/branch, no stale approval replay
+  and continued offline cash-only behavior. Do not create production sales
+  or real staff UAT solely to validate a release.
+
 ## POS closure with detached VT review
 
 - In a disposable database run `supabase/tests/pos_qr_review_shift_close_local.sql` with the 20261126183000 migration substituted at `-- MIGRATION UNCHANGED`. Verify mixed manual QR registration/replay, unchanged counted cash, active VT blocking, rejection of mismatched/trial evidence and exactly one late evidence audit with no rebooking. The fixture stubs existing sale and close endpoints.

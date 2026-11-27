@@ -7,9 +7,12 @@ import type {
  KioskOverviewBranch,
  KioskOverviewSummary,
  LineItemInput,
+ PendingInventoryCount,
  StockItemOption,
  StockMovementRow,
  StockTransferRow,
+ TransferCreateInput,
+ TransferKioskOption,
 } from './types';
 import { fetchJson } from '@/lib/client/fetch-json';
 
@@ -57,42 +60,50 @@ export async function fetchRotiBatches(locationId: string) {
  { ttlMs: 10_000 });
 }
 
-export async function fetchMovements(locationId: string, limit = 50) {
+export async function fetchMovements(
+ locationId: string,
+ limit = 50,
+ filter?: { kind?: string; from?: string; to?: string },
+) {
+ const params = new URLSearchParams({ location_id: locationId, limit: String(limit) });
+ if (filter?.kind) params.set('kind', filter.kind);
+ if (filter?.from) params.set('from', filter.from);
+ if (filter?.to) params.set('to', filter.to);
  return fetchJson<{ movements: StockMovementRow[] }>(
- `/api/inventory/movements?location_id=${locationId}&limit=${limit}`,
+ `/api/inventory/movements?${params}`,
  undefined,
  { ttlMs: 5_000 });
 }
 
 export async function fetchTransfers(locationId?: string) {
- const params = locationId ? `?location_id=${locationId}` : '';
+ const params = locationId ? `?location_id=${encodeURIComponent(locationId)}` : '';
  return fetchJson<{ transfers: StockTransferRow[] }>(
  `/api/inventory/transfers${params}`,
  undefined,
- { ttlMs: 5_000 });
+ { dedupe: false });
+}
+
+export async function fetchTransferKioskOptions() {
+ return fetchJson<{ origins: TransferKioskOption[]; destinations: TransferKioskOption[] }>(
+  '/api/inventory/transfers?options=kiosk');
 }
 
 export async function receiveStock(
  locationId: string,
  items: LineItemInput[],
  source?: string,
- notes?: string) {
+ notes?: string,
+ documentReference?: string) {
  return fetchJson<{ result: Record<string, string> }>('/api/inventory/receive', {
  method: 'POST',
- body: JSON.stringify({ location_id: locationId, items, source, notes }),
+ body: JSON.stringify({ location_id: locationId, items, source, notes, document_reference: documentReference }),
  });
 }
 
-export async function createTransfer(payload: {
- from_location_id: string;
- to_location_id: string;
- items: LineItemInput[];
- driver_id?: string;
- vehicle_id?: string;
- notes?: string;
-}) {
- return fetchJson<{ result: Record<string, string> }>('/api/inventory/transfers', {
+export async function createTransfer(payload: TransferCreateInput, requestId: string) {
+ return fetchJson<{ result: { transfer_id: string; transfer_number: string } }>('/api/inventory/transfers', {
  method: 'POST',
+ headers: { 'Idempotency-Key': requestId },
  body: JSON.stringify(payload),
  });
 }
@@ -107,6 +118,12 @@ export async function completeTransfer(transferId: string) {
  return fetchJson<{ result: unknown }>(
  `/api/inventory/transfers/${transferId}/complete`,
  { method: 'POST' });
+}
+
+export async function cancelTransfer(transferId: string, reason: string) {
+ return fetchJson<{ result: unknown }>(
+  `/api/inventory/transfers/${transferId}/cancel`,
+  { method: 'POST', body: JSON.stringify({ reason }) });
 }
 
 export async function submitAdjustment(
@@ -126,6 +143,19 @@ export async function submitCount(
  return fetchJson<{ result: Record<string, string> }>('/api/inventory/counts', {
  method: 'POST',
  body: JSON.stringify({ location_id: locationId, items, notes }),
+ });
+}
+
+export function fetchPendingInventoryCounts(locationId: string) {
+ return fetchJson<{ counts: PendingInventoryCount[] }>(
+ `/api/inventory/counts?${new URLSearchParams({ location_id: locationId })}`,
+ );
+}
+
+export function reviewInventoryCount(countId: string, action: 'APPROVE' | 'REJECT', reason?: string) {
+ return fetchJson<{ result: unknown }>('/api/inventory/counts', {
+ method: 'PATCH',
+ body: JSON.stringify({ count_id: countId, action, reason }),
  });
 }
 

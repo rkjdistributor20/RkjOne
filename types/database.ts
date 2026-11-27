@@ -11546,6 +11546,29 @@ export type Database = {
         Args: { p_max_stops?: number; p_order_id: string }
         Returns: Json
       }
+      open_registered_pos_manager_shift: {
+        Args: { p_actor_id: string; p_device_id: string; p_enrollment_generation: number; p_branch_id: string; p_opening_cash: number; p_staff_id?: string }
+        Returns: Json
+      }
+      process_registered_pos_cash_sale: {
+        Args: { p_actor_id: string; p_device_id: string; p_enrollment_generation: number; p_shift_id: string; p_branch_id: string; p_sale: Json }
+        Returns: Json
+      }
+      start_verified_pos_staff_shift: {
+        Args: {
+          p_actor_id: string
+          p_device_id: string
+          p_enrollment_generation: number
+          p_branch_id: string
+          p_shift_id?: string
+          p_opening_cash?: number
+        }
+        Returns: Json
+      }
+      replace_area_manager_branch_grants: {
+        Args: { p_profile_id: string; p_branch_ids: string[] }
+        Returns: Json
+      }
       reconcile_pos_fiuu_vt_review_status: {
         Args: { p_branch_ids: string[]; p_limit?: number }
         Returns: Json

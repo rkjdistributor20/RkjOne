@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type {
  InventoryLocation,
  LineItemInput,
  StockItemOption,
  StockTransferRow,
+ TransferCreateInput,
 } from '@/lib/inventory/types';
 import { LOCATION_TYPE_LABELS } from '@/lib/inventory/types';
 import { Badge } from '@/components/ui/badge';
@@ -24,6 +25,7 @@ import { formatStockQuantity } from '@/lib/stock/catalog';
 import { labelFor, TRANSFER_STATUS_LABELS } from '@/lib/ui/labels';
 import { boundSelectValue, displayLabel } from '@/lib/ui/select-utils';
 import { StockLineForm } from '@/components/inventory/stock-line-form';
+import { TransferCancelButton } from '@/components/inventory/transfer-cancel-button';
 
 interface TransferPanelProps {
  locations: InventoryLocation[];
@@ -33,16 +35,10 @@ interface TransferPanelProps {
  orderInPacks?: boolean;
  /** AM / kiosk - hanya pindahan antara cawangan, tiada pemandu/kenderaan HQ */
  kioskOnly?: boolean;
- onCreate: (payload: {
- from_location_id: string;
- to_location_id: string;
- items: LineItemInput[];
- driver_id?: string;
- vehicle_id?: string;
- notes?: string;
- }) => Promise<void>;
+ onCreate: (payload: TransferCreateInput, requestId: string) => Promise<boolean>;
  onDispatch: (id: string) => Promise<void>;
  onComplete: (id: string) => Promise<void>;
+ onCancelled: () => void;
  loadDrivers: () => Promise<{ drivers: Array<{ id: string; full_name: string }> }>;
  loadVehicles: () => Promise<{ vehicles: Array<{ id: string; vehicle_type: string }> }>;
  canSetRotiProductionDate?: boolean;
@@ -65,6 +61,7 @@ export function TransferPanel({
  onCreate,
  onDispatch,
  onComplete,
+ onCancelled,
  loadDrivers,
  loadVehicles,
  canSetRotiProductionDate = false,
@@ -77,6 +74,33 @@ export function TransferPanel({
  const [drivers, setDrivers] = useState<Array<{ id: string; full_name: string }>>([]);
  const [vehicles, setVehicles] = useState<Array<{ id: string; vehicle_type: string }>>([]);
  const [showForm, setShowForm] = useState(false);
+ const attempt = useRef<{ payload: TransferCreateInput; requestId: string } | null>(null);
+ const posting = useRef(false);
+ const [createState, setCreateState] = useState<'idle' | 'posting' | 'retry'>('idle');
+
+ async function saveTransfer(items?: LineItemInput[]) {
+  if (posting.current) return;
+  if (!attempt.current && items) {
+   attempt.current = {
+    requestId: crypto.randomUUID(),
+    payload: { from_location_id: fromId, to_location_id: toId, items,
+     driver_id: driverId || undefined, vehicle_id: vehicleId || undefined, notes: notes || undefined },
+   };
+  }
+  if (!attempt.current) return;
+  posting.current = true;
+  setCreateState('posting');
+  try {
+   if (await onCreate(attempt.current.payload, attempt.current.requestId)) {
+    attempt.current = null;
+    setShowForm(false);
+    setToId('');
+   }
+  } finally {
+   posting.current = false;
+   setCreateState(attempt.current ? 'retry' : 'idle');
+  }
+ }
 
  useEffect(() => {
  setFromId(currentLocationId);
@@ -97,7 +121,7 @@ export function TransferPanel({
  const toLocation = locations.find((l) => l.id === toId);
  const fromLocation = locations.find((l) => l.id === fromId);
  const orderToKiosk = toLocation?.location_type === 'BRANCH_KIOSK';
- const requireRotiProductionDate = canSetRotiProductionDate && orderToKiosk;
+ const requireRotiProductionDate = orderToKiosk && (canSetRotiProductionDate || fromLocation?.location_type === 'BRANCH_KIOSK');
  const usePacks = orderInPacks || fromLocation?.location_type === 'HQ_WAREHOUSE';
 
  const sortedTransfers = useMemo(
@@ -199,7 +223,18 @@ export function TransferPanel({
  <Label>Nota</Label>
  <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
  </div>
- {!showForm ? (
+ {createState === 'retry' ? (
+ <div className="space-y-2">
+ <p className="text-xs text-muted-foreground">Semak senarai pindahan sebelum membuat permintaan baharu.</p>
+ <Button onClick={() => saveTransfer()}>Cuba semula permintaan yang sama</Button>
+ <Button variant="ghost" onClick={() => {
+  attempt.current = null;
+  setCreateState('idle');
+  setShowForm(false);
+  onCancelled();
+ }}>Tutup percubaan</Button>
+ </div>
+ ) : !showForm ? (
  <Button onClick={() => setShowForm(true)} disabled={!toId}>
  Tambah Item Stok
  </Button>) : (
@@ -208,18 +243,7 @@ export function TransferPanel({
  stockItems={stockItems}
  orderInPacks={usePacks}
  requireRotiProductionDate={requireRotiProductionDate}
- onSubmit={async (items) => {
- await onCreate({
- from_location_id: fromId,
- to_location_id: toId,
- items,
- driver_id: driverId || undefined,
- vehicle_id: vehicleId || undefined,
- notes: notes || undefined,
- });
- setShowForm(false);
- setToId('');
- }}
+ onSubmit={saveTransfer}
  />)}
  </div>
 
@@ -257,11 +281,11 @@ export function TransferPanel({
  </li>))}
  </ul>)}
  <div className="mt-2 flex flex-wrap gap-2">
- {t.status === 'PENDING' && (
+ {t.can_dispatch && (
  <Button size="sm" variant="outline" onClick={() => onDispatch(t.id)}>
  Hantar
  </Button>)}
- {t.status === 'IN_TRANSIT' && (
+ {t.can_complete && (
  <Button
  size="sm"
  className="bg-amber-500 hover:bg-amber-600"
@@ -269,7 +293,11 @@ export function TransferPanel({
  >
  Terima di Kiosk
  </Button>)}
+ {t.can_cancel && <TransferCancelButton id={t.id} onCancelled={onCancelled} />}
  </div>
+ {t.cancellation_reason && <p className="text-xs text-muted-foreground">Sebab batal: {t.cancellation_reason}</p>}
+ {t.managed_delivery && t.status === 'IN_TRANSIT' && (
+ <p className="text-xs text-muted-foreground">Penerimaan melalui aliran penghantaran/POS.</p>)}
  {t.stock_transfer_items?.some((i) => i.production_date) && (
  <ul className="mt-2 space-y-0.5 border-t pt-2 text-xs text-muted-foreground">
  {t.stock_transfer_items.filter((i) => i.production_date).map((i, idx) => (

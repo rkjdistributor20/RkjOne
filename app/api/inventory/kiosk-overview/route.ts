@@ -34,7 +34,7 @@ export async function GET(request: Request) {
  scope = await resolveScopedBranches(
  supabase,
  profile,
- requestedBranchId ?? profile.branch_id);
+ requestedBranchId ?? (profile.role === 'AREA_MANAGER' ? null : profile.branch_id));
  } catch (err) {
  return NextResponse.json(
  { error: err instanceof Error ? err.message : 'Forbidden' },

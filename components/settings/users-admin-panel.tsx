@@ -18,6 +18,7 @@ import { LEGAL_ENTITIES } from '@/lib/brand/legal-entities';
 import { ROLE_LABELS, USER_ROLES, type UserRole } from '@/types/enums';
 import { useAuthStore } from '@/stores/auth-store';
 import { LegalEntityLogo } from '@/components/brand/legal-entity-logo';
+import { AmBranchGrantsDialog } from '@/components/settings/am-branch-grants-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -100,6 +101,7 @@ export function UsersAdminPanel({
  const currentProfile = useAuthStore((s) => s.profile);
  const [addOpen, setAddOpen] = useState(false);
  const [editUser, setEditUser] = useState<SettingsUser | null>(null);
+ const [scopeUser, setScopeUser] = useState<SettingsUser | null>(null);
  const [aiLoading, setAiLoading] = useState(false);
  const [bulkAiLoading, setBulkAiLoading] = useState(false);
  const [saving, setSaving] = useState(false);
@@ -445,6 +447,8 @@ export function UsersAdminPanel({
  >
  <Pencil className="h-3.5 w-3.5" />
  </Button>
+ {currentProfile?.role === 'SUPER_ADMIN' && u.role === 'AREA_MANAGER' && u.has_login !== false && !u.id.startsWith('staff:') && (
+ <Button size="sm" variant="outline" className="h-7" onClick={() => setScopeUser(u)}>Cawangan jagaan</Button>)}
  {u.id !== currentProfile?.id &&
  u.has_login !== false &&
  !u.id.startsWith('staff:') && (
@@ -675,5 +679,6 @@ export function UsersAdminPanel({
  </DialogFooter>
  </DialogContent>
  </Dialog>
+ {scopeUser && <AmBranchGrantsDialog key={scopeUser.id} user={scopeUser} branches={allBranches} onClose={() => setScopeUser(null)} />}
  </div>);
 }

@@ -29,7 +29,7 @@ export function needsBranchPicker(profile: Pick<Profile, 'branch_id' | 'role'>):
 
 export async function resolveScopedBranches(
  supabase: SupabaseClient,
- profile: Pick<Profile, 'organization_id' | 'role' | 'region_id' | 'branch_id'>,
+ profile: Pick<Profile, 'id' | 'organization_id' | 'role' | 'region_id' | 'branch_id'>,
  requestedBranchId?: string | null): Promise<ScopedBranchFilter> {
  if (HQ_ROLES.has(profile.role)) {
  if (requestedBranchId) {
@@ -53,13 +53,17 @@ export async function resolveScopedBranches(
  }
 
  if (isAreaManager(profile.role)) {
- if (!profile.region_id) {
- throw new Error('Akaun Area Manager tiada region_id - hubungi admin HQ');
+ const { data: grants, error: grantError } = await supabase
+  .from('profile_branch_access').select('branch_id').eq('profile_id', profile.id);
+ if (grantError) throw new Error('Skop cawangan AM tidak dapat disahkan');
+ const ids = [...new Set((grants ?? []).map((grant) => String(grant.branch_id)))];
+ let allowed: string[] = [];
+ if (ids.length) {
+  const { data: branches, error } = await supabase.from('branches').select('id')
+   .eq('organization_id', profile.organization_id).in('id', ids);
+  if (error) throw new Error('Skop organisasi AM tidak dapat disahkan');
+  allowed = (branches ?? []).map((branch) => String(branch.id));
  }
-
- const { data: regionBranches } = await supabase.from('branches').select('id').eq('organization_id', profile.organization_id).eq('region_id', profile.region_id);
-
- const allowed = (regionBranches ?? []).map((b) => b.id);
 
  if (requestedBranchId) {
  if (!allowed.includes(requestedBranchId)) {

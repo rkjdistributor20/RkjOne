@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
  Package,
@@ -14,7 +14,6 @@ import {
  fetchLocations,
  fetchStockItems,
  fetchBalances,
- fetchMovements,
  fetchTransfers,
  receiveStock,
  createTransfer,
@@ -27,16 +26,15 @@ import {
  fetchVehicles,
 } from '@/lib/inventory/api';
 import type {
+ AdjustmentItemInput,
  InventoryBalanceRow,
  InventoryLocation,
  LineItemInput,
  StockItemOption,
- StockMovementRow,
  StockTransferRow,
 } from '@/lib/inventory/types';
 import { LOCATION_TYPE_LABELS } from '@/lib/inventory/types';
 import { useAuthStore } from '@/stores/auth-store';
-import { needsBranchPicker } from '@/lib/auth/branch-scope';
 import {
  getInventoryStockUiAccess,
  canSetRotiProductionDate,
@@ -48,13 +46,15 @@ import { BranchScopeSelect } from '@/components/shared/branch-scope-select';
 import { KioskOverviewPanel } from '@/components/inventory/kiosk-overview-panel';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BalanceTable } from '@/components/inventory/balance-table';
-import { MovementList } from '@/components/inventory/movement-list';
+import { AmMovementHistory } from '@/components/inventory/movement-list';
 import { StockLineForm } from '@/components/inventory/stock-line-form';
 import { TransferPanel } from '@/components/inventory/transfer-panel';
 import { AreaManagerInventoryShell } from '@/components/inventory/area-manager-inventory-shell';
+import { AmCountReviewPanel } from '@/components/inventory/am-count-review-panel';
 import {
  ModuleLayout,
  ModuleHeader,
@@ -83,7 +83,6 @@ export function AreaManagerInventoryDashboard({
 }: AreaManagerInventoryDashboardProps) {
  const clientProfile = useAuthStore((s) => s.profile);
  const profile = clientProfile ?? serverProfile;
- const showBranchPicker = profile ? needsBranchPicker(profile) : false;
  const canCrossBranchTransfer = profile
  ? canAccessBranchKioskTransferTab(profile.role)
  : false;
@@ -94,21 +93,31 @@ export function AreaManagerInventoryDashboard({
  serverProfile.branch_id ?? '');
  const [stockItems, setStockItems] = useState<StockItemOption[]>([]);
  const [balances, setBalances] = useState<InventoryBalanceRow[]>([]);
- const [movements, setMovements] = useState<StockMovementRow[]>([]);
  const [transfers, setTransfers] = useState<StockTransferRow[]>([]);
  const [loading, setLoading] = useState(true);
+ const [loadedLocationId, setLoadedLocationId] = useState('');
+ const [reloadKey, setReloadKey] = useState(0);
+ const dataRequest = useRef(0);
+ const locationsRequest = useRef(0);
  const [locationsLoading, setLocationsLoading] = useState(true);
  const [activeTab, setActiveTab] = useState('balances');
  const [dashboardView, setDashboardView] = useState<'location' | 'branch-transfer'>('location');
 
- const branchId = showBranchPicker
- ? selectedBranchId || undefined
- : profile?.branch_id ?? undefined;
+ const branchId = selectedBranchId || undefined;
+ const selectBranch = useCallback((id: string) => {
+ setSelectedBranchId(id);
+ setSelectedLocationId('');
+ }, []);
+ const reload = () => setReloadKey((key) => key + 1);
+ const selectedLocation = locations.find((l) => l.id === selectedLocationId && l.branch_id === branchId);
+ const detailLocationId = selectedLocation?.id;
 
  const loadLocations = useCallback(async () => {
+ const requestId = ++locationsRequest.current;
  setLocationsLoading(true);
  try {
  const { locations: locs } = await fetchLocations('BRANCH_KIOSK', branchId);
+ if (locationsRequest.current !== requestId) return;
  const kioskLocs = locs.filter((l) => l.location_type === 'BRANCH_KIOSK');
  setLocations(kioskLocs);
  setSelectedLocationId((prev) => {
@@ -120,40 +129,37 @@ export function AreaManagerInventoryDashboard({
  return '';
  });
  } catch (err) {
+ if (locationsRequest.current !== requestId) return;
  toast.error(err instanceof Error ? err.message : 'Gagal memuatkan lokasi');
  setLocations([]);
  setSelectedLocationId('');
  } finally {
- setLocationsLoading(false);
+ if (locationsRequest.current === requestId) setLocationsLoading(false);
  }
  }, [branchId]);
 
  const loadData = useCallback(async () => {
- if (!selectedLocationId || dashboardView !== 'location') {
- if (dashboardView !== 'location') {
- setBalances([]);
- setMovements([]);
- setTransfers([]);
- }
- setLoading(false);
- return;
- }
+ const requestId = ++dataRequest.current;
+ if (!detailLocationId || dashboardView !== 'location') return;
  setLoading(true);
  try {
- const [bal, mov, trf] = await Promise.all([
- fetchBalances(selectedLocationId),
- fetchMovements(selectedLocationId),
- fetchTransfers(selectedLocationId),
+ const [bal, trf] = await Promise.all([
+ fetchBalances(detailLocationId),
+ fetchTransfers(detailLocationId).catch(() => null),
  ]);
+ if (dataRequest.current !== requestId) return;
  setBalances(bal.balances);
- setMovements(mov.movements);
- setTransfers(trf.transfers);
+ setTransfers(trf?.transfers ?? []);
+ if (!trf) toast.error('Senarai pindahan gagal dimuatkan');
+ setLoadedLocationId(detailLocationId);
  } catch (err) {
+ if (dataRequest.current !== requestId) return;
  toast.error(err instanceof Error ? err.message : 'Gagal memuatkan inventori');
+ setLoadedLocationId('');
  } finally {
- setLoading(false);
+ if (dataRequest.current === requestId) setLoading(false);
  }
- }, [selectedLocationId, dashboardView]);
+ }, [detailLocationId, dashboardView]);
 
  useEffect(() => {
  fetchStockItems({ hq: true }).then(({ items }) => setStockItems(items)).catch(() => toast.error('Gagal memuatkan senarai stok'));
@@ -172,9 +178,8 @@ export function AreaManagerInventoryDashboard({
 
  useEffect(() => {
  loadData();
- }, [loadData]);
+ }, [loadData, reloadKey]);
 
- const selectedLocation = locations.find((l) => l.id === selectedLocationId);
  const kioskLocations = locations.filter((l) => l.location_type === 'BRANCH_KIOSK');
  const branchChosen = Boolean(selectedBranchId);
 
@@ -208,26 +213,18 @@ export function AreaManagerInventoryDashboard({
  setActiveTab('balances');
  }
 
- async function handleReceive(items: LineItemInput[], notes?: string) {
- try {
- await receiveStock(selectedLocationId, items, 'HQ_WAREHOUSE', notes);
- toast.success('Stok diterima');
- loadData();
- } catch (err) {
- toast.error(err instanceof Error ? err.message : 'Gagal menerima stok');
- }
+ async function handleReceive(items: LineItemInput[], meta?: { source?: string; notes?: string; documentReference?: string }) {
+ await receiveStock(selectedLocationId, items, meta?.source, meta?.notes, meta?.documentReference);
+ toast.success('Penerimaan stok direkod terus');
+ reload();
  }
 
  async function handleAdjustment(
  reason: string,
- items: Array<{ stock_item_id: string; quantity_after: number }>) {
- try {
+ items: AdjustmentItemInput[]) {
  await submitAdjustment(selectedLocationId, reason, items);
- toast.success('Pelarasan dihantar');
- loadData();
- } catch (err) {
- toast.error(err instanceof Error ? err.message : 'Gagal hantar pelarasan');
- }
+ toast.success('Pelarasan stok dipos');
+ reload();
  }
 
  async function handleCount(
@@ -272,7 +269,10 @@ export function AreaManagerInventoryDashboard({
  <>
  <Card>
  <CardHeader className="pb-2">
+ <div className="flex flex-wrap items-center justify-between gap-2">
  <CardTitle className="text-base">{formatLocationLabel(selectedLocation)}</CardTitle>
+ <Button type="button" size="sm" variant="outline" onClick={reload} disabled={loading}>Muat semula baki</Button>
+ </div>
  </CardHeader>
  <CardContent className="space-y-2 text-sm text-muted-foreground">
  <p>
@@ -280,9 +280,9 @@ export function AreaManagerInventoryDashboard({
  {selectedLocation.branch?.branch_name &&
  ` - ${selectedLocation.branch.branch_code} - ${selectedLocation.branch.branch_name}`}
  </p>
- {stockAccess?.readOnlyHint && (
+ {isKioskView && (
  <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-950">
- {stockAccess.readOnlyHint}
+ Stok sumber luar boleh direkod terus. Untuk stok pindahan, gunakan tab Pindah atau rekod penghantaran berpaut.
  </p>)}
  {isKioskView && pendingInbound > 0 && (
  <p className="rounded-md border border-violet-300 bg-violet-50 px-3 py-2 text-sm font-medium text-violet-950">
@@ -300,7 +300,9 @@ export function AreaManagerInventoryDashboard({
  </Card>
 
  {loading ? (
- <Skeleton className="h-64 w-full" />) : (
+ <Skeleton className="h-64 w-full" />) : loadedLocationId !== selectedLocationId ? (
+ <button type="button" className="text-sm underline" onClick={() => void loadData()}>Cuba muatkan inventori semula</button>
+ ) : (
  <Tabs
  key={selectedLocationId}
  value={activeTab}
@@ -314,7 +316,7 @@ export function AreaManagerInventoryDashboard({
  <TabsTrigger value="movements" className={moduleTabsTriggerClass}>
  <History className="h-4 w-4" /> Pergerakan
  </TabsTrigger>
- {stockAccess?.canReceive && (
+ {isKioskView && (
  <TabsTrigger value="receive" className={moduleTabsTriggerClass}>
  <Plus className="h-4 w-4" /> Terima
  </TabsTrigger>)}
@@ -330,6 +332,9 @@ export function AreaManagerInventoryDashboard({
  <TabsTrigger value="count" className={moduleTabsTriggerClass}>
  <ClipboardList className="h-4 w-4" /> Kira
  </TabsTrigger>)}
+ {isKioskView && <TabsTrigger value="review-counts" className={moduleTabsTriggerClass}>
+ <ClipboardList className="h-4 w-4" /> Semak Kiraan
+ </TabsTrigger>}
  {stockAccess?.canWriteOff && (
  <TabsTrigger value="writeoff" className={moduleTabsTriggerClass}>
  <Trash2 className="h-4 w-4" /> Lupus
@@ -346,13 +351,15 @@ export function AreaManagerInventoryDashboard({
  />) : (
  <BalanceTable balances={balances} showPackConversion groupByCategory />))}
 
- {activeTab === 'movements' && <MovementList movements={movements} />}
+ {activeTab === 'movements' && <AmMovementHistory locationId={selectedLocationId} />}
 
- {activeTab === 'receive' && stockAccess?.canReceive && (
+ {activeTab === 'receive' && isKioskView && (
  <StockLineForm
  mode="receive"
  stockItems={stockItems}
- onSubmit={(items, meta) => handleReceive(items, meta?.notes)}
+ manualReceipt
+ requireRotiProductionDate
+ onSubmit={handleReceive}
  />)}
 
  {activeTab === 'transfer' && stockAccess?.canTransfer && (
@@ -362,13 +369,16 @@ export function AreaManagerInventoryDashboard({
  stockItems={stockItems}
  transfers={transfers}
  currentLocationId={selectedLocationId}
- onCreate={async (payload) => {
+ onCancelled={loadData}
+ onCreate={async (payload, requestId) => {
  try {
- await createTransfer(payload);
+ await createTransfer(payload, requestId);
  toast.success('Pindahan dicipta');
  loadData();
+ return true;
  } catch (err) {
  toast.error(err instanceof Error ? err.message : 'Gagal cipta pindahan');
+ return false;
  }
  }}
  onDispatch={async (id) => {
@@ -399,8 +409,12 @@ export function AreaManagerInventoryDashboard({
  mode="adjust"
  stockItems={stockItems}
  balances={balances}
+ directAdjustment
  onSubmitAdjust={handleAdjustment}
  />)}
+
+ {activeTab === 'review-counts' && isKioskView && (
+ <AmCountReviewPanel locationId={selectedLocationId} onReviewed={reload} />)}
 
  {activeTab === 'count' && stockAccess?.canCount && (
  <StockLineForm
@@ -424,16 +438,12 @@ export function AreaManagerInventoryDashboard({
  function renderLocationPanel() {
  return (
  <>
- {showBranchPicker && (
  <BranchScopeSelect
  value={selectedBranchId}
- onChange={(id) => {
- setSelectedBranchId(id);
- setSelectedLocationId('');
- }}
+ onChange={selectBranch}
  allowAll
  allLabel="Semua kiosk kawasan saya"
- />)}
+ />
 
  {!branchChosen ? (
  <div className="space-y-4">

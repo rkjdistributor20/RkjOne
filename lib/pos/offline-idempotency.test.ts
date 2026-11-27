@@ -36,7 +36,8 @@ describe('offline POS replay safety', () => {
  });
 
  it('keeps the original offline id attached to every sync retry', () => {
-  expect(syncRoute).toContain('p_offline_id: sale.offlineId');
+  expect(syncRoute).toContain('process_registered_pos_cash_sale');
+  expect(syncRoute).toContain('offline_id: sale.offlineId');
   expect(syncRoute).toContain('synced.push(offlineId)');
  });
 

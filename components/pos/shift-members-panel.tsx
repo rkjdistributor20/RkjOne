@@ -350,9 +350,10 @@ export function ShiftMembersPanel() {
             </Button>
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            Hanya staf aktif yang ditetapkan di cawangan ini boleh direkod. Jika dibuat oleh staf biasa, rekod akan menunggu kelulusan AM/ke atas sebelum sah dalam POS.
+            Staf aktif boleh merekod diri sendiri tanpa kelulusan. Permohonan bagi staf lain masih perlu disahkan oleh pengurus.
           </p>
-          {profile && currentStaffRecord && !currentUserRegistered && (
+          {profile && currentStaffRecord && (!currentUserRegistered ||
+            (profile.role === 'STAFF' && pendingMembers.some((member) => member.profile_id === profile.id))) && (
             <Button
               type="button"
               variant="secondary"
@@ -475,7 +476,7 @@ export function ShiftMembersPanel() {
             ))
           ) : (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
-              Tiada staf rasmi aktif dalam syif. Rekod staf cawangan dan dapatkan kelulusan AM/ke atas supaya masa kerja dan payroll tepat.
+              Tiada staf rasmi aktif dalam syif. Staf berdaftar boleh merekod diri mula bertugas pada tablet ini.
             </div>
           )}
         </div>

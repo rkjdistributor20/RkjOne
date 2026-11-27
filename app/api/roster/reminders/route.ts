@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getCurrentProfile } from '@/lib/auth/session';
-import { resolveScopedBranches } from '@/lib/auth/branch-scope';
+import { rosterErrorResponse, rosterScope } from '@/lib/roster/server';
 import {
  getRosterStatusForBranches,
  syncRosterReminders,
@@ -15,20 +15,13 @@ export async function POST() {
  return NextResponse.json({ ok: true, sent: 0 });
  }
 
- const supabase = await createClient();
- const scope = await resolveScopedBranches(supabase, profile);
- const branchIds = scope.branchIds ?? [];
-
- const statuses = await getRosterStatusForBranches(
- supabase,
- profile.organization_id,
- branchIds);
-
- const result = await syncRosterReminders(
- supabase,
- profile.organization_id,
- profile.id,
- statuses);
-
- return NextResponse.json(result);
+ try {
+  const supabase = await createClient();
+  const branchIds = await rosterScope(supabase, profile);
+  const statuses = await getRosterStatusForBranches(supabase, profile.organization_id, branchIds ?? []);
+  const result = await syncRosterReminders(supabase, profile.organization_id, profile.id, statuses);
+  return NextResponse.json(result);
+ } catch (error) {
+  return rosterErrorResponse(error);
+ }
 }

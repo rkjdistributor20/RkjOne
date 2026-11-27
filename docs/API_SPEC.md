@@ -1,5 +1,20 @@
 # RKJ One API Spec
 
+## Area Manager branch grants and POS staffing
+
+- `GET/PATCH /api/settings/users/:id/area-branches`: tenant Super Admin only.
+  PATCH replaces the complete UUID list atomically. Empty means no access; the old
+  region label does not grant additional branches. DB checks branch tenant and
+  status and audits the before/after lists.
+- `POST /api/pos/shift` and self-join through `POST /api/pos/shift-members`:
+  a registered active cashier must match their own branch, active staff record
+  and officially enrolled device. Approved roster status is not required for
+  ordinary staff. Missing/out-of-window schedules are audited and notified to
+  the assigned AM. The endpoints do not rewrite a closed shift or attendance.
+- AM operational report and export paths enforce current branch grants; the
+  stock and transfer routes enforce branch rights by posting side. Online
+  manual QR and offline cash post through separate registered-device RPCs.
+
 `GET /api/pos/shift-members` reads the open shift under the existing auth and
 branch guard. The response includes `viewerProfileId` for the authenticated
 session and uses `Cache-Control: private, no-store`. The POS client rejects a

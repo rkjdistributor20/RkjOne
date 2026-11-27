@@ -4,6 +4,16 @@ Last updated: 2026-11-04
 
 Status key: `Todo`, `In Progress`, `Review`, `Blocked`, `Done`.
 
+## AM operations matrix
+
+- Admin sets exact branch grants; pinned existing Admin-selected territories are
+  only a migration starting point. Role changes clear AM scope.
+- Scoped stock receipts, audit adjustments, count/recount decisions and
+  source/destination-owned transfers. Linked fleet deliveries keep the existing path.
+- Weekly planned vs actual shifts, branch/MYT sales, stock history and CSV.
+  Verified staff self-start does not require AM approval. No new payment
+  refund, VOID or financial configuration permissions.
+
 ## POS closure without blocking on detached QR
 
 - Pending manual QR that is already linked to its sale can follow the shift into review. The closure snapshot records unverified QR separately without altering counted cash. Only the enrolled production fleet is eligible for the expansion migration.
