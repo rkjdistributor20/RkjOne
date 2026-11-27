@@ -13,7 +13,7 @@ CREATE TYPE public.stock_unit AS ENUM ('PCS','GRAM','BAG');
 CREATE TYPE public.movement_type AS ENUM ('RECEIVE','ADJUSTMENT','COUNT','TRANSFER_IN','TRANSFER_OUT','SALE_DEDUCT','WRITE_OFF');
 CREATE TYPE public.approval_status AS ENUM ('PENDING','APPROVED','REJECTED');
 CREATE TYPE public.transfer_status AS ENUM ('DRAFT','COMPLETED');
-CREATE TYPE public.approval_entity_type AS ENUM ('STOCK_TRANSFER','STOCK_ADJUSTMENT','SHIFT');
+CREATE TYPE public.approval_entity_type AS ENUM ('STOCK_TRANSFER','STOCK_ADJUSTMENT','SHIFT','POS_SHIFT_STAFF');
 CREATE TYPE public.notification_type AS ENUM ('PENDING_APPROVAL');
 CREATE TABLE public.organizations(id uuid PRIMARY KEY);
 CREATE TABLE public.regions(id uuid PRIMARY KEY);
@@ -77,7 +77,7 @@ DECLARE
  l uuid := gen_random_uuid(); outside_loc uuid := gen_random_uuid(); foreign_loc uuid := gen_random_uuid();
  wh uuid := gen_random_uuid();
  i uuid := gen_random_uuid(); roti uuid := gen_random_uuid(); foreign_item uuid := gen_random_uuid();
- c uuid; c_old uuid; c_new uuid; req uuid; receipt uuid; adj uuid;
+ c uuid; c_old uuid; c_new uuid; req uuid; fixture_req uuid; outside_req uuid; receipt uuid; adj uuid;
  lines jsonb; audit jsonb;
 BEGIN
  INSERT INTO organizations VALUES (o),(outside_org);
@@ -90,6 +90,10 @@ BEGIN
  INSERT INTO stock_items VALUES (i,o,'PCS','Fixture item'),(roti,o,'PCS','Roti test'),(foreign_item,outside_org,'PCS','Foreign');
  INSERT INTO stock_transfers(organization_id,transfer_number,from_location_id,to_location_id)
  VALUES(o,'TRANSFER-01',wh,l);
+ INSERT INTO approval_requests(organization_id,entity_type,entity_id,title,status,requested_by,branch_id)
+ VALUES (o,'SHIFT',gen_random_uuid(),'In scope fixture','PENDING',staff,b) RETURNING id INTO fixture_req;
+ INSERT INTO approval_requests(organization_id,entity_type,entity_id,title,status,requested_by,branch_id)
+ VALUES (o,'SHIFT',gen_random_uuid(),'Out of scope fixture','PENDING',staff,outside_branch) RETURNING id INTO outside_req;
  lines := jsonb_build_array(jsonb_build_object('stock_item_id',i,'quantity',10,'unit','PCS'));
  PERFORM set_config('request.jwt.claim.sub',am::text,true);
  SET LOCAL ROLE authenticated;
@@ -105,9 +109,13 @@ BEGIN
   PERFORM get_roti_expiry_summary(outside_loc);
   RAISE EXCEPTION 'Expiry RPC leaked another kiosk';
  EXCEPTION WHEN insufficient_privilege THEN NULL; END;
- IF (resolve_approval_request(gen_random_uuid(),'APPROVE')->>'delegated') IS DISTINCT FROM 'true' THEN
+ IF (resolve_approval_request(fixture_req,'APPROVE')->>'delegated') IS DISTINCT FROM 'true' THEN
   RAISE EXCEPTION 'Non-stock approval did not delegate to the legacy implementation';
  END IF;
+ BEGIN
+  PERFORM resolve_approval_request(outside_req,'APPROVE');
+  RAISE SQLSTATE 'XX000' USING MESSAGE='Out-of-scope AM approval delegated to legacy resolver';
+ EXCEPTION WHEN insufficient_privilege THEN NULL; END;
  BEGIN
   PERFORM receive_stock_before_am_stock(l,lines,'Supplier test',NULL);
   RAISE EXCEPTION 'Unwrapped receipt is callable';
