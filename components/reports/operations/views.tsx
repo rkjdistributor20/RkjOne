@@ -6,7 +6,7 @@ import type { MouseEvent, ReactNode } from 'react';
 import { KpiCard, KpiGrid } from '@/components/shared/module-ui';
 import { Button } from '@/components/ui/button';
 import type { OperationsReportResponse, OperationsReportRow, OperationsReportTotals } from '@/lib/reports/operations-types';
-import type { View } from './model';
+import { reportCashierLabel, type View } from './model';
 import { count, RM, statusLabel, subtextClass, time, type Column } from './report-ui';
 
 type Row = OperationsReportRow;
@@ -26,7 +26,7 @@ const linkStyle = 'cursor-pointer rounded text-left font-semibold text-foregroun
 const dayLabel = (value?: string | null) => value?.replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$3/$2/$1') || '—';
 const sortBranch = (r: Row) => r.branch_name || r.branch_code;
 const shiftLabel = (r: Row) => r.shift_number || (r.shift_id ? 'Syif tanpa nombor' : 'Syif belum dipadankan');
-const staffLabel = (r: Row) => r.cashier_name || (r.cashier_id ? 'Nama staf belum direkod' : 'Staf belum dipadankan');
+const staffLabel = reportCashierLabel;
 const branchLabel = (r: Row) => r.branch_name || r.branch_code || 'Cawangan belum dikenal pasti';
 
 function openRow(label: string, hint: string, row: Row, action?: RowAction) {
@@ -173,7 +173,8 @@ function ActionCell({ row, actions }: { row: Row; actions: RowActions }) {
   {payment && (actions.allowFinanceReview
    ? <p className={muted}><Link className={linkStyle} href="/finance">Kewangan</Link>: buka Semakan Fiuu VT atau QR Manual dan padankan rujukan asal.</p>
    : <p className={muted}>Rujuk Kewangan dengan rujukan, amaun dan syif asal. Jangan caj semula.</p>)}
-  {(shift || cash) && <p className={muted}>Semak rekod POS{row.shift_number ? ` untuk syif ${row.shift_number}` : ' cawangan'}; jangan guna tunai dijangka sebagai kiraan fizikal.</p>}
+  {(shift || cash) && <p className={muted}>Semak rekod POS{row.shift_number ? ` untuk syif ${row.shift_number}` : ' cawangan'}.
+   {cash && ' Jangan guna tunai dijangka sebagai kiraan fizikal.'}</p>}
   {cash && <CashDetails row={row} />}
  </div>;
 }

@@ -1,6 +1,6 @@
 import { reportTime } from '@/lib/reports/filters';
 import { operationsReportUrl } from '@/lib/reports/operations-api';
-import type { OperationsReportData, OperationsReportView } from '@/lib/reports/operations-types';
+import type { OperationsReportData, OperationsReportRow, OperationsReportView } from '@/lib/reports/operations-types';
 
 export const TABS = [
  ['summary', 'Ringkasan'],
@@ -34,6 +34,15 @@ export const CASE_TYPES = [
 ] as const;
 export type CaseType = (typeof CASE_TYPES)[number][0] | '';
 export type WorkspaceSelection = { tab: Tab; filters: Filters; caseType: CaseType };
+
+export function reportCashierLabel(row: Pick<OperationsReportRow, 'cashier_name' | 'cashier_id' | 'shift_id' | 'sales_count'>) {
+ if (row.cashier_name) return row.cashier_name;
+ if (row.cashier_id) return 'Nama staf belum direkod';
+ // Open/close cases can contribute a shift-level row even if the original
+ // sales in that same shift all already have a valid cashier.
+ if (row.shift_id && (row.sales_count ?? 0) === 0) return 'Rekod syif sahaja';
+ return 'Staf belum dipadankan';
+}
 
 export const PRESETS = [
  ['today', 'Hari ini'],

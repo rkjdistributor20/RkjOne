@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { reportTime } from '@/lib/reports/filters';
-import { dateRangeError, PAGE_SIZE, presetRange, readSelection, reportUrl, workspaceUrl } from './model';
+import { dateRangeError, PAGE_SIZE, presetRange, readSelection, reportCashierLabel, reportUrl, workspaceUrl } from './model';
 
 const TODAY = '2026-11-28';
 const BRANCH = '00000000-0000-4000-8000-000000000001';
@@ -10,6 +10,12 @@ const TRANSACTION = '00000000-0000-4000-8000-000000000004';
 const params = (url: string) => new URL(url, 'http://localhost').searchParams;
 
 describe('operational report selection', () => {
+ it('distinguishes a shift-only row from an actually unattributed transaction', () => {
+  expect(reportCashierLabel({ shift_id: BRANCH, sales_count: 0 })).toBe('Rekod syif sahaja');
+  expect(reportCashierLabel({ shift_id: BRANCH, sales_count: 1 })).toBe('Staf belum dipadankan');
+  expect(reportCashierLabel({ shift_id: BRANCH, cashier_id: STAFF })).toBe('Nama staf belum direkod');
+  expect(reportCashierLabel({ shift_id: BRANCH, cashier_id: STAFF, cashier_name: 'Aisyah' })).toBe('Aisyah');
+ });
  it('uses MYT across midnight and a Monday-based week', () => {
   const mytDay = reportTime('2026-11-30T16:00:00Z').slice(0, 10);
   expect(presetRange('today', mytDay)).toEqual({ from: '2026-12-01', to: '2026-12-01' });
