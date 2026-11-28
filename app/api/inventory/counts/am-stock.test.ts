@@ -137,7 +137,7 @@ describe('AM stock scope', () => {
 
  it('reports a stale count as a conflict and leaves rejection/recount explicit', async () => {
   const error = 'Snapshot kiraan lapuk. Tolak dan minta staf kira semula.';
-  mocks.rpc.mockResolvedValue({ data: null, error: { code: '40001', message: error } });
+  mocks.rpc.mockResolvedValue({ data: null, error: { code: 'PT409', message: error } });
   const response = await review(request('PATCH', { count_id: COUNT, action: 'APPROVE' }));
   expect(response.status).toBe(409);
   await expect(response.json()).resolves.toEqual({ error });

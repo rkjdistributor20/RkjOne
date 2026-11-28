@@ -185,6 +185,7 @@ export function PosTerminal({ webCommit, draftRecoveryBranches }: {
  const trainingMode = deviceContext?.mode === 'TRAINING';
  const productionDevice = deviceContext?.device ?? null;
  const productionDeviceId = productionDevice?.id ?? null;
+ const deviceEnrollmentGeneration = productionDevice?.enrollmentGeneration;
  const showBranchPicker = profile ? needsBranchPicker(profile) && !productionDevice : false;
  const showRejectTab = profile ? canUsePosRejectStock(profile.role) : false;
  const canViewFullHistory = canViewFullPosHistory(profile?.role);
@@ -437,6 +438,42 @@ export function PosTerminal({ webCommit, draftRecoveryBranches }: {
   })();
   return () => { cancelled = true; };
  }, [productionDeviceId]);
+
+ useEffect(() => {
+  if (trainingMode || !productionDeviceId || !/^[0-9a-f]{40}$/i.test(webCommit)) return;
+
+  const controller = new AbortController();
+  let inFlight = false;
+  let reported = false;
+  async function reportWebBuild() {
+   if (reported || inFlight || !navigator.onLine) return;
+   inFlight = true;
+   try {
+    // Report this rendered page, not the server's current release. Do not use
+    // the JSON client here: a telemetry 401 must not navigate away from POS.
+    const response = await fetch('/api/pos/device', {
+     method: 'PUT',
+     credentials: 'same-origin',
+     redirect: 'error',
+     headers: { 'Content-Type': 'application/json' },
+     body: JSON.stringify({ web_commit_sha: webCommit }),
+     signal: controller.signal,
+    });
+    reported = response.ok;
+   } catch {
+    // Best effort; retry on reconnect without using the offline sales queue.
+   } finally {
+    inFlight = false;
+   }
+  }
+
+  window.addEventListener('online', reportWebBuild);
+  void reportWebBuild();
+  return () => {
+   window.removeEventListener('online', reportWebBuild);
+   controller.abort();
+  };
+ }, [trainingMode, productionDeviceId, deviceEnrollmentGeneration, webCommit]);
 
  async function clearOldDeviceRegistration() {
   try {

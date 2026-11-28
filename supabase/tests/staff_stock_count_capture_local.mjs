@@ -27,6 +27,12 @@ try {
   `);
   await db.exec(read('../migrations/20261127220000_am_scoped_stock_posting_and_count_review.sql'));
   await db.exec(read('../migrations/20261127222531_staff_stock_count_capture.sql'));
+  await db.exec(read('../migrations/20261128112500_stop_stock_count_conflict_retries.sql'));
+  const { rows } = await db.query(
+    `SELECT pg_get_functiondef('public.review_stock_count(uuid,text,text)'::regprocedure) AS definition`);
+  if (!rows[0]?.definition.includes('FOR UPDATE;') || rows[0].definition.includes("ERRCODE = '40001'")) {
+    throw new Error('Stock count decision must retain its lock and not retry a deterministic conflict');
+  }
   await db.exec(read('./staff_stock_count_capture_local.sql'));
   console.log('Staff stock count capture database fixture passed');
 } catch (error) {

@@ -89,13 +89,13 @@ BEGIN
  BEGIN
   PERFORM approve_stock_count(old_pending);
   RAISE SQLSTATE 'XX000' USING MESSAGE = 'Legacy pending stock count could overwrite the live balance';
- EXCEPTION WHEN serialization_failure THEN NULL; END;
+ EXCEPTION WHEN SQLSTATE 'PT409' THEN NULL; END;
  PERFORM review_stock_count(old_pending,'REJECT','Kira semula dengan snapshot sah');
  PERFORM approve_stock_count(c);
  BEGIN
   PERFORM approve_stock_count(c);
   RAISE SQLSTATE 'XX000' USING MESSAGE = 'Repeated approval posted stock again';
- EXCEPTION WHEN serialization_failure THEN NULL; END;
+ EXCEPTION WHEN SQLSTATE 'PT409' THEN NULL; END;
  RESET ROLE;
  SELECT new_values INTO a FROM audit_logs WHERE action='STOCK_COUNT_APPROVE' AND entity_id=c;
  IF (SELECT quantity FROM inventory_balances WHERE location_id=l AND stock_item_id=sku) IS DISTINCT FROM 20::numeric
@@ -148,7 +148,7 @@ BEGIN
  BEGIN
   PERFORM approve_stock_count(older);
   RAISE SQLSTATE 'XX000' USING MESSAGE = 'Older pending observation was approved over a newer pending one';
- EXCEPTION WHEN serialization_failure THEN NULL; END;
+ EXCEPTION WHEN SQLSTATE 'PT409' THEN NULL; END;
  PERFORM approve_stock_count(replacement);
  IF EXISTS (SELECT 1 FROM stock_movements WHERE reference_id=replacement) THEN
   RAISE EXCEPTION 'Expected no movement for the exact zero-delta correction';
@@ -156,7 +156,7 @@ BEGIN
  BEGIN
   PERFORM approve_stock_count(older);
   RAISE SQLSTATE 'XX000' USING MESSAGE = 'Older observation approved after zero-delta newer approval';
- EXCEPTION WHEN serialization_failure THEN NULL; END;
+ EXCEPTION WHEN SQLSTATE 'PT409' THEN NULL; END;
  PERFORM review_stock_count(older,'REJECT','Snapshot lapuk');
 
  -- The approval version, not snapshot timestamp ordering, catches an older

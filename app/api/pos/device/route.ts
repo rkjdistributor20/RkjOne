@@ -186,6 +186,7 @@ export async function DELETE() {
 }
 
 export async function PUT(request: Request) {
+  const receivedAt = new Date().toISOString();
   const profile = await getCurrentProfile();
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -194,43 +195,71 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: 'Tablet POS rasmi diperlukan.' }, { status: 403 });
   }
 
-  const body = await request.json().catch(() => ({}));
+  const payload: unknown = await request.json().catch(() => null);
+  const body = payload && typeof payload === 'object' && !Array.isArray(payload)
+    ? payload as Record<string, unknown>
+    : {};
   const hasManagementStatus = Object.prototype.hasOwnProperty.call(body, 'status');
   const hasFiuuVtStatus = Object.prototype.hasOwnProperty.call(body, 'fiuu_vt_status');
-  if (!hasManagementStatus && !hasFiuuVtStatus) {
+  const hasWebCommit = Object.prototype.hasOwnProperty.call(body, 'web_commit_sha');
+  const commitSha = body.web_commit_sha;
+  if (hasWebCommit && (typeof commitSha !== 'string' || !/^[0-9a-f]{40}$/i.test(commitSha))) {
+    return NextResponse.json({ error: 'Commit web POS tidak sah.' }, { status: 400 });
+  }
+  if (!hasManagementStatus && !hasFiuuVtStatus && !hasWebCommit) {
     return NextResponse.json({ error: 'Status tablet diperlukan.' }, { status: 400 });
   }
+
+  const { id, branchId, enrollmentGeneration } = context.device;
   const admin = createAdminClient();
-  const { data: current, error: currentError } = await (admin as any)
-    .from('pos_devices')
-    .select('metadata')
-    .eq('id', context.device.id)
-    .eq('organization_id', profile.organization_id)
-    .maybeSingle();
-  if (currentError || !current) {
-    return NextResponse.json({ error: 'Status tablet sedia ada tidak dapat dibaca.' }, { status: 400 });
+  // Retry against a fresh snapshot if another writer changed the row. A
+  // legacy native/Fiuu payload must not clobber a concurrent web report, or vice versa.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const { data: current, error: currentError } = await (admin as any)
+      .from('pos_devices')
+      .select('metadata, updated_at')
+      .eq('id', id)
+      .eq('organization_id', profile.organization_id)
+      .eq('branch_id', branchId)
+      .eq('status', 'ACTIVE')
+      .eq('enrollment_generation', enrollmentGeneration)
+      .maybeSingle();
+    const metadata = current?.metadata;
+    if (currentError || !metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+      return NextResponse.json({ error: 'Status tablet sedia ada tidak dapat dibaca.' }, { status: 400 });
+    }
+    const management = hasManagementStatus
+      ? normalizeManagementStatus(body.status)
+      : (metadata as { device_management?: PosDeviceManagementStatus }).device_management ?? null;
+    const fiuuVt = hasFiuuVtStatus
+      ? normalizeFiuuVtStatus(body.fiuu_vt_status)
+      : (metadata as { fiuu_vt_app?: PosFiuuVtAppStatus }).fiuu_vt_app ?? null;
+    const now = Date.now();
+    // Ensure the compare-and-swap value changes even within the same millisecond.
+    const updatedAt = new Date(Math.max(now, Date.parse(current.updated_at) + 1)).toISOString();
+    const { data: updated, error } = await (admin as any)
+      .from('pos_devices')
+      .update({
+        metadata: {
+          ...metadata,
+          ...(hasManagementStatus ? { device_management: management } : {}),
+          ...(hasFiuuVtStatus ? { fiuu_vt_app: fiuuVt } : {}),
+          // Client self-report for this enrollment, not build attestation or an authorization signal.
+          ...(hasWebCommit ? { web_build: { commitSha, receivedAt, enrollmentGeneration } } : {}),
+        },
+        last_seen_at: new Date(now).toISOString(),
+        updated_at: updatedAt,
+      })
+      .eq('id', id)
+      .eq('organization_id', profile.organization_id)
+      .eq('branch_id', branchId)
+      .eq('status', 'ACTIVE')
+      .eq('enrollment_generation', enrollmentGeneration)
+      .eq('updated_at', current.updated_at)
+      .select('id')
+      .maybeSingle();
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    if (updated) return NextResponse.json({ success: true, management, fiuuVt });
   }
-  const metadata = current?.metadata && typeof current.metadata === 'object' ? current.metadata : {};
-  const management = hasManagementStatus
-    ? normalizeManagementStatus(body.status)
-    : (metadata as { device_management?: PosDeviceManagementStatus }).device_management ?? null;
-  const fiuuVt = hasFiuuVtStatus
-    ? normalizeFiuuVtStatus(body.fiuu_vt_status)
-    : (metadata as { fiuu_vt_app?: PosFiuuVtAppStatus }).fiuu_vt_app ?? null;
-  const now = new Date().toISOString();
-  const { error } = await (admin as any)
-    .from('pos_devices')
-    .update({
-      metadata: {
-        ...metadata,
-        ...(hasManagementStatus ? { device_management: management } : {}),
-        ...(hasFiuuVtStatus ? { fiuu_vt_app: fiuuVt } : {}),
-      },
-      last_seen_at: now,
-      updated_at: now,
-    })
-    .eq('id', context.device.id)
-    .eq('organization_id', profile.organization_id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  return NextResponse.json({ success: true, management, fiuuVt });
+  return NextResponse.json({ error: 'Status tablet berubah. Sila cuba semula.' }, { status: 409 });
 }

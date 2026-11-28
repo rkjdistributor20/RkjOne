@@ -17,6 +17,6 @@ export async function POST(
  p_action: 'APPROVE',
  });
 
- if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+ if (error) return NextResponse.json({ error: error.message }, { status: error.code === 'PT409' ? 409 : 400 });
  return NextResponse.json({ result: data });
 }

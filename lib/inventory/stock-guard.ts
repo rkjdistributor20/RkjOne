@@ -57,7 +57,7 @@ export async function assertAmStockKiosk(
 
 export function stockPostingErrorStatus(code: string) {
  if (code === '42501') return 403;
- if (code === '40001' || code === '23505' || code === '40P01') return 409;
+ if (code === 'PT409' || code === '40001' || code === '23505' || code === '40P01') return 409;
  return 400;
 }
 
