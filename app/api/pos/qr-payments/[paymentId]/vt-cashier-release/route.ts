@@ -85,7 +85,7 @@ export async function POST(
  const service = createAdminClient();
  const { data: payment, error: paymentError } = await service
   .from('pos_online_payments')
-  .select('id, organization_id, branch_id, shift_id, created_by, provider, status, sale_payload, fiuu_vt_cancel_attempt_id, fiuu_vt_cashier_released_at')
+  .select('id, organization_id, branch_id, shift_id, created_by, provider, status, sale_payload, provider_order_id, fiuu_vt_cancel_attempt_id, fiuu_vt_cashier_released_at')
   .eq('id', paymentId)
   .eq('organization_id', profile.organization_id)
   .maybeSingle();
@@ -206,6 +206,54 @@ export async function POST(
      : 'TERMINAL',
    },
   });
+ }
+ // A consumed legacy VOID error may never obtain a durable launch record.
+ // Retrying its acknowledgement cannot make it a cancellation. Use the
+ // existing STATUS-budget quarantine only for this exact original attempt.
+ // The RPC rechecks expiry, callback/lease activity, provider success, and
+ // ownership under lock. REVIEW_REQUIRED covers a lost response to this path.
+ if (!committedReplay && payment.provider_order_id
+  && ((outcome === 'VOID_NOT_DURABLY_LAUNCHED' && payment.status === 'PENDING')
+   || (outcome === 'REVIEW_REQUIRED' && payment.status === 'QUARANTINED'))) {
+  const { data: attempt, error: attemptError } = await service
+   .from('pos_fiuu_vt_attempts')
+   .select('launched_at, abandoned_at, result_fingerprint, result_json')
+   .eq('id', release.attemptId)
+   .eq('payment_id', payment.id)
+   .eq('provider_order_id', payment.provider_order_id)
+   .eq('op_type', 'VOID')
+   .eq('state', 'CONSUMED')
+   .maybeSingle();
+  const evidence = jsonRecord(attempt?.result_json);
+  if (!attemptError && attempt?.launched_at === null && attempt.abandoned_at === null
+   && attempt.result_fingerprint && evidence?.kind === 'ERROR' && evidence.opType === 'VOID'
+   && evidence.orderId === payment.provider_order_id
+   && typeof evidence.errorCode === 'string' && evidence.errorCode.length > 0) {
+   const { data: parked, error: parkError } = await service.rpc(
+    'park_pos_fiuu_vt_status_retry_limit',
+    {
+     p_payment_id: payment.id,
+     p_actor_id: profile.id,
+     p_device_id: officialDeviceId,
+     p_enrollment_generation: officialEnrollmentGeneration,
+    },
+   );
+   const review = jsonRecord(parked);
+   if (!parkError && review?.outcome === 'QUARANTINED'
+    && review.payment_id === payment.id && review.payment_status === 'QUARANTINED'
+    && review.review_state === 'PROVIDER_ERROR_REVIEW' && review.cashier_lane_released === true
+    && (review.provider_cancellation_confirmed === false
+     || (review.reused === true && review.provider_cancellation_confirmed === undefined))) {
+    // Existing clients handle this as terminal for the local checkout only.
+    // The payment is still unresolved and late evidence stays on this order.
+    return NextResponse.json({
+     outcome: 'TERMINAL',
+     payment: { id: payment.id, status: 'QUARANTINED', cancellation_phase: 'TERMINAL' },
+     reused: review.reused === true,
+     warning: 'Kaunter dilepaskan. Bayaran masih dalam semakan Finance/HQ; pembatalan Fiuu belum disahkan.',
+    });
+   }
+  }
  }
  if (outcome === 'PAYMENT_SUCCESS_OR_REVIEW_REQUIRED' || outcome === 'STATUS_CHANGED') {
   return NextResponse.json({
